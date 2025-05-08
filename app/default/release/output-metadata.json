@@ -1,0 +1,37 @@
+{
+  "version": 3,
+  "artifactType": {
+    "type": "APK",
+    "kind": "Directory"
+  },
+  "applicationId": "dev.aaa1115910.bv",
+  "variantName": "defaultRelease",
+  "elements": [
+    {
+      "type": "SINGLE",
+      "filters": [],
+      "attributes": [],
+      "versionCode": 720,
+      "versionName": "0.2.10.r720.69cd3ef.release",
+      "outputFile": "BV_720_0.2.10.r720.69cd3ef.release_default_universal.apk"
+    }
+  ],
+  "elementType": "File",
+  "baselineProfiles": [
+    {
+      "minApi": 28,
+      "maxApi": 30,
+      "baselineProfiles": [
+        "baselineProfiles/1/BV_720_0.2.10.r720.69cd3ef.release_default_universal.dm"
+      ]
+    },
+    {
+      "minApi": 31,
+      "maxApi": 2147483647,
+      "baselineProfiles": [
+        "baselineProfiles/0/BV_720_0.2.10.r720.69cd3ef.release_default_universal.dm"
+      ]
+    }
+  ],
+  "minSdkVersionForDexing": 21
+}
