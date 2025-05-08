@@ -24,6 +24,20 @@ val signingProp = file(project.rootProject.file("signing.properties"))
 
 android {
     signingConfigs {
+        getByName("debug") {
+            storeFile =
+                file("C:\\Users\\G8AE94I\\Downloads\\basic-android-kotlin-compose-training\\debug.keystore")
+            keyAlias = "androiddebugkey"
+            storePassword = "980819"
+            keyPassword = "980819"
+        }
+        create("release") {
+            storeFile =
+                file("C:\\Users\\G8AE94I\\Downloads\\basic-android-kotlin-compose-training\\debug.keystore")
+            keyAlias = "androiddebugkey"
+            storePassword = "980819"
+            keyPassword = "980819"
+        }
         if (signingProp.exists()) {
             val properties = Properties().apply {
                 load(FileInputStream(signingProp))
@@ -69,6 +83,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
             if (signingProp.exists()) signingConfig = signingConfigs.getByName("key")
             configure<CrashlyticsExtension> {
                 mappingFileUploadEnabled = AppConfiguration.googleServicesAvailable
@@ -81,6 +96,7 @@ android {
                 "proguard-rules.pro"
             )
             applicationIdSuffix = ".debug"
+            signingConfig = signingConfigs.getByName("debug")
             configure<CrashlyticsExtension> {
                 mappingFileUploadEnabled = false
             }
