@@ -88,6 +88,7 @@ fun VideoPlayerV3Screen(
     var debugInfo by remember { mutableStateOf("") }
     var showLogs by remember { mutableStateOf(false) }
     var showBackToStart by remember { mutableStateOf(false) }
+    var showSkipToNextEp by remember { mutableStateOf(false) }
     var isPlaying by remember { mutableStateOf(true) }
     var isBuffering by remember { mutableStateOf(false) }
     var isError by remember { mutableStateOf(false) }
@@ -107,6 +108,7 @@ fun VideoPlayerV3Screen(
     var hideLogsTimer: CountDownTimer? by remember { mutableStateOf(null) }
     var clockRefreshTimer: CountDownTimer? by remember { mutableStateOf(null) }
     var hideBackToStartTimer: CountDownTimer? by remember { mutableStateOf(null) }
+    var hideSkipToNextEpTimer: CountDownTimer? by remember { mutableStateOf(null) }
 
     var currentDanmakuMaskFrame: DanmakuMaskFrame? by remember { mutableStateOf(null) }
 
@@ -261,22 +263,36 @@ fun VideoPlayerV3Screen(
             isPlaying = false
             if (!Prefs.incognitoMode) sendHeartbeat()
 
-            val videoListIndex = playerViewModel.availableVideoList.indexOfFirst {
-                it.cid == playerViewModel.currentCid
-            }
-            if (videoListIndex + 1 < playerViewModel.availableVideoList.size) {
-                val nextVideo = playerViewModel.availableVideoList[videoListIndex + 1]
-                logger.info { "Play next video: $nextVideo" }
-                playerViewModel.partTitle = nextVideo.title
-                playerViewModel.loadPlayUrl(
-                    avid = nextVideo.aid,
-                    cid = nextVideo.cid,
-                    epid = nextVideo.epid,
-                    seasonId = nextVideo.seasonId,
-                    continuePlayNext = true
-                )
-            } else{
-                (context as Activity).finish()
+            // 显示提示
+            showSkipToNextEp = true
+
+            // 使用 countDownTimer 延迟5秒后播放下一集
+            hideSkipToNextEpTimer = countDownTimer(
+                millisInFuture = 5000,
+                countDownInterval = 1000,
+                tag = "nextEpisodeCountDown"
+            ) {
+                val videoListIndex = playerViewModel.availableVideoList.indexOfFirst {
+                    it.cid == playerViewModel.currentCid
+                }
+
+                if (videoListIndex + 1 < playerViewModel.availableVideoList.size) {
+                    val nextVideo = playerViewModel.availableVideoList[videoListIndex + 1]
+                    logger.info { "Play next video: $nextVideo" }
+                    playerViewModel.partTitle = nextVideo.title
+                    playerViewModel.loadPlayUrl(
+                        avid = nextVideo.aid,
+                        cid = nextVideo.cid,
+                        epid = nextVideo.epid,
+                        seasonId = nextVideo.seasonId,
+                        continuePlayNext = true
+                    )
+                } else {
+                    (context as Activity).finish()
+                }
+
+                // 隐藏提示
+                showSkipToNextEp = false
             }
         }
 
@@ -405,6 +421,7 @@ fun VideoPlayerV3Screen(
 //        }
     }
 
+    //播放完成后清理资源
     DisposableEffect(Unit) {
         onDispose {
             videoPlayer.release()
@@ -466,6 +483,7 @@ fun VideoPlayerV3Screen(
             exception = exception,
             clock = clock,
             showBackToStart = showBackToStart,
+            showSkipToNextEp = showSkipToNextEp,
             needPay = playerViewModel.needPay,
             epid = playerViewModel.epid,
             videoShot = playerViewModel.videoShot
