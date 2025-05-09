@@ -21,15 +21,14 @@ import dev.aaa1115910.bv.util.formatMinSec
 
 // TODO 跳转历史记录
 @Composable
-fun BackToHistoryTip(
+fun BackToStartTip(
     modifier: Modifier = Modifier,
     show: Boolean,
-    time: String
 ) {
     SkipTip(
         modifier = modifier,
         show = show,
-        text = "上次看到 $time 点击确认键跳转"
+        text = "跳转到上次播放位置，按确认键从头播放"
     )
 }
 
@@ -99,17 +98,16 @@ fun SkipTip(
 fun SkipTips(
     modifier: Modifier = Modifier,
     historyTime: Long,
-    showBackToHistory: Boolean,
+    showBackToStart: Boolean,
     showSkipOp: Boolean = false,
     showSkipEd: Boolean = false,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
-        BackToHistoryTip(
+        BackToStartTip(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(bottom = 32.dp),
-            show = showBackToHistory,
-            time = historyTime.formatMinSec()
+            show = showBackToStart,
         )
     }
 }

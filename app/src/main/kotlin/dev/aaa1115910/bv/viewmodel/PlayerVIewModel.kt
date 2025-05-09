@@ -124,7 +124,7 @@ class PlayerViewModel(
         epid: Int? = null,
         seasonId: Int? = null
     ) {
-        showLogs = true
+//        showLogs = true
         currentAid = avid
         currentCid = cid
         epid?.let { this.epid = it }
@@ -250,7 +250,7 @@ class PlayerViewModel(
     @OptIn(UnstableApi::class)
     suspend fun playQuality(qn: Int = currentQuality, codec: VideoCodec = currentVideoCodec) {
         logger.fInfo { "Select resolution: $qn, codec: $codec" }
-        showLogs = true
+//        showLogs = true
         addLogs("播放清晰度：${availableQuality[qn]}, 视频编码：${codec.getDisplayName(BVApp.context)}")
 
         val videoUrl = dashData!!.video

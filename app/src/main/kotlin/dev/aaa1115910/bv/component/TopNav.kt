@@ -107,10 +107,11 @@ interface TopNavItem {
     fun getDisplayName(context: Context = BVApp.context): String
 }
 
+//enum顺序影响顶栏显示顺序，默认会显示第一个tab
 enum class HomeTopNavItem(private val displayName: String) : TopNavItem {
+    Dynamics("动态"),
     Recommend("推荐"),
-    Popular("热门"),
-    Dynamics("动态");
+    Popular("热门");
 
     override fun getDisplayName(context: Context): String {
         return displayName

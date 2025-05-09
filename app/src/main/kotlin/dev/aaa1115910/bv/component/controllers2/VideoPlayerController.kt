@@ -6,6 +6,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -57,6 +58,7 @@ fun VideoPlayerController(
     onPause: () -> Unit,
     onExit: () -> Unit,
     onGoTime: (time: Long) -> Unit,
+    onBackToStart: () -> Unit,
     onBackToHistory: () -> Unit,
     onPlayNewVideo: (VideoListItem) -> Unit,
 
@@ -130,6 +132,12 @@ fun VideoPlayerController(
         logger.info { "onTimeBack: [current=${videoPlayer.currentPosition}, goTime=$goTime]" }
     }
 
+    //有历史播放记录时自动跳转播放进度
+    LaunchedEffect(data.showBackToStart) {
+        if (data.showBackToStart)
+            onBackToHistory()
+    }
+
     Box(
         modifier = modifier
             .onFocusChanged { hasFocus = it.hasFocus }
@@ -167,9 +175,10 @@ fun VideoPlayerController(
                 when (it.key) {
                     Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
                         @Suppress("KotlinConstantConditions")
-                        if (!showClickableControllers && data.showBackToHistory) {
+                        //自动跳转到上次播放位置后，按键返回到开头
+                        if (!showClickableControllers && data.showBackToStart) {
                             if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
-                            onBackToHistory()
+                            onBackToStart()
                             return@onPreviewKeyEvent true
                         }
 
@@ -321,7 +330,7 @@ fun VideoPlayerController(
         BottomSubtitle()
         SkipTips(
             historyTime = data.lastPlayed.toLong(),
-            showBackToHistory = data.showBackToHistory,
+            showBackToStart = data.showBackToStart,
         )
         PlayStateTips(
             isPlaying = data.isPlaying,

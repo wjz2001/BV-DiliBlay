@@ -87,7 +87,7 @@ fun VideoPlayerV3Screen(
     }
     var debugInfo by remember { mutableStateOf("") }
     var showLogs by remember { mutableStateOf(false) }
-    var showBackToHistory by remember { mutableStateOf(false) }
+    var showBackToStart by remember { mutableStateOf(false) }
     var isPlaying by remember { mutableStateOf(true) }
     var isBuffering by remember { mutableStateOf(false) }
     var isError by remember { mutableStateOf(false) }
@@ -106,7 +106,7 @@ fun VideoPlayerV3Screen(
 
     var hideLogsTimer: CountDownTimer? by remember { mutableStateOf(null) }
     var clockRefreshTimer: CountDownTimer? by remember { mutableStateOf(null) }
-    var hideBackToHistoryTimer: CountDownTimer? by remember { mutableStateOf(null) }
+    var hideBackToStartTimer: CountDownTimer? by remember { mutableStateOf(null) }
 
     var currentDanmakuMaskFrame: DanmakuMaskFrame? by remember { mutableStateOf(null) }
 
@@ -233,11 +233,11 @@ fun VideoPlayerV3Screen(
             isPlaying = true
             isBuffering = false
 
-            if (playerViewModel.lastPlayed > 0 && hideBackToHistoryTimer == null) {
-                showBackToHistory = true
-                hideBackToHistoryTimer = countDownTimer(5000, 1000, "hideBackToHistoryTimer") {
-                    showBackToHistory = false
-                    hideBackToHistoryTimer = null
+            if (playerViewModel.lastPlayed > 0 && hideBackToStartTimer == null) {
+                showBackToStart = true
+                hideBackToStartTimer = countDownTimer(5000, 1000, "hideBackToStartTimer") {
+                    showBackToStart = false
+                    hideBackToStartTimer = null
                     playerViewModel.lastPlayed = 0
                 }
             }
@@ -275,6 +275,8 @@ fun VideoPlayerV3Screen(
                     seasonId = nextVideo.seasonId,
                     continuePlayNext = true
                 )
+            } else{
+                (context as Activity).finish()
             }
         }
 
@@ -397,10 +399,10 @@ fun VideoPlayerV3Screen(
 
     LaunchedEffect(playerViewModel.lastChangedLog) {
         hideLogsTimer?.cancel()
-        showLogs = true
-        hideLogsTimer = countDownTimer(3000, 1000, "hideLogsTimer") {
-            showLogs = false
-        }
+//        showLogs = true
+//        hideLogsTimer = countDownTimer(3000, 1000, "hideLogsTimer") {
+//            showLogs = false
+//        }
     }
 
     DisposableEffect(Unit) {
@@ -463,7 +465,7 @@ fun VideoPlayerV3Screen(
             isError = isError,
             exception = exception,
             clock = clock,
-            showBackToHistory = showBackToHistory,
+            showBackToStart = showBackToStart,
             needPay = playerViewModel.needPay,
             epid = playerViewModel.epid,
             videoShot = playerViewModel.videoShot
@@ -492,6 +494,15 @@ fun VideoPlayerV3Screen(
                 // akdanmaku 会在跳转后立即播放，如果需要缓冲则会导致弹幕不同步
                 playerViewModel.danmakuPlayer?.pause()
             },
+            onBackToStart = {
+                videoPlayer.seekTo(0)
+                playerViewModel.danmakuPlayer?.seekTo(0)
+                // akdanmaku 会在跳转后立即播放，如果需要缓冲则会导致弹幕不同步
+                playerViewModel.danmakuPlayer?.pause()
+                hideBackToStartTimer?.cancel()
+                hideBackToStartTimer = null
+                showBackToStart = false
+            },
             onBackToHistory = {
                 val time = playerViewModel.lastPlayed.toLong()
                 logger.fInfo { "Back to history: ${time.formatMinSec()}" }
@@ -500,9 +511,7 @@ fun VideoPlayerV3Screen(
                 // akdanmaku 会在跳转后立即播放，如果需要缓冲则会导致弹幕不同步
                 playerViewModel.danmakuPlayer?.pause()
                 playerViewModel.lastPlayed = 0
-                showBackToHistory = false
-                hideBackToHistoryTimer?.cancel()
-                hideBackToHistoryTimer = null
+                showBackToStart = true
             },
             onPlayNewVideo = {
                 if (!Prefs.incognitoMode) sendHeartbeat()
