@@ -100,6 +100,7 @@ fun VideoPlayerController(
     var moveState by remember { mutableStateOf(SeekMoveState.Idle) }
 
     var hideVideoInfoTimer: CountDownTimer? by remember { mutableStateOf(null) }
+    var onTimeForwardBackTimer: CountDownTimer? by remember { mutableStateOf(null) }
 
     val openSeekController = {
         if (!showSeekController) goTime = data.infoData.currentTime
@@ -125,7 +126,7 @@ fun VideoPlayerController(
         logger.info { "onTimeForward: [current=${videoPlayer.currentPosition}, goTime=$goTime]" }
     }
     val onTimeBack = {
-        val targetTime = goTime - (5000 + calCoefficient() * 5000)
+        val targetTime = goTime - (10000 + calCoefficient() * 5000)
         goTime = if (targetTime < 0) 0 else targetTime
         lastSeekChangeTime = System.currentTimeMillis()
         moveState = SeekMoveState.Backward
@@ -187,6 +188,8 @@ fun VideoPlayerController(
                             onGoTime(goTime)
                             moveState = SeekMoveState.Idle
                             showSeekController = false
+                            onTimeForwardBackTimer?.cancel()
+                            onTimeForwardBackTimer = null
                             return@onPreviewKeyEvent true
                         }
 
@@ -299,6 +302,13 @@ fun VideoPlayerController(
                         logger.info { "[${it.key} press]" }
                         openSeekController()
                         onTimeBack()
+                        onTimeForwardBackTimer?.cancel()
+                        onTimeForwardBackTimer = countDownTimer(500, 100, "onTimeBackTimer") {
+                            onGoTime(goTime)
+                            moveState = SeekMoveState.Idle
+                            showSeekController = false
+                            onTimeForwardBackTimer = null
+                        }
                     }
 
                     Key.DirectionRight -> {
@@ -306,6 +316,13 @@ fun VideoPlayerController(
                         logger.info { "[${it.key} press]" }
                         openSeekController()
                         onTimeForward()
+                        onTimeForwardBackTimer?.cancel()
+                        onTimeForwardBackTimer = countDownTimer(1000, 100, "onTimeBackTimer") {
+                            onGoTime(goTime)
+                            moveState = SeekMoveState.Idle
+                            showSeekController = false
+                            onTimeForwardBackTimer = null
+                        }
                     }
                 }
 
@@ -331,6 +348,7 @@ fun VideoPlayerController(
         SkipTips(
             historyTime = data.lastPlayed.toLong(),
             showBackToStart = data.showBackToStart,
+            showSkipToNextEp = data.showSkipToNextEp,
         )
         PlayStateTips(
             isPlaying = data.isPlaying,

@@ -16,10 +16,9 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
-import dev.aaa1115910.bv.util.formatMinSec
 
 
-// TODO 跳转历史记录
+// TODO 跳转历史记录 done
 @Composable
 fun BackToStartTip(
     modifier: Modifier = Modifier,
@@ -56,6 +55,19 @@ fun SkipEdTip(
         modifier = modifier,
         show = show,
         text = "跳过片尾"
+    )
+}
+
+//播放结束跳到下一集
+@Composable
+fun SkipToNextEpTip(
+    modifier: Modifier = Modifier,
+    show: Boolean
+){
+    SkipTip(
+        modifier = modifier,
+        show = show,
+        text = "播放结束，即将播放下一集"
     )
 }
 
@@ -101,6 +113,7 @@ fun SkipTips(
     showBackToStart: Boolean,
     showSkipOp: Boolean = false,
     showSkipEd: Boolean = false,
+    showSkipToNextEp: Boolean
 ) {
     Box(modifier = modifier.fillMaxSize()) {
         BackToStartTip(
@@ -108,6 +121,12 @@ fun SkipTips(
                 .align(Alignment.BottomStart)
                 .padding(bottom = 32.dp),
             show = showBackToStart,
+        )
+        SkipToNextEpTip(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(bottom = 64.dp),
+            show = showSkipToNextEp,
         )
     }
 }
