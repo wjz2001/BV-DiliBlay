@@ -182,8 +182,8 @@ enum class DrawerItem(
     User(displayName = "点击登录", displayIcon = Icons.Default.AccountCircle),
     Search(displayName = "搜索", displayIcon = Icons.Default.Search),
     Home(displayName = "首页", displayIcon = Icons.Default.Home),
-    UGC(displayName = "UGC", displayIcon = Icons.Default.OndemandVideo),
-    PGC(displayName = "PGC", displayIcon = Icons.Default.Movie),
+    UGC(displayName = "分区", displayIcon = Icons.Default.OndemandVideo),
+    PGC(displayName = "影视", displayIcon = Icons.Default.Movie),
     Settings(displayName = "设置", displayIcon = Icons.Default.Settings), ;
 }
 

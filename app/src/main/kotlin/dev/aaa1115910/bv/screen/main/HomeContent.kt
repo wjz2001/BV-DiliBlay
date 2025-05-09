@@ -58,7 +58,7 @@ fun HomeContent(
     val popularState = rememberLazyListState()
     val dynamicState = rememberLazyListState()
 
-    var selectedTab by remember { mutableStateOf(HomeTopNavItem.Recommend) }
+    var selectedTab by remember { mutableStateOf(HomeTopNavItem.Dynamics) }
     var focusOnContent by remember { mutableStateOf(false) }
     var hasFocus by remember { mutableStateOf(false) }
     val currentListOnTop by remember {

@@ -2,6 +2,7 @@ package dev.aaa1115910.bv.screen.search
 
 import android.app.Activity
 import android.content.Context
+import android.util.Log
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -309,6 +310,8 @@ private fun SearchResultListItem(
                     avid = searchResult.aid,
                     title = searchResult.title.removeHtmlTags(),
                     cover = searchResult.cover,
+                    play = with(searchResult.play) { if (this == -1) null else this },
+                    danmaku = with(searchResult.danmaku) { if (this == -1) null else this },
                     upName = searchResult.author,
                     time = searchResult.duration * 1000L
                 ),

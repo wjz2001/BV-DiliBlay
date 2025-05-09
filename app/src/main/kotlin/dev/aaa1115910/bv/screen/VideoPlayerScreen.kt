@@ -49,7 +49,7 @@ fun VideoPlayerScreen(
     playerViewModel: PlayerViewModel = koinViewModel()
 ) {
     val scope = rememberCoroutineScope()
-    val logger = KotlinLogging.logger { }
+    val logger = KotlinLogging.logger("VideoPlayerScreen")
 
     val videoPlayer = playerViewModel.player!!
 
