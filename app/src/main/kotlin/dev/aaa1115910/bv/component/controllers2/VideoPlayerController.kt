@@ -245,19 +245,24 @@ fun VideoPlayerController(
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
                         logger.info { "[${it.key} press]" }
 
-                        if (!videoPlayer.isPlaying) {
-                            logger.fInfo { "Exiting video player" }
-                            onExit()
-                            return@onPreviewKeyEvent true
-                        }
-
-                        val currentTime = System.currentTimeMillis()
-                        if (currentTime - lastPressBack < 1000 * 3) {
-                            logger.fInfo { "Exiting video player" }
-                            onExit()
+                        // 显示视频信息时，点击返回键关闭信息
+                        if (showInfo) {
+                            showInfo = false
                         } else {
-                            lastPressBack = currentTime
-                            R.string.video_player_press_back_again_to_exit.toast(context)
+                            if (!videoPlayer.isPlaying) {
+                                logger.fInfo { "Exiting video player" }
+                                onExit()
+                                return@onPreviewKeyEvent true
+                            }
+
+                            val currentTime = System.currentTimeMillis()
+                            if (currentTime - lastPressBack < 1000 * 3) {
+                                logger.fInfo { "Exiting video player" }
+                                onExit()
+                            } else {
+                                lastPressBack = currentTime
+                                R.string.video_player_press_back_again_to_exit.toast(context)
+                            }
                         }
                         return@onPreviewKeyEvent true
                     }
