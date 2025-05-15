@@ -38,6 +38,7 @@ import dev.aaa1115910.bv.component.controllers.VideoPlayerControllerData
 import dev.aaa1115910.bv.component.controllers.info.VideoPlayerInfoData
 import dev.aaa1115910.bv.component.controllers2.DanmakuType
 import dev.aaa1115910.bv.component.controllers2.VideoPlayerController
+import dev.aaa1115910.bv.component.controllers2.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
@@ -100,7 +101,8 @@ fun VideoPlayerV3Screen(
 
     var currentVideoAspectRatio by remember { mutableStateOf(VideoAspectRatio.Default) }
     var currentPosition by remember { mutableLongStateOf(0L) }
-    var currentPlaySpeed by remember { mutableFloatStateOf(Prefs.defaultPlaySpeed) }
+    var currentPlaySpeed by remember { mutableFloatStateOf(1f) }
+    var currentSelectedPlaySpeedItem by remember { mutableStateOf(PlaySpeedItem.x1) }
     var aspectRatio by remember { mutableFloatStateOf(16f / 9f) }
 
     var clock: Triple<Int, Int, Int> by remember { mutableStateOf(Triple(0, 0, 0)) }
@@ -461,6 +463,7 @@ fun VideoPlayerV3Screen(
             currentVideoCodec = playerViewModel.currentVideoCodec,
             currentVideoAspectRatio = currentVideoAspectRatio,
             currentVideoSpeed = currentPlaySpeed,
+            currentSelectedPlaySpeedItem = currentSelectedPlaySpeedItem,
             currentAudio = playerViewModel.currentAudio,
             currentDanmakuEnabled = playerViewModel.currentDanmakuEnabled,
             currentDanmakuEnabledList = playerViewModel.currentDanmakuTypes,
@@ -577,10 +580,14 @@ fun VideoPlayerV3Screen(
             },
             onPlaySpeedChange = { speed ->
                 logger.info { "Set default play speed: $speed" }
-                Prefs.defaultPlaySpeed = speed
+//                Prefs.defaultPlaySpeed = speed
                 currentPlaySpeed = speed
                 videoPlayer.speed = speed
                 playerViewModel.danmakuPlayer?.updatePlaySpeed(speed)
+            },
+            onSelectedPlaySpeedItemChange = {
+                logger.info { "Set selected play speed: $it" }
+                currentSelectedPlaySpeedItem = it
             },
             onAudioChange = { audio ->
                 playerViewModel.currentAudio = audio

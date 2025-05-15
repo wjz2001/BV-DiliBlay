@@ -69,9 +69,9 @@ object Prefs {
         get() = runBlocking { dsm.getPreferenceFlow(PrefKeys.prefDefaultQualityRequest).first() }
         set(value) = runBlocking { dsm.editPreference(PrefKeys.prefDefaultQualityKey, value) }
 
-    var defaultPlaySpeed: Float
-        get() = runBlocking { dsm.getPreferenceFlow(PrefKeys.prefDefaultPlaySpeedRequest).first() }
-        set(value) = runBlocking { dsm.editPreference(PrefKeys.prefDefaultPlaySpeedKey, value) }
+//    var defaultPlaySpeed: Float
+//        get() = runBlocking { dsm.getPreferenceFlow(PrefKeys.prefDefaultPlaySpeedRequest).first() }
+//        set(value) = runBlocking { dsm.editPreference(PrefKeys.prefDefaultPlaySpeedKey, value) }
 
     var defaultAudio: Audio
         get() = runBlocking {

@@ -114,15 +114,15 @@ fun PictureMenuList(
                     }
                 )
 
-                VideoPlayerPictureMenuItem.PlaySpeed -> StepLessMenuItem(
-                    modifier = menuItemsModifier,
-                    value = data.currentVideoSpeed,
-                    step = 0.25f,
-                    range = 0.25f..2f,
-                    text = "${(data.currentVideoSpeed * 100).roundToInt() / 100f}x",
-                    onValueChange = onPlaySpeedChange,
-                    onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
-                )
+//                VideoPlayerPictureMenuItem.PlaySpeed -> StepLessMenuItem(
+//                    modifier = menuItemsModifier,
+//                    value = data.currentVideoSpeed,
+//                    step = 0.25f,
+//                    range = 0.25f..2f,
+//                    text = "${(data.currentVideoSpeed * 100).roundToInt() / 100f}x",
+//                    onValueChange = onPlaySpeedChange,
+//                    onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
+//                )
 
                 VideoPlayerPictureMenuItem.Audio -> RadioMenuList(
                     modifier = menuItemsModifier,

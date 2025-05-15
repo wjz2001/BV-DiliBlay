@@ -34,6 +34,7 @@ import dev.aaa1115910.biliapi.entity.video.Subtitle
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.controllers.LocalVideoPlayerControllerData
+import dev.aaa1115910.bv.component.controllers2.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
@@ -67,6 +68,7 @@ fun VideoPlayerController(
     onCodecChange: (VideoCodec) -> Unit,
     onAspectRatioChange: (VideoAspectRatio) -> Unit,
     onPlaySpeedChange: (Float) -> Unit,
+    onSelectedPlaySpeedItemChange: (PlaySpeedItem) -> Unit,
     onAudioChange: (Audio) -> Unit,
     onDanmakuSwitchChange: (List<DanmakuType>) -> Unit,
     onDanmakuSizeChange: (Float) -> Unit,
@@ -393,6 +395,7 @@ fun VideoPlayerController(
             onCodecChange = onCodecChange,
             onAspectRatioChange = onAspectRatioChange,
             onPlaySpeedChange = onPlaySpeedChange,
+            onSelectedPlaySpeedItemChange = onSelectedPlaySpeedItemChange,
             onAudioChange = onAudioChange,
             onDanmakuSwitchChange = onDanmakuSwitchChange,
             onDanmakuSizeChange = onDanmakuSizeChange,
