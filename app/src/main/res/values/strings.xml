@@ -178,6 +178,12 @@
     <string name="resolution_hdr">HDR 真彩色</string>
     <string name="resolution_hdr_short">HDR</string>
 
+    <string name="play_speed_x0_5">0.5</string>
+    <string name="play_speed_x1">1.0</string>
+    <string name="play_speed_x1_25">1.25</string>
+    <string name="play_speed_x1_5">1.5</string>
+    <string name="play_speed_x2">2.0</string>
+
     <string name="search_input_history">历史记录</string>
     <string name="search_input_hotword">bilibili 热搜</string>
     <string name="search_input_soft_keybord_clear">清空</string>

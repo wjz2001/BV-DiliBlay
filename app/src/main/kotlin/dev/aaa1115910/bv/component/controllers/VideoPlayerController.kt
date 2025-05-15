@@ -45,6 +45,7 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.controllers.info.VideoPlayerInfoData
 import dev.aaa1115910.bv.component.controllers.info.VideoPlayerInfoTip
 import dev.aaa1115910.bv.component.controllers2.DanmakuType
+import dev.aaa1115910.bv.component.controllers2.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.DanmakuSize
 import dev.aaa1115910.bv.entity.DanmakuTransparency
@@ -476,6 +477,7 @@ data class VideoPlayerControllerData(
     val currentVideoCodec: VideoCodec = VideoCodec.AVC,
     val currentVideoAspectRatio: VideoAspectRatio = VideoAspectRatio.Default,
     val currentVideoSpeed: Float = 1f,
+    val currentSelectedPlaySpeedItem: PlaySpeedItem = PlaySpeedItem.x1,
     val currentAudio: Audio = Audio.A192K,
     val currentDanmakuEnabled: Boolean = true,
     val currentDanmakuEnabledList: List<DanmakuType> = listOf(),
