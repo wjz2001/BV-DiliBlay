@@ -273,7 +273,7 @@ fun VideoInfoScreen(
         }
     }
 
-    val addVideoToDefaultFavoriteFolder: () -> Unit = {
+    val addVideoToDefaultFavoriteFolder: () -> Boolean = {
         runCatching {
             val defaultFavoriteFolder =
                 favoriteFolderMetadataList.firstOrNull { it.title == "默认收藏夹" }
@@ -282,7 +282,7 @@ fun VideoInfoScreen(
         }.onFailure {
             logger.fInfo { "Add video to default favorite folder failed: ${it.stackTraceToString()}" }
             it.message ?: "unknown error".toast(context)
-        }
+        }.isSuccess
     }
 
     val updateVideoIsFavoured = {
@@ -584,8 +584,10 @@ fun VideoInfoScreen(
                                 )
                             },
                             onAddToDefaultFavoriteFolder = {
-                                addVideoToDefaultFavoriteFolder()
-                                favorited = true
+                                if (addVideoToDefaultFavoriteFolder())
+                                    favorited = true
+                                else
+                                    "收藏失败".toast(context)
                             },
                             onUpdateFavoriteFolders = {
                                 updateVideoFavoriteData(it)

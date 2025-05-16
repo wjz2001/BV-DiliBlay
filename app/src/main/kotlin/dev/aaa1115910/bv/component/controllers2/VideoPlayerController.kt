@@ -250,6 +250,8 @@ fun VideoPlayerController(
                         // 显示视频信息时，点击返回键关闭信息
                         if (showInfo) {
                             showInfo = false
+                            hideVideoInfoTimer?.cancel()
+                            hideVideoInfoTimer = null
                         } else {
                             if (!videoPlayer.isPlaying) {
                                 logger.fInfo { "Exiting video player" }
