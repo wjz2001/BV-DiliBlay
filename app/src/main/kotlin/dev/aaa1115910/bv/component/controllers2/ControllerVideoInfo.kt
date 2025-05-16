@@ -113,25 +113,29 @@ fun ControllerVideoInfoTop(
         modifier = modifier
             .fillMaxWidth()
             .clip(
-                MaterialTheme.shapes.large
-                    .copy(topStart = CornerSize(0.dp), topEnd = CornerSize(0.dp))
+                MaterialTheme.shapes.large.copy(
+                    topStart = CornerSize(0.dp),
+                    topEnd = CornerSize(0.dp)
+                )
             )
             .background(Color.Black.copy(0.5f))
-            .padding(horizontal = 32.dp, vertical = 16.dp),
+            .padding(horizontal = 32.dp, vertical = 16.dp)
     ) {
-        Box {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(end = 100.dp),
+                modifier = Modifier.weight(1f)
+                    .padding(end = 8.dp),
                 text = title,
-                style = MaterialTheme.typography.displaySmall,
+                style = MaterialTheme.typography.headlineSmall,
                 color = Color.White,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
             Clock(
-                modifier = Modifier.align(Alignment.CenterEnd),
                 hour = clock.first,
                 minute = clock.second,
                 second = clock.third
@@ -169,7 +173,7 @@ fun ControllerVideoInfoBottom(
             Text(
                 modifier = Modifier
                     .padding(horizontal = 28.dp)
-                    .fillMaxWidth(0.7f),
+                    .weight(1f),
                 text = partTitle,
                 color = Color.White,
                 maxLines = 1,
@@ -264,7 +268,7 @@ private fun ControllerVideoInfoPreview() {
                 codec = ""
             ),
             title = "【A320】民航史上最佳逆袭！A320的前世今生！民航史上最佳逆袭！A320的前世今生！",
-            secondTitle = "2023车队车手介绍分析预测",
+            secondTitle = "2023车队车手介绍分析预测2023车队车手介绍分析预测2023车队车手介绍分析预测",
             clock = Triple(12, 30, 30),
             onHideInfo = {},
             idleIcon = "",

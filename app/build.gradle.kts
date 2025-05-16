@@ -33,8 +33,8 @@ android {
         }
         create("release") {
             storeFile =
-                file("C:\\Users\\G8AE94I\\Downloads\\basic-android-kotlin-compose-training\\debug.keystore")
-            keyAlias = "androiddebugkey"
+                file("C:\\Users\\G8AE94I\\Downloads\\basic-android-kotlin-compose-training\\release.keystore")
+            keyAlias = "releaseKeystore"
             storePassword = "980819"
             keyPassword = "980819"
         }

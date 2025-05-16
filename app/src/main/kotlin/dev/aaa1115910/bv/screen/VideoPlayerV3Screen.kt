@@ -265,20 +265,18 @@ fun VideoPlayerV3Screen(
             isPlaying = false
             if (!Prefs.incognitoMode) sendHeartbeat()
 
-            // 显示提示
-            showSkipToNextEp = true
+            val videoListIndex = playerViewModel.availableVideoList.indexOfFirst {
+                it.cid == playerViewModel.currentCid
+            }
 
-            // 使用 countDownTimer 延迟5秒后播放下一集
-            hideSkipToNextEpTimer = countDownTimer(
-                millisInFuture = 5000,
-                countDownInterval = 1000,
-                tag = "nextEpisodeCountDown"
-            ) {
-                val videoListIndex = playerViewModel.availableVideoList.indexOfFirst {
-                    it.cid == playerViewModel.currentCid
-                }
-
-                if (videoListIndex + 1 < playerViewModel.availableVideoList.size) {
+            // 存在下一集时，使用 countDownTimer 延迟5秒后播放下一集
+            if (videoListIndex + 1 < playerViewModel.availableVideoList.size) {
+                showSkipToNextEp = true
+                hideSkipToNextEpTimer = countDownTimer(
+                    millisInFuture = 5000,
+                    countDownInterval = 1000,
+                    tag = "nextEpisodeCountDown"
+                ) {
                     val nextVideo = playerViewModel.availableVideoList[videoListIndex + 1]
                     logger.info { "Play next video: $nextVideo" }
                     playerViewModel.partTitle = nextVideo.title
@@ -289,12 +287,11 @@ fun VideoPlayerV3Screen(
                         seasonId = nextVideo.seasonId,
                         continuePlayNext = true
                     )
-                } else {
-                    (context as Activity).finish()
+                    // 隐藏提示
+                    showSkipToNextEp = false
                 }
-
-                // 隐藏提示
-                showSkipToNextEp = false
+            } else {
+                (context as Activity).finish()
             }
         }
 
