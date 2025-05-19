@@ -542,6 +542,11 @@ fun VideoPlayerV3Screen(
                     continuePlayNext = true
                 )
             },
+            onCancelSkipToNextEp = {
+                hideSkipToNextEpTimer?.cancel()
+                hideSkipToNextEpTimer = null
+                showSkipToNextEp = false
+            },
 
             onResolutionChange = { qualityId ->
                 playerViewModel.currentQuality = qualityId

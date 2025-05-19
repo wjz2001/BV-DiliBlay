@@ -61,6 +61,7 @@ fun VideoPlayerController(
     onGoTime: (time: Long) -> Unit,
     onBackToStart: () -> Unit,
     onBackToHistory: () -> Unit,
+    onCancelSkipToNextEp: () -> Unit,
     onPlayNewVideo: (VideoListItem) -> Unit,
 
     //menu events
@@ -304,6 +305,9 @@ fun VideoPlayerController(
                         logger.info { "[${it.key} press]" }
                         openSeekController()
                         onTimeBack()
+                        if(data.showSkipToNextEp){
+                            onCancelSkipToNextEp()
+                        }
                     }
 
                     Key.DirectionLeft -> {
@@ -317,6 +321,9 @@ fun VideoPlayerController(
                             moveState = SeekMoveState.Idle
                             showSeekController = false
                             onTimeForwardBackTimer = null
+                        }
+                        if(data.showSkipToNextEp){
+                            onCancelSkipToNextEp()
                         }
                     }
 
