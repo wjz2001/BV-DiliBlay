@@ -12,8 +12,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Done
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -60,16 +60,10 @@ fun FavoriteButton(
             } else onAddToDefaultFavoriteFolder()
         }
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                contentDescription = null
-            )
-            Text(text = stringResource(R.string.favorite_button_text))
-        }
+        Icon(
+            imageVector = if (isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+            contentDescription = null
+        )
     }
 
     FavoriteDialog(

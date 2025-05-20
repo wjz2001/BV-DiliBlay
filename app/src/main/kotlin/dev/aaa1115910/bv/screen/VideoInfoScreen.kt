@@ -97,14 +97,18 @@ import dev.aaa1115910.biliapi.entity.video.VideoDetail
 import dev.aaa1115910.biliapi.entity.video.VideoPage
 import dev.aaa1115910.biliapi.entity.video.season.Episode
 import dev.aaa1115910.biliapi.http.BiliPlusHttpApi
+import dev.aaa1115910.biliapi.repositories.CoinRepository
 import dev.aaa1115910.biliapi.repositories.FavoriteRepository
+import dev.aaa1115910.biliapi.repositories.LikeRepository
 import dev.aaa1115910.biliapi.repositories.UserRepository
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.activities.video.TagActivity
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.UpIcon
+import dev.aaa1115910.bv.component.buttons.CoinButton
 import dev.aaa1115910.bv.component.buttons.FavoriteButton
+import dev.aaa1115910.bv.component.buttons.LikeButton
 import dev.aaa1115910.bv.component.createCustomInitialFocusRestorerModifiers
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.videocard.VideosRow
@@ -141,6 +145,8 @@ fun VideoInfoScreen(
     videoDetailViewModel: VideoDetailViewModel = koinViewModel(),
     userRepository: UserRepository = getKoin().get(),
     favoriteRepository: FavoriteRepository = getKoin().get(),
+    likeRepository: LikeRepository = getKoin().get(),
+    coinRepository: CoinRepository = getKoin().get()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -167,6 +173,9 @@ fun VideoInfoScreen(
     }
 
     var favorited by remember { mutableStateOf(false) }
+    var liked by remember { mutableStateOf(false) }
+    var coined by remember { mutableStateOf(false) }
+
     val favoriteFolderMetadataList = remember { mutableStateListOf<FavoriteFolderMetadata>() }
     val videoInFavoriteFolderIds = remember { mutableStateListOf<Long>() }
 
@@ -289,6 +298,48 @@ fun VideoInfoScreen(
         favorited = videoDetailViewModel.videoDetail?.userActions?.favorite ?: false
     }
 
+    suspend fun updateVideoLikedData(like: Boolean): Boolean {
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                logger.info { "Check video ${videoDetailViewModel.videoDetail?.aid} is liked" }
+                likeRepository.updateVideoLiked(
+                    like = like,
+                    aid = videoDetailViewModel.videoDetail!!.aid,
+                    bvid = videoDetailViewModel.videoDetail!!.bvid
+                )
+            }.onFailure { throwable ->
+                logger.fInfo { "Update video liked status failed: ${throwable.stackTraceToString()}" }
+            }.onSuccess {
+                logger.fInfo { "Update video liked status success" }
+            }.isSuccess // 返回成功与否
+        }
+    }
+
+    suspend fun sendVideoCoin(): Boolean {
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                logger.info { "Check video ${videoDetailViewModel.videoDetail?.aid} is liked" }
+                coinRepository.sendVideoCoin(
+                    aid = videoDetailViewModel.videoDetail!!.aid,
+                    bvid = videoDetailViewModel.videoDetail!!.bvid
+                )
+            }.onFailure { throwable ->
+                logger.fInfo { "Send video coin failed: ${throwable.stackTraceToString()}" }
+            }.onSuccess {
+                logger.fInfo { "Send video coin success" }
+            }.isSuccess // 返回成功与否
+        }
+    }
+
+
+    val updateVideoIsLiked = {
+        liked = videoDetailViewModel.videoDetail?.userActions?.like ?: false
+    }
+
+    val updateVideoIsCoined = {
+        coined = videoDetailViewModel.videoDetail?.userActions?.coin ?: false
+    }
+
     val updateUgcSeasonSectionVideoList: (Int) -> Unit = { sectionIndex ->
         val partVideoList =
             videoDetailViewModel.videoDetail!!.ugcSeason!!.sections[sectionIndex].episodes.mapIndexed { index, episode ->
@@ -332,6 +383,8 @@ fun VideoInfoScreen(
                 runCatching {
                     videoDetailViewModel.loadDetail(aid)
                     updateVideoIsFavoured()
+                    updateVideoIsLiked()
+                    updateVideoIsCoined()
                     setHistory()
                     if (Prefs.isLogin) fetchFavoriteData(aid)
 
@@ -508,6 +561,8 @@ fun VideoInfoScreen(
                             isFollowing = isFollowing,
                             tags = videoDetailViewModel.videoDetail!!.tags,
                             isFavorite = favorited,
+                            isLiked = liked,
+                            isCoined = coined,
                             userFavoriteFolders = favoriteFolderMetadataList,
                             favoriteFolderIds = videoInFavoriteFolderIds,
                             onClickCover = {
@@ -593,6 +648,22 @@ fun VideoInfoScreen(
                                 updateVideoFavoriteData(it)
                                 favorited = it.isNotEmpty()
                                 videoInFavoriteFolderIds.swapList(it)
+                            },
+                            onUpdateLiked = {
+                                scope.launch {
+                                    if (updateVideoLikedData(it))
+                                        liked = it
+                                    else
+                                        "点赞失败".toast(context)
+                                }
+                            },
+                            onSendVideoCoin = {
+                                scope.launch {
+                                    if (!coined) {
+                                        if (sendVideoCoin()) coined = true
+                                        else "投币失败".toast(context)
+                                    }
+                                }
                             }
                         )
                     }
@@ -751,6 +822,8 @@ fun VideoInfoData(
     isFollowing: Boolean,
     tags: List<Tag>,
     isFavorite: Boolean,
+    isLiked: Boolean,
+    isCoined: Boolean,
     userFavoriteFolders: List<FavoriteFolderMetadata> = emptyList(),
     favoriteFolderIds: List<Long> = emptyList(),
     onClickCover: () -> Unit,
@@ -759,7 +832,9 @@ fun VideoInfoData(
     onDelFollow: () -> Unit,
     onClickTip: (Tag) -> Unit,
     onAddToDefaultFavoriteFolder: () -> Unit,
-    onUpdateFavoriteFolders: (List<Long>) -> Unit
+    onUpdateFavoriteFolders: (List<Long>) -> Unit,
+    onUpdateLiked: (Boolean) -> Unit,
+    onSendVideoCoin: () -> Unit
 ) {
     val localDensity = LocalDensity.current
     var heightIs by remember { mutableStateOf(0.dp) }
@@ -848,6 +923,13 @@ fun VideoInfoData(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
+                LikeButton(isLiked = isLiked, onClick = { onUpdateLiked(!isLiked) })
+                Spacer(modifier = Modifier.width(5.dp))
+                CoinButton(
+                    isCoined = isCoined,
+                    onClick = onSendVideoCoin,
+                )
+                Spacer(modifier = Modifier.width(5.dp))
                 FavoriteButton(
                     isFavorite = isFavorite,
                     userFavoriteFolders = userFavoriteFolders,
@@ -856,6 +938,7 @@ fun VideoInfoData(
                     onUpdateFavoriteFolders = onUpdateFavoriteFolders
                 )
                 LazyRow(
+                    modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {

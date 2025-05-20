@@ -654,7 +654,8 @@ object BiliHttpApi {
         multiply: Int = 1,
         like: Boolean = false,
         csrf: String,
-        sessData: String
+        sessData: String,
+        buvid3: String
     ): Pair<Boolean, String> {
         require(avid != null || bvid != null) { "avid and bvid cannot be null at the same time" }
         val response = client.post("/x/web-interface/coin/add") {
@@ -667,7 +668,7 @@ object BiliHttpApi {
                     append("csrf", csrf)
                 }
             ))
-            header("Cookie", "SESSDATA=$sessData;")
+            header("Cookie", "SESSDATA=$sessData;buvid3=$buvid3")
         }.body<BiliResponse<AddCoin>>()
         return Pair(response.code == 0, response.message)
     }
