@@ -15,7 +15,9 @@ import kotlinx.coroutines.withContext
 class VideoDetailRepository(
     private val authRepository: AuthRepository,
     private val channelRepository: ChannelRepository,
-    private val favoriteRepository: FavoriteRepository
+    private val favoriteRepository: FavoriteRepository,
+    private val likeRepository: LikeRepository,
+    private val coinRepository: CoinRepository
 ) {
     private val viewStub
         get() = runCatching {
@@ -49,6 +51,27 @@ class VideoDetailRepository(
                         }.getOrDefault(false)
                     }
 
+                    val isLiked = async {
+                        runCatching {
+                            likeRepository.checkVideoLiked(
+                                aid  = aid,
+                            )
+                        }.onFailure {
+                            println("Check video liked failed: $it")
+                        }.getOrDefault(false)
+                    }
+
+                    val isCoined = async {
+                        runCatching {
+                            coinRepository.checkVideoCoined(
+                                aid = aid,
+                            )
+                        }.onFailure {
+                            println("Check video coined failed: $it")
+                        }.getOrDefault(false)
+                    }
+
+
                     val historyAndPlayerIcon = async {
                         runCatching {
                             val videoModeInfo = BiliHttpApi.getVideoMoreInfo(
@@ -70,6 +93,8 @@ class VideoDetailRepository(
 
                     videoDetailWithoutUserActions.await().apply {
                         userActions.favorite = isFavoured.await()
+                        userActions.like = isLiked.await()
+                        userActions.coin = isCoined.await()
                         val (history, playerIcon) = historyAndPlayerIcon.await()
                         this.history = history
                         this.playerIcon = playerIcon
