@@ -3,12 +3,12 @@ import java.io.File
 object AppConfiguration {
     const val appId = "dev.aaa1115910.bv"
     const val applicationId = "dev.frost819.bv" //由于小米电视屏蔽原包名，此包名仅用于apk打包
-    const val compileSdk = 35
+    const val compileSdk = 36
     const val minSdk = 21
-    const val targetSdk = 35
+    const val targetSdk = 36
     private const val major = 0
-    private const val minor = 2
-    private const val patch = 10
+    private const val minor = 3
+    private const val patch = 0
     private const val hotFix = 0
 
     @Suppress("KotlinConstantConditions")
@@ -25,7 +25,7 @@ object AppConfiguration {
     }
 
     private fun initConfigurations() {
-        val googleServicesJsonPath = File(System.getProperty("user.dir"), "app/google-services.json").absolutePath
+        val googleServicesJsonPath = "pwd".exec() + "/app/google-services.json"
         val googleServicesJsonFile = File(googleServicesJsonPath)
         googleServicesAvailable =
             googleServicesJsonFile.exists() && googleServicesJsonFile.readText().let {

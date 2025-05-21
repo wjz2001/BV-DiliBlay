@@ -134,22 +134,20 @@ fun HomeContent(
                 .onPreviewKeyEvent {
                     if (it.key == Key.Menu) {
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
-                        scope.launch(Dispatchers.IO) {
-                            when (selectedTab) {
-                                HomeTopNavItem.Recommend -> {
-                                    recommendViewModel.clearData()
-                                    recommendViewModel.loadMore()
-                                }
+                        when (selectedTab) {
+                            HomeTopNavItem.Recommend -> {
+                                recommendViewModel.clearData()
+                                scope.launch(Dispatchers.IO) { recommendViewModel.loadMore() }
+                            }
 
-                                HomeTopNavItem.Popular -> {
-                                    popularViewModel.clearData()
-                                    popularViewModel.loadMore()
-                                }
+                            HomeTopNavItem.Popular -> {
+                                popularViewModel.clearData()
+                                scope.launch(Dispatchers.IO) { popularViewModel.loadMore() }
+                            }
 
-                                HomeTopNavItem.Dynamics -> {
-                                    dynamicViewModel.clearData()
-                                    dynamicViewModel.loadMore()
-                                }
+                            HomeTopNavItem.Dynamics -> {
+                                dynamicViewModel.clearData()
+                                scope.launch(Dispatchers.IO) { dynamicViewModel.loadMore() }
                             }
                         }
                         navFocusRequester.requestFocus()

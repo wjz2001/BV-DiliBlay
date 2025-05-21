@@ -144,6 +144,7 @@ fun VideoPlayerController(
 
     Box(
         modifier = modifier
+            .background(Color.Black)
             .onFocusChanged { hasFocus = it.hasFocus }
             .focusable()
             .onPreviewKeyEvent {
