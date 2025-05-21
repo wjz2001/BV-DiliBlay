@@ -662,7 +662,8 @@ fun VideoPlayerV3Screen(
                 BvVideoPlayer(
                     modifier = Modifier
                         .fillMaxHeight()
-                        .aspectRatio(aspectRatio),
+                        .aspectRatio(aspectRatio)
+                        .align(Alignment.Center),
                     videoPlayer = videoPlayer,
                     playerListener = videoPlayerListener,
                     isVerticalVideo = playerViewModel.isVerticalVideo
