@@ -287,7 +287,7 @@ private fun CardInfo(
     upName: String
 ) {
     Column(
-        modifier = modifier.padding(8.dp)
+        modifier = modifier.padding(0.dp, 8.dp)
     ) {
         Text(
             text = title,
