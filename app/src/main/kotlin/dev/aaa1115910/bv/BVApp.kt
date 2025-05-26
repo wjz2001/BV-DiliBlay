@@ -17,6 +17,7 @@ import dev.aaa1115910.biliapi.repositories.HistoryRepository
 import dev.aaa1115910.biliapi.repositories.LikeRepository
 import dev.aaa1115910.biliapi.repositories.ToViewRepository
 import dev.aaa1115910.biliapi.repositories.LoginRepository
+import dev.aaa1115910.biliapi.repositories.OneClickTripleActionRepository
 import dev.aaa1115910.biliapi.repositories.PgcRepository
 import dev.aaa1115910.biliapi.repositories.RecommendVideoRepository
 import dev.aaa1115910.biliapi.repositories.SearchRepository
@@ -161,6 +162,7 @@ val appModule = module {
     single { FavoriteRepository(get()) }
     single { LikeRepository(get()) }
     single { CoinRepository(get())}
+    single { OneClickTripleActionRepository(get()) }
     single { HistoryRepository(get(), get()) }
     single { ToViewRepository(get(), get()) }    
     single { SearchRepository(get(), get()) }

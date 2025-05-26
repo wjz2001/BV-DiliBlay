@@ -4,6 +4,7 @@ import android.app.Activity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -72,6 +73,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Glow
@@ -100,6 +102,7 @@ import dev.aaa1115910.biliapi.http.BiliPlusHttpApi
 import dev.aaa1115910.biliapi.repositories.CoinRepository
 import dev.aaa1115910.biliapi.repositories.FavoriteRepository
 import dev.aaa1115910.biliapi.repositories.LikeRepository
+import dev.aaa1115910.biliapi.repositories.OneClickTripleActionRepository
 import dev.aaa1115910.biliapi.repositories.UserRepository
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
@@ -146,7 +149,8 @@ fun VideoInfoScreen(
     userRepository: UserRepository = getKoin().get(),
     favoriteRepository: FavoriteRepository = getKoin().get(),
     likeRepository: LikeRepository = getKoin().get(),
-    coinRepository: CoinRepository = getKoin().get()
+    coinRepository: CoinRepository = getKoin().get(),
+    oneClickTripleActionRepository: OneClickTripleActionRepository = getKoin().get()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -331,6 +335,27 @@ fun VideoInfoScreen(
         }
     }
 
+    suspend fun sendVideoOneClickTripleAction(): Boolean {
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val data =
+                    oneClickTripleActionRepository.sendVideoOneClickTripleAction(
+                        aid = videoDetailViewModel.videoDetail!!.aid,
+                        bvid = videoDetailViewModel.videoDetail!!.bvid
+                    )
+                if (data != null) {
+                    liked = data.like
+                    coined = data.coin
+                    favorited = data.fav
+                    if (favorited) addVideoToDefaultFavoriteFolder()
+                }
+            }.onFailure { throwable ->
+                logger.fInfo { "Send video one click triple action failed: ${throwable.stackTraceToString()}" }
+            }.onSuccess {
+                logger.fInfo { "Send video one click triple action success" }
+            }.isSuccess
+        }
+    }
 
     val updateVideoIsLiked = {
         liked = videoDetailViewModel.videoDetail?.userActions?.like ?: false
@@ -664,6 +689,15 @@ fun VideoInfoScreen(
                                         else "投币失败".toast(context)
                                     }
                                 }
+                            },
+                            onSendVideoOneClickTripleAction = {
+                                scope.launch {
+                                    if (sendVideoOneClickTripleAction()) {
+                                        "一键三连".toast(context)
+                                    } else {
+                                        "一键三连失败".toast(context)
+                                    }
+                                }
                             }
                         )
                     }
@@ -834,7 +868,8 @@ fun VideoInfoData(
     onAddToDefaultFavoriteFolder: () -> Unit,
     onUpdateFavoriteFolders: (List<Long>) -> Unit,
     onUpdateLiked: (Boolean) -> Unit,
-    onSendVideoCoin: () -> Unit
+    onSendVideoCoin: () -> Unit,
+    onSendVideoOneClickTripleAction: () -> Unit
 ) {
     val localDensity = LocalDensity.current
     var heightIs by remember { mutableStateOf(0.dp) }
@@ -855,10 +890,16 @@ fun VideoInfoData(
             shape = ClickableSurfaceDefaults.shape(
                 shape = MaterialTheme.shapes.large,
             ),
-            glow = ClickableSurfaceDefaults.glow(
-                focusedGlow = Glow(
-                    elevationColor = MaterialTheme.colorScheme.inverseSurface,
-                    elevation = 16.dp
+//            glow = ClickableSurfaceDefaults.glow(
+//                focusedGlow = Glow(
+//                    elevationColor = MaterialTheme.colorScheme.inverseSurface,
+//                    elevation = 16.dp
+//                )
+//            ),
+            border = ClickableSurfaceDefaults.border(
+                focusedBorder = Border(
+                    border = BorderStroke(width = 3.dp, color = MaterialTheme.colorScheme.border),
+                    shape = MaterialTheme.shapes.large
                 )
             )
         ) {
@@ -923,7 +964,10 @@ fun VideoInfoData(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                LikeButton(isLiked = isLiked, onClick = { onUpdateLiked(!isLiked) })
+                LikeButton(
+                    isLiked = isLiked,
+                    onClick = { onUpdateLiked(!isLiked) },
+                    onLongClick = { onSendVideoOneClickTripleAction() })
                 Spacer(modifier = Modifier.width(5.dp))
                 CoinButton(
                     isCoined = isCoined,
@@ -939,7 +983,7 @@ fun VideoInfoData(
                 )
                 LazyRow(
                     modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    contentPadding = PaddingValues(horizontal = 5.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(items = tags) { tag ->

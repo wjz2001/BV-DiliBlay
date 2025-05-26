@@ -47,6 +47,7 @@ import dev.aaa1115910.biliapi.http.entity.user.garb.EquipPart
 import dev.aaa1115910.biliapi.http.entity.video.AddCoin
 import dev.aaa1115910.biliapi.http.entity.video.CheckSentCoin
 import dev.aaa1115910.biliapi.http.entity.video.CheckVideoFavoured
+import dev.aaa1115910.biliapi.http.entity.video.OneClickTripleAction
 import dev.aaa1115910.biliapi.http.entity.video.PlayUrlData
 import dev.aaa1115910.biliapi.http.entity.video.PopularVideoData
 import dev.aaa1115910.biliapi.http.entity.video.RelatedVideosResponse
@@ -742,6 +743,32 @@ object BiliHttpApi {
         return runCatching {
             response.getResponseData().favoured
         }.getOrDefault(false)
+    }
+
+    /**
+     * 为视频[avid]或[bvid]一键三连
+     *
+     * @param csrf bili_jct
+     * @param sessData SESSDATA
+     */
+    suspend fun sendVideoOneClickTripleAction(
+        avid: Long? = null,
+        bvid: String? = null,
+        csrf: String,
+        sessData: String
+    ): Triple<Boolean, String, OneClickTripleAction?> {
+        require(avid != null || bvid != null) { "avid and bvid cannot be null at the same time" }
+        val response = client.post("/x/web-interface/archive/like/triple") {
+            setBody(FormDataContent(
+                Parameters.build {
+                    avid?.let { append("aid", "$it") }
+                    bvid?.let { append("bvid", it) }
+                    append("csrf", csrf)
+                }
+            ))
+            header("Cookie", "SESSDATA=$sessData;")
+        }.body<BiliResponse<OneClickTripleAction>>()
+        return Triple(response.code == 0, response.message, response.data)
     }
 
     /**
