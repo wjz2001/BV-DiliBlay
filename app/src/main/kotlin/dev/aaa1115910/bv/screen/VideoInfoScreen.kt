@@ -76,7 +76,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.Glow
 import androidx.tv.material3.Icon
 import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.LocalTextStyle
@@ -166,6 +165,7 @@ fun VideoInfoScreen(
 
     var tip by remember { mutableStateOf("Loading") }
     var fromSeason by remember { mutableStateOf(false) }
+    val showVideoInfo by remember { mutableStateOf(Prefs.showVideoInfo) }
     var paused by remember { mutableStateOf(false) }
     var proxyArea by remember { mutableStateOf(ProxyArea.MainLand) }
 
@@ -413,8 +413,9 @@ fun VideoInfoScreen(
                     setHistory()
                     if (Prefs.isLogin) fetchFavoriteData(aid)
 
-                    //如果是从剧集跳转过来的，就直接播放 P1
-                    if (fromSeason) {
+                    //如果是从剧集跳转过来的或设置不显示视频详情，就直接播放 P1
+                    if (fromSeason || !showVideoInfo) {
+                        if(!showVideoInfo) videoInfoRepository.videoList.clear()
                         val playPart = videoDetailViewModel.videoDetail!!.pages.first()
                         launchPlayerActivity(
                             context = context,
@@ -423,7 +424,7 @@ fun VideoInfoScreen(
                             title = videoDetailViewModel.videoDetail!!.title,
                             partTitle = videoDetailViewModel.videoDetail!!.pages.find { it.cid == playPart.cid }!!.title,
                             played = if (playPart.cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
-                            fromSeason = true,
+                            fromSeason = fromSeason,
                             isVerticalVideo = containsVerticalScreenVideo,
                             playerIconIdle = videoDetailViewModel.videoDetail!!.playerIcon?.idle
                                 ?: "",
@@ -532,7 +533,7 @@ fun VideoInfoScreen(
         }
     }
 
-    if (videoDetailViewModel.videoDetail == null || videoDetailViewModel.videoDetail?.redirectToEp == true || fromSeason) {
+    if (videoDetailViewModel.videoDetail == null || videoDetailViewModel.videoDetail?.redirectToEp == true || fromSeason || !showVideoInfo) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
