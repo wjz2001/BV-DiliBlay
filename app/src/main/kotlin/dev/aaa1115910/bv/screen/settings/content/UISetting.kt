@@ -44,6 +44,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.settings.SettingListItem
+import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
@@ -58,7 +59,6 @@ fun UISetting(
 
     var showDensityDialog by remember { mutableStateOf(false) }
     val density by Prefs.densityFlow.collectAsState(context.resources.displayMetrics.widthPixels / 960f)
-
     Box(modifier = modifier) {
         Column(
             modifier = Modifier
@@ -80,6 +80,14 @@ fun UISetting(
                         title = stringResource(R.string.settings_ui_density_title),
                         supportText = stringResource(R.string.settings_ui_density_text),
                         onClick = { showDensityDialog = true }
+                    )
+                    SettingSwitchListItem(
+                        title = stringResource(R.string.settings_ui_show_video_info_title),
+                        supportText = stringResource(R.string.settings_ui_show_video_info_text),
+                        checked = Prefs.showVideoInfo,
+                        onCheckedChange = {
+                            Prefs.showVideoInfo = it
+                        }
                     )
                 }
             }

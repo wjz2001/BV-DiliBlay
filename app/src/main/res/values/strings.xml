@@ -260,6 +260,8 @@
     <string name="settings_storage_others_cache">其他缓存</string>
     <string name="settings_ui_density_text">更改整个应用的大小缩放</string>
     <string name="settings_ui_density_title">界面缩放</string>
+    <string name="settings_ui_show_video_info_text">是否显示视频详情页</string>
+    <string name="settings_ui_show_video_info_title">显示视频详情页</string>
     <string name="settings_version_check_update_button">爷要更新</string>
     <string name="settings_version_current_version">当前版本: %1$s</string>
     <string name="settings_version_latest_version">最新版本: %1$s</string>

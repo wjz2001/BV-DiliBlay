@@ -348,6 +348,18 @@ internal class BiliHttpApiTest {
     }
 
     @Test
+    fun `send one click triple action`(){
+        runBlocking {
+            println(
+                BiliHttpApi.sendVideoOneClickTripleAction(
+                    avid = 170001,
+                    csrf = BILI_JCT,
+                    sessData = SESSDATA
+                )
+            )
+        }
+    }
+    @Test
     fun `get user space videos`() = runBlocking {
         println(
             BiliHttpApi.getWebUserSpaceVideos(
