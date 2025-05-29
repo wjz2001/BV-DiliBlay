@@ -11,7 +11,9 @@ import dev.aaa1115910.biliapi.http.entity.user.garb.EquipPart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
+import org.koin.core.annotation.Single
 
+@Single
 class VideoDetailRepository(
     private val authRepository: AuthRepository,
     private val channelRepository: ChannelRepository,

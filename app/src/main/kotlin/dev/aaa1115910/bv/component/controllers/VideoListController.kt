@@ -23,7 +23,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
-import dev.aaa1115910.bv.repository.VideoListItem
+import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.util.requestFocus
 
 @Composable

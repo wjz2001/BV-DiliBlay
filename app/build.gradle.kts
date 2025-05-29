@@ -185,6 +185,7 @@ ksp {
 dependencies {
     annotationProcessor(androidx.room.compiler)
     ksp(androidx.room.compiler)
+    ksp(libs.koin.ksp.compiler)
     implementation(platform("${libs.firebase.bom.get()}"))
     implementation(androidx.activity.compose)
     implementation(androidx.core.ktx)
@@ -216,6 +217,7 @@ dependencies {
     implementation(libs.firebase.crashlytics.ktx)
     implementation(libs.geetest.sensebot)
     implementation(libs.koin.android)
+    implementation(libs.koin.annotations)
     implementation(libs.koin.compose)
     implementation(libs.kotlinx.serialization)
     implementation(libs.ktor.client.cio)

@@ -9,8 +9,10 @@ import dev.aaa1115910.biliapi.entity.search.Hotword
 import dev.aaa1115910.biliapi.grpc.utils.handleGrpcException
 import dev.aaa1115910.biliapi.http.BiliHttpApi
 import dev.aaa1115910.biliapi.http.BiliHttpProxyApi
+import org.koin.core.annotation.Single
 import dev.aaa1115910.biliapi.http.util.smartDate
 
+@Single
 class SearchRepository(
     private val authRepository: AuthRepository,
     private val channelRepository: ChannelRepository

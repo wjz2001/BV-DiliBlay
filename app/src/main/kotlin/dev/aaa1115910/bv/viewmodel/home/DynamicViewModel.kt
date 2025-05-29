@@ -17,7 +17,9 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import dev.aaa1115910.bv.repository.UserRepository as BvUserRepository
+import org.koin.android.annotation.KoinViewModel
 
+@KoinViewModel
 class DynamicViewModel(
     private val bvUserRepository: BvUserRepository,
     private val userRepository: UserRepository

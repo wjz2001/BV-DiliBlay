@@ -16,7 +16,9 @@ import dev.aaa1115910.bv.util.fInfo
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.koin.android.annotation.KoinViewModel
 
+@KoinViewModel
 class UpInfoViewModel(
     private val userRepository: UserRepository
 ) : ViewModel() {

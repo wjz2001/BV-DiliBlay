@@ -47,7 +47,9 @@ import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.koin.core.annotation.Single
 
+@Single
 class PlayerViewModel(
     private val videoInfoRepository: VideoInfoRepository
 ) : ViewModel() {

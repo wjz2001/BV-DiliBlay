@@ -112,7 +112,7 @@ import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.videocard.VideosRow
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.repository.VideoInfoRepository
-import dev.aaa1115910.bv.repository.VideoListItem
+import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fDebug
