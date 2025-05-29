@@ -2,7 +2,9 @@ package dev.aaa1115910.biliapi.repositories
 
 import dev.aaa1115910.biliapi.http.BiliHttpApi
 import dev.aaa1115910.biliapi.http.entity.video.OneClickTripleAction
+import org.koin.core.annotation.Single
 
+@Single
 class OneClickTripleActionRepository(private val authRepository: AuthRepository) {
     suspend fun sendVideoOneClickTripleAction(
         aid: Long,

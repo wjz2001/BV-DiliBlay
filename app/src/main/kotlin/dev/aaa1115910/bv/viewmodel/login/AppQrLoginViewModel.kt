@@ -24,10 +24,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.koin.android.annotation.KoinViewModel
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.Timer
 
+@KoinViewModel
 class AppQrLoginViewModel(
     private val userRepository: UserRepository,
     private val loginRepository: LoginRepository

@@ -1,7 +1,9 @@
 package dev.aaa1115910.biliapi.repositories
 
 import dev.aaa1115910.biliapi.http.BiliHttpApi
+import org.koin.core.annotation.Single
 
+@Single
 class CoinRepository(private val authRepository: AuthRepository) {
     suspend fun checkVideoCoined(
         aid: Long,
