@@ -1,6 +1,7 @@
 package dev.aaa1115910.bv.viewmodel
 
 import android.net.Uri
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -513,7 +514,7 @@ class VideoPlayerV3ViewModel(
 
     fun loadSubtitle(id: Long) {
         viewModelScope.launch(Dispatchers.IO) {
-            if (id == 0L) {
+            if (id == -1L) {
                 withContext(Dispatchers.Main) {
                     currentSubtitleData.clear()
                     currentSubtitleId = -1

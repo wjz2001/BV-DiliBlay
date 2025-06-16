@@ -316,8 +316,9 @@ fun VideoPlayerController(
                         openSeekController()
                         onTimeBack()
                         onTimeForwardBackTimer?.cancel()
-                        onTimeForwardBackTimer = countDownTimer(500, 100, "onTimeBackTimer") {
+                        onTimeForwardBackTimer = countDownTimer(1000, 100, "onTimeBackTimer") {
                             onGoTime(goTime)
+                            if (!videoPlayer.isPlaying) onPlay()
                             moveState = SeekMoveState.Idle
                             showSeekController = false
                             onTimeForwardBackTimer = null
@@ -335,6 +336,7 @@ fun VideoPlayerController(
                         onTimeForwardBackTimer?.cancel()
                         onTimeForwardBackTimer = countDownTimer(1000, 100, "onTimeBackTimer") {
                             onGoTime(goTime)
+                            if (!videoPlayer.isPlaying) onPlay()
                             moveState = SeekMoveState.Idle
                             showSeekController = false
                             onTimeForwardBackTimer = null
@@ -377,8 +379,7 @@ fun VideoPlayerController(
         ControllerVideoInfo(
             show = showInfo,
             infoData = data.infoData,
-            title = data.title,
-            secondTitle = data.secondTitle,
+            title = data.secondTitle,
             clock = data.clock,
             idleIcon = idleIcon,
             movingIcon = movingIcon,
