@@ -255,3 +255,9 @@ dependencies {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+configurations {
+    implementation {
+        exclude("androidx.media3", "media3-container")
+    }
+}

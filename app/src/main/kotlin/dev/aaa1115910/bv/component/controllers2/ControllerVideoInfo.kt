@@ -5,7 +5,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -45,7 +45,6 @@ fun ControllerVideoInfo(
     show: Boolean,
     infoData: VideoPlayerInfoData,
     title: String,
-    secondTitle: String,
     clock: Triple<Int, Int, Int>,
     idleIcon: String,
     movingIcon: String,
@@ -95,7 +94,7 @@ fun ControllerVideoInfo(
         ) {
             ControllerVideoInfoBottom(
                 infoData = infoData,
-                partTitle = secondTitle,
+                partTitle = title,
                 idleIcon = idleIcon,
                 movingIcon = movingIcon
             )
@@ -118,7 +117,14 @@ fun ControllerVideoInfoTop(
                     topEnd = CornerSize(0.dp)
                 )
             )
-            .background(Color.Black.copy(0.5f))
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.Black.copy(alpha = 0.5f), // 上部颜色较深
+                        Color.Black.copy(alpha = 0f)  // 下部颜色较浅
+                    )
+                )
+            )
             .padding(horizontal = 32.dp, vertical = 16.dp)
     ) {
         Row(
@@ -127,7 +133,8 @@ fun ControllerVideoInfoTop(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
                     .padding(end = 8.dp),
                 text = title,
                 style = MaterialTheme.typography.headlineSmall,
@@ -158,32 +165,21 @@ fun ControllerVideoInfoBottom(
                 MaterialTheme.shapes.large
                     .copy(bottomStart = CornerSize(0.dp), bottomEnd = CornerSize(0.dp))
             )
-            .background(Color.Black.copy(0.5f))
-            .padding(bottom = 12.dp),
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.Black.copy(alpha = 0f),
+                        Color.Black.copy(alpha = 0.5f)
+                    )
+                )
+            ),
         verticalArrangement = Arrangement.Bottom
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 16.dp)
-                .focusable(false),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Bottom
+            modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
-                modifier = Modifier
-                    .padding(horizontal = 28.dp)
-                    .weight(1f),
-                text = partTitle,
-                color = Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.displaySmall.copy(
-                    fontSize = (MaterialTheme.typography.displaySmall.fontSize.value - 10).sp
-                ),
-            )
-            Text(
-                modifier = Modifier.padding(top = 16.dp, bottom = 0.dp, end = 40.dp),
+                modifier = Modifier.padding(top = 12.dp, bottom = 0.dp, start = 40.dp),
                 text = "${infoData.currentTime.formatMinSec()} / ${infoData.totalDuration.formatMinSec()}",
                 color = Color.White
             )
@@ -268,7 +264,6 @@ private fun ControllerVideoInfoPreview() {
                 codec = ""
             ),
             title = "【A320】民航史上最佳逆袭！A320的前世今生！民航史上最佳逆袭！A320的前世今生！",
-            secondTitle = "2023车队车手介绍分析预测2023车队车手介绍分析预测2023车队车手介绍分析预测",
             clock = Triple(12, 30, 30),
             onHideInfo = {},
             idleIcon = "",
