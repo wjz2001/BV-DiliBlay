@@ -25,7 +25,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -137,7 +139,12 @@ fun ControllerVideoInfoTop(
                     .weight(1f)
                     .padding(end = 8.dp),
                 text = title,
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    shadow = Shadow(
+                        color = Color.Black,
+                        blurRadius = 1f
+                    ),
+                ),
                 color = Color.White,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
@@ -181,7 +188,10 @@ fun ControllerVideoInfoBottom(
             Text(
                 modifier = Modifier.padding(top = 12.dp, bottom = 0.dp, start = 40.dp),
                 text = "${infoData.currentTime.formatMinSec()} / ${infoData.totalDuration.formatMinSec()}",
-                color = Color.White
+                color = Color.White,
+                style = TextStyle(
+                    shadow = Shadow(color = Color.Black, blurRadius = 1f),
+                ),
             )
         }
         VideoProgressSeek(
@@ -209,15 +219,14 @@ private fun Clock(
         modifier = modifier,
         color = Color.White,
         fontWeight = FontWeight.Bold,
+        style = TextStyle(
+            shadow = Shadow(color = Color.Black, blurRadius = 1f),
+        ),
         text = buildAnnotatedString {
             withStyle(SpanStyle(fontSize = 32.sp)) {
                 append("$hour".padStart(2, '0'))
                 append(":")
                 append("$minute".padStart(2, '0'))
-            }
-            withStyle(SpanStyle(fontSize = 18.sp)) {
-                append(":")
-                append("$second".padStart(2, '0'))
             }
         }
     )
