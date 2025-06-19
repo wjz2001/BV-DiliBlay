@@ -18,6 +18,7 @@ package dev.aaa1115910.bv.component
  * limitations under the License.
  */
 
+import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -57,10 +58,15 @@ fun createCustomInitialFocusRestorerModifiers(): FocusRequesterModifiers {
                 FocusRequester.Default
             }
             enter = {
-                if (!focusRequester.restoreFocusedChild())
-                    childFocusRequester
-                else
-                    FocusRequester.Cancel
+                val restored = try {
+                    focusRequester.restoreFocusedChild()
+                } catch (e: IllegalStateException) {
+                    // Log error or reset state
+                    Log.d("FocusRestorer", "Failed to restore focus")
+                    false
+                }
+
+                if (!restored) childFocusRequester else FocusRequester.Cancel
             }
         }
 
