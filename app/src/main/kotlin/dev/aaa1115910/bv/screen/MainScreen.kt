@@ -36,13 +36,13 @@ import dev.aaa1115910.bv.activities.settings.SettingsActivity
 import dev.aaa1115910.bv.activities.user.FavoriteActivity
 import dev.aaa1115910.bv.activities.user.FollowingSeasonActivity
 import dev.aaa1115910.bv.activities.user.HistoryActivity
-import dev.aaa1115910.bv.activities.user.ToViewActivity
 import dev.aaa1115910.bv.activities.user.LoginActivity
+import dev.aaa1115910.bv.activities.user.ToViewActivity
 import dev.aaa1115910.bv.activities.user.UserInfoActivity
 import dev.aaa1115910.bv.component.UserPanel
-import dev.aaa1115910.bv.screen.main.DrawerContent
-import dev.aaa1115910.bv.screen.main.DrawerItem
 import dev.aaa1115910.bv.screen.main.HomeContent
+import dev.aaa1115910.bv.screen.main.LeftNaviContent
+import dev.aaa1115910.bv.screen.main.LeftNaviItem
 import dev.aaa1115910.bv.screen.main.PgcContent
 import dev.aaa1115910.bv.screen.main.UgcContent
 import dev.aaa1115910.bv.screen.search.SearchInputScreen
@@ -68,7 +68,7 @@ fun MainScreen(
     val logger = KotlinLogging.logger("MainScreen")
     var showUserPanel by remember { mutableStateOf(false) }
     var lastPressBack: Long by remember { mutableLongStateOf(0L) }
-    var selectedDrawerItem by remember { mutableStateOf(DrawerItem.Home) }
+    var selectedDrawerItem by remember { mutableStateOf(LeftNaviItem.Home) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
     val mainFocusRequester = remember { FocusRequester() }
@@ -89,10 +89,10 @@ fun MainScreen(
 
     val onFocusToContent = {
         when (selectedDrawerItem) {
-            DrawerItem.Home -> mainFocusRequester.requestFocus()
-            DrawerItem.UGC -> ugcFocusRequester.requestFocus()
-            DrawerItem.PGC -> pgcFocusRequester.requestFocus()
-            DrawerItem.Search -> searchFocusRequester.requestFocus()
+            LeftNaviItem.Home -> mainFocusRequester.requestFocus()
+            LeftNaviItem.UGC -> ugcFocusRequester.requestFocus()
+            LeftNaviItem.PGC -> pgcFocusRequester.requestFocus()
+            LeftNaviItem.Search -> searchFocusRequester.requestFocus()
             else -> {}
         }
     }
@@ -112,13 +112,13 @@ fun MainScreen(
     NavigationDrawer(
         modifier = modifier,
         drawerContent = {
-            DrawerContent(
+            LeftNaviContent(
                 isLogin = userViewModel.isLogin,
                 avatar = userViewModel.face,
                 username = userViewModel.username,
                 //avatar = "https://i2.hdslb.com/bfs/face/ef0457addb24141e15dfac6fbf45293ccf1e32ab.jpg",
                 //username = "碧诗",
-                onDrawerItemChanged = { selectedDrawerItem = it },
+                onLeftNaviItemChanged = { selectedDrawerItem = it },
                 onOpenSettings = {
                     context.startActivity(Intent(context, SettingsActivity::class.java))
                 },
@@ -151,10 +151,10 @@ fun MainScreen(
                 }
             ) { screen ->
                 when (screen) {
-                    DrawerItem.Home -> HomeContent(navFocusRequester = mainFocusRequester)
-                    DrawerItem.UGC -> UgcContent(navFocusRequester = ugcFocusRequester)
-                    DrawerItem.PGC -> PgcContent(navFocusRequester = pgcFocusRequester)
-                    DrawerItem.Search -> SearchInputScreen(defaultFocusRequester = searchFocusRequester)
+                    LeftNaviItem.Home -> HomeContent(navFocusRequester = mainFocusRequester)
+                    LeftNaviItem.UGC -> UgcContent(navFocusRequester = ugcFocusRequester)
+                    LeftNaviItem.PGC -> PgcContent(navFocusRequester = pgcFocusRequester)
+                    LeftNaviItem.Search -> SearchInputScreen(defaultFocusRequester = searchFocusRequester)
                     else -> {}
                 }
             }

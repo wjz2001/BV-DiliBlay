@@ -1,12 +1,12 @@
 package dev.aaa1115910.bv.screen.main
 
-import androidx.compose.foundation.basicMarquee
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
@@ -15,15 +15,21 @@ import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.OndemandVideo
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -32,43 +38,37 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.DrawerValue
 import androidx.tv.material3.Icon
-import androidx.tv.material3.NavigationDrawer
-import androidx.tv.material3.NavigationDrawerItem
-import androidx.tv.material3.NavigationDrawerScope
+import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
-import androidx.tv.material3.Text
 import androidx.tv.material3.rememberDrawerState
 import coil.compose.AsyncImage
-import dev.aaa1115910.bv.component.createCustomInitialFocusRestorerModifiers
-import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.isDpadRight
 import dev.aaa1115910.bv.util.isKeyDown
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun NavigationDrawerScope.DrawerContent(
+fun LeftNaviContent(
     modifier: Modifier = Modifier,
     isLogin: Boolean = false,
     avatar: String = "",
     username: String = "",
-    onDrawerItemChanged: (DrawerItem) -> Unit = {},
+    onLeftNaviItemChanged: (LeftNaviItem) -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onShowUserPanel: () -> Unit = {},
     onFocusToContent: () -> Unit = {},
     onLogin: () -> Unit = {}
 ) {
-    var selectedItem by remember { mutableStateOf(DrawerItem.Home) }
-    val focusRestorerModifiers = createCustomInitialFocusRestorerModifiers()
+    var selectedItem by remember { mutableStateOf(LeftNaviItem.Home) }
 
     LaunchedEffect(selectedItem) {
-        onDrawerItemChanged(selectedItem)
+        onLeftNaviItemChanged(selectedItem)
     }
 
-    Column(
+    NavigationRail(
         modifier = modifier
             .fillMaxHeight()
-            .padding(12.dp)
             .onPreviewKeyEvent { keyEvent ->
                 if (keyEvent.isDpadRight()) {
                     if (keyEvent.isKeyDown()) {
@@ -78,11 +78,13 @@ fun NavigationDrawerScope.DrawerContent(
                 }
                 false
             },
-        verticalArrangement = Arrangement.SpaceBetween
+        containerColor = Color.White.copy(alpha = 0.05f),
     ) {
-
-        NavigationDrawerItem(
-            modifier = Modifier,
+        var userIsFocused by remember { mutableStateOf(false) }
+        NavigationRailItem(
+            modifier = Modifier.onFocusChanged {
+                userIsFocused = it.hasFocus
+            },
             onClick = {
                 if (isLogin) {
                     onShowUserPanel()
@@ -90,8 +92,8 @@ fun NavigationDrawerScope.DrawerContent(
                     onLogin()
                 }
             },
-            selected = selectedItem == DrawerItem.User,
-            leadingContent = {
+            selected = userIsFocused,
+            icon = {
                 if (isLogin) {
                     Surface(
                         modifier = Modifier
@@ -112,105 +114,93 @@ fun NavigationDrawerScope.DrawerContent(
                     }
                 } else {
                     Icon(
-                        imageVector = DrawerItem.User.displayIcon,
+                        imageVector = LeftNaviItem.User.displayIcon,
                         contentDescription = null
                     )
                 }
             }
-        ) {
-            Text(
-                modifier = Modifier
-                    .basicMarquee(),
-                text = if (isLogin) username
-                else DrawerItem.User.displayName,
-                maxLines = 1
-            )
-        }
-        LazyColumn(
-            modifier = Modifier
-                .then(focusRestorerModifiers.parentModifier),
+        )
+        Column(
+            modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.Center
         ) {
             listOf(
-                DrawerItem.Search,
-                DrawerItem.Home,
-                DrawerItem.UGC,
-                DrawerItem.PGC,
+                LeftNaviItem.Search,
+                LeftNaviItem.Home,
+                LeftNaviItem.UGC,
+                LeftNaviItem.PGC,
             ).forEach { item ->
-                item {
-                    NavigationDrawerItem(
-                        modifier = Modifier
-//                            .onFocusChanged { if (it.hasFocus) selectedItem = item }
-                            .ifElse(
-                                item == DrawerItem.Home,
-                                focusRestorerModifiers.childModifier
-                            ),
-                        onClick = { selectedItem = item },
-                        selected = selectedItem == item,
-                        leadingContent = {
-                            Icon(
-                                imageVector = item.displayIcon,
-                                contentDescription = null
-                            )
-                        }
-                    ) {
-                        Text(text = item.displayName)
+                var isFocused  by remember { mutableStateOf(false) }
+                val indicatorColor by animateColorAsState(
+                    targetValue = if (item == selectedItem) {
+                        MaterialTheme.colorScheme.border
+                    } else Color.Transparent,
+                    label = "selectionIndicatorColor"
+                )
+                NavigationRailItem(
+                    modifier = Modifier
+                        .onFocusChanged { isFocused = it.hasFocus }
+                        .selectionIndicator(
+                            animateColorAsState(
+                                targetValue = indicatorColor,
+                                label = "selectionIndicatorColor"
+                            ).value
+                        ),
+                    onClick = { selectedItem = item },
+                    selected = isFocused,
+                    icon = {
+                        Icon(
+                            imageVector = item.displayIcon,
+                            contentDescription = null
+                        )
                     }
-                }
+                )
             }
         }
-        NavigationDrawerItem(
-            modifier = Modifier,
+        var settingsIsFocused by remember { mutableStateOf(false) }
+        NavigationRailItem(
+            modifier = Modifier.onFocusChanged {
+                settingsIsFocused = it.hasFocus
+            },
             onClick = onOpenSettings,
-            selected = false,
-            leadingContent = {
+            selected = settingsIsFocused,
+            icon = {
                 Icon(
-                    imageVector = DrawerItem.Settings.displayIcon,
+                    imageVector = LeftNaviItem.Settings.displayIcon,
                     contentDescription = null
                 )
             }
-        ) {
-            Text(text = DrawerItem.Settings.displayName)
-        }
+        )
     }
 }
 
-enum class DrawerItem(
-    val displayName: String,
+enum class LeftNaviItem(
     val displayIcon: ImageVector
 ) {
-    User(displayName = "点击登录", displayIcon = Icons.Default.AccountCircle),
-    Search(displayName = "搜索", displayIcon = Icons.Default.Search),
-    Home(displayName = "首页", displayIcon = Icons.Default.Home),
-    UGC(displayName = "分区", displayIcon = Icons.Default.OndemandVideo),
-    PGC(displayName = "影视", displayIcon = Icons.Default.Movie),
-    Settings(displayName = "设置", displayIcon = Icons.Default.Settings), ;
+    User(displayIcon = Icons.Default.AccountCircle),
+    Search(displayIcon = Icons.Default.Search),
+    Home(displayIcon = Icons.Default.Home),
+    UGC(displayIcon = Icons.Default.OndemandVideo),
+    PGC(displayIcon = Icons.Default.Movie),
+    Settings(displayIcon = Icons.Default.Settings), ;
 }
 
-@Preview(device = "id:tv_1080p")
-@Composable
-private fun DrawerContentClosedPreview() {
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    BVTheme {
-        NavigationDrawer(
-            drawerContent = {
-                DrawerContent()
-            },
-            drawerState = drawerState
-        ) { }
+fun Modifier.selectionIndicator(color: Color): Modifier {
+    return this.drawBehind {
+        val strokeWidth = 4.dp.toPx()
+        drawRect(
+            color = color,
+            topLeft = Offset.Zero,
+            size = Size(width = strokeWidth, height = size.height)
+        )
     }
 }
 
 @Preview(device = "id:tv_1080p")
 @Composable
-private fun DrawerContentOpenPreview() {
+private fun LeftNaviContentPreview() {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Open)
     BVTheme {
-        NavigationDrawer(
-            drawerContent = {
-                DrawerContent()
-            },
-            drawerState = drawerState
-        ) { }
+        LeftNaviContent()
     }
 }
