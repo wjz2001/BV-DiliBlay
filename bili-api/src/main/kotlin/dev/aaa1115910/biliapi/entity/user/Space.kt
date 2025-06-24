@@ -1,5 +1,8 @@
 package dev.aaa1115910.biliapi.entity.user
 
+import dev.aaa1115910.biliapi.http.util.smartDate
+import dev.aaa1115910.biliapi.http.util.toSmartDate
+
 data class SpaceVideoData(
     val videos: List<SpaceVideo>,
     val page: SpaceVideoPage
@@ -39,7 +42,8 @@ data class SpaceVideo(
     val author: String,
     val duration: Int,
     val play: Int,
-    val danmaku: Int
+    val danmaku: Int,
+    val pubTime: String?
 ) {
     companion object {
         fun fromSpaceVideoItem(spaceVideoItem: dev.aaa1115910.biliapi.http.entity.user.WebSpaceVideoData.SpaceVideoListItem.VListItem) =
@@ -51,7 +55,8 @@ data class SpaceVideo(
                 author = spaceVideoItem.author,
                 duration = convertMmSsToSeconds(spaceVideoItem.length),
                 play = spaceVideoItem.play,
-                danmaku = spaceVideoItem.videoReview
+                danmaku = spaceVideoItem.videoReview,
+                pubTime = spaceVideoItem.created.toSmartDate()
             )
 
         fun fromSpaceVideoItem(spaceVideoItem: dev.aaa1115910.biliapi.http.entity.user.AppSpaceVideoData.SpaceVideoItem) =
@@ -63,7 +68,8 @@ data class SpaceVideo(
                 author = spaceVideoItem.author,
                 duration = spaceVideoItem.duration,
                 play = spaceVideoItem.play,
-                danmaku = spaceVideoItem.danmaku
+                danmaku = spaceVideoItem.danmaku,
+                pubTime = spaceVideoItem.ctime.smartDate
             )
     }
 }

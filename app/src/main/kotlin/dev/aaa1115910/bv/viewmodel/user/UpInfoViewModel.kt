@@ -58,7 +58,8 @@ class UpInfoViewModel(
                         upName = spaceVideoItem.author,
                         play = with(spaceVideoItem.play) { if (this == -1) null else this },
                         danmaku = with(spaceVideoItem.danmaku) { if (this == -1) null else this },
-                        time = spaceVideoItem.duration * 1000L
+                        time = spaceVideoItem.duration * 1000L,
+                        pubTime = spaceVideoItem.pubTime
                     )
                 )
             }

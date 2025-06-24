@@ -8,6 +8,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.aaa1115910.biliapi.http.BiliHttpApi
+import dev.aaa1115910.biliapi.http.util.smartDate
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.util.addWithMainContext
 import dev.aaa1115910.bv.util.fInfo
@@ -62,7 +63,8 @@ class TagViewModel : ViewModel() {
                         upName = tagVideoItem.owner.name,
                         play = tagVideoItem.stat.view,
                         danmaku = tagVideoItem.stat.danmaku,
-                        time = tagVideoItem.duration.toLong()
+                        time = tagVideoItem.duration.toLong(),
+                        pubTime = tagVideoItem.pubdate.smartDate
                     )
                 )
             }

@@ -2,6 +2,7 @@ package dev.aaa1115910.biliapi.entity.ugc
 
 import dev.aaa1115910.biliapi.http.entity.home.RcmdIndexData
 import dev.aaa1115910.biliapi.http.entity.home.RcmdTopData
+import dev.aaa1115910.biliapi.http.util.smartDate
 import dev.aaa1115910.biliapi.util.convertStringTimeToSeconds
 
 data class UgcItem(
@@ -13,7 +14,8 @@ data class UgcItem(
     val play: Int,
     val danmaku: Int,
     val duration: Int,
-    val idx: Int = -1
+    val idx: Int = -1,
+    val pubTime: String? = null,
 ) {
     companion object {
         fun fromRcmdItem(rcmdItem: RcmdIndexData.RcmdItem) =
@@ -54,7 +56,8 @@ data class UgcItem(
                 author = rcmdItem.owner?.name ?: "",
                 play = rcmdItem.stat?.view ?: -1,
                 danmaku = rcmdItem.stat?.danmaku ?: -1,
-                duration = rcmdItem.duration
+                duration = rcmdItem.duration,
+                pubTime = rcmdItem.pubdate.smartDate
             )
 
         fun fromVideoInfo(videoInfo: dev.aaa1115910.biliapi.http.entity.video.VideoInfo) =
@@ -65,7 +68,8 @@ data class UgcItem(
                 author = videoInfo.owner.name,
                 cover = videoInfo.pic,
                 play = videoInfo.stat.view,
-                danmaku = videoInfo.stat.danmaku
+                danmaku = videoInfo.stat.danmaku,
+                pubTime = videoInfo.pubdate.smartDate
             )
 
         fun fromSmallCoverV5(card: bilibili.app.card.v1.SmallCoverV5) =
@@ -88,7 +92,8 @@ data class UgcItem(
                 author = item.name,
                 cover = item.cover,
                 play = item.play ?: -1,
-                danmaku = item.danmaku ?: -1
+                danmaku = item.danmaku ?: -1,
+                pubTime = item.pubDate.smartDate
             )
     }
 }

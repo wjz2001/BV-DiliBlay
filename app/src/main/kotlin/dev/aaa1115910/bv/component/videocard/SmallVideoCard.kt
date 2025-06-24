@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -137,7 +138,8 @@ fun SmallVideoCardContent(
                 //.scale(infoScale)
                 .offset(y = infoOffsetY),
             title = data.title,
-            upName = data.upName
+            upName = data.upName,
+            pubTime = data.pubTime
         )
     }
 }
@@ -284,7 +286,8 @@ fun CardCover(
 private fun CardInfo(
     modifier: Modifier = Modifier,
     title: String,
-    upName: String
+    upName: String,
+    pubTime: String?
 ) {
     Column(
         modifier = modifier.padding(0.dp, 8.dp)
@@ -301,11 +304,18 @@ private fun CardInfo(
         ) {
             UpIcon()
             Text(
+                modifier = Modifier.weight(1f),
                 text = upName,
                 style = MaterialTheme.typography.labelMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            if (pubTime != null) {
+                Text(
+                    text = pubTime,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
         }
     }
 }
@@ -320,7 +330,8 @@ fun SmallVideoCardWithoutFocusPreview() {
         upName = "bishi",
         play = 2333,
         danmaku = 666,
-        time = 2333 * 1000
+        time = 2333 * 1000,
+        pubTime = "1小时前"
     )
     BVTheme {
         Surface(
@@ -345,7 +356,8 @@ fun SmallVideoCardWithFocusPreview() {
         upName = "bishi",
         play = 2333,
         danmaku = 666,
-        time = 2333 * 1000
+        time = 2333 * 1000,
+        pubTime = "1小时前"
     )
     BVTheme {
         Surface(
@@ -371,7 +383,8 @@ fun SmallVideoCardsPreview() {
         upName = "bishi",
         play = 2333,
         danmaku = 666,
-        time = 2333 * 1000
+        time = 2333 * 1000,
+        pubTime = "1小时前"
     )
     BVTheme {
         LazyVerticalGrid(
