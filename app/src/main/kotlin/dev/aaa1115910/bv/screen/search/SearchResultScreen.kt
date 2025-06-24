@@ -313,7 +313,8 @@ private fun SearchResultListItem(
                     play = with(searchResult.play) { if (this == -1) null else this },
                     danmaku = with(searchResult.danmaku) { if (this == -1) null else this },
                     upName = searchResult.author,
-                    time = searchResult.duration * 1000L
+                    time = searchResult.duration * 1000L,
+                    pubTime = searchResult.pubTime
                 ),
                 onClick = onClick,
                 onLongClick = onLongClick,

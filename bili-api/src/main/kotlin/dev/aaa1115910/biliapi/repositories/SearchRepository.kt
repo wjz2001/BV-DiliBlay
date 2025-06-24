@@ -9,6 +9,7 @@ import dev.aaa1115910.biliapi.entity.search.Hotword
 import dev.aaa1115910.biliapi.grpc.utils.handleGrpcException
 import dev.aaa1115910.biliapi.http.BiliHttpApi
 import dev.aaa1115910.biliapi.http.BiliHttpProxyApi
+import dev.aaa1115910.biliapi.http.util.smartDate
 
 class SearchRepository(
     private val authRepository: AuthRepository,
@@ -313,7 +314,8 @@ data class SearchTypeResult(
         val author: String,
         val duration: Int,
         val play: Int,
-        val danmaku: Int
+        val danmaku: Int,
+        val pubTime: String? = null
     ) : SearchTypeResultItem {
         companion object {
             fun fromSearchVideoResult(video: dev.aaa1115910.biliapi.http.entity.search.SearchVideoResult) =
@@ -325,7 +327,8 @@ data class SearchTypeResult(
                     author = video.author,
                     duration = convertStringTimeToSeconds(video.duration),
                     play = video.play,
-                    danmaku = video.danmaku
+                    danmaku = video.danmaku,
+                    pubTime = video.pubDate.smartDate
                 )
 
             fun fromSearchVideoCard(video: bilibili.polymer.app.search.v1.Item) =

@@ -71,7 +71,7 @@ class VideoDetailViewModel(
                 play = it.view,
                 danmaku = it.danmaku,
                 jumpToSeason = it.jumpToSeason,
-                epId = it.epid
+                epId = it.epid,
             )
         } ?: emptyList()
         relatedVideos.swapListWithMainContext(relateVideoCardDataList)

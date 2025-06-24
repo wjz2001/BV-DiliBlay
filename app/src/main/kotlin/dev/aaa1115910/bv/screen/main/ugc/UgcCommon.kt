@@ -121,7 +121,8 @@ fun UgcRegionScaffold(
                         play = item.play,
                         danmaku = item.danmaku,
                         upName = item.author,
-                        time = item.duration * 1000L
+                        time = item.duration * 1000L,
+                        pubTime = item.pubTime
                     ),
                     onClick = { VideoInfoActivity.actionStart(context, item.aid) },
                     onFocus = { currentFocusedIndex = index }
