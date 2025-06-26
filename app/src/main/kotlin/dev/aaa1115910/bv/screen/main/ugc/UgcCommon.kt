@@ -1,14 +1,12 @@
 package dev.aaa1115910.bv.screen.main.ugc
 
 import android.content.Context
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,7 +14,6 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -31,13 +28,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import dev.aaa1115910.biliapi.entity.CarouselData
 import dev.aaa1115910.biliapi.entity.ugc.UgcItem
 import dev.aaa1115910.biliapi.entity.ugc.UgcType
 import dev.aaa1115910.biliapi.entity.ugc.region.UgcRegionPage
 import dev.aaa1115910.biliapi.repositories.UgcRepository
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
-import dev.aaa1115910.bv.component.UgcCarousel
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.util.fInfo
@@ -53,7 +48,6 @@ import org.koin.compose.koinInject
 fun UgcRegionScaffold(
     modifier: Modifier = Modifier,
     state: UgcScaffoldState,
-    childRegionButtons: (@Composable () -> Unit)? = null
 ) {
     val context = LocalContext.current
     var currentFocusedIndex by remember { mutableIntStateOf(0) }
@@ -73,38 +67,6 @@ fun UgcRegionScaffold(
         modifier = modifier,
         state = state.lazyListState
     ) {
-        if (state.showCarousel) {
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    UgcCarousel(
-                        modifier = Modifier
-                            .width(880.dp)
-                            .padding(32.dp, 0.dp),
-                        data = state.carouselItems
-                    )
-                }
-            }
-        }
-
-        if (childRegionButtons != null) {
-            item {
-                childRegionButtons()
-            }
-        } else {
-            item {
-                Spacer(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(12.dp)
-                )
-            }
-        }
-
         gridItems(
             data = state.ugcItems,
             columnCount = 4,
@@ -183,13 +145,10 @@ data class UgcScaffoldState(
     companion object {
         val logger = KotlinLogging.logger { }
     }
-
-    val carouselItems = mutableStateListOf<CarouselData.CarouselItem>()
     val ugcItems = mutableStateListOf<UgcItem>()
     var nextPage by mutableStateOf(UgcRegionPage())
     var hasMore by mutableStateOf(true)
     var updating by mutableStateOf(false)
-    var showCarousel by mutableStateOf(true)
 
     suspend fun initUgcRegionData() {
         loadUgcRegionData()
@@ -202,12 +161,9 @@ data class UgcScaffoldState(
         logger.fInfo { "load ugc $ugcType region data" }
         runCatching {
             val data = ugcRepository.getRegionData(ugcType)
-            carouselItems.clear()
             ugcItems.clear()
-            carouselItems.addAll(data.carouselData?.items ?: emptyList())
             ugcItems.addAll(data.items)
             nextPage = data.next
-            showCarousel = carouselItems.isNotEmpty()
         }.onFailure {
             logger.fInfo { "load $ugcType data failed: ${it.stackTraceToString()}" }
             withContext(Dispatchers.Main) {
@@ -223,8 +179,6 @@ data class UgcScaffoldState(
         scope.launch(Dispatchers.IO) {
             nextPage = UgcRegionPage()
             hasMore = true
-            showCarousel = true
-            carouselItems.clear()
             ugcItems.clear()
             initUgcRegionData()
         }
