@@ -240,7 +240,7 @@ fun VideoPlayerController(
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
                         logger.info { "[${it.key} press]" }
                         showMenuController = !showMenuController
-                        onRequestFocus()
+                        if(!showMenuController) onRequestFocus()
                         return@onPreviewKeyEvent true
                     }
 

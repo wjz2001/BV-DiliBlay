@@ -546,23 +546,11 @@ fun VideoInfoScreen(
         }
     } else {
         Scaffold(
-            containerColor = Color.Black
+            containerColor = MaterialTheme.colorScheme.background
         ) { innerPadding ->
             Box(
                 modifier.padding(innerPadding)
             ) {
-                Image(
-                    modifier = Modifier.fillMaxSize(),
-                    painter = rememberAsyncImagePainter(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(if (videoDetailViewModel.videoDetail?.ugcSeason != null) videoDetailViewModel.videoDetail!!.ugcSeason!!.cover else videoDetailViewModel.videoDetail!!.cover)
-                            .transformations(BlurTransformation(LocalContext.current, 20f, 5f))
-                            .build()
-                    ),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    alpha = 0.6f
-                )
                 LazyColumn(
                     contentPadding = PaddingValues(top = 16.dp, bottom = 32.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -594,32 +582,36 @@ fun VideoInfoScreen(
                             onClickCover = {
                                 logger.fInfo { "Click video cover" }
                                 // 点击封面读取分p列表
-                                val partVideoList =
-                                    videoDetailViewModel.videoDetail!!.pages.mapIndexed { index, videoPage ->
-                                        VideoListItem(
-                                            aid = videoDetailViewModel.videoDetail!!.aid,
-                                            cid = videoPage.cid,
-                                            title = videoPage.title,
-                                            index = index,
-                                            isEpisode = false
-                                        )
+                                scope.launch {
+                                    withContext(Dispatchers.Default) {
+                                        val partVideoList = videoDetailViewModel.videoDetail!!.pages.mapIndexed { index, videoPage ->
+                                            VideoListItem(
+                                                aid = videoDetailViewModel.videoDetail!!.aid,
+                                                cid = videoPage.cid,
+                                                title = videoPage.title,
+                                                index = index,
+                                                isEpisode = false
+                                            )
+                                        }
+                                        videoInfoRepository.videoList.clear()
+                                        videoInfoRepository.videoList.addAll(partVideoList)
                                     }
-                                videoInfoRepository.videoList.clear()
-                                videoInfoRepository.videoList.addAll(partVideoList)
-                                launchPlayerActivity(
-                                    context = context,
-                                    avid = videoDetailViewModel.videoDetail!!.aid,
-                                    cid = videoDetailViewModel.videoDetail!!.pages.first().cid,
-                                    title = videoDetailViewModel.videoDetail!!.title,
-                                    partTitle = videoDetailViewModel.videoDetail!!.pages.first().title,
-                                    played = if (videoDetailViewModel.videoDetail!!.cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
-                                    fromSeason = false,
-                                    isVerticalVideo = containsVerticalScreenVideo,
-                                    playerIconIdle = videoDetailViewModel.videoDetail!!.playerIcon?.idle
-                                        ?: "",
-                                    playerIconMoving = videoDetailViewModel.videoDetail!!.playerIcon?.moving
-                                        ?: ""
-                                )
+
+                                    launchPlayerActivity(
+                                        context = context,
+                                        avid = videoDetailViewModel.videoDetail!!.aid,
+                                        cid = videoDetailViewModel.videoDetail!!.pages.first().cid,
+                                        title = videoDetailViewModel.videoDetail!!.title,
+                                        partTitle = videoDetailViewModel.videoDetail!!.pages.first().title,
+                                        played = if (videoDetailViewModel.videoDetail!!.cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
+                                        fromSeason = false,
+                                        isVerticalVideo = containsVerticalScreenVideo,
+                                        playerIconIdle = videoDetailViewModel.videoDetail!!.playerIcon?.idle
+                                            ?: "",
+                                        playerIconMoving = videoDetailViewModel.videoDetail!!.playerIcon?.moving
+                                            ?: ""
+                                    )
+                                }
                             },
                             onClickUp = {
                                 UpInfoActivity.actionStart(
@@ -874,18 +866,12 @@ fun VideoInfoData(
             shape = ClickableSurfaceDefaults.shape(
                 shape = MaterialTheme.shapes.large,
             ),
-//            glow = ClickableSurfaceDefaults.glow(
-//                focusedGlow = Glow(
-//                    elevationColor = MaterialTheme.colorScheme.inverseSurface,
-//                    elevation = 16.dp
-//                )
-//            ),
             border = ClickableSurfaceDefaults.border(
                 focusedBorder = Border(
                     border = BorderStroke(width = 3.dp, color = MaterialTheme.colorScheme.border),
                     shape = MaterialTheme.shapes.large
                 )
-            )
+            ),
         ) {
             AsyncImage(
                 modifier = Modifier.fillMaxSize(),
