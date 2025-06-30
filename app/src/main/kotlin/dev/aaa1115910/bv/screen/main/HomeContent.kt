@@ -1,6 +1,5 @@
 package dev.aaa1115910.bv.screen.main
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -13,7 +12,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,7 +21,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.component.TopNav
@@ -31,7 +33,6 @@ import dev.aaa1115910.bv.screen.main.home.DynamicsScreen
 import dev.aaa1115910.bv.screen.main.home.PopularScreen
 import dev.aaa1115910.bv.screen.main.home.RecommendScreen
 import dev.aaa1115910.bv.util.fInfo
-import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.viewmodel.UserViewModel
 import dev.aaa1115910.bv.viewmodel.home.DynamicViewModel
 import dev.aaa1115910.bv.viewmodel.home.PopularViewModel
@@ -50,7 +51,6 @@ fun HomeContent(
     dynamicViewModel: DynamicViewModel = koinViewModel(),
     userViewModel: UserViewModel = koinViewModel()
 ) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val logger = KotlinLogging.logger("HomeContent")
 
@@ -61,19 +61,6 @@ fun HomeContent(
     var selectedTab by remember { mutableStateOf(HomeTopNavItem.Dynamics) }
     var focusOnContent by remember { mutableStateOf(false) }
     var hasFocus by remember { mutableStateOf(false) }
-    val currentListOnTop by remember {
-        derivedStateOf {
-            with(
-                when (selectedTab) {
-                    HomeTopNavItem.Recommend -> recommendState
-                    HomeTopNavItem.Popular -> popularState
-                    HomeTopNavItem.Dynamics -> dynamicState
-                }
-            ) {
-                firstVisibleItemIndex == 0 && firstVisibleItemScrollOffset == 0
-            }
-        }
-    }
 
     //启动时刷新数据
     LaunchedEffect(Unit) {
@@ -108,29 +95,42 @@ fun HomeContent(
         }
     }
 
-    BackHandler(focusOnContent) {
-        logger.fInfo { "onFocusBackToNav" }
-        navFocusRequester.requestFocus(scope)
-        // scroll to top
-        scope.launch(Dispatchers.Main) {
-            when (selectedTab) {
-                HomeTopNavItem.Recommend -> recommendState.animateScrollToItem(0)
-                HomeTopNavItem.Popular -> popularState.animateScrollToItem(0)
-                HomeTopNavItem.Dynamics -> dynamicState.animateScrollToItem(0)
-            }
-        }
-    }
-
     Scaffold(
         modifier = Modifier
-            .onFocusChanged { hasFocus = it.hasFocus },
+            .onFocusChanged { hasFocus = it.hasFocus }
+            .onPreviewKeyEvent {
+                if (it.key == Key.Menu) {
+                    if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
+                    scope.launch(Dispatchers.IO) {
+                        when (selectedTab) {
+                            HomeTopNavItem.Recommend -> {
+                                recommendViewModel.clearData()
+                                recommendViewModel.loadMore()
+                            }
+
+                            HomeTopNavItem.Popular -> {
+                                popularViewModel.clearData()
+                                popularViewModel.loadMore()
+                            }
+
+                            HomeTopNavItem.Dynamics -> {
+                                dynamicViewModel.clearData()
+                                dynamicViewModel.loadMore()
+                            }
+                        }
+                    }
+                    navFocusRequester.requestFocus()
+                    return@onPreviewKeyEvent true
+                }
+                return@onPreviewKeyEvent false
+            },
         topBar = {
             TopNav(
                 modifier = Modifier
                     .focusRequester(navFocusRequester)
                     .padding(end = 80.dp),
                 items = HomeTopNavItem.entries,
-                isLargePadding = !focusOnContent && currentListOnTop,
+                isLargePadding = !focusOnContent,
                 onSelectedChanged = { nav ->
                     selectedTab = nav as HomeTopNavItem
                     when (nav) {
