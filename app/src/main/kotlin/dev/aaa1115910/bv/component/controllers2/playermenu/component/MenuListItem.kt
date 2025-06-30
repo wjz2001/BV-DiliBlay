@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.DenseListItem
@@ -81,7 +82,8 @@ fun MenuListItem(
                             text = text,
                             style = MaterialTheme.typography.titleLarge,
                             textAlign = textAlign,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -121,7 +123,7 @@ fun MenuListItemPreview() {
     var expanded by remember { mutableStateOf(true) }
     BVTheme {
         MenuListItem(
-            text = "MenuListItem",
+            text = "MenuListItemAAAAAAAAAAAAA",
             icon = Icons.Default.Home,
             expanded = expanded,
             selected = true,
