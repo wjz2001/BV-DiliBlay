@@ -2,19 +2,18 @@ package dev.aaa1115910.bv.screen.main.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -27,24 +26,21 @@ import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
-import dev.aaa1115910.bv.screen.main.ugc.gridItems
 import dev.aaa1115910.bv.viewmodel.home.DynamicViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun DynamicsScreen(
     modifier: Modifier = Modifier,
-    lazyListState: LazyListState,
     dynamicViewModel: DynamicViewModel = koinViewModel()
 ) {
-    val context = LocalContext.current
+    val gridState = rememberLazyGridState()   // 直接用 LazyVerticalGrid
     val scope = rememberCoroutineScope()
-    var currentFocusedIndex by remember { mutableIntStateOf(0) }
-    val shouldLoadMore by remember {
-        derivedStateOf { currentFocusedIndex + 24 > dynamicViewModel.dynamicList.size }
-    }
+    val context = LocalContext.current
 
     val onClickVideo: (DynamicVideo) -> Unit = { dynamic ->
         VideoInfoActivity.actionStart(
@@ -54,49 +50,52 @@ fun DynamicsScreen(
         )
     }
 
-    //不能直接使用 LaunchedEffect(currentFocusedIndex)，会导致整个页面重组
-    LaunchedEffect(shouldLoadMore) {
-        if (shouldLoadMore) {
-            scope.launch(Dispatchers.IO) {
-                dynamicViewModel.loadMore()
-                //加载完成后重置shouldLoadMore为false，避免如果加载失败后无法重新加载
-                currentFocusedIndex = -100
+    // 监听可见区最后一个 item 的 index，距离尾部 20 个就翻页
+    LaunchedEffect(gridState) {
+        snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+            .distinctUntilChanged()
+            .filter { index ->
+                index != null && index >= dynamicViewModel.dynamicList.size - 20
             }
-        }
+            .collect {
+                scope.launch(Dispatchers.IO) {
+                    dynamicViewModel.loadMore()
+                }
+            }
     }
 
     if (dynamicViewModel.isLogin) {
-        LazyColumn(
+        LazyVerticalGrid(
             modifier = modifier,
-            state = lazyListState
+            state = gridState,
+            columns = GridCells.Fixed(4),
+            contentPadding = PaddingValues(24.dp),
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            gridItems(
-                data = dynamicViewModel.dynamicList,
-                columnCount = 4,
-                modifier = Modifier
-                    .width(880.dp)
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(24.dp),
-                itemContent = { index, item ->
-                    SmallVideoCard(
-                        data = VideoCardData(
+            itemsIndexed(
+                items = dynamicViewModel.dynamicList,
+                key = { index, _ -> index }
+            ) { _, item ->
+                SmallVideoCard(
+                    data = remember(item) {         // `VideoCardData` 只在 item 变动时重建
+                        VideoCardData(
                             avid = item.aid,
                             title = item.title,
                             cover = item.cover,
-                            play = item.play,
-                            danmaku = item.danmaku,
+                            play = item.play.takeIf { it != -1 },
+                            danmaku = item.danmaku.takeIf { it != -1 },
                             upName = item.author,
                             time = item.duration * 1000L,
                             pubTime = item.pubTime
-                        ),
-                        onClick = { onClickVideo(item) },
-                        onFocus = { currentFocusedIndex = index }
-                    )
-                }
-            )
+                        )
+                    },
+                    onClick = { onClickVideo(item) }
+                )
+            }
 
             if (dynamicViewModel.loading)
-                item {
+                item(span = { GridItemSpan(maxLineSpan) }) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center

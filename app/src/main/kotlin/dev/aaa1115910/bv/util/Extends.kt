@@ -12,7 +12,6 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.core.text.HtmlCompat
 import dev.aaa1115910.bv.BVApp
-import dev.aaa1115910.bv.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -31,8 +30,38 @@ fun Int.toast(context: Context, duration: Int = Toast.LENGTH_SHORT) {
 }
 
 fun <T> SnapshotStateList<T>.swapList(newList: List<T>) {
-    clear()
-    addAll(newList)
+    if (this.isEmpty()) {
+        // 空列表直接添加全部
+        addAll(newList)
+        return
+    }
+
+    if (newList.isEmpty()) {
+        // 新列表为空则清空
+        clear()
+        return
+    }
+
+    // 计算需要实际更新的部分
+    val currentSize = this.size
+    val newSize = newList.size
+    val commonSize = minOf(currentSize, newSize)
+
+    // 1. 更新共同部分（复用已有对象）
+    for (i in 0 until commonSize) {
+        this[i] = newList[i]
+    }
+
+    // 2. 如果新列表更长，添加额外项
+    if (newSize > currentSize) {
+        addAll(newList.subList(currentSize, newSize))
+    }
+    // 3. 如果旧列表更长，移除多余项
+    else if (currentSize > newSize) {
+        repeat(currentSize - newSize) {
+            this.removeAt(newSize)
+        }
+    }
 }
 
 suspend fun <T> SnapshotStateList<T>.swapListWithMainContext(newList: List<T>) =
@@ -75,19 +104,11 @@ fun <K, V> SnapshotStateMap<K, V>.swapMap(newMap: Map<K, V>, afterSwap: () -> Un
 }
 
 fun Date.formatPubTimeString(context: Context = BVApp.context): String {
-    val temp = System.currentTimeMillis() - time
-    return when {
-        temp > 1000L * 60 * 60 * 24 -> SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(this)
-        temp > 1000L * 60 * 60 -> context.getString(
-            R.string.date_format_hours_age, temp / (1000 * 60 * 60)
-        )
-
-        temp > 1000L * 60 -> context.getString(
-            R.string.date_format_minutes_age, temp / (1000 * 60)
-        )
-
-        else -> context.getString(R.string.date_format_just_now)
-    }
+    // 创建一个SimpleDateFormat对象，指定格式
+    val formatter = SimpleDateFormat("yyyy年MM月dd日HH:mm")
+    // 格式化Date对象
+    val formattedDate = formatter.format(this)
+    return formattedDate
 }
 
 fun Long.formatMinSec(): String {

@@ -905,13 +905,13 @@ fun VideoInfoData(
                     CompositionLocalProvider(
                         LocalTextStyle provides MaterialTheme.typography.labelMedium
                     ) {
-                        Text(text = "${videoDetail.stat.like} 点赞")
+                        Text(text = "发布于 ${videoDetail.publishDate.formatPubTimeString()}")
                         Text(text = "·")
-                        Text(text = "${videoDetail.stat.coin} 投币")
+                        Text(text = "点赞 ${videoDetail.stat.like}")
                         Text(text = "·")
-                        Text(text = "${videoDetail.stat.favorite} 收藏")
+                        Text(text = "投币 ${videoDetail.stat.coin}")
                         Text(text = "·")
-                        Text(text = videoDetail.publishDate.formatPubTimeString())
+                        Text(text = "收藏 ${videoDetail.stat.favorite}")
                     }
                 }
                 Row(

@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -25,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -48,6 +50,8 @@ import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.viewmodel.user.FavoriteViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
@@ -58,12 +62,6 @@ fun FavoriteScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var currentIndex by remember { mutableIntStateOf(0) }
-    val showLargeTitle by remember { derivedStateOf { currentIndex < 4 } }
-    val titleFontSize by animateFloatAsState(
-        targetValue = if (showLargeTitle) 48f else 24f,
-        label = "title font size"
-    )
     val focusRestorerModifiers = createCustomInitialFocusRestorerModifiers()
     val defaultFocusRequester = remember { FocusRequester() }
     var focusOnTabs by remember { mutableStateOf(true) }
@@ -82,6 +80,19 @@ fun FavoriteScreen(
             favoriteViewModel.resetPageNumber()
             favoriteViewModel.updateFolderItems(force = true)
         }
+
+    LaunchedEffect(lazyGridState) {
+        snapshotFlow { lazyGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+            .distinctUntilChanged()
+            .filter { index ->
+                index != null && index >= favoriteViewModel.favorites.size - 20
+            }
+            .collect {
+                scope.launch(Dispatchers.IO) {
+                    favoriteViewModel.updateFolderItems()
+                }
+            }
+    }
 
     BackHandler(
         enabled = !focusOnTabs
@@ -105,7 +116,7 @@ fun FavoriteScreen(
                 ) {
                     Text(
                         text = "${stringResource(R.string.user_homepage_favorite)} - ${favoriteViewModel.currentFavoriteFolderMetadata?.title}",
-                        fontSize = titleFontSize.sp
+                        fontSize = 24.sp
                     )
                     Text(
                         text = stringResource(
@@ -172,13 +183,6 @@ fun FavoriteScreen(
                     SmallVideoCard(
                         data = history,
                         onClick = { VideoInfoActivity.actionStart(context, history.avid) },
-                        onFocus = {
-                            currentIndex = index
-                            //预加载
-                            if (index + 20 > favoriteViewModel.favorites.size) {
-                                favoriteViewModel.updateFolderItems()
-                            }
-                        }
                     )
                 }
             }

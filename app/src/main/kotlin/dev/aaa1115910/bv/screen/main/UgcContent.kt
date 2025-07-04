@@ -1,6 +1,5 @@
 package dev.aaa1115910.bv.screen.main
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -11,35 +10,30 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import dev.aaa1115910.biliapi.entity.ugc.UgcType
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.UgcTopNavItem
-import dev.aaa1115910.bv.screen.main.ugc.UgcRegionContent
+import dev.aaa1115910.bv.screen.main.ugc.UgcRegionScaffold
 import dev.aaa1115910.bv.screen.main.ugc.rememberUgcScaffoldState
-import dev.aaa1115910.bv.util.fInfo
-import dev.aaa1115910.bv.util.requestFocus
-import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 @Composable
 fun UgcContent(
     modifier: Modifier = Modifier,
     navFocusRequester: FocusRequester
 ) {
-    val scope = rememberCoroutineScope()
-    val logger = KotlinLogging.logger("UgcContent")
-
     var selectedTab by remember { mutableStateOf(UgcTopNavItem.Douga) }
     var focusOnContent by remember { mutableStateOf(false) }
 
@@ -62,23 +56,16 @@ fun UgcContent(
         UgcTopNavItem.Animal to rememberUgcScaffoldState(ugcType = UgcType.Animal)
     )
 
-
-    //启动时刷新数据
-    LaunchedEffect(Unit) {
-
-    }
-
-    BackHandler(focusOnContent) {
-        logger.fInfo { "onFocusBackToNav" }
-        navFocusRequester.requestFocus(scope)
-        // scroll to top
-        scope.launch(Dispatchers.Main) {
-            ugcStateMap[selectedTab]!!.lazyListState.animateScrollToItem(0)
-        }
-    }
-
     Scaffold(
-        modifier = modifier,
+        modifier = modifier.onPreviewKeyEvent {
+            if (it.key == Key.Menu) {
+                if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
+                ugcStateMap[selectedTab]!!.reloadAll()
+                navFocusRequester.requestFocus()
+                return@onPreviewKeyEvent true
+            }
+            return@onPreviewKeyEvent false
+        },
         topBar = {
             TopNav(
                 modifier = Modifier
@@ -113,7 +100,7 @@ fun UgcContent(
                     }
                 }
             ) { screen ->
-                UgcRegionContent(state = ugcStateMap[screen]!!)
+                UgcRegionScaffold(state = ugcStateMap[screen]!!)
             }
         }
     }

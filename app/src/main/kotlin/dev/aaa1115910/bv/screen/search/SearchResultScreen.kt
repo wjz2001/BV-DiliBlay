@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +27,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -65,6 +67,10 @@ import dev.aaa1115910.bv.util.removeHtmlTags
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.viewmodel.search.SearchResultViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -72,18 +78,13 @@ fun SearchResultScreen(
     modifier: Modifier = Modifier,
     searchResultViewModel: SearchResultViewModel = koinViewModel()
 ) {
+    val gridState = rememberLazyGridState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val logger = KotlinLogging.logger { }
     val tabRowFocusRequester = remember { FocusRequester() }
 
     var rowSize by remember { mutableIntStateOf(4) }
-    var currentIndex by remember { mutableIntStateOf(0) }
-    val showLargeTitle by remember { derivedStateOf { currentIndex < rowSize } }
-    val titleFontSize by animateFloatAsState(
-        targetValue = if (showLargeTitle) 48f else 24f,
-        label = "Title font size"
-    )
 
     var searchKeyword by remember { mutableStateOf("") }
 
@@ -169,10 +170,16 @@ fun SearchResultScreen(
         searchResultViewModel.update()
     }
 
-    LaunchedEffect(currentIndex) {
-        if (currentIndex + 24 > searchResult.count) {
-            searchResultViewModel.loadMore(searchResult.type)
-        }
+
+    LaunchedEffect(gridState) {
+        snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+            .distinctUntilChanged()
+            .filter { index ->
+                index != null && index >= searchResult.count - 20
+            }
+            .collect {
+                searchResultViewModel.loadMore(searchResult.type)
+            }
     }
 
     Scaffold(
@@ -189,7 +196,7 @@ fun SearchResultScreen(
                     Text(
                         modifier = Modifier.fillMaxWidth(0.7f),
                         text = searchKeyword,
-                        fontSize = titleFontSize.sp,
+                        fontSize = 24.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -252,6 +259,7 @@ fun SearchResultScreen(
                     }
                     false
                 },
+                state = gridState,
                 columns = GridCells.Fixed(rowSize),
                 contentPadding = PaddingValues(24.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp),
@@ -269,7 +277,6 @@ fun SearchResultScreen(
                         searchResult = searchResultItem,
                         onClick = { onClickResult(searchResultItem) },
                         onLongClick = onLongClickSearchResultItem,
-                        onFocus = { currentIndex = index }
                     )
                 }
             }
@@ -296,7 +303,6 @@ private fun SearchResultListItem(
     searchResult: SearchTypeResult.SearchTypeResultItem,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
-    onFocus: () -> Unit
 ) {
     when (searchResult) {
         is SearchTypeResult.Video -> {
@@ -314,7 +320,6 @@ private fun SearchResultListItem(
                 ),
                 onClick = onClick,
                 onLongClick = onLongClick,
-                onFocus = onFocus
             )
         }
 
@@ -329,7 +334,7 @@ private fun SearchResultListItem(
                 ),
                 onClick = onClick,
                 onLongClick = onLongClick,
-                onFocus = onFocus
+                onFocus = {}
             )
         }
 
@@ -339,7 +344,7 @@ private fun SearchResultListItem(
                 face = searchResult.avatar,
                 sign = searchResult.sign,
                 username = searchResult.name,
-                onFocusChange = { if (it) onFocus() },
+                onFocusChange = { },
                 onClick = onClick,
                 onLongClick = onLongClick
             )

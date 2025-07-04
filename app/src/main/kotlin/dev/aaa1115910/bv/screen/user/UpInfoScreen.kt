@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -20,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -33,6 +35,8 @@ import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.viewmodel.user.UpInfoViewModel
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -40,13 +44,8 @@ fun UpSpaceScreen(
     modifier: Modifier = Modifier,
     upInfoViewModel: UpInfoViewModel = koinViewModel()
 ) {
+    val gridState = rememberLazyGridState()
     val context = LocalContext.current
-    var currentIndex by remember { mutableIntStateOf(0) }
-    val showLargeTitle by remember { derivedStateOf { currentIndex < 4 } }
-    val titleFontSize by animateFloatAsState(
-        targetValue = if (showLargeTitle) 48f else 24f,
-        label = "title font size"
-    )
 
     LaunchedEffect(Unit) {
         val intent = (context as Activity).intent
@@ -59,6 +58,17 @@ fun UpSpaceScreen(
         } else {
             context.finish()
         }
+    }
+
+    LaunchedEffect(gridState) {
+        snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+            .distinctUntilChanged()
+            .filter { index ->
+                index != null && index >= upInfoViewModel.spaceVideos.size - 20
+            }
+            .collect {
+                upInfoViewModel.update()
+            }
     }
 
     Scaffold(
@@ -74,7 +84,7 @@ fun UpSpaceScreen(
                 ) {
                     Text(
                         text = upInfoViewModel.upName,
-                        fontSize = titleFontSize.sp
+                        fontSize = 24.sp
                     )
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -100,6 +110,7 @@ fun UpSpaceScreen(
         LazyVerticalGrid(
             modifier = Modifier.padding(innerPadding),
             columns = GridCells.Fixed(4),
+            state = gridState,
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp)
@@ -107,7 +118,7 @@ fun UpSpaceScreen(
             itemsIndexed(
                 items = upInfoViewModel.spaceVideos,
                 key = { index, _ -> index }
-            ) { index, video ->
+            ) { _, video ->
                 Box(
                     contentAlignment = Alignment.Center
                 ) {
@@ -120,12 +131,6 @@ fun UpSpaceScreen(
                                 proxyArea = ProxyArea.checkProxyArea(video.title)
                             )
                         },
-                        onFocus = {
-                            currentIndex = index
-                            if (index + 20 > upInfoViewModel.spaceVideos.size) {
-                                upInfoViewModel.update()
-                            }
-                        }
                     )
                 }
             }
