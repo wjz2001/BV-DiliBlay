@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -20,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -32,6 +34,8 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.viewmodel.TagViewModel
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -39,13 +43,8 @@ fun TagScreen(
     modifier: Modifier = Modifier,
     tagViewModel: TagViewModel = koinViewModel()
 ) {
+    val gridState = rememberLazyGridState()
     val context = LocalContext.current
-    var currentIndex by remember { mutableIntStateOf(0) }
-    val showLargeTitle by remember { derivedStateOf { currentIndex < 4 } }
-    val titleFontSize by animateFloatAsState(
-        targetValue = if (showLargeTitle) 48f else 24f,
-        label = "title font size"
-    )
 
     LaunchedEffect(Unit) {
         val intent = (context as Activity).intent
@@ -58,6 +57,17 @@ fun TagScreen(
         } else {
             context.finish()
         }
+    }
+
+    LaunchedEffect(gridState) {
+        snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+            .distinctUntilChanged()
+            .filter { index ->
+                index != null && index >= tagViewModel.topVideos.size - 20
+            }
+            .collect {
+                tagViewModel.update()
+            }
     }
 
     Scaffold(
@@ -73,7 +83,7 @@ fun TagScreen(
                 ) {
                     Text(
                         text = tagViewModel.tagName,
-                        fontSize = titleFontSize.sp
+                        fontSize = 24.sp
                     )
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -99,6 +109,7 @@ fun TagScreen(
         LazyVerticalGrid(
             modifier = Modifier.padding(innerPadding),
             columns = GridCells.Fixed(4),
+            state = gridState,
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp)
@@ -113,12 +124,6 @@ fun TagScreen(
                     SmallVideoCard(
                         data = video,
                         onClick = { VideoInfoActivity.actionStart(context, video.avid) },
-                        onFocus = {
-                            currentIndex = index
-                            if (index + 20 > tagViewModel.topVideos.size) {
-                                tagViewModel.update()
-                            }
-                        }
                     )
                 }
             }

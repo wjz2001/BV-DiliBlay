@@ -4,26 +4,28 @@ import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -33,6 +35,7 @@ import dev.aaa1115910.biliapi.entity.ugc.UgcType
 import dev.aaa1115910.biliapi.entity.ugc.region.UgcRegionPage
 import dev.aaa1115910.biliapi.repositories.UgcRepository
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.util.fInfo
@@ -40,6 +43,8 @@ import dev.aaa1115910.bv.util.toast
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
@@ -49,96 +54,101 @@ fun UgcRegionScaffold(
     modifier: Modifier = Modifier,
     state: UgcScaffoldState,
 ) {
+    val gridState = state.lazyGridState
+    val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    var currentFocusedIndex by remember { mutableIntStateOf(0) }
-    val shouldLoadMore by remember {
-        derivedStateOf { currentFocusedIndex + 24 > state.ugcItems.size }
-    }
 
     LaunchedEffect(Unit) { if (state.ugcItems.isEmpty()) state.initUgcRegionData() }
-    LaunchedEffect(shouldLoadMore) {
-        if (shouldLoadMore) {
-            state.loadMore()
-            currentFocusedIndex = -100
-        }
+
+    LaunchedEffect(gridState) {
+        snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+            .distinctUntilChanged()
+            .filter { index ->
+                index != null && index >= state.ugcItems.size - 20
+            }
+            .collect {
+                scope.launch(Dispatchers.IO) {
+                    state.loadMore()
+                }
+            }
     }
 
-    LazyColumn(
+    LazyVerticalGrid(
         modifier = modifier,
-        state = state.lazyListState
+        state = gridState,
+        columns = GridCells.Fixed(4),
+        contentPadding = PaddingValues(24.dp),
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        gridItems(
-            data = state.ugcItems,
-            columnCount = 4,
-            modifier = Modifier
-                .width(880.dp)
-                .padding(horizontal = 24.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(24.dp),
-            itemContent = { index, item ->
-                SmallVideoCard(
-                    data = VideoCardData(
+        itemsIndexed(
+            items = state.ugcItems,
+            key = { index, _ -> index }
+        ) { _, item ->
+            SmallVideoCard(
+                data = remember(item) {         // `VideoCardData` 只在 item 变动时重建
+                    VideoCardData(
                         avid = item.aid,
                         title = item.title,
                         cover = item.cover,
-                        play = item.play,
-                        danmaku = item.danmaku,
+                        play = item.play.takeIf { it != -1 },
+                        danmaku = item.danmaku.takeIf { it != -1 },
                         upName = item.author,
                         time = item.duration * 1000L,
                         pubTime = item.pubTime
-                    ),
-                    onClick = { VideoInfoActivity.actionStart(context, item.aid) },
-                    onFocus = { currentFocusedIndex = index }
-                )
-            }
-        )
-    }
-}
+                    )
+                },
+                onClick = { VideoInfoActivity.actionStart(context, item.aid) }
+            )
+        }
 
-fun <T> LazyListScope.gridItems(
-    data: List<T>,
-    key: ((index: Int) -> Any)? = null,
-    columnCount: Int,
-    modifier: Modifier = Modifier,
-    verticalAlignment: Alignment.Vertical = Alignment.Top,
-    horizontalArrangement: Arrangement.Horizontal = Arrangement.Start,
-    itemContent: @Composable BoxScope.(Int, T) -> Unit,
-) {
-    val size = data.count()
-    val rows = if (size == 0) 0 else 1 + (size - 1) / columnCount
-    items(rows, key = key) { rowIndex ->
-        LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center
-        ) {
-            item {
-                Row(
-                    verticalAlignment = verticalAlignment,
-                    horizontalArrangement = horizontalArrangement,
-                    modifier = modifier
-                ) {
-                    for (columnIndex in 0 until columnCount) {
-                        val itemIndex = rowIndex * columnCount + columnIndex
-                        if (itemIndex < size) {
-                            Box(
-                                modifier = Modifier.weight(1F, fill = true),
-                                propagateMinConstraints = true
-                            ) {
-                                itemContent(itemIndex, data[itemIndex])
-                            }
-                        } else {
-                            Spacer(Modifier.weight(1F, fill = true))
-                        }
-                    }
-                }
+        if (state.updating) {
+            item(span = { GridItemSpan(maxLineSpan) }) {    // 网格里占整行
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(80.dp),
+                    contentAlignment = Alignment.Center
+                ) { LoadingTip() }
             }
         }
     }
+
+//    LazyColumn(
+//        modifier = modifier,
+//        state = state.lazyListState
+//    ) {
+//        gridItems(
+//            data = state.ugcItems,
+//            columnCount = 4,
+//            modifier = Modifier
+//                .width(880.dp)
+//                .padding(horizontal = 24.dp, vertical = 12.dp),
+//            horizontalArrangement = Arrangement.spacedBy(24.dp),
+//            itemContent = { index, item ->
+//                SmallVideoCard(
+//                    data = VideoCardData(
+//                        avid = item.aid,
+//                        title = item.title,
+//                        cover = item.cover,
+//                        play = item.play,
+//                        danmaku = item.danmaku,
+//                        upName = item.author,
+//                        time = item.duration * 1000L,
+//                        pubTime = item.pubTime
+//                    ),
+//                    onClick = { VideoInfoActivity.actionStart(context, item.aid) },
+//                )
+//            }
+//        )
+//    }
 }
+
 
 data class UgcScaffoldState(
     val context: Context,
     val scope: CoroutineScope,
-    val lazyListState: LazyListState,
+    val lazyGridState: LazyGridState,
     val ugcType: UgcType,
     private val ugcRepository: UgcRepository
 ) {
@@ -206,21 +216,21 @@ data class UgcScaffoldState(
 fun rememberUgcScaffoldState(
     context: Context = LocalContext.current,
     scope: CoroutineScope = rememberCoroutineScope(),
-    lazyListState: LazyListState = rememberLazyListState(),
+    lazyGridState: LazyGridState = rememberLazyGridState(),
     ugcType: UgcType,
     ugcRepository: UgcRepository = koinInject()
 ): UgcScaffoldState {
     return remember(
         context,
         scope,
-        lazyListState,
+        lazyGridState,
         ugcType,
         ugcRepository
     ) {
         UgcScaffoldState(
             context = context,
             scope = scope,
-            lazyListState = lazyListState,
+            lazyGridState = lazyGridState,
             ugcType = ugcType,
             ugcRepository = ugcRepository
         )

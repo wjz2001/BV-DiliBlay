@@ -67,15 +67,6 @@ fun AnimeTimelineScreen(
 
     var currentTimelineIndex by remember { mutableIntStateOf(0) }
     var currentEpisodeIndex by remember { mutableIntStateOf(0) }
-    val showLargeTitle by remember {
-        derivedStateOf {
-            currentTimelineIndex == 0 && currentEpisodeIndex < 1
-        }
-    }
-    val titleFontSize by animateFloatAsState(
-        targetValue = if (showLargeTitle) 48f else 24f,
-        label = "title font size"
-    )
 
     val defaultFocusRequester = remember { FocusRequester() }
     val timelines = remember { mutableStateListOf<Timeline>() }
@@ -117,7 +108,7 @@ fun AnimeTimelineScreen(
             ) {
                 Text(
                     text = stringResource(id = R.string.title_activity_anime_timeline),
-                    fontSize = titleFontSize.sp,
+                    fontSize = 24.sp,
                 )
             }
         }

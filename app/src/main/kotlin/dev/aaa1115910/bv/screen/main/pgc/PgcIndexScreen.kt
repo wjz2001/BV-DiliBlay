@@ -58,15 +58,6 @@ fun PgcIndexScreen(
     val logger = KotlinLogging.logger { }
 
     var currentSeasonIndex by remember { mutableIntStateOf(0) }
-    val showLargeTitle by remember {
-        derivedStateOf {
-            currentSeasonIndex < 5
-        }
-    }
-    val titleFontSize by animateFloatAsState(
-        targetValue = if (showLargeTitle) 48f else 24f,
-        label = "title font size"
-    )
 
     val pgcItems = pgcIndexViewModel.indexResultItems
     val noMore = pgcIndexViewModel.noMore
@@ -127,7 +118,7 @@ fun PgcIndexScreen(
                     Text(
                         text = stringResource(id = R.string.title_activity_pgc_index) +
                                 " - " + pgcIndexViewModel.pgcType.getDisplayName(context),
-                        fontSize = titleFontSize.sp,
+                        fontSize = 24.sp,
                     )
                     Text(
                         text = stringResource(R.string.filter_dialog_open_tip),

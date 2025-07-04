@@ -65,12 +65,6 @@ fun MediaCodecScreen(
         println(list)
     }
 
-    val showLargeTitle by remember { derivedStateOf { true } }
-    val titleFontSize by animateFloatAsState(
-        targetValue = if (showLargeTitle) 48f else 24f,
-        label = "title font size"
-    )
-
     var currentCodecInfoData by remember { mutableStateOf<CodecInfoData?>(null) }
     var focusInNav by remember { mutableStateOf(false) }
 
@@ -100,7 +94,7 @@ fun MediaCodecScreen(
                 ) {
                     Text(
                         text = stringResource(R.string.title_activity_media_codec),
-                        fontSize = titleFontSize.sp
+                        fontSize = 24.sp
                     )
                     Text(
                         text = "",

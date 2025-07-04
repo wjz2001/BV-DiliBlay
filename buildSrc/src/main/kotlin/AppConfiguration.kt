@@ -2,6 +2,7 @@ import java.io.File
 
 object AppConfiguration {
     const val appId = "dev.aaa1115910.bv"
+    const val applicationId = "dev.frost819.bv" //由于小米电视屏蔽原包名，此包名仅用于apk打包
     const val compileSdk = 35
     const val minSdk = 21
     const val targetSdk = 35
@@ -28,7 +29,7 @@ object AppConfiguration {
         val googleServicesJsonFile = File(googleServicesJsonPath)
         googleServicesAvailable =
             googleServicesJsonFile.exists() && googleServicesJsonFile.readText().let {
-                it.contains(appId) && it.contains("$appId.r8test") && it.contains("$appId.debug")
+                it.contains(applicationId) && it.contains("$applicationId.r8test") && it.contains("$applicationId.debug")
             }
     }
 }

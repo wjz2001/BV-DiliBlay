@@ -57,12 +57,6 @@ import dev.aaa1115910.bv.util.requestFocus
 fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
-    val showLargeTitle by remember { derivedStateOf { true } }
-    val titleFontSize by animateFloatAsState(
-        targetValue = if (showLargeTitle) 48f else 24f,
-        label = "title font size"
-    )
-
     var currentMenu by remember { mutableStateOf(SettingsMenuNavItem.Resolution) }
     var focusInNav by remember { mutableStateOf(false) }
 
@@ -84,7 +78,7 @@ fun SettingsScreen(
                 ) {
                     Text(
                         text = stringResource(R.string.title_activity_settings),
-                        fontSize = titleFontSize.sp
+                        fontSize = 24.sp
                     )
                     Text(
                         text = "",

@@ -63,11 +63,7 @@ fun FollowScreen(
     val defaultFocusRequester = remember { FocusRequester() }
 
     var currentIndex by remember { mutableIntStateOf(0) }
-    val showLargeTitle by remember { derivedStateOf { currentIndex < 3 } }
-    val titleFontSize by animateFloatAsState(
-        targetValue = if (showLargeTitle) 48f else 24f,
-        label = "title font size"
-    )
+
 
     LaunchedEffect(followViewModel.updating) {
         if (!followViewModel.updating) {
@@ -93,7 +89,7 @@ fun FollowScreen(
                 ) {
                     Text(
                         text = stringResource(R.string.user_homepage_follow),
-                        fontSize = titleFontSize.sp
+                        fontSize = 24.sp
                     )
                     Text(
                         text = stringResource(

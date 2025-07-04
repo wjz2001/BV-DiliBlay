@@ -54,10 +54,6 @@ fun HomeContent(
     val scope = rememberCoroutineScope()
     val logger = KotlinLogging.logger("HomeContent")
 
-    val recommendState = rememberLazyListState()
-    val popularState = rememberLazyListState()
-    val dynamicState = rememberLazyListState()
-
     var selectedTab by remember { mutableStateOf(HomeTopNavItem.Dynamics) }
     var focusOnContent by remember { mutableStateOf(false) }
     var hasFocus by remember { mutableStateOf(false) }
@@ -188,9 +184,9 @@ fun HomeContent(
                 }
             ) { screen ->
                 when (screen) {
-                    HomeTopNavItem.Recommend -> RecommendScreen(lazyListState = recommendState)
-                    HomeTopNavItem.Popular -> PopularScreen(lazyListState = popularState)
-                    HomeTopNavItem.Dynamics -> DynamicsScreen(lazyListState = dynamicState)
+                    HomeTopNavItem.Recommend -> RecommendScreen()
+                    HomeTopNavItem.Popular -> PopularScreen()
+                    HomeTopNavItem.Dynamics -> DynamicsScreen()
                 }
             }
         }

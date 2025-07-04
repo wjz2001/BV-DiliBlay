@@ -55,16 +55,6 @@ fun FollowingSeasonScreen(
     val logger = KotlinLogging.logger { }
 
     var currentIndex by remember { mutableIntStateOf(0) }
-    val showLargeTitle by remember { derivedStateOf { currentIndex < 6 } }
-    val titleFontSize by animateFloatAsState(
-        targetValue = if (showLargeTitle) 48f else 24f,
-        label = "title font size"
-    )
-    val subtitleFontSize by animateFloatAsState(
-        targetValue = if (showLargeTitle) 36f else 24f,
-        label = "subtitle font size"
-    )
-
     var showFilter by remember { mutableStateOf(false) }
 
     val followingSeasons = followingSeasonViewModel.followingSeasons
@@ -114,15 +104,15 @@ fun FollowingSeasonScreen(
                     ) {
                         Text(
                             text = stringResource(R.string.title_activity_following_season),
-                            fontSize = titleFontSize.sp
+                            fontSize = 24.sp
                         )
                         Text(
                             text = followingSeasonType.getDisplayName(context),
-                            fontSize = subtitleFontSize.sp
+                            fontSize = 24.sp
                         )
                         Text(
                             text = "(${followingSeasonStatus.getDisplayName(context)})",
-                            fontSize = subtitleFontSize.sp
+                            fontSize = 24.sp
                         )
                     }
                     Column(

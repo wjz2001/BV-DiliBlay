@@ -111,12 +111,7 @@ fun UserInfoScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val logger = KotlinLogging.logger { }
     val focusRequester = remember { FocusRequester() }
-    var showLargeTitle by remember { mutableStateOf(true) }
 
-    val titleFontSize by animateFloatAsState(
-        targetValue = if (showLargeTitle) 48f else 24f,
-        label = "title font size"
-    )
     val randomTitleList = context.resources.getStringArray(R.array.user_homepage_random_title)
     val title by remember { mutableStateOf(randomTitleList.random()) }
 
@@ -308,7 +303,7 @@ fun UserInfoScreen(
             ) {
                 Text(
                     text = title,
-                    fontSize = titleFontSize.sp
+                    fontSize = 24.sp
                 )
             }
 
@@ -321,10 +316,7 @@ fun UserInfoScreen(
             item {
                 UserRow(
                     modifier = Modifier
-                        .focusRequester(focusRequester)
-                        .onFocusChanged {
-                            showLargeTitle = it.hasFocus
-                        },
+                        .focusRequester(focusRequester),
                     username = userViewModel.username,
                     face = userViewModel.face,
                     uid = userViewModel.responseData?.mid ?: 0,
