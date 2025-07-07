@@ -1,6 +1,5 @@
 package dev.aaa1115910.bv.screen.main
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -17,12 +16,16 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.component.PgcTopNavItem
 import dev.aaa1115910.bv.component.TopNav
@@ -32,22 +35,16 @@ import dev.aaa1115910.bv.screen.main.pgc.GuoChuangContent
 import dev.aaa1115910.bv.screen.main.pgc.MovieContent
 import dev.aaa1115910.bv.screen.main.pgc.TvContent
 import dev.aaa1115910.bv.screen.main.pgc.VarietyContent
-import dev.aaa1115910.bv.util.fInfo
-import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.viewmodel.pgc.PgcAnimeViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcDocumentaryViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcGuoChuangViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcMovieViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcTvViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcVarietyViewModel
-import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun PgcContent(
-    modifier: Modifier = Modifier,
     navFocusRequester: FocusRequester,
     pgcAnimeViewModel: PgcAnimeViewModel = koinViewModel(),
     pgcGuoChuangViewModel: PgcGuoChuangViewModel = koinViewModel(),
@@ -56,9 +53,6 @@ fun PgcContent(
     pgcTvViewModel: PgcTvViewModel = koinViewModel(),
     pgcVarietyViewModel: PgcVarietyViewModel = koinViewModel()
 ) {
-    val scope = rememberCoroutineScope()
-    val logger = KotlinLogging.logger("PgcContent")
-
     val animeState = rememberLazyListState()
     val guoChuangState = rememberLazyListState()
     val movieState = rememberLazyListState()
@@ -90,22 +84,6 @@ fun PgcContent(
 
     }
 
-    BackHandler(focusOnContent) {
-        logger.fInfo { "onFocusBackToNav" }
-        navFocusRequester.requestFocus(scope)
-        // scroll to top
-        scope.launch(Dispatchers.Main) {
-            when (selectedTab) {
-                PgcTopNavItem.Anime -> animeState.animateScrollToItem(0)
-                PgcTopNavItem.GuoChuang -> guoChuangState.animateScrollToItem(0)
-                PgcTopNavItem.Movie -> movieState.animateScrollToItem(0)
-                PgcTopNavItem.Documentary -> documentaryState.animateScrollToItem(0)
-                PgcTopNavItem.Tv -> tvState.animateScrollToItem(0)
-                PgcTopNavItem.Variety -> varietyState.animateScrollToItem(0)
-            }
-        }
-    }
-
     Scaffold(
         modifier = Modifier,
         topBar = {
@@ -135,6 +113,22 @@ fun PgcContent(
             modifier = Modifier
                 .padding(innerPadding)
                 .onFocusChanged { focusOnContent = it.hasFocus }
+                .onPreviewKeyEvent {
+                    if (it.key == Key.Menu) {
+                        if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
+                        when (selectedTab) {
+                            PgcTopNavItem.Anime -> pgcAnimeViewModel.reloadAll()
+                            PgcTopNavItem.GuoChuang -> pgcGuoChuangViewModel.reloadAll()
+                            PgcTopNavItem.Movie -> pgcMovieViewModel.reloadAll()
+                            PgcTopNavItem.Documentary -> pgcDocumentaryViewModel.reloadAll()
+                            PgcTopNavItem.Tv -> pgcTvViewModel.reloadAll()
+                            PgcTopNavItem.Variety -> pgcVarietyViewModel.reloadAll()
+                        }
+                        navFocusRequester.requestFocus()
+                        return@onPreviewKeyEvent true
+                    }
+                    return@onPreviewKeyEvent false
+                }
         ) {
             AnimatedContent(
                 targetState = selectedTab,
