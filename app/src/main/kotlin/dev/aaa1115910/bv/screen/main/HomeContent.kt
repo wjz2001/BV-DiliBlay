@@ -8,7 +8,6 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,7 +43,6 @@ import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun HomeContent(
-    modifier: Modifier = Modifier,
     navFocusRequester: FocusRequester,
     recommendViewModel: RecommendViewModel = koinViewModel(),
     popularViewModel: PopularViewModel = koinViewModel(),
@@ -56,7 +54,6 @@ fun HomeContent(
 
     var selectedTab by remember { mutableStateOf(HomeTopNavItem.Dynamics) }
     var focusOnContent by remember { mutableStateOf(false) }
-    var hasFocus by remember { mutableStateOf(false) }
 
     //启动时刷新数据
     LaunchedEffect(Unit) {
@@ -85,41 +82,7 @@ fun HomeContent(
         }
     }
 
-    LaunchedEffect(hasFocus) {
-        if (hasFocus) {
-            navFocusRequester.requestFocus()
-        }
-    }
-
     Scaffold(
-        modifier = Modifier
-            .onFocusChanged { hasFocus = it.hasFocus }
-            .onPreviewKeyEvent {
-                if (it.key == Key.Menu) {
-                    if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
-                    scope.launch(Dispatchers.IO) {
-                        when (selectedTab) {
-                            HomeTopNavItem.Recommend -> {
-                                recommendViewModel.clearData()
-                                recommendViewModel.loadMore()
-                            }
-
-                            HomeTopNavItem.Popular -> {
-                                popularViewModel.clearData()
-                                popularViewModel.loadMore()
-                            }
-
-                            HomeTopNavItem.Dynamics -> {
-                                dynamicViewModel.clearData()
-                                dynamicViewModel.loadMore()
-                            }
-                        }
-                    }
-                    navFocusRequester.requestFocus()
-                    return@onPreviewKeyEvent true
-                }
-                return@onPreviewKeyEvent false
-            },
         topBar = {
             TopNav(
                 modifier = Modifier
@@ -168,6 +131,32 @@ fun HomeContent(
             modifier = Modifier
                 .padding(innerPadding)
                 .onFocusChanged { focusOnContent = it.hasFocus }
+                .onPreviewKeyEvent {
+                    if (it.key == Key.Menu) {
+                        if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
+                        scope.launch(Dispatchers.IO) {
+                            when (selectedTab) {
+                                HomeTopNavItem.Recommend -> {
+                                    recommendViewModel.clearData()
+                                    recommendViewModel.loadMore()
+                                }
+
+                                HomeTopNavItem.Popular -> {
+                                    popularViewModel.clearData()
+                                    popularViewModel.loadMore()
+                                }
+
+                                HomeTopNavItem.Dynamics -> {
+                                    dynamicViewModel.clearData()
+                                    dynamicViewModel.loadMore()
+                                }
+                            }
+                        }
+                        navFocusRequester.requestFocus()
+                        return@onPreviewKeyEvent true
+                    }
+                    return@onPreviewKeyEvent false
+                },
         ) {
             AnimatedContent(
                 targetState = selectedTab,

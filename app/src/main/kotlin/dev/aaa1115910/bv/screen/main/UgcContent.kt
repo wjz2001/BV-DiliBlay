@@ -31,7 +31,6 @@ import dev.aaa1115910.bv.screen.main.ugc.rememberUgcScaffoldState
 
 @Composable
 fun UgcContent(
-    modifier: Modifier = Modifier,
     navFocusRequester: FocusRequester
 ) {
     var selectedTab by remember { mutableStateOf(UgcTopNavItem.Douga) }
@@ -57,15 +56,6 @@ fun UgcContent(
     )
 
     Scaffold(
-        modifier = modifier.onPreviewKeyEvent {
-            if (it.key == Key.Menu) {
-                if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
-                ugcStateMap[selectedTab]!!.reloadAll()
-                navFocusRequester.requestFocus()
-                return@onPreviewKeyEvent true
-            }
-            return@onPreviewKeyEvent false
-        },
         topBar = {
             TopNav(
                 modifier = Modifier
@@ -85,6 +75,15 @@ fun UgcContent(
             modifier = Modifier
                 .padding(innerPadding)
                 .onFocusChanged { focusOnContent = it.hasFocus }
+                .onPreviewKeyEvent {
+                if (it.key == Key.Menu) {
+                    if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
+                    ugcStateMap[selectedTab]!!.reloadAll()
+                    navFocusRequester.requestFocus()
+                    return@onPreviewKeyEvent true
+                }
+                return@onPreviewKeyEvent false
+            },
         ) {
             AnimatedContent(
                 targetState = selectedTab,
