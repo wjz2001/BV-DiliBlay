@@ -119,7 +119,7 @@ object BiliHttpApi {
 
     private fun createClient() {
         client = HttpClient(OkHttp) {
-            BrowserUserAgent()
+            //BrowserUserAgent()
             install(ContentNegotiation) {
                 json(json)
             }
@@ -132,6 +132,7 @@ object BiliHttpApi {
             }
             install(JsoupPlugin)
             defaultRequest {
+                header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0")
                 url {
                     host = endPoint
                     protocol = URLProtocol.HTTPS
@@ -1222,6 +1223,7 @@ object BiliHttpApi {
         order?.let { parameter("order", it) }
         duration?.let { parameter("duration", it) }
         header("Cookie", "buvid3=$buvid3;")
+        header("referer", "https://www.bilibili.com")
     }.body()
 
     /** 获取番剧首页数据 */
