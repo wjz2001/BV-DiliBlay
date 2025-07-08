@@ -87,7 +87,7 @@ fun MainScreen(
         }
     }
 
-    val onFocusToContent = {
+    val onFocusToContent: () -> Unit = {
         when (selectedDrawerItem) {
             LeftNaviItem.Home -> mainFocusRequester.requestFocus()
             LeftNaviItem.UGC -> ugcFocusRequester.requestFocus()
