@@ -104,7 +104,19 @@ fun CardCover(
             contentDescription = null,
             contentScale = ContentScale.FillBounds
         )
-
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.5f)
+                        )
+                    )
+                )
+        )
         // 封面底部播放数、弹幕数、时间
         Row(
             modifier = modifier
