@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -16,14 +17,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -51,18 +47,23 @@ fun SmallVideoCard(
     modifier: Modifier = Modifier,
     data: VideoCardData,
     onClick: () -> Unit = {},
-    onLongClick: () -> Unit = {},
+    onLongClick: () -> Unit = {}
 ) {
     Column(
         modifier = modifier
+            .fillMaxWidth()
     ) {
+        // 1.6f 的封面比例，完全保留
         Card(
             onClick = onClick,
             onLongClick = onLongClick,
-            shape = CardDefaults.shape(shape = MaterialTheme.shapes.large),
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1.6f),
+            shape = CardDefaults.shape(MaterialTheme.shapes.large),
             border = CardDefaults.border(
                 focusedBorder = Border(
-                    border = BorderStroke(width = 3.dp, color = MaterialTheme.colorScheme.border),
+                    border = BorderStroke(3.dp, MaterialTheme.colorScheme.border),
                     shape = MaterialTheme.shapes.large
                 )
             )
@@ -75,13 +76,18 @@ fun SmallVideoCard(
             )
         }
 
+        // 固定信息区域高度，防止卡片高度抖动
         CardInfo(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(80.dp),
             title = data.title,
             upName = data.upName,
             pubTime = data.pubTime
         )
     }
 }
+
 
 @Composable
 fun CardCover(
@@ -92,18 +98,21 @@ fun CardCover(
     time: String
 ) {
     Box(
-        modifier = modifier.clip(MaterialTheme.shapes.large),
+        modifier = modifier
+            .fillMaxSize()
+            .clip(MaterialTheme.shapes.large),
         contentAlignment = Alignment.BottomCenter
     ) {
         AsyncImage(
             modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1.6f)
+                .fillMaxSize()
                 .clip(MaterialTheme.shapes.large),
             model = cover.resizedImageUrl(ImageSize.SmallVideoCardCover),
             contentDescription = null,
-            contentScale = ContentScale.FillBounds
+            contentScale = ContentScale.Crop
         )
+
+        // 渐变遮罩
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -117,17 +126,19 @@ fun CardCover(
                     )
                 )
         )
-        // 封面底部播放数、弹幕数、时间
+
+        // 播放数、弹幕数、时间
         Row(
-            modifier = modifier
+            modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp, 8.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (play.isNotBlank()) {
                 Icon(
                     painter = painterResource(id = R.drawable.ic_play_count),
-                    contentDescription = null
+                    contentDescription = null,
+                    tint = Color.White
                 )
                 Spacer(Modifier.width(2.dp))
                 Text(
@@ -140,7 +151,8 @@ fun CardCover(
             if (danmaku.isNotBlank()) {
                 Icon(
                     painter = painterResource(id = R.drawable.ic_danmaku_count),
-                    contentDescription = null
+                    contentDescription = null,
+                    tint = Color.White
                 )
                 Spacer(Modifier.width(2.dp))
                 Text(
@@ -161,21 +173,24 @@ fun CardCover(
 }
 
 @Composable
-private fun CardInfo(
+fun CardInfo(
     modifier: Modifier = Modifier,
     title: String,
     upName: String,
     pubTime: String?
 ) {
     Column(
-        modifier = modifier.padding(0.dp, 8.dp)
+        modifier = modifier
+            .padding(horizontal = 8.dp, vertical = 6.dp)
     ) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
             maxLines = 2,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth()
         )
+        Spacer(Modifier.height(4.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -188,15 +203,16 @@ private fun CardInfo(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            if (pubTime != null) {
-                Text(
-                    text = pubTime,
-                    style = MaterialTheme.typography.labelMedium,
-                )
-            }
+            Text(
+                text = pubTime ?: "",
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
+
 
 @Preview
 @Composable

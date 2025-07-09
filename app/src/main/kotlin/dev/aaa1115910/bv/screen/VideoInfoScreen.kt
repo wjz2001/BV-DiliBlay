@@ -5,7 +5,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -87,9 +86,6 @@ import androidx.tv.material3.Tab
 import androidx.tv.material3.TabRow
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
-import coil.compose.rememberAsyncImagePainter
-import coil.request.ImageRequest
-import coil.transform.BlurTransformation
 import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.biliapi.entity.video.Dimension
@@ -417,6 +413,19 @@ fun VideoInfoScreen(
                     if (fromSeason || !showVideoInfo) {
                         if (!showVideoInfo) videoInfoRepository.videoList.clear()
                         val playPart = videoDetailViewModel.videoDetail!!.pages.first()
+                        withContext(Dispatchers.Default) {
+                            val singlePartVideoList = listOf(
+                                VideoListItem(
+                                    aid = videoDetailViewModel.videoDetail!!.aid,
+                                    cid = playPart.cid,
+                                    title = playPart.title,
+                                    index = 0,
+                                    isEpisode = false
+                                )
+                            )
+                            videoInfoRepository.videoList.clear()
+                            videoInfoRepository.videoList.addAll(singlePartVideoList)
+                        }
                         launchPlayerActivity(
                             context = context,
                             avid = videoDetailViewModel.videoDetail!!.aid,
@@ -584,15 +593,16 @@ fun VideoInfoScreen(
                                 // 点击封面读取分p列表
                                 scope.launch {
                                     withContext(Dispatchers.Default) {
-                                        val partVideoList = videoDetailViewModel.videoDetail!!.pages.mapIndexed { index, videoPage ->
-                                            VideoListItem(
-                                                aid = videoDetailViewModel.videoDetail!!.aid,
-                                                cid = videoPage.cid,
-                                                title = videoPage.title,
-                                                index = index,
-                                                isEpisode = false
-                                            )
-                                        }
+                                        val partVideoList =
+                                            videoDetailViewModel.videoDetail!!.pages.mapIndexed { index, videoPage ->
+                                                VideoListItem(
+                                                    aid = videoDetailViewModel.videoDetail!!.aid,
+                                                    cid = videoPage.cid,
+                                                    title = videoPage.title,
+                                                    index = index,
+                                                    isEpisode = false
+                                                )
+                                            }
                                         videoInfoRepository.videoList.clear()
                                         videoInfoRepository.videoList.addAll(partVideoList)
                                     }
@@ -690,7 +700,7 @@ fun VideoInfoScreen(
                             lastPlayedCid = lastPlayedCid,
                             lastPlayedTime = lastPlayedTime,
                             enablePartListDialog =
-                            (videoDetailViewModel.videoDetail?.pages?.size ?: 0) > 5,
+                                (videoDetailViewModel.videoDetail?.pages?.size ?: 0) > 5,
                             onClick = { cid ->
                                 logger.fInfo { "Click video part: [av:${videoDetailViewModel.videoDetail?.aid}, bv:${videoDetailViewModel.videoDetail?.bvid}, cid:$cid]" }
                                 launchPlayerActivity(
@@ -722,8 +732,10 @@ fun VideoInfoScreen(
                                     lastPlayedCid = lastPlayedCid,
                                     lastPlayedTime = lastPlayedTime,
                                     enableUgcListDialog =
-                                    (videoDetailViewModel.videoDetail?.ugcSeason?.sections?.get(0)?.episodes?.size
-                                        ?: 0) > 5,
+                                        (videoDetailViewModel.videoDetail?.ugcSeason?.sections?.get(
+                                            0
+                                        )?.episodes?.size
+                                            ?: 0) > 5,
                                     onClick = { aid, cid ->
                                         logger.fInfo { "Click ugc season part: [av:${videoDetailViewModel.videoDetail?.aid}, bv:${videoDetailViewModel.videoDetail?.bvid}, cid:$cid]" }
                                         updateUgcSeasonSectionVideoList(0)

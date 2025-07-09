@@ -533,6 +533,7 @@ fun VideoPlayerV3Screen(
             },
             onPlayNewVideo = {
                 if (!Prefs.incognitoMode) sendHeartbeat()
+                videoPlayer.pause()
                 playerViewModel.partTitle = it.title
                 playerViewModel.loadPlayUrl(
                     avid = it.aid,
@@ -541,6 +542,7 @@ fun VideoPlayerV3Screen(
                     seasonId = it.seasonId,
                     continuePlayNext = true
                 )
+                videoPlayer.start()
             },
             onCancelSkipToNextEp = {
                 hideSkipToNextEpTimer?.cancel()

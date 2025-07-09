@@ -38,7 +38,6 @@ fun VideoListController(
     videoList: List<VideoListItem>,
     onPlayNewVideo: (VideoListItem) -> Unit
 ) {
-    val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val focusRequester = remember { FocusRequester() }
 
@@ -46,7 +45,7 @@ fun VideoListController(
         if (show) {
             val currentIndex = videoList.indexOfFirst { it.cid == currentCid }
             listState.animateScrollToItem(currentIndex)
-            focusRequester.requestFocus(scope)
+            focusRequester.requestFocus()
         }
     }
 
