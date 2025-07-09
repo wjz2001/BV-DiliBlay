@@ -24,29 +24,21 @@ val signingProp = file(project.rootProject.file("signing.properties"))
 
 android {
     signingConfigs {
-        getByName("debug") {
-            storeFile =
-                file("C:\\Users\\G8AE94I\\Downloads\\basic-android-kotlin-compose-training\\debug.keystore")
-            keyAlias = "androiddebugkey"
-            storePassword = "980819"
-            keyPassword = "980819"
-        }
-        create("release") {
-            storeFile =
-                file("C:\\Users\\G8AE94I\\Downloads\\basic-android-kotlin-compose-training\\release.keystore")
-            keyAlias = "releaseKeystore"
-            storePassword = "980819"
-            keyPassword = "980819"
-        }
         if (signingProp.exists()) {
             val properties = Properties().apply {
                 load(FileInputStream(signingProp))
             }
-            create("key") {
-                storeFile = rootProject.file(properties.getProperty("keystore.path"))
-                storePassword = properties.getProperty("keystore.pwd")
-                keyAlias = properties.getProperty("keystore.alias")
-                keyPassword = properties.getProperty("keystore.alias_pwd")
+            getByName("debug") {
+                storeFile = rootProject.file(properties.getProperty("debugStoreFile"))
+                keyAlias = properties.getProperty("debugKeyAlias")
+                storePassword = properties.getProperty("debugStorePassword")
+                keyPassword = properties.getProperty("debugKeyPassword")
+            }
+            create("release") {
+                storeFile = rootProject.file(properties.getProperty("releaseStoreFile"))
+                keyAlias = properties.getProperty("releaseKeyAlias")
+                storePassword = properties.getProperty("releaseStorePassword")
+                keyPassword = properties.getProperty("releaseKeyPassword")
             }
         }
     }
@@ -84,7 +76,6 @@ android {
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("release")
-            if (signingProp.exists()) signingConfig = signingConfigs.getByName("key")
             configure<CrashlyticsExtension> {
                 mappingFileUploadEnabled = AppConfiguration.googleServicesAvailable
             }
@@ -108,7 +99,7 @@ android {
                 "proguard-rules.pro"
             )
             applicationIdSuffix = ".r8test"
-            if (signingProp.exists()) signingConfig = signingConfigs.getByName("key")
+            if (signingProp.exists()) signingConfig = signingConfigs.getByName("release")
             configure<CrashlyticsExtension> {
                 mappingFileUploadEnabled = false
             }
@@ -119,7 +110,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            if (signingProp.exists()) signingConfig = signingConfigs.getByName("key")
+            if (signingProp.exists()) signingConfig = signingConfigs.getByName("release")
             configure<CrashlyticsExtension> {
                 mappingFileUploadEnabled = AppConfiguration.googleServicesAvailable
             }
