@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -31,14 +32,11 @@ import dev.aaa1115910.bv.component.controllers2.MenuFocusState
 import dev.aaa1115910.bv.component.controllers2.VideoPlayerPictureMenuItem
 import dev.aaa1115910.bv.component.controllers2.playermenu.component.MenuListItem
 import dev.aaa1115910.bv.component.controllers2.playermenu.component.RadioMenuList
-import dev.aaa1115910.bv.component.controllers2.playermenu.component.StepLessMenuItem
-import dev.aaa1115910.bv.component.createCustomInitialFocusRestorerModifiers
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
-import kotlin.math.roundToInt
 
 @Composable
 fun PictureMenuList(
@@ -53,7 +51,7 @@ fun PictureMenuList(
     val context = LocalContext.current
     val focusState = LocalMenuFocusStateData.current
     val data = LocalVideoPlayerControllerData.current
-    val focusRestorerModifiers = createCustomInitialFocusRestorerModifiers()
+    val restorerFocusRequester = remember { FocusRequester() }
 
     val focusRequester = remember { FocusRequester() }
     var selectedPictureMenuItem by remember { mutableStateOf(VideoPlayerPictureMenuItem.Resolution) }
@@ -114,16 +112,6 @@ fun PictureMenuList(
                     }
                 )
 
-//                VideoPlayerPictureMenuItem.PlaySpeed -> StepLessMenuItem(
-//                    modifier = menuItemsModifier,
-//                    value = data.currentVideoSpeed,
-//                    step = 0.25f,
-//                    range = 0.25f..2f,
-//                    text = "${(data.currentVideoSpeed * 100).roundToInt() / 100f}x",
-//                    onValueChange = onPlaySpeedChange,
-//                    onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
-//                )
-
                 VideoPlayerPictureMenuItem.Audio -> RadioMenuList(
                     modifier = menuItemsModifier,
                     items = audioList.map { audio -> audio.getDisplayName(context) },
@@ -155,14 +143,14 @@ fun PictureMenuList(
                     }
                     false
                 }
-                .then(focusRestorerModifiers.parentModifier),
+                .focusRestorer(restorerFocusRequester),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(8.dp)
         ) {
             itemsIndexed(VideoPlayerPictureMenuItem.entries.toMutableList()) { index, item ->
                 MenuListItem(
                     modifier = Modifier
-                        .ifElse(index == 0, focusRestorerModifiers.childModifier),
+                        .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester)),
                     text = item.getDisplayName(context),
                     selected = selectedPictureMenuItem == item,
                     onClick = {},

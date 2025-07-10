@@ -27,6 +27,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -55,7 +58,6 @@ import dev.aaa1115910.biliapi.entity.pgc.index.SpokenLanguage
 import dev.aaa1115910.biliapi.entity.pgc.index.Style
 import dev.aaa1115910.biliapi.entity.pgc.index.Year
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.component.createCustomInitialFocusRestorerModifiers
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.getDisplayName
@@ -275,7 +277,7 @@ private fun <T> IndexFilterChipRow(
     onFilterChange: (T) -> Unit
 ) {
     val context = LocalContext.current
-    val focusRestorerModifiers = createCustomInitialFocusRestorerModifiers()
+    val focusRequester = remember { FocusRequester() }
 
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -287,14 +289,14 @@ private fun <T> IndexFilterChipRow(
         )
         LazyRow(
             modifier = modifier
-                .then(focusRestorerModifiers.parentModifier),
+                .focusRestorer(focusRequester),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
         ) {
             items(items = filters) { filter ->
                 IndexFilterChip(
                     modifier = Modifier
-                        .ifElse(selectedFilter == filter, focusRestorerModifiers.childModifier),
+                        .ifElse(selectedFilter == filter, Modifier.focusRequester(focusRequester)),
                     selected = selectedFilter == filter,
                     onClick = { onFilterChange(filter) },
                     label = (filter as PgcIndexParam).getDisplayName(context)

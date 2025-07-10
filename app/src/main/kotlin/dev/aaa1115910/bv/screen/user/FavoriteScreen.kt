@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -45,7 +46,6 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
-import dev.aaa1115910.bv.component.createCustomInitialFocusRestorerModifiers
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.viewmodel.user.FavoriteViewModel
@@ -62,7 +62,7 @@ fun FavoriteScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val focusRestorerModifiers = createCustomInitialFocusRestorerModifiers()
+    val focusRequester = remember { FocusRequester() }
     val defaultFocusRequester = remember { FocusRequester() }
     var focusOnTabs by remember { mutableStateOf(true) }
     val lazyGridState = rememberLazyGridState()
@@ -144,14 +144,14 @@ fun FavoriteScreen(
                     modifier = Modifier
                         .focusRequester(defaultFocusRequester)
                         .onFocusChanged { focusOnTabs = it.hasFocus }
-                        .then(focusRestorerModifiers.parentModifier),
+                        .focusRestorer(focusRequester),
                     selectedTabIndex = currentTabIndex,
                     separator = { Spacer(modifier = Modifier.width(12.dp)) },
                 ) {
                     favoriteViewModel.favoriteFolderMetadataList.forEachIndexed { index, folderMetadata ->
                         Tab(
                             modifier = Modifier
-                                .ifElse(index == 0, focusRestorerModifiers.childModifier),
+                                .ifElse(index == 0, Modifier.focusRequester(focusRequester)),
                             selected = currentTabIndex == index,
                             onFocus = {
                                 if (favoriteViewModel.currentFavoriteFolderMetadata != folderMetadata) {
