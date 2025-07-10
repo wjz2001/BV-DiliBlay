@@ -14,6 +14,9 @@ import androidx.compose.ui.unit.dp
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.pgc.PgcIndexActivity
+import dev.aaa1115910.bv.tv.screens.main.pgc.PgcFeatureButtons
+import dev.aaa1115910.bv.tv.screens.main.pgc.PgcScaffold
+import dev.aaa1115910.bv.tv.screens.main.pgc.showPlaceholderToast
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.viewmodel.pgc.PgcMovieViewModel
 import org.koin.androidx.compose.koinViewModel
