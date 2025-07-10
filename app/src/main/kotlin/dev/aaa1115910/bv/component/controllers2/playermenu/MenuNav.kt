@@ -10,11 +10,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.component.controllers2.VideoPlayerMenuNavItem
 import dev.aaa1115910.bv.component.controllers2.playermenu.component.MenuListItem
-import dev.aaa1115910.bv.component.createCustomInitialFocusRestorerModifiers
 import dev.aaa1115910.bv.component.ifElse
 
 @Composable
@@ -25,7 +25,7 @@ fun MenuNavList(
     isFocusing: Boolean
 ) {
     val context = LocalContext.current
-    val focusRestorerModifiers = createCustomInitialFocusRestorerModifiers()
+    val restorerFocusRequester = remember { FocusRequester() }
     val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
@@ -34,7 +34,7 @@ fun MenuNavList(
 
     LazyColumn(
         modifier = modifier
-            .then(focusRestorerModifiers.parentModifier)
+            .focusRestorer(restorerFocusRequester)
             .focusRequester(focusRequester),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(16.dp)
@@ -42,7 +42,7 @@ fun MenuNavList(
         itemsIndexed(VideoPlayerMenuNavItem.entries) { index, item ->
             MenuListItem(
                 modifier = Modifier
-                    .ifElse(index == 0, focusRestorerModifiers.childModifier),
+                    .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester)),
                 text = item.getDisplayName(context),
                 icon = item.icon,
                 expanded = isFocusing,

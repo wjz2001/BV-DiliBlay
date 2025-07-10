@@ -181,7 +181,7 @@ fun CardInfo(
 ) {
     Column(
         modifier = modifier
-            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .padding(vertical = 6.dp)
     ) {
         Text(
             text = title,

@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -36,7 +37,6 @@ import dev.aaa1115910.bv.component.controllers2.VideoPlayerClosedCaptionMenuItem
 import dev.aaa1115910.bv.component.controllers2.playermenu.component.MenuListItem
 import dev.aaa1115910.bv.component.controllers2.playermenu.component.RadioMenuList
 import dev.aaa1115910.bv.component.controllers2.playermenu.component.StepLessMenuItem
-import dev.aaa1115910.bv.component.createCustomInitialFocusRestorerModifiers
 import dev.aaa1115910.bv.component.ifElse
 import java.text.NumberFormat
 
@@ -52,7 +52,7 @@ fun ClosedCaptionMenuList(
     val context = LocalContext.current
     val data = LocalVideoPlayerControllerData.current
     val focusState = LocalMenuFocusStateData.current
-    val focusRestorerModifiers = createCustomInitialFocusRestorerModifiers()
+    val restorerFocusRequester = remember { FocusRequester() }
 
     val focusRequester = remember { FocusRequester() }
     var selectedClosedCaptionMenuItem by remember { mutableStateOf(VideoPlayerClosedCaptionMenuItem.Switch) }
@@ -129,14 +129,14 @@ fun ClosedCaptionMenuList(
                     }
                     false
                 }
-                .then(focusRestorerModifiers.parentModifier),
+                .focusRestorer(restorerFocusRequester),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(8.dp)
         ) {
             itemsIndexed(VideoPlayerClosedCaptionMenuItem.entries) { index, item ->
                 MenuListItem(
                     modifier = Modifier
-                        .ifElse(index == 0, focusRestorerModifiers.childModifier),
+                        .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester)),
                     text = item.getDisplayName(context),
                     selected = selectedClosedCaptionMenuItem == item,
                     onClick = {},
