@@ -1,4 +1,4 @@
-package dev.aaa1115910.bv.screen.main.pgc
+package dev.aaa1115910.bv.tv.screens.main.pgc
 
 import android.view.KeyEvent
 import androidx.compose.foundation.background
@@ -44,6 +44,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
@@ -59,8 +60,11 @@ import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.component.PgcCarousel
 import dev.aaa1115910.bv.component.videocard.SeasonCard
+
+
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.resizedImageUrl
@@ -76,6 +80,7 @@ fun PgcScaffold(
     pgcType: PgcType,
     featureButtons: (@Composable () -> Unit)? = null
 ) {
+    val context = LocalContext.current
     val carouselFocusRequester = remember { FocusRequester() }
 
     val carouselItems = pgcViewModel.carouselItems
@@ -97,7 +102,15 @@ fun PgcScaffold(
                         .width(880.dp)
                         .padding(32.dp, 0.dp)
                         .focusRequester(carouselFocusRequester),
-                    data = carouselItems
+                    data = carouselItems,
+                    onClick = { item ->
+                        SeasonInfoActivity.actionStart(
+                            context = context,
+                            epId = item.episodeId,
+                            seasonId = item.seasonId,
+                            proxyArea = ProxyArea.checkProxyArea(item.title)
+                        )
+                    }
                 )
             }
         }

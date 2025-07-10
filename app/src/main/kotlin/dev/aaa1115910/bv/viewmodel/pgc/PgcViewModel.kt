@@ -105,9 +105,6 @@ abstract class PgcViewModel(
             }
             if (BuildConfig.DEBUG && maxRetry != 10) {
                 logger.fWarn { "Retry ${10 - maxRetry} times to get pgcRepository" }
-                withContext(Dispatchers.Main) {
-                    "Retry ${10 - maxRetry} times to get pgcRepository($pgcType)".toast(BVApp.context)
-                }
             }
 
             val carouselData = pgcRepository.getCarousel(pgcType)
