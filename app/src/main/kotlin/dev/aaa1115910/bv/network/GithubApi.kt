@@ -29,7 +29,7 @@ import java.io.File
 
 object GithubApi {
     private var endPoint = "api.github.com"
-    private const val OWNER = "aaa1115910"
+    private const val OWNER = "Frost819"
     private const val REPO = "bv"
     private lateinit var client: HttpClient
     private val json = Json {
@@ -116,7 +116,7 @@ object GithubApi {
         downloadListener: ProgressListener
     ) {
         val downloadUrl =
-            if (isDebug) release.assets.firstOrNull { it.name.contains("debug") }?.browserDownloadUrl
+            if (isDebug) release.assets.firstOrNull { it.name.contains("release") }?.browserDownloadUrl
             else release.assets.firstOrNull { it.name.contains("alpha") || it.name.contains("release") }?.browserDownloadUrl
         downloadUrl ?: throw IllegalStateException("Didn't find download url")
         client.prepareRequest {

@@ -99,17 +99,17 @@ fun OtherSetting(
                     }
                 )
             }
-            item {
-                SettingSwitchListItem(
-                    title = stringResource(R.string.settings_other_alpha_title),
-                    supportText = stringResource(R.string.settings_other_alpha_text),
-                    checked = updateAlpha,
-                    onCheckedChange = {
-                        updateAlpha = it
-                        Prefs.updateAlpha = it
-                    }
-                )
-            }
+//            item {
+//                SettingSwitchListItem(
+//                    title = stringResource(R.string.settings_other_alpha_title),
+//                    supportText = stringResource(R.string.settings_other_alpha_text),
+//                    checked = updateAlpha,
+//                    onCheckedChange = {
+//                        updateAlpha = it
+//                        Prefs.updateAlpha = it
+//                    }
+//                )
+//            }
             item {
                 SettingListItem(
                     title = stringResource(R.string.settings_create_logs_title),
