@@ -39,8 +39,8 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.db.UserDB
 import dev.aaa1115910.bv.screen.user.UserItem
-import dev.aaa1115910.bv.screen.user.UserSwitchViewModel
 import dev.aaa1115910.bv.util.toast
+import dev.aaa1115910.bv.viewmodel.user.UserSwitchViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

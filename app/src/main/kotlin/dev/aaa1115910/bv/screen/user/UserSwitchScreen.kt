@@ -80,6 +80,7 @@ import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.screen.user.lock.UnlockSwitchUserContent
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.viewmodel.user.UserSwitchViewModel
 import io.github.g0dkar.qrcode.QRCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -740,42 +741,6 @@ fun UserAuthDataDialogPreview() {
                 auth = ""
             ),
         )
-    }
-}
-
-class UserSwitchViewModel(
-    private val userRepository: UserRepository,
-    private val db: AppDatabase = BVApp.getAppDatabase()
-) : ViewModel() {
-    var loading by mutableStateOf(true)
-    val userDbList = mutableStateListOf<UserDB>()
-
-    fun updateData() {
-        viewModelScope.launch(Dispatchers.IO) {
-            updateUserDbList()
-            withContext(Dispatchers.Main) { loading = false }
-        }
-    }
-
-    private suspend fun updateUserDbList() {
-        withContext(Dispatchers.Main) {
-            userDbList.clear()
-            userDbList.addAll(db.userDao().getAll())
-        }
-    }
-
-    suspend fun switchUser(user: UserDB) {
-        userRepository.setUser(user)
-    }
-
-    suspend fun deleteUser(userDB: UserDB) {
-        db.userDao().delete(userDB)
-        updateUserDbList()
-        if (userDbList.isNotEmpty()) {
-            switchUser(userDbList.first())
-        } else {
-            userRepository.logout()
-        }
     }
 }
 

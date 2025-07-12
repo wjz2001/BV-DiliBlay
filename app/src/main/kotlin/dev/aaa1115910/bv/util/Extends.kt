@@ -126,6 +126,8 @@ fun Long.formatMinSec(): String {
     }
 }
 
+fun Long.toMBString(): String = String.format("%.2f MB", this / 1024f / 1024f)
+
 /**
  * 改进的请求焦点的方法，失败后等待 100ms 后重试
  */
