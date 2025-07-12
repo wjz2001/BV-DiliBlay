@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -32,12 +33,13 @@ import dev.aaa1115910.bv.network.GithubApi
 import dev.aaa1115910.bv.network.entity.Release
 import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
+import dev.aaa1115910.bv.util.toMBString
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.content.ProgressListener
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.io.File
-import java.util.UUID
 
 @Composable
 fun UpdateDialog(
@@ -58,8 +60,17 @@ fun UpdateDialog(
         targetValue = targetProgress,
         label = "update progress"
     )
-
+    var downloadJob by remember { mutableStateOf<Job?>(null) }
     var latestReleaseBuild by remember { mutableStateOf<Release?>(null) }
+
+    DisposableEffect(show) {
+        if(!show) {
+            downloadJob?.cancel()
+        }
+        onDispose {
+            downloadJob?.cancel()
+        }
+    }
 
     val checkUpdate: () -> Unit = {
         updateStatus = UpdateStatus.UpdatingInfo
@@ -103,8 +114,8 @@ fun UpdateDialog(
 
     val startUpdate: () -> Unit = {
         updateStatus = UpdateStatus.Downloading
-        scope.launch(Dispatchers.IO) {
-            val tempFilename = "${UUID.randomUUID()}.apk"
+        downloadJob = scope.launch(Dispatchers.IO) {
+            val tempFilename = latestReleaseBuild!!.assets.first { it.name.startsWith("BV") }.name
             val tempDir = File(context.cacheDir, "update_downloader")
             if (!tempDir.exists()) tempDir.mkdirs()
             val tempFile = File(tempDir, tempFilename)
@@ -184,7 +195,7 @@ fun UpdateDialog(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.End
                             ) {
-                                Text(text = "$bytesSentTotal/$contentLength")
+                                Text(text = "${bytesSentTotal.toMBString()}/${contentLength.toMBString()}")
                             }
                         }
                     }
