@@ -88,41 +88,23 @@ fun LogsScreen(
         }
     }
 
-    @Suppress("DEPRECATION")
-    val getIpAddress: () -> String = {
-        val connectivityManager =
-            context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val isWifi: Boolean = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val s = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-            s?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
-        } else {
-            val networkInfo = connectivityManager.activeNetworkInfo
-            networkInfo?.type == ConnectivityManager.TYPE_WIFI
-        }
-
-        var ip = ""
-        if (isWifi) {
-            val wifiManager =
-                context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-            val wifiInfo = wifiManager.connectionInfo
-            val ipNum = wifiInfo.ipAddress
-            ip =
-                "${ipNum and 0xFF}.${ipNum shr 8 and 0xFF}.${ipNum shr 16 and 0xFF}.${ipNum shr 24 and 0xFF}"
-        } else {
-            val en = NetworkInterface.getNetworkInterfaces()
-            while (en.hasMoreElements()) {
-                val intf = en.nextElement()
-                val enumIpAddr = intf.inetAddresses
-                while (ip == "" && enumIpAddr.hasMoreElements()) {
-                    val inetAddress = enumIpAddr.nextElement()
-                    if (!inetAddress.isLoopbackAddress && inetAddress is Inet4Address) {
-                        ip = inetAddress.getHostAddress() ?: ""
-                        break
+    val getIpAddress: () -> String = let@{
+        try {
+            val interfaces = NetworkInterface.getNetworkInterfaces()
+            for (intf in interfaces) {
+                if (intf.name.equals("wlan0", ignoreCase = true)) {
+                    val addresses = intf.inetAddresses
+                    for (addr in addresses) {
+                        if (!addr.isLoopbackAddress && addr is Inet4Address) {
+                            return@let addr.hostAddress ?: ""
+                        }
                     }
                 }
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-        ip
+        ""
     }
 
     val updateLogs = {
