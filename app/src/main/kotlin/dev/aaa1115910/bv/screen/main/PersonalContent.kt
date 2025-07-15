@@ -1,0 +1,145 @@
+package dev.aaa1115910.bv.screen.main
+
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.unit.dp
+import dev.aaa1115910.bv.component.PersonalTopNavItem
+import dev.aaa1115910.bv.component.TopNav
+import dev.aaa1115910.bv.screen.user.FavoriteScreen
+import dev.aaa1115910.bv.screen.user.FollowingSeasonScreen
+import dev.aaa1115910.bv.screen.user.HistoryScreen
+import dev.aaa1115910.bv.screen.user.ToViewScreen
+import dev.aaa1115910.bv.viewmodel.user.FavoriteViewModel
+import dev.aaa1115910.bv.viewmodel.user.FollowingSeasonViewModel
+import dev.aaa1115910.bv.viewmodel.user.HistoryViewModel
+import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import org.koin.androidx.compose.koinViewModel
+
+@Composable
+fun PersonalContent(
+    navFocusRequester: FocusRequester,
+    favouriteViewModel: FavoriteViewModel = koinViewModel(),
+    historyViewModel: HistoryViewModel = koinViewModel(),
+    toViewViewModel: ToViewViewModel = koinViewModel(),
+    followingSeasonViewModel: FollowingSeasonViewModel = koinViewModel()
+) {
+    val scope = rememberCoroutineScope()
+
+    var selectedTab by remember { mutableStateOf(PersonalTopNavItem.Favorite) }
+    var focusOnContent by remember { mutableStateOf(false) }
+
+    //启动时刷新数据
+    LaunchedEffect(Unit) {
+        scope.launch(Dispatchers.IO) {
+            favouriteViewModel.updateFolderItems()
+        }
+        scope.launch(Dispatchers.IO) {
+            historyViewModel.update()
+        }
+        scope.launch(Dispatchers.IO) {
+            toViewViewModel.update()
+        }
+        scope.launch(Dispatchers.IO) {
+            followingSeasonViewModel.loadMore()
+        }
+    }
+
+
+    Scaffold(
+        topBar = {
+            TopNav(
+                modifier = Modifier
+                    .focusRequester(navFocusRequester)
+                    .padding(end = 80.dp),
+                items = PersonalTopNavItem.entries,
+                isLargePadding = !focusOnContent,
+                onSelectedChanged = { nav ->
+                    selectedTab = nav as PersonalTopNavItem
+                },
+                onClick = { nav ->
+                    when (nav as PersonalTopNavItem) {
+                        PersonalTopNavItem.Favorite -> {
+                            favouriteViewModel.clearData()
+                            favouriteViewModel.updateFoldersInfo()
+                            favouriteViewModel.updateFolderItems(force = true)
+                        }
+
+                        PersonalTopNavItem.History -> {
+                            historyViewModel.clearData()
+                            historyViewModel.update()
+                        }
+
+                        PersonalTopNavItem.ToView -> {
+                            toViewViewModel.clearData()
+                            toViewViewModel.update()
+                        }
+
+                        PersonalTopNavItem.FollowingSeason -> {
+                            followingSeasonViewModel.clearData()
+                            followingSeasonViewModel.loadMore()
+                        }
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .padding(innerPadding)
+                .onFocusChanged { focusOnContent = it.hasFocus }
+        ) {
+            AnimatedContent(
+                targetState = selectedTab,
+                label = "home animated content",
+                transitionSpec = {
+                    val coefficient = 10
+                    if (targetState.ordinal < initialState.ordinal) {
+                        fadeIn() + slideInHorizontally { -it / coefficient } togetherWith
+                                fadeOut() + slideOutHorizontally { it / coefficient }
+                    } else {
+                        fadeIn() + slideInHorizontally { it / coefficient } togetherWith
+                                fadeOut() + slideOutHorizontally { -it / coefficient }
+                    }
+                }
+            ) { screen ->
+                when (screen) {
+                    PersonalTopNavItem.Favorite -> {
+                        FavoriteScreen()
+                    }
+
+                    PersonalTopNavItem.History -> {
+                        HistoryScreen()
+                    }
+
+                    PersonalTopNavItem.ToView -> {
+                        ToViewScreen()
+                    }
+
+                    PersonalTopNavItem.FollowingSeason -> {
+                        FollowingSeasonScreen()
+                    }
+                }
+            }
+        }
+    }
+}

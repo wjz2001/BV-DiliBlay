@@ -63,65 +63,28 @@ fun HistoryScreen(
             }
     }
 
-    Scaffold(
+    LazyVerticalGrid(
         modifier = modifier,
-        topBar = {
+        state = gridState,
+        columns = GridCells.Fixed(4),
+        contentPadding = PaddingValues(24.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
+        horizontalArrangement = Arrangement.spacedBy(24.dp)
+    ) {
+        itemsIndexed(historyViewModel.histories) { index, history ->
             Box(
-                modifier = Modifier.padding(start = 48.dp, top = 24.dp, bottom = 8.dp, end = 48.dp)
+                contentAlignment = Alignment.Center
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = stringResource(R.string.user_homepage_recent),
-                        fontSize = 24.sp
-                    )
-                    if (historyViewModel.noMore) {
-                        Text(
-                            text = stringResource(
-                                R.string.load_data_count_no_more,
-                                historyViewModel.histories.size
-                            ),
-                            color = Color.White.copy(alpha = 0.6f)
+                SmallVideoCard(
+                    data = history,
+                    onClick = {
+                        VideoInfoActivity.actionStart(
+                            context = context,
+                            aid = history.avid,
+                            proxyArea = ProxyArea.checkProxyArea(history.title)
                         )
-                    } else {
-                        Text(
-                            text = stringResource(
-                                R.string.load_data_count,
-                                historyViewModel.histories.size
-                            ),
-                            color = Color.White.copy(alpha = 0.6f)
-                        )
-                    }
-                }
-            }
-        }
-    ) { innerPadding ->
-        LazyVerticalGrid(
-            modifier = Modifier.padding(innerPadding),
-            state = gridState,
-            columns = GridCells.Fixed(4),
-            contentPadding = PaddingValues(24.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-            horizontalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
-            itemsIndexed(historyViewModel.histories) { index, history ->
-                Box(
-                    contentAlignment = Alignment.Center
-                ) {
-                    SmallVideoCard(
-                        data = history,
-                        onClick = {
-                            VideoInfoActivity.actionStart(
-                                context = context,
-                                aid = history.avid,
-                                proxyArea = ProxyArea.checkProxyArea(history.title)
-                            )
-                        },
-                    )
-                }
+                    },
+                )
             }
         }
     }

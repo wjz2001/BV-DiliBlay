@@ -4,9 +4,11 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -94,88 +96,57 @@ fun FavoriteScreen(
             }
     }
 
-    BackHandler(
-        enabled = !focusOnTabs
-    ) {
-        scope.launch(Dispatchers.Main) {
-            lazyGridState.animateScrollToItem(0)
-            defaultFocusRequester.requestFocus()
-        }
-    }
+    Column(
+        modifier = modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.Start
 
-    Scaffold(
-        modifier = modifier,
-        topBar = {
-            Box(
-                modifier = Modifier.padding(start = 48.dp, top = 24.dp, bottom = 8.dp, end = 48.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.SpaceBetween
+    ){
+        TabRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp)
+                .focusRequester(defaultFocusRequester)
+                .onFocusChanged { focusOnTabs = it.hasFocus }
+                .focusRestorer(focusRequester),
+            selectedTabIndex = currentTabIndex,
+            separator = { Spacer(modifier = Modifier.width(12.dp)) },
+        ) {
+            favoriteViewModel.favoriteFolderMetadataList.forEachIndexed { index, folderMetadata ->
+                Tab(
+                    modifier = Modifier
+                        .ifElse(index == 0, Modifier.focusRequester(focusRequester)),
+                    selected = currentTabIndex == index,
+                    onFocus = {
+                        if (favoriteViewModel.currentFavoriteFolderMetadata != folderMetadata) {
+                            updateCurrentFavoriteFolder(folderMetadata)
+                        }
+                    },
+                    onClick = { updateCurrentFavoriteFolder(folderMetadata) }
                 ) {
-                    Text(
-                        text = "${stringResource(R.string.user_homepage_favorite)} - ${favoriteViewModel.currentFavoriteFolderMetadata?.title}",
-                        fontSize = 24.sp
-                    )
-                    Text(
-                        text = stringResource(
-                            R.string.load_data_count,
-                            favoriteViewModel.favorites.size
-                        ),
-                        color = Color.White.copy(alpha = 0.6f)
-                    )
+                    Box(
+                        modifier = Modifier.height(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            text = folderMetadata.title,
+                            color = LocalContentColor.current,
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
                 }
             }
         }
-    ) { innerPadding ->
+        Spacer(modifier = Modifier.height(12.dp))
         LazyVerticalGrid(
-            modifier = Modifier.padding(innerPadding),
+            modifier = modifier,
             state = lazyGridState,
             columns = GridCells.Fixed(4),
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            item(
-                span = { GridItemSpan(4) }
-            ) {
-                TabRow(
-                    modifier = Modifier
-                        .focusRequester(defaultFocusRequester)
-                        .onFocusChanged { focusOnTabs = it.hasFocus }
-                        .focusRestorer(focusRequester),
-                    selectedTabIndex = currentTabIndex,
-                    separator = { Spacer(modifier = Modifier.width(12.dp)) },
-                ) {
-                    favoriteViewModel.favoriteFolderMetadataList.forEachIndexed { index, folderMetadata ->
-                        Tab(
-                            modifier = Modifier
-                                .ifElse(index == 0, Modifier.focusRequester(focusRequester)),
-                            selected = currentTabIndex == index,
-                            onFocus = {
-                                if (favoriteViewModel.currentFavoriteFolderMetadata != folderMetadata) {
-                                    updateCurrentFavoriteFolder(folderMetadata)
-                                }
-                            },
-                            onClick = { updateCurrentFavoriteFolder(folderMetadata) }
-                        ) {
-                            Box(
-                                modifier = Modifier.height(32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    modifier = Modifier
-                                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                                    text = folderMetadata.title,
-                                    color = LocalContentColor.current,
-                                    style = MaterialTheme.typography.labelLarge
-                                )
-                            }
-                        }
-                    }
-                }
-            }
             itemsIndexed(favoriteViewModel.favorites) { index, history ->
                 Box(
                     contentAlignment = Alignment.Center
@@ -188,4 +159,5 @@ fun FavoriteScreen(
             }
         }
     }
+
 }

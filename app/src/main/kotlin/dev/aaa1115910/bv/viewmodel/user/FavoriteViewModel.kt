@@ -35,22 +35,37 @@ class FavoriteViewModel(
 
     var currentFavoriteFolderMetadata: FavoriteFolderMetadata? by mutableStateOf(null)
 
-    private var pageSize = 20
+    private val pageSize = 20
     private var pageNumber = 1
     private var hasMore = true
 
     private var updatingFolders = false
     private var updatingFolderItems = false
 
+    private var updateFoldersJob: Job? = null
+    private var updateItemsJob: Job? = null
+
     init {
         updateFoldersInfo()
     }
 
-    private fun updateFoldersInfo() {
+    fun clearData(){
+        updateFoldersJob?.cancel()
+        updateItemsJob?.cancel()
+
+        favoriteFolderMetadataList.clear()
+        favorites.clear()
+        currentFavoriteFolderMetadata = null
+        updatingFolders = false
+        updatingFolderItems = false
+        resetPageNumber()
+    }
+
+    fun updateFoldersInfo() {
         if (updatingFolders) return
         updatingFolders = true
         logger.fInfo { "Updating favorite folders" }
-        viewModelScope.launch(Dispatchers.IO) {
+        updateFoldersJob = viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 val favoriteFolderMetadataList =
                     favoriteRepository.getAllFavoriteFolderMetadataList(
@@ -73,18 +88,16 @@ class FavoriteViewModel(
         }
     }
 
-    private var updateJob: Job? = null
-
     fun updateFolderItems(force: Boolean = false) {
         if (force) {
-            updateJob?.cancel()
+            updateItemsJob?.cancel()
             resetPageNumber()
             updatingFolderItems = false
         }
         if (updatingFolderItems || !hasMore) return
         updatingFolderItems = true
         logger.fInfo { "Updating favorite folder items with media id: ${currentFavoriteFolderMetadata?.id}" }
-        updateJob = viewModelScope.launch(Dispatchers.IO) {
+        updateItemsJob = viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 val favoriteFolderData = favoriteRepository.getFavoriteFolderData(
                     mediaId = currentFavoriteFolderMetadata!!.id,

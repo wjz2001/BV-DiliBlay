@@ -71,10 +71,8 @@ import dev.aaa1115910.biliapi.repositories.SeasonRepository
 import dev.aaa1115910.biliapi.repositories.UserRepository
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.activities.user.FavoriteActivity
 import dev.aaa1115910.bv.activities.user.FollowActivity
 import dev.aaa1115910.bv.activities.user.FollowingSeasonActivity
-import dev.aaa1115910.bv.activities.user.HistoryActivity
 import dev.aaa1115910.bv.activities.user.UserSwitchActivity
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.component.videocard.SeasonCard
@@ -309,65 +307,35 @@ fun UserInfoScreen(
 
         }
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(bottom = 24.dp)
-        ) {
-            item {
-                UserRow(
-                    modifier = Modifier
-                        .focusRequester(focusRequester),
-                    username = userViewModel.username,
-                    face = userViewModel.face,
-                    uid = userViewModel.responseData?.mid ?: 0,
-                    level = userViewModel.responseData?.level ?: 0,
-                    currentExp = userViewModel.responseData?.levelExp?.currentExp ?: 0,
-                    nextLevelExp = with(userViewModel.responseData?.levelExp?.nextExp) {
-                        if (this == null) {
-                            1
-                        } else if (this <= 0) {
-                            userViewModel.responseData?.levelExp?.currentExp ?: 1
-                        } else {
-                            (userViewModel.responseData?.levelExp?.currentExp ?: 1)
-                            +(userViewModel.responseData?.levelExp?.nextExp ?: 0)
-                        }
-                    },
-                    showLabel = userViewModel.responseData?.vip?.avatarSubscript == 1,
-                    labelUrl = userViewModel.responseData?.vip?.label?.imgLabelUriHansStatic ?: "",
-                    followingUpCount = followingUpCount,
-                    onOpenFollowingUser = {
+        UserRow(
+            modifier = Modifier
+                .padding(innerPadding)
+                .focusRequester(focusRequester),
+            username = userViewModel.username,
+            face = userViewModel.face,
+            uid = userViewModel.responseData?.mid ?: 0,
+            level = userViewModel.responseData?.level ?: 0,
+            currentExp = userViewModel.responseData?.levelExp?.currentExp ?: 0,
+            nextLevelExp = with(userViewModel.responseData?.levelExp?.nextExp) {
+                if (this == null) {
+                    1
+                } else if (this <= 0) {
+                    userViewModel.responseData?.levelExp?.currentExp ?: 1
+                } else {
+                    (userViewModel.responseData?.levelExp?.currentExp ?: 1)
+                    +(userViewModel.responseData?.levelExp?.nextExp ?: 0)
+                }
+            },
+            showLabel = userViewModel.responseData?.vip?.avatarSubscript == 1,
+            labelUrl = userViewModel.responseData?.vip?.label?.imgLabelUriHansStatic ?: "",
+            followingUpCount = followingUpCount,
+            onOpenFollowingUser = {
                         context.startActivity(Intent(context, FollowActivity::class.java))
-                    },
-                    onOpenUserSwitch = {
-                        context.startActivity(Intent(context, UserSwitchActivity::class.java))
-                    }
-                )
+            },
+            onOpenUserSwitch = {
+                context.startActivity(Intent(context, UserSwitchActivity::class.java))
             }
-            item {
-                RecentVideosRow(
-                    videos = histories,
-                    showMore = {
-                        context.startActivity(Intent(context, HistoryActivity::class.java))
-                    }
-                )
-            }
-            item {
-                FollowingAnimeVideosRow(
-                    videos = animes,
-                    showMore = {
-                        context.startActivity(Intent(context, FollowingSeasonActivity::class.java))
-                    }
-                )
-            }
-            item {
-                FavoriteVideosRow(
-                    videos = favorites,
-                    showMore = {
-                        context.startActivity(Intent(context, FavoriteActivity::class.java))
-                    }
-                )
-            }
-        }
+        )
     }
 }
 

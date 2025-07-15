@@ -22,6 +22,7 @@ import dev.aaa1115910.bv.util.formatMinSec
 import dev.aaa1115910.bv.util.toast
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.android.annotation.KoinViewModel
@@ -41,10 +42,20 @@ class HistoryViewModel(
     private var cursor = 0L
     private var updating = false
 
+    private var updateJob: Job? = null
+
     fun update() {
-        viewModelScope.launch(Dispatchers.IO) {
+        updateJob = viewModelScope.launch(Dispatchers.IO) {
             updateHistories()
         }
+    }
+
+    fun clearData() {
+        updateJob?.cancel()
+        histories.clear()
+        cursor = 0
+        noMore = false
+        updating = false
     }
 
     private suspend fun updateHistories(context: Context = BVApp.context) {
