@@ -45,7 +45,7 @@ fun TopNav(
     var selectedNav by remember { mutableStateOf(items.first()) }
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val verticalPadding by animateDpAsState(
-        targetValue = if (isLargePadding) 24.dp else 12.dp,
+        targetValue = if (isLargePadding) 12.dp else 6.dp,
         label = "top nav vertical padding"
     )
 
@@ -154,5 +154,20 @@ enum class PgcTopNavItem(private val pgcType: PgcType) : TopNavItem {
 
     override fun getDisplayName(context: Context): String {
         return pgcType.getDisplayName(context)
+    }
+}
+
+enum class PersonalTopNavItem : TopNavItem {
+    Favorite,
+    History,
+    ToView,
+    FollowingSeason;
+    override fun getDisplayName(context: Context): String {
+        return when(this){
+            Favorite -> "收藏";
+            History -> "历史"
+            ToView -> "稍后再看"
+            FollowingSeason -> "我追的番"
+        }
     }
 }

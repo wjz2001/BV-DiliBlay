@@ -14,6 +14,7 @@ import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.android.annotation.KoinViewModel
@@ -31,9 +32,11 @@ class FollowingSeasonViewModel(
     var followingSeasonStatus = FollowingSeasonStatus.All
 
     private var pageNumber = 1
-    private var pageSize = 30
+    private val pageSize = 20
     var noMore by mutableStateOf(false)
     private var updating = false
+
+    private var updateJob: Job? = null
 
     init {
         followingSeasonType = FollowingSeasonType.Bangumi
@@ -41,15 +44,15 @@ class FollowingSeasonViewModel(
     }
 
     fun clearData() {
+        updateJob?.cancel()
         pageNumber = 1
-        pageSize = 30
         updating = false
         noMore = false
         followingSeasons.clear()
     }
 
     fun loadMore() {
-        viewModelScope.launch(Dispatchers.IO) {
+        updateJob = viewModelScope.launch(Dispatchers.IO) {
             updateData()
         }
     }

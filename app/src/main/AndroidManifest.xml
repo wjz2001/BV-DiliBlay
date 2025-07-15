@@ -106,11 +106,6 @@
             android:label="@string/title_activity_speed_test"
             android:theme="@style/Theme.BV" />
         <activity
-            android:name=".activities.user.FavoriteActivity"
-            android:exported="false"
-            android:label="@string/title_activity_favorite"
-            android:theme="@style/Theme.BV" />
-        <activity
             android:name=".activities.video.VideoPlayerActivity"
             android:exported="false"
             android:label="@string/title_activity_video_player"
@@ -124,16 +119,6 @@
             android:name=".activities.settings.SettingsActivity"
             android:exported="false"
             android:label="@string/title_activity_settings"
-            android:theme="@style/Theme.BV" />
-        <activity
-            android:name=".activities.user.HistoryActivity"
-            android:exported="false"
-            android:label="@string/title_activity_history"
-            android:theme="@style/Theme.BV" />
-        <activity
-            android:name=".activities.user.ToViewActivity"
-            android:exported="false"
-            android:label="@string/title_activity_toview"
             android:theme="@style/Theme.BV" />
         <activity
             android:name=".activities.user.UserInfoActivity"

@@ -40,64 +40,27 @@ fun ToViewScreen(
         ToViewViewModel.update()
     }
 
-    Scaffold(
+    LazyVerticalGrid(
         modifier = modifier,
-        topBar = {
+        columns = GridCells.Fixed(4),
+        contentPadding = PaddingValues(24.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
+        horizontalArrangement = Arrangement.spacedBy(24.dp)
+    ) {
+        itemsIndexed(ToViewViewModel.histories) { index, item ->
             Box(
-                modifier = Modifier.padding(start = 48.dp, top = 24.dp, bottom = 8.dp, end = 48.dp)
+                contentAlignment = Alignment.Center
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = stringResource(R.string.title_activity_toview),
-                        fontSize = 24.sp
-                    )
-                    if (ToViewViewModel.noMore) {
-                        Text(
-                            text = stringResource(
-                                R.string.load_data_count_no_more,
-                                ToViewViewModel.histories.size
-                            ),
-                            color = Color.White.copy(alpha = 0.6f)
+                SmallVideoCard(
+                    data = item,
+                    onClick = {
+                        VideoInfoActivity.actionStart(
+                            context = context,
+                            aid = item.avid,
+                            proxyArea = ProxyArea.checkProxyArea(item.title)
                         )
-                    } else {
-                        Text(
-                            text = stringResource(
-                                R.string.load_data_count,
-                                ToViewViewModel.histories.size
-                            ),
-                            color = Color.White.copy(alpha = 0.6f)
-                        )
-                    }
-                }
-            }
-        }
-    ) { innerPadding ->
-        LazyVerticalGrid(
-            modifier = Modifier.padding(innerPadding),
-            columns = GridCells.Fixed(4),
-            contentPadding = PaddingValues(24.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-            horizontalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
-            itemsIndexed(ToViewViewModel.histories) { index, item ->
-                Box(
-                    contentAlignment = Alignment.Center
-                ) {
-                    SmallVideoCard(
-                        data = item,
-                        onClick = {
-                            VideoInfoActivity.actionStart(
-                                context = context,
-                                aid = item.avid,
-                                proxyArea = ProxyArea.checkProxyArea(item.title)
-                            )
-                        },
-                    )
-                }
+                    },
+                )
             }
         }
     }
