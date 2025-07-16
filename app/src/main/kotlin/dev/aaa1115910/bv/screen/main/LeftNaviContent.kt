@@ -1,6 +1,5 @@
 package dev.aaa1115910.bv.screen.main
 
-import android.content.Intent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -34,7 +33,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.DrawerValue
@@ -44,7 +42,6 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.rememberDrawerState
 import coil.compose.AsyncImage
-import dev.aaa1115910.bv.activities.user.UserInfoActivity
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.isDpadRight
 import dev.aaa1115910.bv.util.isKeyDown
@@ -55,13 +52,13 @@ fun LeftNaviContent(
     modifier: Modifier = Modifier,
     isLogin: Boolean = false,
     avatar: String = "",
-    onLeftNaviItemChanged: (LeftNaviItem) -> Unit = {},
-    onOpenSettings: () -> Unit = {},
-    onFocusToContent: () -> Unit = {},
-    onLogin: () -> Unit = {}
+    onLeftNaviItemChanged: (LeftNaviItem) -> Unit,
+    onOpenSettings: () -> Unit,
+    onShowUserPanel: () -> Unit,
+    onFocusToContent: () -> Unit,
+    onLogin: () -> Unit
 ) {
     var selectedItem by remember { mutableStateOf(LeftNaviItem.Home) }
-    val context = LocalContext.current
 
     LaunchedEffect(selectedItem) {
         onLeftNaviItemChanged(selectedItem)
@@ -88,7 +85,7 @@ fun LeftNaviContent(
             },
             onClick = {
                 if (isLogin) {
-                    context.startActivity(Intent(context, UserInfoActivity::class.java))
+                    onShowUserPanel()
                 } else {
                     onLogin()
                 }
@@ -202,8 +199,13 @@ fun Modifier.selectionIndicator(color: Color): Modifier {
 @Preview(device = "id:tv_1080p")
 @Composable
 private fun LeftNaviContentPreview() {
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Open)
     BVTheme {
-        LeftNaviContent()
+        LeftNaviContent(
+            onLeftNaviItemChanged = {},
+            onOpenSettings = {},
+            onShowUserPanel = {},
+            onFocusToContent = {},
+            onLogin = {}
+        )
     }
 }
