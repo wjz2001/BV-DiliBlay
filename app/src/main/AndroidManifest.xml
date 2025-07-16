@@ -121,11 +121,6 @@
             android:label="@string/title_activity_settings"
             android:theme="@style/Theme.BV" />
         <activity
-            android:name=".activities.user.UserInfoActivity"
-            android:exported="false"
-            android:label="@string/title_activity_user_info"
-            android:theme="@style/Theme.BV" />
-        <activity
             android:name=".activities.user.LoginActivity"
             android:exported="false"
             android:label="@string/title_activity_login"

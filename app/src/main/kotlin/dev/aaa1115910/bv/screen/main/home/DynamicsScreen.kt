@@ -105,7 +105,7 @@ fun DynamicsScreen(
                 }
 
             if (!dynamicViewModel.hasMore)
-                item {
+                item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
                         text = "没有更多了捏",
                         color = Color.White
