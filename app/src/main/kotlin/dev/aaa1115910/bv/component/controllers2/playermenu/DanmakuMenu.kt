@@ -151,7 +151,10 @@ fun DanmakuMenuList(
                     items = listOf("关闭", "开启"),
                     selected = if (data.currentDanmakuMask) 1 else 0,
                     onSelectedChanged = { onDanmakuMaskChange(it == 1) },
-                    onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
+                    onFocusBackToParent = {
+                        onFocusStateChange(MenuFocusState.Menu)
+                        focusRequester.requestFocus()
+                    }
                 )
             }
         }

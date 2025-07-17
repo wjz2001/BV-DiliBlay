@@ -1,5 +1,6 @@
 package dev.aaa1115910.bv.viewmodel.ugc
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import dev.aaa1115910.biliapi.entity.ugc.region.UgcRegionPage
 import dev.aaa1115910.biliapi.repositories.UgcRepository
@@ -25,11 +26,14 @@ class UgcViewModel(private val ugcRepository: UgcRepository) : ViewModel() {
 
     fun reloadAll(item: UgcTopNavItem) {
         _ugcScaffoldStateMap[item]?.let { state ->
+            state.nextPage = UgcRegionPage()
+            state.hasMore = true
+            state.ugcItems.clear()
             if (!state.updating) {
-                state.nextPage = UgcRegionPage()
-                state.hasMore = true
-                state.ugcItems.clear()
                 launchWithIO { initUgcRegionData(item) }
+            }
+            else{
+                Log.d("UgcViewModel", "正在更新中")
             }
         }
     }

@@ -47,10 +47,6 @@ fun HistoryScreen(
     val gridState = rememberLazyGridState()
     val context = LocalContext.current
 
-    LaunchedEffect(Unit) {
-        historyViewModel.update()
-    }
-
     // 监听可见区最后一个 item 的 index，距离尾部 20 个就翻页
     LaunchedEffect(gridState) {
         snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
