@@ -1,5 +1,6 @@
 package dev.aaa1115910.bv.screen.main
 
+import android.util.Log
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -8,6 +9,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -23,50 +25,34 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import dev.aaa1115910.biliapi.entity.ugc.UgcType
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.UgcTopNavItem
 import dev.aaa1115910.bv.screen.main.ugc.UgcRegionScaffold
-import dev.aaa1115910.bv.screen.main.ugc.rememberUgcScaffoldState
+import dev.aaa1115910.bv.screen.main.ugc.UgcScaffoldState
+import dev.aaa1115910.bv.viewmodel.ugc.UgcViewModel
+import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun UgcContent(
     navFocusRequester: FocusRequester
 ) {
+    val ugcViewModel = koinViewModel<UgcViewModel>()
     var selectedTab by remember { mutableStateOf(UgcTopNavItem.Douga) }
     var focusOnContent by remember { mutableStateOf(false) }
-
-    val ugcStateMap = mapOf(
-        UgcTopNavItem.Douga to rememberUgcScaffoldState(ugcType = UgcType.Douga),
-        UgcTopNavItem.Game to rememberUgcScaffoldState(ugcType = UgcType.Game),
-        UgcTopNavItem.Kichiku to rememberUgcScaffoldState(ugcType = UgcType.Kichiku),
-        UgcTopNavItem.Music to rememberUgcScaffoldState(ugcType = UgcType.Music),
-        UgcTopNavItem.Dance to rememberUgcScaffoldState(ugcType = UgcType.Dance),
-        UgcTopNavItem.Cinephile to rememberUgcScaffoldState(ugcType = UgcType.Cinephile),
-        UgcTopNavItem.Ent to rememberUgcScaffoldState(ugcType = UgcType.Ent),
-        UgcTopNavItem.Knowledge to rememberUgcScaffoldState(ugcType = UgcType.Knowledge),
-        UgcTopNavItem.Tech to rememberUgcScaffoldState(ugcType = UgcType.Tech),
-        UgcTopNavItem.Information to rememberUgcScaffoldState(ugcType = UgcType.Information),
-        UgcTopNavItem.Food to rememberUgcScaffoldState(ugcType = UgcType.Food),
-        UgcTopNavItem.Life to rememberUgcScaffoldState(ugcType = UgcType.Life),
-        UgcTopNavItem.Car to rememberUgcScaffoldState(ugcType = UgcType.Car),
-        UgcTopNavItem.Fashion to rememberUgcScaffoldState(ugcType = UgcType.Fashion),
-        UgcTopNavItem.Sports to rememberUgcScaffoldState(ugcType = UgcType.Sports),
-        UgcTopNavItem.Animal to rememberUgcScaffoldState(ugcType = UgcType.Animal)
-    )
+    val ugcTopNavItems = UgcTopNavItem.entries
 
     Scaffold(
         topBar = {
             TopNav(
                 modifier = Modifier
                     .focusRequester(navFocusRequester),
-                items = UgcTopNavItem.entries,
+                items = ugcTopNavItems,
                 isLargePadding = !focusOnContent,
                 onSelectedChanged = { nav ->
                     selectedTab = nav as UgcTopNavItem
                 },
                 onClick = { nav ->
-                    ugcStateMap[nav]!!.reloadAll()
+                    ugcViewModel.reloadAll(nav as UgcTopNavItem)
                 }
             )
         }
@@ -76,14 +62,14 @@ fun UgcContent(
                 .padding(innerPadding)
                 .onFocusChanged { focusOnContent = it.hasFocus }
                 .onPreviewKeyEvent {
-                if (it.key == Key.Menu) {
-                    if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
-                    ugcStateMap[selectedTab]!!.reloadAll()
-                    navFocusRequester.requestFocus()
-                    return@onPreviewKeyEvent true
-                }
-                return@onPreviewKeyEvent false
-            },
+                    if (it.key == Key.Menu) {
+                        if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
+                        ugcViewModel.reloadAll(selectedTab)
+                        navFocusRequester.requestFocus()
+                        return@onPreviewKeyEvent true
+                    }
+                    return@onPreviewKeyEvent false
+                },
         ) {
             AnimatedContent(
                 targetState = selectedTab,
@@ -99,7 +85,24 @@ fun UgcContent(
                     }
                 }
             ) { screen ->
-                UgcRegionScaffold(state = ugcStateMap[screen]!!)
+                val range = (screen.ordinal)..minOf(screen.ordinal + 2, ugcTopNavItems.size - 1)
+                for (i in range) {
+                    val item = ugcTopNavItems[i]
+                    if (item !in ugcViewModel.ugcScaffoldStateMap) {
+                        Log.d("UgcContent", "rememberUgcScaffoldState: $item")
+                        ugcViewModel.addUgcScaffoldState(
+                            item, UgcScaffoldState(
+                                lazyGridState = rememberLazyGridState(),
+                                ugcType = item.ugcType
+                            )
+                        )
+                    }
+                }
+
+                UgcRegionScaffold(
+                    state = ugcViewModel.ugcScaffoldStateMap[screen]!!,
+                    onLoadMore = { ugcViewModel.loadMoreData(screen) },
+                )
             }
         }
     }
