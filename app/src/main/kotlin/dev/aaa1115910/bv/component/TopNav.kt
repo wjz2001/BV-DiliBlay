@@ -121,7 +121,7 @@ enum class HomeTopNavItem(private val displayName: String) : TopNavItem {
     }
 }
 
-enum class UgcTopNavItem(private val ugcType: UgcType) : TopNavItem {
+enum class UgcTopNavItem(val ugcType: UgcType) : TopNavItem {
     Douga(UgcType.Douga),
     Game(UgcType.Game),
     Kichiku(UgcType.Kichiku),
@@ -164,7 +164,7 @@ enum class PersonalTopNavItem : TopNavItem {
     FollowingSeason;
     override fun getDisplayName(context: Context): String {
         return when(this){
-            Favorite -> "收藏";
+            Favorite -> "收藏"
             History -> "历史"
             ToView -> "稍后再看"
             FollowingSeason -> "我追的番"
