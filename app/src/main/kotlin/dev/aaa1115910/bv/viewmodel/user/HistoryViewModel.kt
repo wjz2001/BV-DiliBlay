@@ -45,6 +45,7 @@ class HistoryViewModel(
     private var updateJob: Job? = null
 
     fun update() {
+        if(updateJob?.isActive == true) return
         updateJob = viewModelScope.launch(Dispatchers.IO) {
             updateHistories()
         }

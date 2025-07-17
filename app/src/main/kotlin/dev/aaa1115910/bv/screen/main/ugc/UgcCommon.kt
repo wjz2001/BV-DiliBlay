@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,7 +44,7 @@ fun UgcRegionScaffold(
         snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .distinctUntilChanged()
             .filter { index ->
-                index != null && index >= state.ugcItems.size - 20
+                index != null && index >= state.ugcItems.size - 1
             }
             .collect {
                 onLoadMore()
@@ -58,10 +59,8 @@ fun UgcRegionScaffold(
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        itemsIndexed(
-            items = state.ugcItems,
-            key = { index, _ -> index }
-        ) { _, item ->
+        // 用index的话快速刷新有概率闪退
+        items(state.ugcItems) {item ->
             SmallVideoCard(
                 data = remember(item) {         // `VideoCardData` 只在 item 变动时重建
                     VideoCardData(
