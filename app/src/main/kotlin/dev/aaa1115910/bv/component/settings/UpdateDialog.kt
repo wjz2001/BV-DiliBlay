@@ -156,8 +156,7 @@ fun UpdateDialog(
     if (show) {
         AlertDialog(
             modifier = modifier
-                .width(400.dp)
-                .animateContentSize(),
+                .width(400.dp),
             onDismissRequest = { onHideDialog() },
             title = {
                 Text(
