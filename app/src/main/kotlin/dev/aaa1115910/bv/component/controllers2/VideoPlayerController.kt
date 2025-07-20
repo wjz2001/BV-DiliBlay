@@ -38,8 +38,8 @@ import dev.aaa1115910.bv.component.controllers2.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
-import dev.aaa1115910.bv.player.AbstractVideoPlayer
 import dev.aaa1115910.bv.entity.VideoListItem
+import dev.aaa1115910.bv.player.AbstractVideoPlayer
 import dev.aaa1115910.bv.util.countDownTimer
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.toast
@@ -50,9 +50,6 @@ fun VideoPlayerController(
     modifier: Modifier = Modifier,
     videoPlayer: AbstractVideoPlayer,
 
-    //player icon theme
-    idleIcon: String = "",
-    movingIcon: String = "",
 
     //player events
     onPlay: () -> Unit,
@@ -81,7 +78,6 @@ fun VideoPlayerController(
     onSubtitleBackgroundOpacityChange: (Float) -> Unit,
     onSubtitleBottomPadding: (Dp) -> Unit,
 
-    onRequestFocus: () -> Unit,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
@@ -90,25 +86,17 @@ fun VideoPlayerController(
 
     var showListController by remember { mutableStateOf(false) }
     var showMenuController by remember { mutableStateOf(false) }
-    var showSeekController by remember { mutableStateOf(false) }
-    var showInfo by remember { mutableStateOf(false) }
-    val showClickableControllers by remember { derivedStateOf { showListController || showMenuController } }
+    var showInfoSeekController by remember { mutableStateOf(false) }
+    val showClickableControllers by remember { derivedStateOf { showListController || showMenuController || showInfoSeekController } }
 
     var lastPressBack by remember { mutableLongStateOf(0L) }
-    var hasFocus by remember { mutableStateOf(false) }
-
     var goTime by remember { mutableLongStateOf(0L) }
+
+    var isSeeking by remember { mutableStateOf(false) }
     var seekChangeCount by remember { mutableIntStateOf(0) }
     var lastSeekChangeTime by remember { mutableLongStateOf(0L) }
-    var moveState by remember { mutableStateOf(SeekMoveState.Idle) }
 
-    var hideVideoInfoTimer: CountDownTimer? by remember { mutableStateOf(null) }
     var onTimeForwardBackTimer: CountDownTimer? by remember { mutableStateOf(null) }
-
-    val openSeekController = {
-        if (!showSeekController) goTime = data.infoData.currentTime
-        showSeekController = true
-    }
 
     val calCoefficient = {
         if (System.currentTimeMillis() - lastSeekChangeTime < 200) {
@@ -121,19 +109,58 @@ fun VideoPlayerController(
     }
 
     val onTimeForward = {
+        isSeeking = true
         val targetTime = goTime + (10000 + calCoefficient() * 5000)
         goTime =
             if (targetTime > data.infoData.totalDuration) data.infoData.totalDuration else targetTime
         lastSeekChangeTime = System.currentTimeMillis()
-        moveState = SeekMoveState.Forward
         logger.info { "onTimeForward: [current=${videoPlayer.currentPosition}, goTime=$goTime]" }
     }
     val onTimeBack = {
+        isSeeking = true
         val targetTime = goTime - (10000 + calCoefficient() * 5000)
         goTime = if (targetTime < 0) 0 else targetTime
         lastSeekChangeTime = System.currentTimeMillis()
-        moveState = SeekMoveState.Backward
         logger.info { "onTimeBack: [current=${videoPlayer.currentPosition}, goTime=$goTime]" }
+    }
+
+    val onDirectionLeft = {
+        showInfoSeekController = true
+        onTimeBack()
+        onTimeForwardBackTimer?.cancel()
+        onTimeForwardBackTimer = countDownTimer(1000, 100, "onTimeBackTimer") {
+            onGoTime(goTime)
+            isSeeking = false
+            if (!videoPlayer.isPlaying) onPlay()
+            showInfoSeekController = false
+            onTimeForwardBackTimer = null
+        }
+    }
+
+    val onDirectionRight = {
+        showInfoSeekController = true
+        onTimeForward()
+        onTimeForwardBackTimer?.cancel()
+        onTimeForwardBackTimer = countDownTimer(1000, 100, "onTimeBackTimer") {
+            onGoTime(goTime)
+            isSeeking = false
+            if (!videoPlayer.isPlaying) onPlay()
+            showInfoSeekController = false
+            onTimeForwardBackTimer = null
+        }
+    }
+
+    val onSeekGoTime = {
+        onGoTime(goTime)
+        isSeeking = false
+        if (!videoPlayer.isPlaying) onPlay()
+        showInfoSeekController = false
+        onTimeForwardBackTimer?.cancel()
+        onTimeForwardBackTimer = null
+    }
+
+    val onPlayPause = {
+        if (videoPlayer.isPlaying) onPause() else onPlay()
     }
 
     //有历史播放记录时自动跳转播放进度
@@ -145,38 +172,14 @@ fun VideoPlayerController(
     Box(
         modifier = modifier
             .background(Color.Black)
-            .onFocusChanged { hasFocus = it.hasFocus }
             .focusable()
             .onPreviewKeyEvent {
-
                 if (showClickableControllers) {
-                    if (listOf(Key.Back, Key.Menu).contains(it.key)) {
-                        if (it.type == KeyEventType.KeyUp) {
-                            logger.fInfo { "[${it.key}] hide all controllers" }
-                            showMenuController = false
-                            showListController = false
-                            showSeekController = false
-                        }
-                        onRequestFocus()
-                        return@onPreviewKeyEvent true
+                    if (!listOf(Key.Back, Key.Menu).contains(it.key)) {
+                        return@onPreviewKeyEvent false
                     }
-                    return@onPreviewKeyEvent false
-                }
 
-                if (showSeekController) {
-                    if (listOf(
-                            Key.Back,
-                            Key.Menu,
-                            Key.DirectionDown,
-                            Key.DirectionUp
-                        ).contains(it.key)
-                    ) {
-                        if (it.type != KeyEventType.KeyDown) showSeekController = false
-                        onRequestFocus()
-                        return@onPreviewKeyEvent true
-                    }
                 }
-
                 when (it.key) {
                     Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
                         @Suppress("KotlinConstantConditions")
@@ -187,14 +190,8 @@ fun VideoPlayerController(
                             return@onPreviewKeyEvent true
                         }
 
-                        if (showSeekController) {
-                            if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
-                            onGoTime(goTime)
-                            moveState = SeekMoveState.Idle
-                            showSeekController = false
-                            onTimeForwardBackTimer?.cancel()
-                            onTimeForwardBackTimer = null
-                            return@onPreviewKeyEvent true
+                        if (showInfoSeekController) {
+                            return@onPreviewKeyEvent false
                         }
 
                         if (it.nativeKeyEvent.isLongPress) {
@@ -205,7 +202,7 @@ fun VideoPlayerController(
 
                         logger.fInfo { "[${it.key}] short press" }
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
-                        if (videoPlayer.isPlaying) onPause() else onPlay()
+                        onPlayPause()
                         return@onPreviewKeyEvent false
                     }
 
@@ -216,32 +213,11 @@ fun VideoPlayerController(
                         return@onPreviewKeyEvent true
                     }
 
-                    Key.DirectionUp -> {
-                        if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
-                        logger.info { "[${it.key} press]" }
-                        showListController = true
-                        return@onPreviewKeyEvent true
-                    }
-
-                    Key.DirectionDown -> {
-                        if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
-                        logger.info { "[${it.key} press]" }
-                        showInfo = !showInfo
-                        if (showInfo) {
-                            hideVideoInfoTimer = countDownTimer(3000, 1000, "hideVideoInfoTimer") {
-                                showInfo = false
-                            }
-                        } else {
-                            hideVideoInfoTimer?.cancel()
-                        }
-                        return@onPreviewKeyEvent true
-                    }
 
                     Key.Menu -> {
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
                         logger.info { "[${it.key} press]" }
                         showMenuController = !showMenuController
-                        if(!showMenuController) onRequestFocus()
                         return@onPreviewKeyEvent true
                     }
 
@@ -249,11 +225,11 @@ fun VideoPlayerController(
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
                         logger.info { "[${it.key} press]" }
 
-                        // 显示视频信息时，点击返回键关闭信息
-                        if (showInfo) {
-                            showInfo = false
-                            hideVideoInfoTimer?.cancel()
-                            hideVideoInfoTimer = null
+                        // 显示controller时，点击返回键关闭所有controller
+                        if (showClickableControllers) {
+                            showMenuController = false
+                            showListController = false
+                            showInfoSeekController = false
                         } else {
                             if (!videoPlayer.isPlaying) {
                                 logger.fInfo { "Exiting video player" }
@@ -276,7 +252,7 @@ fun VideoPlayerController(
                     Key.MediaPlayPause -> {
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
                         logger.info { "[${it.key} press]" }
-                        if (videoPlayer.isPlaying) onPause() else onPlay()
+                        onPlayPause
                         return@onPreviewKeyEvent true
                     }
 
@@ -294,53 +270,68 @@ fun VideoPlayerController(
                         return@onPreviewKeyEvent true
                     }
 
-                    Key.MediaFastForward -> {
-                        if (it.type == KeyEventType.KeyUp) return@onPreviewKeyEvent true
-                        logger.info { "[${it.key} press]" }
-                        openSeekController()
-                        onTimeForward()
-                    }
-
                     Key.MediaRewind -> {
                         if (it.type == KeyEventType.KeyUp) return@onPreviewKeyEvent true
                         logger.info { "[${it.key} press]" }
-                        openSeekController()
-                        onTimeBack()
-                        if(data.showSkipToNextEp){
+                        if (data.showSkipToNextEp) {
                             onCancelSkipToNextEp()
+                        }
+                        if (!showInfoSeekController) {
+                            showInfoSeekController = true
+                            onDirectionLeft()
+                            return@onPreviewKeyEvent true
+                        }
+                    }
+
+                    Key.MediaFastForward -> {
+                        if (it.type == KeyEventType.KeyUp) return@onPreviewKeyEvent true
+                        if (!showInfoSeekController) {
+                            showInfoSeekController = true
+                            onDirectionRight()
+                            return@onPreviewKeyEvent true
                         }
                     }
 
                     Key.DirectionLeft -> {
                         if (it.type == KeyEventType.KeyUp) return@onPreviewKeyEvent true
                         logger.info { "[${it.key} press]" }
-                        openSeekController()
-                        onTimeBack()
-                        onTimeForwardBackTimer?.cancel()
-                        onTimeForwardBackTimer = countDownTimer(1000, 100, "onTimeBackTimer") {
-                            onGoTime(goTime)
-                            if (!videoPlayer.isPlaying) onPlay()
-                            moveState = SeekMoveState.Idle
-                            showSeekController = false
-                            onTimeForwardBackTimer = null
-                        }
-                        if(data.showSkipToNextEp){
+                        if (data.showSkipToNextEp) {
                             onCancelSkipToNextEp()
+                        }
+                        if (!showInfoSeekController) {
+                            showInfoSeekController = true
+                            onDirectionLeft()
+                            return@onPreviewKeyEvent true
                         }
                     }
 
                     Key.DirectionRight -> {
                         if (it.type == KeyEventType.KeyUp) return@onPreviewKeyEvent true
+                        if (!showInfoSeekController) {
+                            showInfoSeekController = true
+                            onDirectionRight()
+                            return@onPreviewKeyEvent true
+                        }
                         logger.info { "[${it.key} press]" }
-                        openSeekController()
-                        onTimeForward()
-                        onTimeForwardBackTimer?.cancel()
-                        onTimeForwardBackTimer = countDownTimer(1000, 100, "onTimeBackTimer") {
-                            onGoTime(goTime)
-                            if (!videoPlayer.isPlaying) onPlay()
-                            moveState = SeekMoveState.Idle
-                            showSeekController = false
-                            onTimeForwardBackTimer = null
+
+                    }
+
+                    Key.DirectionUp -> {
+                        if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
+                        logger.info { "[${it.key} press]" }
+                        if (showClickableControllers) return@onPreviewKeyEvent false
+                        showListController = true
+                        return@onPreviewKeyEvent true
+                    }
+
+                    Key.DirectionDown -> {
+                        if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
+                        logger.info { "[${it.key} press]" }
+                        if (showClickableControllers) {
+                            return@onPreviewKeyEvent false
+                        } else {
+                            showInfoSeekController = true
+                            return@onPreviewKeyEvent true
                         }
                     }
                 }
@@ -378,21 +369,19 @@ fun VideoPlayerController(
             epid = data.epid
         )
         ControllerVideoInfo(
-            show = showInfo,
+            modifier = Modifier.focusable(),
+            show = showInfoSeekController,
+            isSeeking = isSeeking,
+            goTime = goTime,
             infoData = data.infoData,
             title = data.secondTitle,
             clock = data.clock,
-            idleIcon = idleIcon,
-            movingIcon = movingIcon,
-            onHideInfo = { showInfo = false }
-        )
-        SeekController(
-            show = showSeekController,
-            infoData = data.infoData,
-            goTime = goTime,
-            moveState = moveState,
-            idleIcon = idleIcon,
-            movingIcon = movingIcon
+            videoShot = data.videoShot,
+            onHideInfo = { showInfoSeekController = false },
+            onDirectionLeft = onDirectionLeft,
+            onDirectionRight = onDirectionRight,
+            onSeekGoTime = onSeekGoTime,
+            onPlayPause = onPlayPause,
         )
         VideoListController(
             show = showListController,

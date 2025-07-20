@@ -72,8 +72,6 @@ fun VideoPlayerV3Screen(
     val videoPlayer = playerViewModel.videoPlayer!!
     val logger = KotlinLogging.logger { }
 
-    val focusRequester = remember { FocusRequester() }
-
     var infoData by remember {
         mutableStateOf(
             VideoPlayerInfoData(
@@ -304,10 +302,6 @@ fun VideoPlayerV3Screen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
-
     LaunchedEffect(playerViewModel.loadState) {
         when (playerViewModel.loadState) {
             RequestState.Ready -> {}
@@ -490,13 +484,8 @@ fun VideoPlayerV3Screen(
         )
     ) {
         VideoPlayerController(
-            modifier = modifier
-                .focusRequester(focusRequester),
+            modifier = modifier,
             videoPlayer = playerViewModel.videoPlayer!!,
-
-            idleIcon = playerViewModel.playerIconIdle,
-            movingIcon = playerViewModel.playerIconMoving,
-
             onPlay = { videoPlayer.start() },
             onPause = {
                 videoPlayer.pause()
@@ -506,9 +495,10 @@ fun VideoPlayerV3Screen(
                 if (!Prefs.incognitoMode) sendHeartbeat()
                 (context as Activity).finish()
             },
-            onGoTime = {
-                videoPlayer.seekTo(it)
-                playerViewModel.danmakuPlayer?.seekTo(it)
+            onGoTime = { goTime ->
+                videoPlayer.seekTo(goTime)
+                infoData.currentTime = goTime
+                playerViewModel.danmakuPlayer?.seekTo(goTime)
                 // akdanmaku 会在跳转后立即播放，如果需要缓冲则会导致弹幕不同步
                 playerViewModel.danmakuPlayer?.pause()
             },
@@ -651,7 +641,6 @@ fun VideoPlayerV3Screen(
                 Prefs.defaultSubtitleBottomPadding = padding
                 playerViewModel.currentSubtitleBottomPadding = padding
             },
-            onRequestFocus = { focusRequester.requestFocus() },
         ) {
             Box(
                 modifier = Modifier.background(Color.Black),
