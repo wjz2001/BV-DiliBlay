@@ -38,7 +38,7 @@ fun VideoPlayerInfoTip(
 
 data class VideoPlayerInfoData(
     val totalDuration: Long,
-    val currentTime: Long,
+    var currentTime: Long,
     val bufferedPercentage: Int,
     val resolutionWidth: Int,
     val resolutionHeight: Int,

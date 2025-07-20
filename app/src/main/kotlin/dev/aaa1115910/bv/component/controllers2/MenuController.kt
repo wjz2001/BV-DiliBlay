@@ -1,6 +1,7 @@
 package dev.aaa1115910.bv.component.controllers2
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.shrinkHorizontally
@@ -28,6 +29,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
@@ -81,8 +85,17 @@ fun MenuController(
     onSubtitleBackgroundOpacityChange: (Float) -> Unit,
     onSubtitleBottomPadding: (Dp) -> Unit
 ) {
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(show) {
+        if (show) {
+            focusRequester.requestFocus()
+        }
+    }
     Box(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .focusRequester(focusRequester)
+            .onFocusChanged { Log.d("MenuController", "focus: $it") },
         contentAlignment = Alignment.CenterEnd
     ) {
         AnimatedVisibility(

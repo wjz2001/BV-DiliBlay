@@ -1,10 +1,13 @@
 package dev.aaa1115910.bv.component.controllers2
 
 import android.os.CountDownTimer
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,7 +16,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CornerSize
-import androidx.compose.material3.Button
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FastRewind
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -23,9 +30,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -35,40 +51,48 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.tv.material3.Button
+import androidx.tv.material3.ClickableSurfaceDefaults
+import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.bv.component.controllers.info.VideoPlayerInfoData
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.util.countDownTimer
 import dev.aaa1115910.bv.util.formatMinSec
 
 @Composable
 fun ControllerVideoInfo(
     modifier: Modifier = Modifier,
     show: Boolean,
+    isSeeking: Boolean,
+    goTime: Long,
     infoData: VideoPlayerInfoData,
     title: String,
     clock: Triple<Int, Int, Int>,
-    idleIcon: String,
-    movingIcon: String,
-    onHideInfo: () -> Unit
+    videoShot: VideoShot?,
+    onHideInfo: () -> Unit,
+    onDirectionLeft: () -> Unit,
+    onDirectionRight: () -> Unit,
+    onSeekGoTime: () -> Unit,
+    onPlayPause: () -> Unit,
 ) {
-    var seekHideTimer: CountDownTimer? by remember { mutableStateOf(null) }
-    val setCloseInfoTimer: () -> Unit = {
-        if (show) {
-            seekHideTimer?.cancel()
-            seekHideTimer = object : CountDownTimer(5000, 1000) {
-                override fun onTick(millisUntilFinished: Long) {}
-                override fun onFinish() = onHideInfo()
-            }
-            seekHideTimer?.start()
-        } else {
-            seekHideTimer?.cancel()
-            seekHideTimer = null
+    var hideVideoInfoTimer: CountDownTimer? by remember { mutableStateOf(null) }
+    val setHideVideoInfoTimer = {
+        hideVideoInfoTimer?.cancel()
+        hideVideoInfoTimer = countDownTimer(5000, 1000, "hideVideoInfoTimer") {
+            onHideInfo()
         }
     }
-
-    LaunchedEffect(Unit) {
-        setCloseInfoTimer()
+    LaunchedEffect(show) {
+        if (show) {
+            setHideVideoInfoTimer()
+        } else {
+            hideVideoInfoTimer?.cancel()
+            hideVideoInfoTimer = null
+        }
     }
 
     Box(
@@ -95,10 +119,21 @@ fun ControllerVideoInfo(
             label = "ControllerBottomVideoInfo"
         ) {
             ControllerVideoInfoBottom(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .onPreviewKeyEvent {
+                        hideVideoInfoTimer?.cancel()
+                        setHideVideoInfoTimer()
+                        return@onPreviewKeyEvent false
+                    },
+                isSeeking = isSeeking,
+                goTime = goTime,
                 infoData = infoData,
-                partTitle = title,
-                idleIcon = idleIcon,
-                movingIcon = movingIcon
+                videoShot = videoShot,
+                onDirectionLeft = onDirectionLeft,
+                onDirectionRight = onDirectionRight,
+                onSeekGoTime = onSeekGoTime,
+                onPlayPause = onPlayPause
             )
         }
     }
@@ -152,7 +187,6 @@ fun ControllerVideoInfoTop(
             Clock(
                 hour = clock.first,
                 minute = clock.second,
-                second = clock.third
             )
         }
     }
@@ -161,50 +195,146 @@ fun ControllerVideoInfoTop(
 @Composable
 fun ControllerVideoInfoBottom(
     modifier: Modifier = Modifier,
-    partTitle: String,
+    isSeeking: Boolean,
+    goTime: Long,
     infoData: VideoPlayerInfoData,
-    idleIcon: String,
-    movingIcon: String
+    videoShot: VideoShot?,
+    onDirectionLeft: () -> Unit,
+    onDirectionRight: () -> Unit,
+    onSeekGoTime: () -> Unit,
+    onPlayPause: () -> Unit
 ) {
+    val seekFocusRequester = remember { FocusRequester() }
+    val buttonsFocusRequester = remember { FocusRequester() }
+
+    var isSeekFocused by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        seekFocusRequester.requestFocus()
+    }
     Column(
         modifier = modifier
             .clip(
                 MaterialTheme.shapes.large
                     .copy(bottomStart = CornerSize(0.dp), bottomEnd = CornerSize(0.dp))
-            )
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color.Black.copy(alpha = 0f),
-                        Color.Black.copy(alpha = 0.5f)
-                    )
-                )
             ),
         verticalArrangement = Arrangement.Bottom
     ) {
+        if (isSeeking && videoShot != null) {
+            VideoShot(
+                modifier = Modifier
+                    .padding(horizontal = 48.dp),
+                videoShot = videoShot,
+                position = goTime,
+                duration = infoData.totalDuration,
+                coercedOffset = (-24).dp
+            )
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
-                modifier = Modifier.padding(top = 12.dp, bottom = 0.dp, start = 40.dp),
-                text = "${infoData.currentTime.formatMinSec()} / ${infoData.totalDuration.formatMinSec()}",
+                modifier = Modifier.padding(top = 6.dp, bottom = 0.dp, start = 32.dp),
+                text = "${if (isSeeking) goTime.formatMinSec() else infoData.currentTime.formatMinSec()} / ${infoData.totalDuration.formatMinSec()}",
                 color = Color.White,
                 style = TextStyle(
                     shadow = Shadow(color = Color.Black, blurRadius = 1f),
                 ),
             )
         }
-        VideoProgressSeek(
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 24.dp)
+                .border(
+                    width = 1.dp,
+                    color = Color.White.copy(alpha = if (isSeekFocused) 0.5f else 0f),
+                    shape = RoundedCornerShape(8.dp)
+                )
+                .focusable()
+                .focusRequester(seekFocusRequester)
+                .onKeyEvent {
+                    when (it.key) {
+                        Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
+                            if (it.type == KeyEventType.KeyUp) return@onKeyEvent true
+                            if (isSeeking) {
+                                onSeekGoTime()
+                            } else {
+                                onPlayPause()
+                            }
+                            return@onKeyEvent true
+                        }
+
+                        Key.DirectionLeft, Key.MediaRewind -> {
+                            if (it.type == KeyEventType.KeyUp) return@onKeyEvent true
+                            onDirectionLeft()
+                            return@onKeyEvent true
+                        }
+
+                        Key.DirectionRight, Key.MediaFastForward -> {
+                            if (it.type == KeyEventType.KeyUp) return@onKeyEvent true
+                            onDirectionRight()
+                            return@onKeyEvent true
+                        }
+
+                        Key.DirectionDown -> {
+                            if (it.type == KeyEventType.KeyDown) return@onKeyEvent true
+                            buttonsFocusRequester.requestFocus()
+                            return@onKeyEvent true
+                        }
+                    }
+                    return@onKeyEvent false
+                }
+                .onFocusChanged {
+                    isSeekFocused = it.isFocused
+                },
+        ) {
+            VideoProgressSeek(
+                modifier = Modifier
+                    .focusable()
+                    .fillMaxWidth(),
+                duration = infoData.totalDuration,
+                position = if (isSeeking) goTime else infoData.currentTime,
+                bufferedPercentage = infoData.bufferedPercentage,
+            )
+        }
+
+        val icons = listOf(
+            Icons.Filled.FastRewind to "快退",
+            Icons.Filled.PlayArrow to "播放/暂停",
+            Icons.Filled.FastForward to "快进"
+        )
+
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp),
-            duration = infoData.totalDuration,
-            position = infoData.currentTime,
-            bufferedPercentage = infoData.bufferedPercentage,
-            moveState = SeekMoveState.Idle,
-            idleIcon = idleIcon,
-            movingIcon = movingIcon
-        )
+                .focusRequester(buttonsFocusRequester)
+                .onKeyEvent {
+                    if (it.key == Key.DirectionUp) {
+                        if (it.type == KeyEventType.KeyDown) return@onKeyEvent true
+                        seekFocusRequester.requestFocus()
+                        return@onKeyEvent true
+                    }
+                    return@onKeyEvent false
+                }
+                .padding(horizontal = 32.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start)
+        ) {
+            icons.forEach { (icon, description) ->
+                Surface(
+                    onClick = { Log.d("focus", "focus") },
+                    shape = ClickableSurfaceDefaults.shape(
+                        shape = MaterialTheme.shapes.small,
+                    ),
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = description,
+                        modifier = Modifier
+                            .padding(5.dp),
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -213,7 +343,6 @@ private fun Clock(
     modifier: Modifier = Modifier,
     hour: Int,
     minute: Int,
-    second: Int
 ) {
     Text(
         modifier = modifier,
@@ -240,7 +369,6 @@ private fun ClockPreview() {
         Clock(
             hour = clock.first,
             minute = clock.second,
-            second = clock.third
         )
     }
 }
@@ -264,6 +392,8 @@ private fun ControllerVideoInfoPreview() {
         ControllerVideoInfo(
             modifier = Modifier.fillMaxSize(),
             show = show,
+            isSeeking = false,
+            goTime = 0,
             infoData = VideoPlayerInfoData(
                 totalDuration = 100,
                 currentTime = 33,
@@ -274,9 +404,12 @@ private fun ControllerVideoInfoPreview() {
             ),
             title = "【A320】民航史上最佳逆袭！A320的前世今生！民航史上最佳逆袭！A320的前世今生！",
             clock = Triple(12, 30, 30),
+            videoShot = null,
             onHideInfo = {},
-            idleIcon = "",
-            movingIcon = ""
+            onDirectionRight = {},
+            onDirectionLeft = {},
+            onSeekGoTime = {},
+            onPlayPause = {}
         )
     }
 }
