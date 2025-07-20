@@ -486,6 +486,9 @@ fun VideoPlayerV3Screen(
         VideoPlayerController(
             modifier = modifier,
             videoPlayer = playerViewModel.videoPlayer!!,
+            aid = playerViewModel.currentAid,
+            fromSeason = playerViewModel.fromSeason,
+            proxyArea = playerViewModel.proxyArea,
             onPlay = { videoPlayer.start() },
             onPause = {
                 videoPlayer.pause()

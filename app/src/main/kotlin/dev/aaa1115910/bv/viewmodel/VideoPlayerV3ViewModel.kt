@@ -121,7 +121,7 @@ class VideoPlayerV3ViewModel(
     var playerIconIdle by mutableStateOf("")
     var playerIconMoving by mutableStateOf("")
 
-    private var currentAid = 0L
+    var currentAid = 0L
     var currentCid = 0L
     private var currentEpid = 0
 

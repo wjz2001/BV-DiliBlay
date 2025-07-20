@@ -42,6 +42,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -58,6 +59,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.video.VideoShot
+import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.controllers.info.VideoPlayerInfoData
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.countDownTimer
@@ -73,11 +75,15 @@ fun ControllerVideoInfo(
     title: String,
     clock: Triple<Int, Int, Int>,
     videoShot: VideoShot?,
+    fromSeason: Boolean,
     onHideInfo: () -> Unit,
     onDirectionLeft: () -> Unit,
     onDirectionRight: () -> Unit,
     onSeekGoTime: () -> Unit,
     onPlayPause: () -> Unit,
+    onDanmakuSwitchChange: () -> Unit,
+    onShowSettings: () -> Unit,
+    onGoToVideoInfo: () -> Unit,
 ) {
     var hideVideoInfoTimer: CountDownTimer? by remember { mutableStateOf(null) }
     val setHideVideoInfoTimer = {
@@ -130,10 +136,14 @@ fun ControllerVideoInfo(
                 goTime = goTime,
                 infoData = infoData,
                 videoShot = videoShot,
+                fromSeason= fromSeason,
                 onDirectionLeft = onDirectionLeft,
                 onDirectionRight = onDirectionRight,
                 onSeekGoTime = onSeekGoTime,
-                onPlayPause = onPlayPause
+                onPlayPause = onPlayPause,
+                onDanmakuSwitchChange = onDanmakuSwitchChange,
+                onShowSettings = onShowSettings,
+                onGoToVideoInfo = onGoToVideoInfo,
             )
         }
     }
@@ -199,10 +209,14 @@ fun ControllerVideoInfoBottom(
     goTime: Long,
     infoData: VideoPlayerInfoData,
     videoShot: VideoShot?,
+    fromSeason: Boolean,
     onDirectionLeft: () -> Unit,
     onDirectionRight: () -> Unit,
     onSeekGoTime: () -> Unit,
-    onPlayPause: () -> Unit
+    onPlayPause: () -> Unit,
+    onDanmakuSwitchChange: () -> Unit,
+    onShowSettings: () -> Unit,
+    onGoToVideoInfo: () -> Unit,
 ) {
     val seekFocusRequester = remember { FocusRequester() }
     val buttonsFocusRequester = remember { FocusRequester() }
@@ -298,10 +312,37 @@ fun ControllerVideoInfoBottom(
             )
         }
 
-        val icons = listOf(
-            Icons.Filled.FastRewind to "快退",
-            Icons.Filled.PlayArrow to "播放/暂停",
-            Icons.Filled.FastForward to "快进"
+        val icons = listOfNotNull(
+            @Composable{
+                Icon(
+                    painter = painterResource(id = R.drawable.play_pause_24px),
+                    contentDescription = "播放/暂停",
+                    modifier = Modifier.padding(5.dp)
+                )
+            } to onPlayPause,
+            @Composable{
+                Icon(
+                    painter = painterResource(id = R.drawable.danmaku_24px),
+                    contentDescription = "弹幕开关",
+                    modifier = Modifier.padding(5.dp)
+                )
+            } to onDanmakuSwitchChange,
+            @Composable{
+                Icon(
+                    painter = painterResource(id = R.drawable.settings_24px),
+                    contentDescription = "打开设置",
+                    modifier = Modifier.padding(5.dp)
+                )
+            } to onShowSettings,
+            if (!fromSeason) {
+                @Composable {
+                    Icon(
+                        painter = painterResource(id = R.drawable.info_24px),
+                        contentDescription = "视频信息页",
+                        modifier = Modifier.padding(5.dp)
+                    )
+                } to onGoToVideoInfo
+            } else null
         )
 
         Row(
@@ -319,19 +360,14 @@ fun ControllerVideoInfoBottom(
                 .padding(horizontal = 32.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start)
         ) {
-            icons.forEach { (icon, description) ->
+            icons.forEach { (icon, function) ->
                 Surface(
-                    onClick = { Log.d("focus", "focus") },
+                    onClick = function,
                     shape = ClickableSurfaceDefaults.shape(
                         shape = MaterialTheme.shapes.small,
                     ),
                 ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = description,
-                        modifier = Modifier
-                            .padding(5.dp),
-                    )
+                    icon()
                 }
             }
         }
@@ -405,11 +441,15 @@ private fun ControllerVideoInfoPreview() {
             title = "【A320】民航史上最佳逆袭！A320的前世今生！民航史上最佳逆袭！A320的前世今生！",
             clock = Triple(12, 30, 30),
             videoShot = null,
+            fromSeason = false,
             onHideInfo = {},
             onDirectionRight = {},
             onDirectionLeft = {},
             onSeekGoTime = {},
-            onPlayPause = {}
+            onPlayPause = {},
+            onDanmakuSwitchChange = {},
+            onShowSettings = {},
+            onGoToVideoInfo = {},
         )
     }
 }
