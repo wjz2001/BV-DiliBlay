@@ -17,7 +17,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -33,13 +32,16 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.video.Subtitle
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.controllers.LocalVideoPlayerControllerData
 import dev.aaa1115910.bv.component.controllers2.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.entity.VideoListItem
+import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.player.AbstractVideoPlayer
+import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.countDownTimer
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.toast
@@ -49,7 +51,9 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 fun VideoPlayerController(
     modifier: Modifier = Modifier,
     videoPlayer: AbstractVideoPlayer,
-
+    aid: Long,
+    fromSeason: Boolean,
+    proxyArea: ProxyArea,
 
     //player events
     onPlay: () -> Unit,
@@ -377,11 +381,32 @@ fun VideoPlayerController(
             title = data.secondTitle,
             clock = data.clock,
             videoShot = data.videoShot,
+            fromSeason = fromSeason,
             onHideInfo = { showInfoSeekController = false },
             onDirectionLeft = onDirectionLeft,
             onDirectionRight = onDirectionRight,
             onSeekGoTime = onSeekGoTime,
             onPlayPause = onPlayPause,
+            onDanmakuSwitchChange = {
+                if(Prefs.defaultDanmakuTypes.isNotEmpty()){
+                    onDanmakuSwitchChange(listOf())
+                }
+                else{
+                    onDanmakuSwitchChange(DanmakuType.entries)
+                }
+            },
+            onShowSettings = {
+                showInfoSeekController = false
+                showMenuController = true
+            },
+            onGoToVideoInfo = {
+                VideoInfoActivity.actionStart(
+                    context = context,
+                    aid = aid,
+                    fromSeason = fromSeason,
+                    proxyArea = proxyArea
+                )
+            }
         )
         VideoListController(
             show = showListController,
