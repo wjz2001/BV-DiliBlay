@@ -10,7 +10,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
-import dev.aaa1115910.bv.util.formatMinSec
+import dev.aaa1115910.bv.util.formatHourMinSec
 
 @Composable
 fun VideoPlayerInfoTip(
@@ -28,7 +28,7 @@ fun VideoPlayerInfoTip(
         Column(
             modifier = Modifier.padding(8.dp)
         ) {
-            Text(text = "视频时间: ${data.currentTime.formatMinSec()} / ${data.totalDuration.formatMinSec()}")
+            Text(text = "视频时间: ${data.currentTime.formatHourMinSec()} / ${data.totalDuration.formatHourMinSec()}")
             Text(text = "缓冲进度: ${data.bufferedPercentage}%")
             Text(text = "分辨率: ${data.resolutionWidth} x ${data.resolutionHeight}")
             Text(text = "视频编码: ${data.codec}")

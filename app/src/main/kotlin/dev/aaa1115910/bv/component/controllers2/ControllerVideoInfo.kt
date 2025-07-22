@@ -59,7 +59,7 @@ import dev.aaa1115910.bv.component.controllers.info.VideoPlayerInfoData
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.countDownTimer
-import dev.aaa1115910.bv.util.formatMinSec
+import dev.aaa1115910.bv.util.formatHourMinSec
 
 @Composable
 fun ControllerVideoInfo(
@@ -245,7 +245,7 @@ fun ControllerVideoInfoBottom(
         ) {
             Text(
                 modifier = Modifier.padding(top = 6.dp, bottom = 0.dp, start = 32.dp),
-                text = "${if (isSeeking) goTime.formatMinSec() else infoData.currentTime.formatMinSec()} / ${infoData.totalDuration.formatMinSec()}",
+                text = "${if (isSeeking) goTime.formatHourMinSec() else infoData.currentTime.formatHourMinSec()} / ${infoData.totalDuration.formatHourMinSec()}",
                 color = Color.White,
                 style = TextStyle(
                     shadow = Shadow(color = Color.Black, blurRadius = 1f),

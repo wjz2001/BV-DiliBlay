@@ -22,8 +22,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.tv.material3.Text
@@ -48,7 +46,7 @@ import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.countDownTimer
 import dev.aaa1115910.bv.util.danmakuMask
 import dev.aaa1115910.bv.util.fInfo
-import dev.aaa1115910.bv.util.formatMinSec
+import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.swapList
 import dev.aaa1115910.bv.util.timeTask
 import dev.aaa1115910.bv.viewmodel.RequestState
@@ -516,7 +514,7 @@ fun VideoPlayerV3Screen(
             },
             onBackToHistory = {
                 val time = playerViewModel.lastPlayed.toLong()
-                logger.fInfo { "Back to history: ${time.formatMinSec()}" }
+                logger.fInfo { "Back to history: ${time.formatHourMinSec()}" }
                 videoPlayer.seekTo(time)
                 playerViewModel.danmakuPlayer?.seekTo(time)
                 // akdanmaku 会在跳转后立即播放，如果需要缓冲则会导致弹幕不同步

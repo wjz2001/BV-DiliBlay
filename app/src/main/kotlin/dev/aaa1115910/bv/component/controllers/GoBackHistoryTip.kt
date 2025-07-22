@@ -9,7 +9,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
-import dev.aaa1115910.bv.util.formatMinSec
+import dev.aaa1115910.bv.util.formatHourMinSec
 
 @Composable
 fun GoBackHistoryTip(
@@ -24,7 +24,7 @@ fun GoBackHistoryTip(
     ) {
         Text(
             modifier = Modifier.padding(8.dp),
-            text = "上次播放到 “${played.toLong().formatMinSec()}”，按下确认键返回",
+            text = "上次播放到 “${played.toLong().formatHourMinSec()}”，按下确认键返回",
             style = MaterialTheme.typography.titleLarge
         )
     }

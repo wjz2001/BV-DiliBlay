@@ -23,7 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.component.controllers.info.VideoPlayerInfoData
-import dev.aaa1115910.bv.util.formatMinSec
+import dev.aaa1115910.bv.util.formatHourMinSec
 
 @Composable
 fun BottomControls(
@@ -68,7 +68,7 @@ fun BottomControls(
             )
             Text(
                 modifier = Modifier.padding(top = 16.dp, bottom = 0.dp, end = 40.dp),
-                text = "${infoData.currentTime.formatMinSec()} / ${infoData.totalDuration.formatMinSec()}",
+                text = "${infoData.currentTime.formatHourMinSec()} / ${infoData.totalDuration.formatHourMinSec()}",
                 color = Color.White
             )
         }
