@@ -277,7 +277,7 @@ fun VideoInfoScreen(
                 }
             }.onSuccess {
                 logger.fInfo { "Update video to favorite folder success" }
-                videoInFavoriteFolderIds.swapList(folderIds)
+                videoInFavoriteFolderIds.swapListWithMainContext(folderIds)
             }
         }
     }
@@ -340,9 +340,11 @@ fun VideoInfoScreen(
                         bvid = videoDetailViewModel.videoDetail!!.bvid
                     )
                 if (data != null) {
-                    liked = data.like
-                    coined = data.coin
-                    favorited = data.fav
+                    withContext(Dispatchers.Main){
+                        liked = data.like
+                        coined = data.coin
+                        favorited = data.fav
+                    }
                     if (favorited) addVideoToDefaultFavoriteFolder()
                 }
             }.onFailure { throwable ->
@@ -403,10 +405,12 @@ fun VideoInfoScreen(
 
                 runCatching {
                     videoDetailViewModel.loadDetail(aid)
-                    updateVideoIsFavoured()
-                    updateVideoIsLiked()
-                    updateVideoIsCoined()
-                    setHistory()
+                    withContext(Dispatchers.Main) {
+                        updateVideoIsFavoured()
+                        updateVideoIsLiked()
+                        updateVideoIsCoined()
+                        setHistory()
+                    }
                     if (Prefs.isLogin) fetchFavoriteData(aid)
 
                     //如果是从剧集跳转过来的或设置不显示视频详情，就直接播放 P1
@@ -468,10 +472,14 @@ fun VideoInfoScreen(
 
                     logger.fInfo { "Get video info failed: ${it.stackTraceToString()}" }
                     if (!isVideoNotFound || !Prefs.enableProxy) {
-                        tip = it.localizedMessage ?: "未知错误"
+                        withContext(Dispatchers.Main) {
+                            tip = it.localizedMessage ?: "未知错误"
+                        }
                         return@onFailure
                     }
-                    videoDetailViewModel.state = VideoInfoState.Loading
+                    withContext(Dispatchers.Main) {
+                        videoDetailViewModel.state = VideoInfoState.Loading
+                    }
 
                     logger.fInfo { "Trying get video info through proxy server" }
                     runCatching {
@@ -486,13 +494,17 @@ fun VideoInfoScreen(
                             )
                             context.finish()
                         } ?: let {
-                            tip = "视频不存在"
-                            videoDetailViewModel.state = VideoInfoState.Error
+                            withContext(Dispatchers.Main) {
+                                tip = "视频不存在"
+                                videoDetailViewModel.state = VideoInfoState.Error
+                            }
                         }
                     }.onFailure { e ->
                         logger.fWarn { "Redirect failed: ${e.stackTraceToString()}" }
-                        tip = e.localizedMessage ?: "未知错误"
-                        videoDetailViewModel.state = VideoInfoState.Error
+                        withContext(Dispatchers.Main) {
+                            tip = e.localizedMessage ?: "未知错误"
+                            videoDetailViewModel.state = VideoInfoState.Error
+                        }
                     }
                 }
             }
@@ -659,7 +671,7 @@ fun VideoInfoScreen(
                                 videoInFavoriteFolderIds.swapList(it)
                             },
                             onUpdateLiked = {
-                                scope.launch {
+                                scope.launch(Dispatchers.Main) {
                                     if (updateVideoLikedData(it))
                                         liked = it
                                     else
@@ -667,7 +679,7 @@ fun VideoInfoScreen(
                                 }
                             },
                             onSendVideoCoin = {
-                                scope.launch {
+                                scope.launch(Dispatchers.Main) {
                                     if (!coined) {
                                         if (sendVideoCoin()) coined = true
                                         else "投币失败".toast(context)
@@ -675,7 +687,7 @@ fun VideoInfoScreen(
                                 }
                             },
                             onSendVideoOneClickTripleAction = {
-                                scope.launch {
+                                scope.launch(Dispatchers.Main) {
                                     if (sendVideoOneClickTripleAction()) {
                                         "一键三连".toast(context)
                                     } else {
@@ -1353,7 +1365,7 @@ private fun VideoPartListDialog(
         if (toIndex >= pages.size) {
             toIndex = pages.size
         }
-        selectedVideoPart.swapList(pages.subList(fromIndex, toIndex))
+        selectedVideoPart.swapListWithMainContext(pages.subList(fromIndex, toIndex))
     }
 
     LaunchedEffect(show) {
@@ -1461,7 +1473,7 @@ private fun VideoUgcListDialog(
         if (toIndex >= episodes.size) {
             toIndex = episodes.size
         }
-        selectedVideoPart.swapList(episodes.subList(fromIndex, toIndex))
+        selectedVideoPart.swapListWithMainContext(episodes.subList(fromIndex, toIndex))
     }
 
     LaunchedEffect(show) {
