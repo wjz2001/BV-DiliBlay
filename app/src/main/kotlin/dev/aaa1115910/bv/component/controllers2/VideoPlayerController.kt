@@ -129,7 +129,6 @@ fun VideoPlayerController(
     }
 
     val onDirectionLeft = {
-        showInfoSeekController = true
         onTimeBack()
         onTimeForwardBackTimer?.cancel()
         onTimeForwardBackTimer = countDownTimer(1000, 100, "onTimeBackTimer") {
@@ -142,7 +141,6 @@ fun VideoPlayerController(
     }
 
     val onDirectionRight = {
-        showInfoSeekController = true
         onTimeForward()
         onTimeForwardBackTimer?.cancel()
         onTimeForwardBackTimer = countDownTimer(1000, 100, "onTimeBackTimer") {
@@ -281,6 +279,7 @@ fun VideoPlayerController(
                             onCancelSkipToNextEp()
                         }
                         if (!showInfoSeekController) {
+                            goTime = data.infoData.currentTime
                             showInfoSeekController = true
                             onDirectionLeft()
                             return@onPreviewKeyEvent true
@@ -290,6 +289,7 @@ fun VideoPlayerController(
                     Key.MediaFastForward -> {
                         if (it.type == KeyEventType.KeyUp) return@onPreviewKeyEvent true
                         if (!showInfoSeekController) {
+                            goTime = data.infoData.currentTime
                             showInfoSeekController = true
                             onDirectionRight()
                             return@onPreviewKeyEvent true
@@ -303,6 +303,7 @@ fun VideoPlayerController(
                             onCancelSkipToNextEp()
                         }
                         if (!showInfoSeekController) {
+                            goTime = data.infoData.currentTime
                             showInfoSeekController = true
                             onDirectionLeft()
                             return@onPreviewKeyEvent true
@@ -312,6 +313,7 @@ fun VideoPlayerController(
                     Key.DirectionRight -> {
                         if (it.type == KeyEventType.KeyUp) return@onPreviewKeyEvent true
                         if (!showInfoSeekController) {
+                            goTime = data.infoData.currentTime
                             showInfoSeekController = true
                             onDirectionRight()
                             return@onPreviewKeyEvent true
@@ -388,10 +390,9 @@ fun VideoPlayerController(
             onSeekGoTime = onSeekGoTime,
             onPlayPause = onPlayPause,
             onDanmakuSwitchChange = {
-                if(Prefs.defaultDanmakuTypes.isNotEmpty()){
+                if (Prefs.defaultDanmakuTypes.isNotEmpty()) {
                     onDanmakuSwitchChange(listOf())
-                }
-                else{
+                } else {
                     onDanmakuSwitchChange(DanmakuType.entries)
                 }
             },

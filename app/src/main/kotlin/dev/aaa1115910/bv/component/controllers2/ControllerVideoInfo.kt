@@ -1,7 +1,6 @@
 package dev.aaa1115910.bv.component.controllers2
 
 import android.os.CountDownTimer
-import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -17,10 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FastForward
-import androidx.compose.material.icons.filled.FastRewind
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -136,7 +131,7 @@ fun ControllerVideoInfo(
                 goTime = goTime,
                 infoData = infoData,
                 videoShot = videoShot,
-                fromSeason= fromSeason,
+                fromSeason = fromSeason,
                 onDirectionLeft = onDirectionLeft,
                 onDirectionRight = onDirectionRight,
                 onSeekGoTime = onSeekGoTime,
@@ -313,36 +308,10 @@ fun ControllerVideoInfoBottom(
         }
 
         val icons = listOfNotNull(
-            @Composable{
-                Icon(
-                    painter = painterResource(id = R.drawable.play_pause_24px),
-                    contentDescription = "播放/暂停",
-                    modifier = Modifier.padding(5.dp)
-                )
-            } to onPlayPause,
-            @Composable{
-                Icon(
-                    painter = painterResource(id = R.drawable.danmaku_24px),
-                    contentDescription = "弹幕开关",
-                    modifier = Modifier.padding(5.dp)
-                )
-            } to onDanmakuSwitchChange,
-            @Composable{
-                Icon(
-                    painter = painterResource(id = R.drawable.settings_24px),
-                    contentDescription = "打开设置",
-                    modifier = Modifier.padding(5.dp)
-                )
-            } to onShowSettings,
-            if (!fromSeason) {
-                @Composable {
-                    Icon(
-                        painter = painterResource(id = R.drawable.info_24px),
-                        contentDescription = "视频信息页",
-                        modifier = Modifier.padding(5.dp)
-                    )
-                } to onGoToVideoInfo
-            } else null
+            (R.drawable.play_pause_24px to "播放/暂停") to onPlayPause,
+            (R.drawable.danmaku_24px to "弹幕开关") to onDanmakuSwitchChange,
+            (R.drawable.settings_24px to "打开设置") to onShowSettings,
+            if (!fromSeason) (R.drawable.info_24px to "视频信息") to onGoToVideoInfo else null
         )
 
         Row(
@@ -367,7 +336,11 @@ fun ControllerVideoInfoBottom(
                         shape = MaterialTheme.shapes.small,
                     ),
                 ) {
-                    icon()
+                    Icon(
+                        painter = painterResource(id = icon.first),
+                        contentDescription = icon.second,
+                        modifier = Modifier.padding(5.dp)
+                    )
                 }
             }
         }
