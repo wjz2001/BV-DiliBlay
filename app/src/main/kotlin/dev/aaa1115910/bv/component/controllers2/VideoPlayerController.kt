@@ -41,7 +41,6 @@ import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.player.AbstractVideoPlayer
-import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.countDownTimer
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.toast
@@ -186,8 +185,6 @@ fun VideoPlayerController(
                 }
                 when (it.key) {
                     Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
-                        @Suppress("KotlinConstantConditions")
-                        //自动跳转到上次播放位置后，按键返回到开头
                         if (!showClickableControllers && data.showBackToStart) {
                             if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
                             onBackToStart()
@@ -256,7 +253,7 @@ fun VideoPlayerController(
                     Key.MediaPlayPause -> {
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
                         logger.info { "[${it.key} press]" }
-                        onPlayPause
+                        onPlayPause()
                         return@onPreviewKeyEvent true
                     }
 
@@ -382,13 +379,14 @@ fun VideoPlayerController(
             clock = data.clock,
             videoShot = data.videoShot,
             fromSeason = fromSeason,
+            danmakuEnabled = data.currentDanmakuEnabledList.isNotEmpty(),
             onHideInfo = { showInfoSeekController = false },
             onDirectionLeft = onDirectionLeft,
             onDirectionRight = onDirectionRight,
             onSeekGoTime = onSeekGoTime,
             onPlayPause = onPlayPause,
             onDanmakuSwitchChange = {
-                if (Prefs.defaultDanmakuTypes.isEmpty()) {
+                if (data.currentDanmakuEnabledList.isEmpty()) {
                     onDanmakuSwitchChange(DanmakuType.entries)
                 } else {
                     onDanmakuSwitchChange(listOf())

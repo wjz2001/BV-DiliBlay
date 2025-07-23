@@ -57,7 +57,6 @@ import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.controllers.info.VideoPlayerInfoData
 import dev.aaa1115910.bv.ui.theme.BVTheme
-import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.countDownTimer
 import dev.aaa1115910.bv.util.formatHourMinSec
 
@@ -72,6 +71,7 @@ fun ControllerVideoInfo(
     clock: Triple<Int, Int, Int>,
     videoShot: VideoShot?,
     fromSeason: Boolean,
+    danmakuEnabled: Boolean,
     onHideInfo: () -> Unit,
     onDirectionLeft: () -> Unit,
     onDirectionRight: () -> Unit,
@@ -133,6 +133,7 @@ fun ControllerVideoInfo(
                 infoData = infoData,
                 videoShot = videoShot,
                 fromSeason = fromSeason,
+                danmakuEnabled = danmakuEnabled,
                 onDirectionLeft = onDirectionLeft,
                 onDirectionRight = onDirectionRight,
                 onSeekGoTime = onSeekGoTime,
@@ -206,6 +207,7 @@ fun ControllerVideoInfoBottom(
     infoData: VideoPlayerInfoData,
     videoShot: VideoShot?,
     fromSeason: Boolean,
+    danmakuEnabled: Boolean,
     onDirectionLeft: () -> Unit,
     onDirectionRight: () -> Unit,
     onSeekGoTime: () -> Unit,
@@ -310,7 +312,7 @@ fun ControllerVideoInfoBottom(
 
         val icons = listOfNotNull(
             (R.drawable.play_pause_24px to "播放/暂停") to onPlayPause,
-            ((if (Prefs.defaultDanmakuTypes.isEmpty()) (R.drawable.danmaku_off_24px) else (R.drawable.danmaku_on_24px)) to "弹幕开关") to onDanmakuSwitchChange,
+            ((if (danmakuEnabled) (R.drawable.danmaku_on_24px) else (R.drawable.danmaku_off_24px)) to "弹幕开关") to onDanmakuSwitchChange,
             (R.drawable.settings_24px to "打开设置") to onShowSettings,
             if (!fromSeason) (R.drawable.info_24px to "视频信息") to onGoToVideoInfo else null
         )
@@ -416,6 +418,7 @@ private fun ControllerVideoInfoPreview() {
             clock = Triple(12, 30, 30),
             videoShot = null,
             fromSeason = false,
+            danmakuEnabled = false,
             onHideInfo = {},
             onDirectionRight = {},
             onDirectionLeft = {},
