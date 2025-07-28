@@ -401,6 +401,7 @@ fun VideoPlayerController(
                     context = context,
                     aid = aid,
                     fromSeason = fromSeason,
+                    fromController = true,
                     proxyArea = proxyArea
                 )
             }
