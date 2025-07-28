@@ -1,6 +1,11 @@
 package dev.aaa1115910.bv.screen.search
 
 import android.content.res.Configuration
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.horizontalScroll
@@ -39,6 +44,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
@@ -240,28 +246,71 @@ private fun SearchHotwords(
     hotwords: List<Hotword>,
     onSearch: (String) -> Unit
 ) {
+    var showHotword by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        showHotword = Prefs.showHotword
+    }
+
     Column(
         modifier = modifier
             .width(250.dp)
             .fillMaxHeight()
             .focusGroup(),
     ) {
-        Text(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            text = stringResource(R.string.search_input_hotword),
-            style = MaterialTheme.typography.titleLarge
-        )
-        LazyColumn(
-            modifier = Modifier,
-            contentPadding = PaddingValues(vertical = 4.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            itemsIndexed(hotwords) { index, hotword ->
-                SearchKeyword(
-                    modifier = Modifier,
-                    keyword = hotword.showName,
-                    leadingIcon = hotword.icon ?: "",
-                    onClick = { onSearch(hotword.showName) }
+            Text(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                text = stringResource(R.string.search_input_hotword),
+                style = MaterialTheme.typography.titleLarge
+            )
+            IconButton(
+                onClick = {
+                    showHotword = !showHotword
+                    Prefs.showHotword = showHotword
+                },
+                colors = ButtonDefaults.colors(
+                    containerColor = MaterialTheme.colorScheme.surface,
                 )
+            ) {
+                if (showHotword) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.expand_circle_up_24px),
+                        contentDescription = null
+                    )
+                } else {
+                    Icon(
+                        painter = painterResource(id = R.drawable.expand_circle_down_24px),
+                        contentDescription = null
+                    )
+                }
+            }
+        }
+        AnimatedVisibility(
+            visible = showHotword,
+            enter = expandVertically(
+                expandFrom = Alignment.Top
+            ) + fadeIn(),
+            exit = shrinkVertically(
+                shrinkTowards = Alignment.Top
+            ) + fadeOut()
+        ) {
+            LazyColumn(
+                modifier = Modifier,
+                contentPadding = PaddingValues(vertical = 4.dp)
+            ) {
+                itemsIndexed(hotwords) { index, hotword ->
+                    SearchKeyword(
+                        modifier = Modifier,
+                        keyword = hotword.showName,
+                        leadingIcon = hotword.icon ?: "",
+                        onClick = { onSearch(hotword.showName) }
+                    )
+                }
             }
         }
     }
@@ -431,7 +480,7 @@ private fun SearchInputScreenContentPreview() {
             SearchInputScreenContent(
                 modifier = Modifier,
                 defaultFocusRequester = FocusRequester.Default,
-                searchKeyword = "测试",
+                searchKeyword = "",
                 onSearchKeywordChange = {},
                 onSearch = {},
                 showProxyOptions = true,

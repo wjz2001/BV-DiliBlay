@@ -233,6 +233,10 @@ object Prefs {
         get() = runBlocking { dsm.getPreferenceFlow(PrefKeys.prefShowVideoInfoRequest).first() }
         set(value) = runBlocking { dsm.editPreference(PrefKeys.prefShowVideoInfoKey, value) }
 
+    var showHotword: Boolean
+        get() = runBlocking { dsm.getPreferenceFlow(PrefKeys.prefShowHotwordRequest).first() }
+        set(value) = runBlocking { dsm.editPreference(PrefKeys.prefShowHotwordKey, value) }
+
     var useOldPlayer: Boolean
         get() = runBlocking { dsm.getPreferenceFlow(PrefKeys.prefUseOldPlayerRequest).first() }
         set(value) = runBlocking { dsm.editPreference(PrefKeys.prefUseOldPlayerKey, value) }
@@ -331,6 +335,7 @@ private object PrefKeys {
     val prefPlayerTypeKey = intPreferencesKey("pt")
     val prefDensityKey = floatPreferencesKey("density")
     val prefShowVideoInfoKey = booleanPreferencesKey("show_video_info")
+    val prefShowHotwordKey = booleanPreferencesKey("shw")
     val prefUseOldPlayerKey = booleanPreferencesKey("uop")
     val prefAlphaKey = booleanPreferencesKey("alpha")
     val prefAccessTokenKey = stringPreferencesKey("access_token")
@@ -381,6 +386,7 @@ private object PrefKeys {
     val prefDensityRequest =
         PreferenceRequest(prefDensityKey, BVApp.context.resources.displayMetrics.widthPixels / 960f)
     val prefShowVideoInfoRequest = PreferenceRequest(prefShowVideoInfoKey, true)
+    val prefShowHotwordRequest = PreferenceRequest(prefShowHotwordKey, true)
     val prefUseOldPlayerRequest = PreferenceRequest(prefUseOldPlayerKey, false)
 
     @Suppress("KotlinConstantConditions")
