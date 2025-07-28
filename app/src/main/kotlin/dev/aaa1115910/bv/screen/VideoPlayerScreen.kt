@@ -408,12 +408,16 @@ fun VideoPlayerScreen(
             AndroidView(
                 modifier = videoPlayerModifier,
                 factory = { ctx ->
-                    videoPlayerView = PlayerView(ctx).apply {
-                        player = videoPlayer
-                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                        useController = false
+                    PlayerView(ctx).also { view ->
+                        videoPlayerView = view
+                        view.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        view.useController = false
+
+                        // 延迟设置 player，等待 surface 创建完毕
+                        view.post {
+                            view.player = videoPlayer
+                        }
                     }
-                    videoPlayerView!!
                 }
             )
 
