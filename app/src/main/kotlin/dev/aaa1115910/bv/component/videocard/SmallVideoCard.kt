@@ -76,11 +76,9 @@ fun SmallVideoCard(
             )
         }
 
-        // 固定信息区域高度，防止卡片高度抖动
         CardInfo(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(80.dp),
+                .fillMaxWidth(),
             title = data.title,
             upName = data.upName,
             pubTime = data.pubTime

@@ -161,6 +161,7 @@ fun VideoInfoScreen(
 
     var tip by remember { mutableStateOf("Loading") }
     var fromSeason by remember { mutableStateOf(false) }
+    var fromController by remember { mutableStateOf(false) }
     val showVideoInfo by remember { mutableStateOf(Prefs.showVideoInfo) }
     var paused by remember { mutableStateOf(false) }
     var proxyArea by remember { mutableStateOf(ProxyArea.MainLand) }
@@ -382,6 +383,7 @@ fun VideoInfoScreen(
         if (intent.hasExtra("aid")) {
             val aid = intent.getLongExtra("aid", 170001)
             fromSeason = intent.getBooleanExtra("fromSeason", false)
+            fromController = intent.getBooleanExtra("fromController", false)
             proxyArea = ProxyArea.entries[intent.getIntExtra("proxyArea", 0)]
             //获取视频信息
             scope.launch(Dispatchers.IO) {
@@ -414,7 +416,7 @@ fun VideoInfoScreen(
                     if (Prefs.isLogin) fetchFavoriteData(aid)
 
                     //如果是从剧集跳转过来的或设置不显示视频详情，就直接播放 P1
-                    if (fromSeason || !showVideoInfo) {
+                    if ((fromSeason || !showVideoInfo) && !fromController) {
                         if (!showVideoInfo) videoInfoRepository.videoList.clear()
                         val playPart = videoDetailViewModel.videoDetail!!.pages.first()
                         withContext(Dispatchers.Default) {
@@ -554,7 +556,7 @@ fun VideoInfoScreen(
         }
     }
 
-    if (videoDetailViewModel.videoDetail == null || videoDetailViewModel.videoDetail?.redirectToEp == true || fromSeason || !showVideoInfo) {
+    if (videoDetailViewModel.videoDetail == null || videoDetailViewModel.videoDetail?.redirectToEp == true || fromSeason) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
