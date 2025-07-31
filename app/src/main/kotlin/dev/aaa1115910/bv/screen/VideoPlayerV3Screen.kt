@@ -30,6 +30,7 @@ import com.kuaishou.akdanmaku.data.DanmakuItemData
 import com.kuaishou.akdanmaku.ecs.component.filter.TypeFilter
 import com.kuaishou.akdanmaku.ext.RETAINER_BILIBILI
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskFrame
+import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.DanmakuPlayerCompose
 import dev.aaa1115910.bv.component.controllers.LocalVideoPlayerControllerData
 import dev.aaa1115910.bv.component.controllers.VideoPlayerControllerData
@@ -89,6 +90,7 @@ fun VideoPlayerV3Screen(
     var isPlaying by remember { mutableStateOf(true) }
     var isBuffering by remember { mutableStateOf(false) }
     var isError by remember { mutableStateOf(false) }
+    var isLooping by remember { mutableStateOf(false) }
     var exception: Exception? by remember { mutableStateOf(null) }
     var proxyArea by remember { mutableStateOf(ProxyArea.MainLand) }
 
@@ -207,6 +209,16 @@ fun VideoPlayerV3Screen(
         }
     }
 
+    val onBackToStart: () -> Unit = {
+        videoPlayer.seekTo(0)
+        playerViewModel.danmakuPlayer?.seekTo(0)
+        // akdanmaku 会在跳转后立即播放，如果需要缓冲则会导致弹幕不同步
+        playerViewModel.danmakuPlayer?.pause()
+        hideBackToStartTimer?.cancel()
+        hideBackToStartTimer = null
+        showBackToStart = false
+    }
+
     val videoPlayerListener = object : VideoPlayerListener {
         override fun onError(error: Exception) {
             logger.info { "onError: $error" }
@@ -260,6 +272,11 @@ fun VideoPlayerV3Screen(
             playerViewModel.danmakuPlayer?.pause()
             isPlaying = false
             if (!Prefs.incognitoMode) sendHeartbeat()
+
+            if (isLooping){
+                onBackToStart()
+                return
+            }
 
             val videoListIndex = playerViewModel.availableVideoList.indexOfFirst {
                 it.cid == playerViewModel.currentCid
@@ -487,6 +504,7 @@ fun VideoPlayerV3Screen(
             aid = playerViewModel.currentAid,
             fromSeason = playerViewModel.fromSeason,
             proxyArea = playerViewModel.proxyArea,
+            isLooping = isLooping,
             onPlay = { videoPlayer.start() },
             onPause = {
                 videoPlayer.pause()
@@ -503,15 +521,7 @@ fun VideoPlayerV3Screen(
                 // akdanmaku 会在跳转后立即播放，如果需要缓冲则会导致弹幕不同步
                 playerViewModel.danmakuPlayer?.pause()
             },
-            onBackToStart = {
-                videoPlayer.seekTo(0)
-                playerViewModel.danmakuPlayer?.seekTo(0)
-                // akdanmaku 会在跳转后立即播放，如果需要缓冲则会导致弹幕不同步
-                playerViewModel.danmakuPlayer?.pause()
-                hideBackToStartTimer?.cancel()
-                hideBackToStartTimer = null
-                showBackToStart = false
-            },
+            onBackToStart = onBackToStart,
             onBackToHistory = {
                 val time = playerViewModel.lastPlayed.toLong()
                 logger.fInfo { "Back to history: ${time.formatHourMinSec()}" }
@@ -539,6 +549,16 @@ fun VideoPlayerV3Screen(
                 hideSkipToNextEpTimer?.cancel()
                 hideSkipToNextEpTimer = null
                 showSkipToNextEp = false
+            },
+            onToggleLoop = {
+                isLooping = !isLooping
+            },
+            onGoToUpPage = {
+                UpInfoActivity.actionStart(
+                    context,
+                    mid = playerViewModel.author_mid,
+                    name = playerViewModel.author_name
+                )
             },
 
             onResolutionChange = { qualityId ->

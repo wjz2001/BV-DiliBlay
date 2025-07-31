@@ -1,6 +1,7 @@
 package dev.aaa1115910.bv.screen
 
 import android.app.Activity
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
@@ -341,7 +342,7 @@ fun VideoInfoScreen(
                         bvid = videoDetailViewModel.videoDetail!!.bvid
                     )
                 if (data != null) {
-                    withContext(Dispatchers.Main){
+                    withContext(Dispatchers.Main) {
                         liked = data.like
                         coined = data.coin
                         favorited = data.fav
@@ -441,10 +442,7 @@ fun VideoInfoScreen(
                             played = if (playPart.cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
                             fromSeason = fromSeason,
                             isVerticalVideo = containsVerticalScreenVideo,
-                            playerIconIdle = videoDetailViewModel.videoDetail!!.playerIcon?.idle
-                                ?: "",
-                            playerIconMoving = videoDetailViewModel.videoDetail!!.playerIcon?.moving
-                                ?: ""
+                            author = videoDetailViewModel.videoDetail!!.author
                         )
                         context.finish()
                     } else if (videoDetailViewModel.videoDetail?.ugcSeason != null) {
@@ -555,8 +553,11 @@ fun VideoInfoScreen(
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
-
-    if (videoDetailViewModel.videoDetail == null || videoDetailViewModel.videoDetail?.redirectToEp == true || fromSeason) {
+    if (videoDetailViewModel.videoDetail == null ||
+        videoDetailViewModel.videoDetail?.redirectToEp == true ||
+        fromSeason ||
+        (if (fromController) false else !showVideoInfo)
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -630,10 +631,7 @@ fun VideoInfoScreen(
                                         played = if (videoDetailViewModel.videoDetail!!.cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
                                         fromSeason = false,
                                         isVerticalVideo = containsVerticalScreenVideo,
-                                        playerIconIdle = videoDetailViewModel.videoDetail!!.playerIcon?.idle
-                                            ?: "",
-                                        playerIconMoving = videoDetailViewModel.videoDetail!!.playerIcon?.moving
-                                            ?: ""
+                                        author = videoDetailViewModel.videoDetail!!.author
                                     )
                                 }
                             },
@@ -726,10 +724,7 @@ fun VideoInfoScreen(
                                     played = if (cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
                                     fromSeason = false,
                                     isVerticalVideo = containsVerticalScreenVideo,
-                                    playerIconIdle = videoDetailViewModel.videoDetail!!.playerIcon?.idle
-                                        ?: "",
-                                    playerIconMoving = videoDetailViewModel.videoDetail!!.playerIcon?.moving
-                                        ?: ""
+                                    author = videoDetailViewModel.videoDetail!!.author
                                 )
                             }
                         )
@@ -762,10 +757,7 @@ fun VideoInfoScreen(
                                             played = if (cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
                                             fromSeason = false,
                                             isVerticalVideo = containsVerticalScreenVideo,
-                                            playerIconIdle = videoDetailViewModel.videoDetail!!.playerIcon?.idle
-                                                ?: "",
-                                            playerIconMoving = videoDetailViewModel.videoDetail!!.playerIcon?.moving
-                                                ?: ""
+                                            author = videoDetailViewModel.videoDetail!!.author
                                         )
                                     }
                                 )
@@ -790,10 +782,7 @@ fun VideoInfoScreen(
                                             played = if (cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
                                             fromSeason = false,
                                             isVerticalVideo = containsVerticalScreenVideo,
-                                            playerIconIdle = videoDetailViewModel.videoDetail!!.playerIcon?.idle
-                                                ?: "",
-                                            playerIconMoving = videoDetailViewModel.videoDetail!!.playerIcon?.moving
-                                                ?: ""
+                                            author = videoDetailViewModel.videoDetail!!.author
                                         )
                                     }
                                 )
