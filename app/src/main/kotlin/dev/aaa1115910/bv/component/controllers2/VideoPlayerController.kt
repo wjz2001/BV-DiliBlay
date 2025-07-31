@@ -53,6 +53,7 @@ fun VideoPlayerController(
     aid: Long,
     fromSeason: Boolean,
     proxyArea: ProxyArea,
+    isLooping: Boolean,
 
     //player events
     onPlay: () -> Unit,
@@ -63,6 +64,8 @@ fun VideoPlayerController(
     onBackToHistory: () -> Unit,
     onCancelSkipToNextEp: () -> Unit,
     onPlayNewVideo: (VideoListItem) -> Unit,
+    onToggleLoop: () -> Unit,
+    onGoToUpPage: () -> Unit,
 
     //menu events
     onResolutionChange: (Int) -> Unit,
@@ -380,6 +383,7 @@ fun VideoPlayerController(
             videoShot = data.videoShot,
             fromSeason = fromSeason,
             danmakuEnabled = data.currentDanmakuEnabledList.isNotEmpty(),
+            isLooping = isLooping,
             onHideInfo = { showInfoSeekController = false },
             onDirectionLeft = onDirectionLeft,
             onDirectionRight = onDirectionRight,
@@ -404,7 +408,9 @@ fun VideoPlayerController(
                     fromController = true,
                     proxyArea = proxyArea
                 )
-            }
+            },
+            onToggleLoop = onToggleLoop,
+            onGoToUpPage = onGoToUpPage
         )
         VideoListController(
             show = showListController,

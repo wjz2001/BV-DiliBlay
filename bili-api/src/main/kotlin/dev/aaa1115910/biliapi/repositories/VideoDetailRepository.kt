@@ -85,21 +85,18 @@ class VideoDetailRepository(
                                 progress = videoModeInfo.lastPlayTime / 1000,
                                 lastPlayedCid = videoModeInfo.lastPlayCid
                             )
-                            val playerIcon =
-                                VideoDetail.PlayerIcon.fromPlayerIcon(videoModeInfo.playerIcon)
-                            history to playerIcon
+                            history
                         }.onFailure {
                             println("Get video history failed: $it")
-                        }.getOrDefault(VideoDetail.History(0, 0) to null)
+                        }.getOrDefault(VideoDetail.History(0, 0))
                     }
 
                     videoDetailWithoutUserActions.await().apply {
                         userActions.favorite = isFavoured.await()
                         userActions.like = isLiked.await()
                         userActions.coin = isCoined.await()
-                        val (history, playerIcon) = historyAndPlayerIcon.await()
+                        val history = historyAndPlayerIcon.await()
                         this.history = history
-                        this.playerIcon = playerIcon
                     }
                 }
             }
@@ -110,25 +107,7 @@ class VideoDetailRepository(
                         this.aid = aid.toLong()
                     }) ?: throw IllegalStateException("Player stub is not initialized")
                 }.onFailure { handleGrpcException(it) }.getOrThrow()
-                VideoDetail.fromViewReply(viewReply).apply {
-                    if (playerIcon?.idle?.isBlank() != false && authRepository.sessionData != null) {
-                        println("player icon not found in view reply, try to get it from garb api")
-                        runCatching {
-                            val playerIconGarb = BiliHttpApi.getUserEquippedGarb(
-                                part = EquipPart.PlayerIcon,
-                                sessData = authRepository.sessionData!!
-                            ).getResponseData()
-                            val playerIconItem = playerIconGarb.item
-                                ?: throw IllegalStateException("player icon not equipped")
-                            this.playerIcon = VideoDetail.PlayerIcon(
-                                idle = playerIconItem.properties.icon ?: "",
-                                moving = playerIconItem.properties.dragIcon ?: ""
-                            )
-                        }.onFailure {
-                            println("Get player icon failed: $it")
-                        }
-                    }
-                }
+                VideoDetail.fromViewReply(viewReply)
             }
         }
     }

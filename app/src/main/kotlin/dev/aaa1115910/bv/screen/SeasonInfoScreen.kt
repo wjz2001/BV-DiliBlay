@@ -162,8 +162,6 @@ fun SeasonInfoScreen(
                     epid = epid,
                     seasonId = seasonData?.seasonId,
                     proxyArea = proxyArea,
-                    playerIconIdle = seasonData?.playerIcon?.idle ?: "",
-                    playerIconMoving = seasonData?.playerIcon?.moving ?: ""
                 )
             } else {
                 //如果 cid==0，就需要跳转回 VideoInfoActivity 去获取 cid 再跳转播放器
