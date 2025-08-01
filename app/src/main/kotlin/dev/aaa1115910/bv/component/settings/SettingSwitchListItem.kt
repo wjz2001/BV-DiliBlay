@@ -34,7 +34,9 @@ fun SettingSwitchListItem(
     var switchChecked by remember { mutableStateOf(checked) }
 
     ListItem(
-        modifier = modifier.onFocusChanged { hasFocus = it.hasFocus },
+        modifier = modifier
+            .padding(horizontal = 12.dp)
+            .onFocusChanged { hasFocus = it.hasFocus },
         headlineContent = { Text(text = title) },
         supportingContent = { Text(text = supportText) },
         trailingContent = {

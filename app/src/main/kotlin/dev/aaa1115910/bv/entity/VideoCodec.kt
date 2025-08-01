@@ -12,9 +12,9 @@ enum class VideoCodec(private val strRes: Int, val prefix: String, val codecId: 
     HVC1(R.string.video_codec_hvc1, "hvc", 0);
 
     companion object {
-        fun fromCode(code: Int?) = runCatching {
-            entries.find { it.ordinal == code }!!
-        }.getOrDefault(AVC)
+        fun fromCode(code: Int?): VideoCodec {
+            return entries.find { it.ordinal == code } ?: AVC
+        }
 
         fun fromCodecString(codec: String) = runCatching {
             entries.forEach {

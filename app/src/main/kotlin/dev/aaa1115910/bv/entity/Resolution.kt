@@ -18,9 +18,9 @@ enum class Resolution(val code: Int, private val strResLong: Int, private val st
     R8K(127, R.string.resolution_8k, R.string.resolution_8k_short);
 
     companion object {
-        fun fromCode(code: Int) = runCatching {
-            entries.find { it.code == code }
-        }.getOrDefault(R1080P)
+        fun fromCode(code: Int): Resolution {
+            return entries.find { it.code == code } ?: R1080P
+        }
     }
 
     fun getDisplayName(context: Context) = context.getString(strResLong)
