@@ -275,14 +275,6 @@ object Prefs {
         get() = runBlocking { dsm.getPreferenceFlow(PrefKeys.prefLastVersionCodeRequest).first() }
         set(value) = runBlocking { dsm.editPreference(PrefKeys.prefLastVersionCodeKey, value) }
 
-    var showedRemoteControllerPanelDemo: Boolean
-        get() = runBlocking {
-            dsm.getPreferenceFlow(PrefKeys.prefShowedRemoteControllerPanelDemoRequest).first()
-        }
-        set(value) = runBlocking {
-            dsm.editPreference(PrefKeys.prefShowedRemoteControllerPanelDemoKey, value)
-        }
-
     var preferOfficialCdn: Boolean
         get() = runBlocking { dsm.getPreferenceFlow(PrefKeys.prefPreferOfficialCdnRequest).first() }
         set(value) = runBlocking { dsm.editPreference(PrefKeys.prefPreferOfficialCdn, value) }
@@ -345,7 +337,6 @@ private object PrefKeys {
     val prefProxyHttpServerKey = stringPreferencesKey("proxy_http_server")
     val prefProxyGRPCServerKey = stringPreferencesKey("proxy_grpc_server")
     val prefLastVersionCodeKey = intPreferencesKey("last_version_code")
-    val prefShowedRemoteControllerPanelDemoKey = booleanPreferencesKey("showed_rcpd")
     val prefPreferOfficialCdn = booleanPreferencesKey("prefer_official_cdn")
     val prefDefaultDanmakuMask = booleanPreferencesKey("prefer_enable_webmark")
     val prefEnableFfmpegAudioRenderer = booleanPreferencesKey("enable_ffmpeg_audio_renderer")
@@ -398,8 +389,6 @@ private object PrefKeys {
     val prefProxyHttpServerRequest = PreferenceRequest(prefProxyHttpServerKey, "")
     val prefProxyGRPCServerRequest = PreferenceRequest(prefProxyGRPCServerKey, "")
     val prefLastVersionCodeRequest = PreferenceRequest(prefLastVersionCodeKey, 0)
-    val prefShowedRemoteControllerPanelDemoRequest =
-        PreferenceRequest(prefShowedRemoteControllerPanelDemoKey, false)
     val prefPreferOfficialCdnRequest = PreferenceRequest(prefPreferOfficialCdn, false)
     val prefDefaultDanmakuMaskRequest = PreferenceRequest(prefDefaultDanmakuMask, false)
     val prefEnableFfmpegEndererRequest = PreferenceRequest(prefEnableFfmpegAudioRenderer, false)
