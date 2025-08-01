@@ -17,6 +17,7 @@ import dev.aaa1115910.biliapi.http.util.generateBuvid
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.component.controllers2.DanmakuType
+import dev.aaa1115910.bv.component.controllers2.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.PlayerType
 import dev.aaa1115910.bv.entity.Resolution
@@ -69,9 +70,9 @@ object Prefs {
         get() = runBlocking { dsm.getPreferenceFlow(PrefKeys.prefDefaultQualityRequest).first() }
         set(value) = runBlocking { dsm.editPreference(PrefKeys.prefDefaultQualityKey, value) }
 
-//    var defaultPlaySpeed: Float
-//        get() = runBlocking { dsm.getPreferenceFlow(PrefKeys.prefDefaultPlaySpeedRequest).first() }
-//        set(value) = runBlocking { dsm.editPreference(PrefKeys.prefDefaultPlaySpeedKey, value) }
+    var defaultPlaySpeed: PlaySpeedItem
+        get() = runBlocking { PlaySpeedItem.fromCode(dsm.getPreferenceFlow(PrefKeys.prefDefaultPlaySpeedRequest).first()) }
+        set(value) = runBlocking { dsm.editPreference(PrefKeys.prefDefaultPlaySpeedKey, value.code) }
 
     var defaultAudio: Audio
         get() = runBlocking {
@@ -307,7 +308,7 @@ private object PrefKeys {
     val prefTokenExpiredDateKey = longPreferencesKey("ted")
     val prefDefaultQualityKey = intPreferencesKey("dq")
     val prefDefaultAudioKey = intPreferencesKey("da")
-    val prefDefaultPlaySpeedKey = floatPreferencesKey("dps")
+    val prefDefaultPlaySpeedKey = intPreferencesKey("dps")
     val prefDefaultDanmakuSizeKey = intPreferencesKey("dds")
     val prefDefaultDanmakuScaleKey = floatPreferencesKey("dds2")
     val prefDefaultDanmakuTransparencyKey = intPreferencesKey("ddt")
@@ -348,7 +349,7 @@ private object PrefKeys {
     val prefBiliJctRequest = PreferenceRequest(prefBiliJctKey, "")
     val prefUidCkMd5Request = PreferenceRequest(prefUidCkMd5Key, "")
     val prefTokenExpiredDateRequest = PreferenceRequest(prefTokenExpiredDateKey, 0)
-    val prefDefaultPlaySpeedRequest = PreferenceRequest(prefDefaultPlaySpeedKey, 1f)
+    val prefDefaultPlaySpeedRequest = PreferenceRequest(prefDefaultPlaySpeedKey, PlaySpeedItem.x1.ordinal)
     val prefDefaultQualityRequest = PreferenceRequest(prefDefaultQualityKey, Resolution.R1080P.code)
     val prefDefaultAudioRequest = PreferenceRequest(prefDefaultAudioKey, Audio.A192K.code)
     val prefDefaultDanmakuSizeRequest = PreferenceRequest(prefDefaultDanmakuSizeKey, 6)

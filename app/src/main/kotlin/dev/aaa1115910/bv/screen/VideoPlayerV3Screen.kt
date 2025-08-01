@@ -99,8 +99,8 @@ fun VideoPlayerV3Screen(
 
     var currentVideoAspectRatio by remember { mutableStateOf(VideoAspectRatio.Default) }
     var currentPosition by remember { mutableLongStateOf(0L) }
-    var currentPlaySpeed by remember { mutableFloatStateOf(1f) }
-    var currentSelectedPlaySpeedItem by remember { mutableStateOf(PlaySpeedItem.x1) }
+    var currentPlaySpeed by remember { mutableFloatStateOf(Prefs.defaultPlaySpeed.speed) }
+    var currentSelectedPlaySpeedItem by remember { mutableStateOf(Prefs.defaultPlaySpeed) }
     var aspectRatio by remember { mutableFloatStateOf(16f / 9f) }
 
     var clock: Triple<Int, Int, Int> by remember { mutableStateOf(Triple(0, 0, 0)) }

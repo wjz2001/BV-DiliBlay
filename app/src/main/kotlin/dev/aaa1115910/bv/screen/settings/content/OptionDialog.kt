@@ -33,8 +33,6 @@ fun <T : Enum<T>> OptionDialog(
     onSelect: (T) -> Unit,
     getDisplayName: (T) -> String
 ) {
-    val selected by remember { mutableStateOf(selectedOption) }
-
     val windowInfo = LocalWindowInfo.current
     val density = LocalDensity.current
     val maxHeightDp = with(density) {
@@ -64,7 +62,7 @@ fun <T : Enum<T>> OptionDialog(
                 items(options.toList()) { option ->
                     SettingsMenuSelectItem(
                         text = getDisplayName(option),
-                        selected = selected == option,
+                        selected = selectedOption == option,
                         onClick = { onSelect(option) }
                     )
                 }
