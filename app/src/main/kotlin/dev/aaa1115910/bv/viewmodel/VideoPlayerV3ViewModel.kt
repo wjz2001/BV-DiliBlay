@@ -111,15 +111,14 @@ class VideoPlayerV3ViewModel(
     var seasonId by mutableIntStateOf(0)
     var isVerticalVideo by mutableStateOf(false)
     var proxyArea by mutableStateOf(ProxyArea.MainLand)
+    var author_mid by mutableLongStateOf(0L)
+    var author_name by mutableStateOf("")
 
     var needPay by mutableStateOf(false)
 
     var logs by mutableStateOf("")
     var lastChangedLog by mutableLongStateOf(System.currentTimeMillis())
     var showBuffering by mutableStateOf(false)
-
-    var playerIconIdle by mutableStateOf("")
-    var playerIconMoving by mutableStateOf("")
 
     var currentAid = 0L
     var currentCid = 0L
