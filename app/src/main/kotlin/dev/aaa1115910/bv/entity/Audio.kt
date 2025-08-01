@@ -11,9 +11,9 @@ enum class Audio(val code: Int, private val strRes: Int) {
     AHiRes(30251, R.string.audio_hi_res);
 
     companion object {
-        fun fromCode(code: Int) = runCatching {
-            entries.find { it.code == code }
-        }.getOrDefault(A64K)
+        fun fromCode(code: Int): Audio {
+            return entries.find { it.code == code } ?: A64K
+        }
     }
 
     fun getDisplayName(context: Context) = context.getString(strRes)

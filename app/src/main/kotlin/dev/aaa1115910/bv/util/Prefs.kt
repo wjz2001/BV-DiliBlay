@@ -372,7 +372,7 @@ private object PrefKeys {
     val prefDefaultVideoCodecRequest =
         PreferenceRequest(prefDefaultVideoCodecKey, VideoCodec.AVC.ordinal)
     val prefEnabledFirebaseCollectionRequest =
-        PreferenceRequest(prefEnabledFirebaseCollectionKey, true)
+        PreferenceRequest(prefEnabledFirebaseCollectionKey, false)
     val prefIncognitoModeRequest = PreferenceRequest(prefIncognitoModeKey, false)
     val prefDefaultSubtitleFontSizeRequest = PreferenceRequest(prefDefaultSubtitleFontSizeKey, 24)
     val prefDefaultSubtitleBackgroundOpacityRequest =

@@ -1,7 +1,6 @@
 package dev.aaa1115910.bv.screen.settings
 
 import android.content.Context
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,7 +14,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,16 +38,13 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.screen.settings.content.AboutSetting
-import dev.aaa1115910.bv.screen.settings.content.ApiSetting
-import dev.aaa1115910.bv.screen.settings.content.AudioSetting
+import dev.aaa1115910.bv.screen.settings.content.AudioVideoSetting
 import dev.aaa1115910.bv.screen.settings.content.InfoSetting
 import dev.aaa1115910.bv.screen.settings.content.NetworkSetting
 import dev.aaa1115910.bv.screen.settings.content.OtherSetting
 import dev.aaa1115910.bv.screen.settings.content.PlayerTypeSetting
-import dev.aaa1115910.bv.screen.settings.content.ResolutionSetting
 import dev.aaa1115910.bv.screen.settings.content.StorageSetting
 import dev.aaa1115910.bv.screen.settings.content.UISetting
-import dev.aaa1115910.bv.screen.settings.content.VideoCodecSetting
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.requestFocus
 
@@ -57,7 +52,7 @@ import dev.aaa1115910.bv.util.requestFocus
 fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
-    var currentMenu by remember { mutableStateOf(SettingsMenuNavItem.Resolution) }
+    var currentMenu by remember { mutableStateOf(SettingsMenuNavItem.AudioVideo) }
     var focusInNav by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -155,12 +150,9 @@ fun SettingsNav(
 }
 
 enum class SettingsMenuNavItem(private val strRes: Int) {
-    Resolution(R.string.settings_item_resolution),
-    VideoCodec(R.string.settings_item_codec),
-    Audio(R.string.settings_item_audio),
+    AudioVideo(R.string.settings_item_audio_video_settings),
     PlayerType(R.string.settings_item_player_type),
     UI(R.string.settings_item_ui),
-    Api(R.string.settings_item_api),
     Other(R.string.settings_item_other),
     Storage(R.string.settings_item_storage),
     Network(R.string.settings_item_network),
@@ -187,17 +179,14 @@ fun SettingContent(
             }
         ) {
             when (currentMenu) {
-                SettingsMenuNavItem.Resolution -> ResolutionSetting()
+                SettingsMenuNavItem.AudioVideo -> AudioVideoSetting()
                 SettingsMenuNavItem.Info -> InfoSetting()
                 SettingsMenuNavItem.About -> AboutSetting()
-                SettingsMenuNavItem.VideoCodec -> VideoCodecSetting()
-                SettingsMenuNavItem.Audio -> AudioSetting()
                 SettingsMenuNavItem.Other -> OtherSetting()
                 SettingsMenuNavItem.Network -> NetworkSetting()
                 SettingsMenuNavItem.PlayerType -> PlayerTypeSetting()
                 SettingsMenuNavItem.UI -> UISetting()
                 SettingsMenuNavItem.Storage -> StorageSetting()
-                SettingsMenuNavItem.Api -> ApiSetting()
             }
         }
     }
