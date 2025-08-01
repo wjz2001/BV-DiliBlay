@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.component.controllers2.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.component.settings.SettingsMenuSelectItem
 import dev.aaa1115910.bv.entity.Audio
@@ -41,6 +42,7 @@ fun AudioVideoSetting(
     var showResolutionDialog by remember { mutableStateOf(false) }
     var showAudioCodecDialog by remember { mutableStateOf(false) }
     var showVideoCodecDialog by remember { mutableStateOf(false) }
+    var showPlaySpeedDialog by remember { mutableStateOf(false) }
 
     var selectedResolution by remember {
         mutableStateOf(
@@ -55,6 +57,7 @@ fun AudioVideoSetting(
         )
     }
     var selectedAudioCodec by remember { mutableStateOf(Prefs.defaultAudio.getDisplayName(context)) }
+    var selectedPlaySpeed by remember { mutableStateOf(Prefs.defaultPlaySpeed.getDisplayName(context)) }
 
     Column(
         modifier = modifier
@@ -78,11 +81,15 @@ fun AudioVideoSetting(
             supportText = "当前：$selectedVideoCodec",
             onClick = { showVideoCodecDialog = true }
         )
-        // 音频编码设置项
         SettingListItem(
             title = "默认音频编码",
             supportText = "当前：$selectedAudioCodec",
             onClick = { showAudioCodecDialog = true }
+        )
+        SettingListItem(
+            title = "默认播放速度",
+            supportText = "当前：$selectedPlaySpeed",
+            onClick = { showPlaySpeedDialog = true }
         )
     }
     // 弹窗复用组件
@@ -120,6 +127,19 @@ fun AudioVideoSetting(
             onSelect = {
                 Prefs.defaultAudio = it
                 selectedAudioCodec = it.getDisplayName(context)
+            },
+            getDisplayName = { it.getDisplayName(context) }
+        )
+    }
+
+    if (showPlaySpeedDialog) {
+        OptionDialog(
+            options = PlaySpeedItem.entries.toTypedArray(),
+            selectedOption = Prefs.defaultPlaySpeed,
+            onDismiss = { showPlaySpeedDialog = false },
+            onSelect = {
+                Prefs.defaultPlaySpeed = it
+                selectedPlaySpeed = it.getDisplayName(context)
             },
             getDisplayName = { it.getDisplayName(context) }
         )
