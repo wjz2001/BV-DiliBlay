@@ -85,7 +85,7 @@ class VideoPlayerV3ViewModel(
     var currentVideoHeight by mutableIntStateOf(0)
     var currentVideoWidth by mutableIntStateOf(0)
 
-    var currentQuality by mutableIntStateOf(Prefs.defaultQuality)
+    var currentQuality by mutableIntStateOf(Prefs.defaultQuality.code)
     var currentVideoCodec by mutableStateOf(Prefs.defaultVideoCodec)
     var currentAudio by mutableStateOf(Prefs.defaultAudio)
     var currentDanmakuScale by mutableFloatStateOf(Prefs.defaultDanmakuScale)
@@ -252,13 +252,13 @@ class VideoPlayerV3ViewModel(
 
             //先确认最终所选清晰度
             val existDefaultResolution =
-                availableQuality.keys.find { it == Prefs.defaultQuality } != null
+                availableQuality.keys.find { it == Prefs.defaultQuality.code } != null
 
             if (!existDefaultResolution) {
                 val tempList = resolutionMap.keys.sorted()
                 withContext(Dispatchers.Main) { currentQuality = tempList.first() }
                 tempList.forEach {
-                    if (it <= Prefs.defaultQuality) {
+                    if (it <= Prefs.defaultQuality.code) {
                         withContext(Dispatchers.Main) { currentQuality = it }
                     }
                 }

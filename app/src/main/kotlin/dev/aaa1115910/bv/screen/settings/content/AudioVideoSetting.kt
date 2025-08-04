@@ -44,20 +44,10 @@ fun AudioVideoSetting(
     var showVideoCodecDialog by remember { mutableStateOf(false) }
     var showPlaySpeedDialog by remember { mutableStateOf(false) }
 
-    var selectedResolution by remember {
-        mutableStateOf(
-            Resolution.fromCode(Prefs.defaultQuality).getDisplayName(context)
-        )
-    }
-    var selectedVideoCodec by remember {
-        mutableStateOf(
-            Prefs.defaultVideoCodec.getDisplayName(
-                context
-            )
-        )
-    }
-    var selectedAudioCodec by remember { mutableStateOf(Prefs.defaultAudio.getDisplayName(context)) }
-    var selectedPlaySpeed by remember { mutableStateOf(Prefs.defaultPlaySpeed.getDisplayName(context)) }
+    var selectedResolution by remember { mutableStateOf(Prefs.defaultQuality) }
+    var selectedVideoCodec by remember { mutableStateOf(Prefs.defaultVideoCodec) }
+    var selectedAudioCodec by remember { mutableStateOf(Prefs.defaultAudio) }
+    var selectedPlaySpeed by remember { mutableStateOf(Prefs.defaultPlaySpeed) }
 
     Column(
         modifier = modifier
@@ -73,22 +63,22 @@ fun AudioVideoSetting(
         Spacer(modifier = Modifier.height(12.dp))
         SettingListItem(
             title = "默认分辨率",
-            supportText = "当前：$selectedResolution",
+            supportText = "当前：${selectedResolution.getDisplayName(context)}",
             onClick = { showResolutionDialog = true }
         )
         SettingListItem(
             title = "默认视频编码",
-            supportText = "当前：$selectedVideoCodec",
+            supportText = "当前：${selectedVideoCodec.getDisplayName(context)}",
             onClick = { showVideoCodecDialog = true }
         )
         SettingListItem(
             title = "默认音频编码",
-            supportText = "当前：$selectedAudioCodec",
+            supportText = "当前：${selectedAudioCodec.getDisplayName(context)}",
             onClick = { showAudioCodecDialog = true }
         )
         SettingListItem(
             title = "默认播放速度",
-            supportText = "当前：$selectedPlaySpeed",
+            supportText = "当前：${selectedPlaySpeed.getDisplayName(context)}",
             onClick = { showPlaySpeedDialog = true }
         )
     }
@@ -96,11 +86,11 @@ fun AudioVideoSetting(
     if (showResolutionDialog) {
         OptionDialog(
             options = Resolution.entries.toTypedArray(),
-            selectedOption = Resolution.fromCode(Prefs.defaultQuality),
+            selectedOption = selectedResolution,
             onDismiss = { showResolutionDialog = false },
             onSelect = {
-                Prefs.defaultQuality = it.code
-                selectedResolution = it.getDisplayName(context)
+                Prefs.defaultQuality = it
+                selectedResolution = it
             },
             getDisplayName = { it.getDisplayName(context) }
         )
@@ -109,11 +99,11 @@ fun AudioVideoSetting(
     if (showVideoCodecDialog) {
         OptionDialog(
             options = VideoCodec.entries.toTypedArray(),
-            selectedOption = Prefs.defaultVideoCodec,
+            selectedOption = selectedVideoCodec,
             onDismiss = { showVideoCodecDialog = false },
             onSelect = {
                 Prefs.defaultVideoCodec = it
-                selectedVideoCodec = it.getDisplayName(context)
+                selectedVideoCodec = it
             },
             getDisplayName = { it.getDisplayName(context) }
         )
@@ -122,11 +112,11 @@ fun AudioVideoSetting(
     if (showAudioCodecDialog) {
         OptionDialog(
             options = Audio.entries.toTypedArray(),
-            selectedOption = Prefs.defaultAudio,
+            selectedOption = selectedAudioCodec,
             onDismiss = { showAudioCodecDialog = false },
             onSelect = {
                 Prefs.defaultAudio = it
-                selectedAudioCodec = it.getDisplayName(context)
+                selectedAudioCodec = it
             },
             getDisplayName = { it.getDisplayName(context) }
         )
@@ -135,11 +125,11 @@ fun AudioVideoSetting(
     if (showPlaySpeedDialog) {
         OptionDialog(
             options = PlaySpeedItem.entries.toTypedArray(),
-            selectedOption = Prefs.defaultPlaySpeed,
+            selectedOption = selectedPlaySpeed,
             onDismiss = { showPlaySpeedDialog = false },
             onSelect = {
                 Prefs.defaultPlaySpeed = it
-                selectedPlaySpeed = it.getDisplayName(context)
+                selectedPlaySpeed = it
             },
             getDisplayName = { it.getDisplayName(context) }
         )

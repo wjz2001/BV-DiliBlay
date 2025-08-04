@@ -48,7 +48,7 @@ fun OtherSetting(
     var useOldPlayer by remember { mutableStateOf(Prefs.useOldPlayer) }
     var updateAlpha by remember { mutableStateOf(Prefs.updateAlpha) }
     var enableFfmpegAudioRenderer by remember { mutableStateOf(Prefs.enableFfmpegAudioRenderer) }
-    var selectedApi by remember { mutableStateOf(Prefs.apiType.name) }
+    var selectedApi by remember { mutableStateOf(Prefs.apiType) }
 
     Column(
         modifier = modifier
@@ -66,7 +66,7 @@ fun OtherSetting(
 
         SettingListItem(
             title = "接口选择",
-            supportText = "当前：$selectedApi",
+            supportText = "当前：${selectedApi.name}",
             onClick = { showPreferedApiDialog = true }
         )
         SettingSwitchListItem(
@@ -155,11 +155,11 @@ fun OtherSetting(
     if (showPreferedApiDialog) {
         OptionDialog(
             options = ApiType.entries.toTypedArray(),
-            selectedOption = Prefs.apiType,
+            selectedOption = selectedApi,
             onDismiss = { showPreferedApiDialog = false },
             onSelect = {
                 Prefs.apiType = it
-                selectedApi = it.name
+                selectedApi = it
             },
             getDisplayName = { it.name }
         )
