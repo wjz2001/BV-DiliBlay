@@ -67,7 +67,7 @@ class PlayerViewModel(
     var availableSubtitle = mutableStateListOf<VideoMoreInfo.SubtitleItem>()
     val availableVideoList get() = videoInfoRepository.videoList
 
-    var currentQuality by mutableIntStateOf(Prefs.defaultQuality)
+    var currentQuality by mutableIntStateOf(Prefs.defaultQuality.code)
     var currentVideoCodec by mutableStateOf(Prefs.defaultVideoCodec)
     var currentDanmakuSize by mutableStateOf(DanmakuSize.fromOrdinal(Prefs.defaultDanmakuSize))
     var currentDanmakuTransparency by mutableStateOf(DanmakuTransparency.fromOrdinal(Prefs.defaultDanmakuTransparency))
@@ -201,13 +201,13 @@ class PlayerViewModel(
 
             //先确认最终所选清晰度
             val existDefaultResolution =
-                availableQuality.keys.find { it == Prefs.defaultQuality } != null
+                availableQuality.keys.find { it == Prefs.defaultQuality.code } != null
 
             if (!existDefaultResolution) {
                 val tempList = resolutionMap.keys.sorted()
                 currentQuality = tempList.first()
                 tempList.forEach {
-                    if (it <= Prefs.defaultQuality) {
+                    if (it <= Prefs.defaultQuality.code) {
                         currentQuality = it
                     }
                 }

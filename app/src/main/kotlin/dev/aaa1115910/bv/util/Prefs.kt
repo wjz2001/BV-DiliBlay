@@ -66,9 +66,9 @@ object Prefs {
             dsm.editPreference(PrefKeys.prefTokenExpiredDateKey, value.time)
         }
 
-    var defaultQuality: Int
-        get() = runBlocking { dsm.getPreferenceFlow(PrefKeys.prefDefaultQualityRequest).first() }
-        set(value) = runBlocking { dsm.editPreference(PrefKeys.prefDefaultQualityKey, value) }
+    var defaultQuality: Resolution
+        get() = runBlocking { Resolution.fromCode(dsm.getPreferenceFlow(PrefKeys.prefDefaultQualityRequest).first()) }
+        set(value) = runBlocking { dsm.editPreference(PrefKeys.prefDefaultQualityKey, value.code) }
 
     var defaultPlaySpeed: PlaySpeedItem
         get() = runBlocking { PlaySpeedItem.fromCode(dsm.getPreferenceFlow(PrefKeys.prefDefaultPlaySpeedRequest).first()) }
