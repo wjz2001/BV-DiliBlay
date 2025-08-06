@@ -43,6 +43,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
@@ -58,7 +59,11 @@ fun UISetting(
     val context = LocalContext.current
 
     var showDensityDialog by remember { mutableStateOf(false) }
+    var showHomepageDialog by remember { mutableStateOf(false) }
+
     val density by Prefs.densityFlow.collectAsState(context.resources.displayMetrics.widthPixels / 960f)
+    var selectedFirstHomeTopNavItem by remember { mutableStateOf(Prefs.firstHomeTopNavItem) }
+
     Box(modifier = modifier) {
         Column(
             modifier = Modifier
@@ -77,10 +82,12 @@ fun UISetting(
             ) {
                 item {
                     SettingListItem(
-                        title = stringResource(R.string.settings_ui_density_title),
-                        supportText = stringResource(R.string.settings_ui_density_text),
-                        onClick = { showDensityDialog = true }
+                        title = stringResource(R.string.settings_ui_homepage_title),
+                        supportText = stringResource(R.string.settings_ui_homepage_text),
+                        onClick = { showHomepageDialog = true }
                     )
+                }
+                item {
                     SettingSwitchListItem(
                         title = stringResource(R.string.settings_ui_show_video_info_title),
                         supportText = stringResource(R.string.settings_ui_show_video_info_text),
@@ -88,6 +95,13 @@ fun UISetting(
                         onCheckedChange = {
                             Prefs.showVideoInfo = it
                         }
+                    )
+                }
+                item {
+                    SettingListItem(
+                        title = stringResource(R.string.settings_ui_density_title),
+                        supportText = stringResource(R.string.settings_ui_density_text),
+                        onClick = { showDensityDialog = true }
                     )
                 }
             }
@@ -100,6 +114,19 @@ fun UISetting(
         density = density,
         onDensityChange = { Prefs.density = it }
     )
+
+    if (showHomepageDialog) {
+        OptionDialog(
+            options = HomeTopNavItem.entries.toTypedArray(),
+            selectedOption = selectedFirstHomeTopNavItem,
+            onDismiss = { showHomepageDialog = false },
+            onSelect = {
+                Prefs.firstHomeTopNavItem = it
+                selectedFirstHomeTopNavItem = it
+            },
+            getDisplayName = { it.getDisplayName(context) }
+        )
+    }
 }
 
 @Composable

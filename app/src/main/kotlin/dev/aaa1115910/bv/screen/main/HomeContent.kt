@@ -31,6 +31,7 @@ import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.screen.main.home.DynamicsScreen
 import dev.aaa1115910.bv.screen.main.home.PopularScreen
 import dev.aaa1115910.bv.screen.main.home.RecommendScreen
+import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.viewmodel.UserViewModel
 import dev.aaa1115910.bv.viewmodel.home.DynamicViewModel
@@ -52,8 +53,19 @@ fun HomeContent(
     val scope = rememberCoroutineScope()
     val logger = KotlinLogging.logger("HomeContent")
 
-    var selectedTab by remember { mutableStateOf(HomeTopNavItem.Dynamics) }
+    val firstTab = remember { Prefs.firstHomeTopNavItem }
+    var selectedTab by remember { mutableStateOf(firstTab) }
     var focusOnContent by remember { mutableStateOf(false) }
+
+    val getReorderedItems: (HomeTopNavItem) -> List<HomeTopNavItem> = { item ->
+        val allItems = HomeTopNavItem.entries
+        val startIndex = allItems.indexOf(item)
+        if (startIndex == -1) emptyList()
+        else allItems.drop(startIndex) + allItems.take(startIndex)
+    }
+    val reorderedItems = remember {
+        getReorderedItems(firstTab)
+    }
 
     //启动时刷新数据
     LaunchedEffect(Unit) {
@@ -88,7 +100,7 @@ fun HomeContent(
                 modifier = Modifier
                     .focusRequester(navFocusRequester)
                     .padding(end = 80.dp),
-                items = HomeTopNavItem.entries,
+                items = reorderedItems,
                 isLargePadding = !focusOnContent,
                 onSelectedChanged = { nav ->
                     selectedTab = nav as HomeTopNavItem
@@ -161,7 +173,7 @@ fun HomeContent(
                 label = "home animated content",
                 transitionSpec = {
                     val coefficient = 10
-                    if (targetState.ordinal < initialState.ordinal) {
+                    if (reorderedItems.indexOf(targetState) < reorderedItems.indexOf(initialState)) {
                         fadeIn() + slideInHorizontally { -it / coefficient } togetherWith
                                 fadeOut() + slideOutHorizontally { it / coefficient }
                     } else {

@@ -16,6 +16,7 @@ import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.http.util.generateBuvid
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.BuildConfig
+import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.component.controllers2.DanmakuType
 import dev.aaa1115910.bv.component.controllers2.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.entity.Audio
@@ -230,6 +231,10 @@ object Prefs {
         get() = runBlocking { dsm.getPreferenceFlow(PrefKeys.prefDensityRequest).first() }
         set(value) = runBlocking { dsm.editPreference(PrefKeys.prefDensityKey, value) }
 
+    var firstHomeTopNavItem: HomeTopNavItem
+        get() = runBlocking { HomeTopNavItem.fromCode(dsm.getPreferenceFlow(PrefKeys.prefFirstHomeTopNavItemRequest).first()) }
+        set(value) = runBlocking { dsm.editPreference(PrefKeys.prefFirstHomeTopNavItemKey, value.code) }
+
     var showVideoInfo: Boolean
         get() = runBlocking { dsm.getPreferenceFlow(PrefKeys.prefShowVideoInfoRequest).first() }
         set(value) = runBlocking { dsm.editPreference(PrefKeys.prefShowVideoInfoKey, value) }
@@ -327,6 +332,7 @@ private object PrefKeys {
     val prefBuvid3Key = stringPreferencesKey("random_buvid3")
     val prefPlayerTypeKey = intPreferencesKey("pt")
     val prefDensityKey = floatPreferencesKey("density")
+    val prefFirstHomeTopNavItemKey = intPreferencesKey("first_home_top_nav")
     val prefShowVideoInfoKey = booleanPreferencesKey("show_video_info")
     val prefShowHotwordKey = booleanPreferencesKey("shw")
     val prefUseOldPlayerKey = booleanPreferencesKey("uop")
@@ -377,6 +383,7 @@ private object PrefKeys {
     val prefPlayerTypeRequest = PreferenceRequest(prefPlayerTypeKey, PlayerType.Media3.ordinal)
     val prefDensityRequest =
         PreferenceRequest(prefDensityKey, BVApp.context.resources.displayMetrics.widthPixels / 960f)
+    val prefFirstHomeTopNavItemRequest = PreferenceRequest(prefFirstHomeTopNavItemKey, HomeTopNavItem.Dynamics.ordinal)
     val prefShowVideoInfoRequest = PreferenceRequest(prefShowVideoInfoKey, true)
     val prefShowHotwordRequest = PreferenceRequest(prefShowHotwordKey, true)
     val prefUseOldPlayerRequest = PreferenceRequest(prefUseOldPlayerKey, false)
