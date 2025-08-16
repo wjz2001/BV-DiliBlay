@@ -24,6 +24,7 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
 class VideoPlayerV3Activity : ComponentActivity() {
     companion object {
         private val logger = KotlinLogging.logger { }
+        private var currentInstance: VideoPlayerV3Activity? = null
         fun actionStart(
             context: Context,
             avid: Long,
@@ -39,6 +40,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
             proxyArea: ProxyArea = ProxyArea.MainLand,
             author: Author? = null
         ) {
+            currentInstance?.finish()
             context.startActivity(
                 Intent(context, VideoPlayerV3Activity::class.java).apply {
                     putExtra("avid", avid)
@@ -63,6 +65,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        currentInstance = this  // 记录当前实例
         initVideoPlayer()
         //initDanmakuPlayer()
         getParamsFromIntent()
@@ -76,6 +79,9 @@ class VideoPlayerV3Activity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (currentInstance === this) {
+            currentInstance = null
+        }
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (isFinishing) {
             playerViewModel.videoPlayer = null
