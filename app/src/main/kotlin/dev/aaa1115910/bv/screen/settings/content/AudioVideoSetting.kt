@@ -1,20 +1,14 @@
 package dev.aaa1115910.bv.screen.settings.content
 
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.BasicAlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,7 +22,6 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.component.controllers2.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.component.settings.SettingListItem
-import dev.aaa1115910.bv.component.settings.SettingsMenuSelectItem
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoCodec
@@ -46,11 +39,13 @@ fun AudioVideoSetting(
     var showAudioCodecDialog by remember { mutableStateOf(false) }
     var showVideoCodecDialog by remember { mutableStateOf(false) }
     var showPlaySpeedDialog by remember { mutableStateOf(false) }
+    var showActionAfterPlayDialog by remember { mutableStateOf(false) }
 
     var selectedResolution by remember { mutableStateOf(Prefs.defaultQuality) }
     var selectedVideoCodec by remember { mutableStateOf(Prefs.defaultVideoCodec) }
     var selectedAudioCodec by remember { mutableStateOf(Prefs.defaultAudio) }
     var selectedPlaySpeed by remember { mutableStateOf(Prefs.defaultPlaySpeed) }
+    var selectedActionAfterPlay by remember { mutableStateOf(Prefs.actionAfterPlay) }
 
     Column(
         modifier = modifier
@@ -84,6 +79,11 @@ fun AudioVideoSetting(
             title = "默认播放速度",
             supportText = "当前：${selectedPlaySpeed.getDisplayName(context)}",
             onClick = { showPlaySpeedDialog = true }
+        )
+        SettingListItem(
+            title = "播放结束动作",
+            supportText = "当前：${selectedActionAfterPlay.getDisplayName(context)}",
+            onClick = { showActionAfterPlayDialog = true }
         )
     }
     // 弹窗复用组件
@@ -138,7 +138,36 @@ fun AudioVideoSetting(
             getDisplayName = { it.getDisplayName(context) }
         )
     }
+
+    if (showActionAfterPlayDialog) {
+        OptionDialog(
+            options = ActionAfterPlayItems.entries.toTypedArray(),
+            selectedOption = selectedActionAfterPlay,
+            onDismiss = { showActionAfterPlayDialog = false },
+            onSelect = {
+                Prefs.actionAfterPlay = it
+                selectedActionAfterPlay = it
+            },
+            getDisplayName = { it.getDisplayName(context) }
+        )
+    }
 }
 
+enum class ActionAfterPlayItems (val code: Int, private val displayName: String){
+    Pause(0, "暂停"),
+    PlayNext(1, "播放下一集"),
+    Exit(2, "退出播放器");
+
+
+    companion object{
+        fun fromCode(code: Int): ActionAfterPlayItems {
+            return ActionAfterPlayItems.entries.find { it.code == code } ?: Exit
+        }
+    }
+
+    fun getDisplayName(context: Context): String {
+        return displayName
+    }
+}
 
 
