@@ -337,9 +337,7 @@ class PlayerViewModel(
                 sessData = Prefs.sessData
             ).getResponseData()
         }.getOrNull() ?: return
-        availableSubtitle.swapList(responseData.subtitle.subtitles)
-        addLogs("获取到 ${responseData.subtitle.subtitles.size} 条字幕: ${responseData.subtitle.subtitles.map { it.lanDoc }}")
-        logger.fInfo { "Update subtitle size: ${responseData.subtitle.subtitles.size}" }
+        availableSubtitle.swapList(responseData.subtitle?.subtitles?: emptyList())
     }
 
     private fun addLogs(text: String) {
