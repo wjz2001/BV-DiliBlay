@@ -23,6 +23,7 @@ import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.PlayerType
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoCodec
+import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -301,6 +302,17 @@ object Prefs {
                 value
             )
         }
+
+    var actionAfterPlay: ActionAfterPlayItems
+        get() = runBlocking {
+            ActionAfterPlayItems.fromCode(dsm.getPreferenceFlow(PrefKeys.prefActionAfterPlay).first())
+        }
+        set(value) = runBlocking {
+            dsm.editPreference(
+                PrefKeys.prefActionAfterPlayKey,
+                value.code
+            )
+        }
 }
 
 private object PrefKeys {
@@ -347,6 +359,7 @@ private object PrefKeys {
     val prefPreferOfficialCdn = booleanPreferencesKey("prefer_official_cdn")
     val prefDefaultDanmakuMask = booleanPreferencesKey("prefer_enable_webmark")
     val prefEnableFfmpegAudioRenderer = booleanPreferencesKey("enable_ffmpeg_audio_renderer")
+    val prefActionAfterPlayKey = intPreferencesKey("action_after_play")
 
     val prefIsLoginRequest = PreferenceRequest(prefIsLoginKey, false)
     val prefUidRequest = PreferenceRequest(prefUidKey, 0)
@@ -400,4 +413,5 @@ private object PrefKeys {
     val prefPreferOfficialCdnRequest = PreferenceRequest(prefPreferOfficialCdn, false)
     val prefDefaultDanmakuMaskRequest = PreferenceRequest(prefDefaultDanmakuMask, false)
     val prefEnableFfmpegEndererRequest = PreferenceRequest(prefEnableFfmpegAudioRenderer, false)
+    val prefActionAfterPlay = PreferenceRequest(prefActionAfterPlayKey, ActionAfterPlayItems.PlayNext.code)
 }

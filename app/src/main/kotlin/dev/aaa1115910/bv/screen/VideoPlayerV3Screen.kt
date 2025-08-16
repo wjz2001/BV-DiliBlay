@@ -43,6 +43,7 @@ import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.player.BvVideoPlayer
 import dev.aaa1115910.bv.player.VideoPlayerListener
+import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.countDownTimer
 import dev.aaa1115910.bv.util.danmakuMask
@@ -101,6 +102,7 @@ fun VideoPlayerV3Screen(
     var currentPosition by remember { mutableLongStateOf(0L) }
     var currentPlaySpeed by remember { mutableFloatStateOf(Prefs.defaultPlaySpeed.speed) }
     var currentSelectedPlaySpeedItem by remember { mutableStateOf(Prefs.defaultPlaySpeed) }
+    val currentActionAfterPlayItem by remember { mutableStateOf(Prefs.actionAfterPlay) }
     var aspectRatio by remember { mutableFloatStateOf(16f / 9f) }
 
     var clock: Triple<Int, Int, Int> by remember { mutableStateOf(Triple(0, 0, 0)) }
@@ -282,29 +284,38 @@ fun VideoPlayerV3Screen(
                 it.cid == playerViewModel.currentCid
             }
 
-            // 存在下一集时，使用 countDownTimer 延迟5秒后播放下一集
-            if (videoListIndex + 1 < playerViewModel.availableVideoList.size) {
-                showSkipToNextEp = true
-                hideSkipToNextEpTimer = countDownTimer(
-                    millisInFuture = 5000,
-                    countDownInterval = 1000,
-                    tag = "nextEpisodeCountDown"
-                ) {
-                    val nextVideo = playerViewModel.availableVideoList[videoListIndex + 1]
-                    logger.info { "Play next video: $nextVideo" }
-                    playerViewModel.partTitle = nextVideo.title
-                    playerViewModel.loadPlayUrl(
-                        avid = nextVideo.aid,
-                        cid = nextVideo.cid,
-                        epid = nextVideo.epid,
-                        seasonId = nextVideo.seasonId,
-                        continuePlayNext = true
-                    )
-                    // 隐藏提示
-                    showSkipToNextEp = false
+            when(currentActionAfterPlayItem){
+                ActionAfterPlayItems.Pause -> {
                 }
-            } else {
-                (context as Activity).finish()
+                ActionAfterPlayItems.PlayNext -> {
+                    // 存在下一集时，使用 countDownTimer 延迟5秒后播放下一集
+                    if (videoListIndex + 1 < playerViewModel.availableVideoList.size) {
+                        showSkipToNextEp = true
+                        hideSkipToNextEpTimer = countDownTimer(
+                            millisInFuture = 5000,
+                            countDownInterval = 1000,
+                            tag = "nextEpisodeCountDown"
+                        ) {
+                            val nextVideo = playerViewModel.availableVideoList[videoListIndex + 1]
+                            logger.info { "Play next video: $nextVideo" }
+                            playerViewModel.partTitle = nextVideo.title
+                            playerViewModel.loadPlayUrl(
+                                avid = nextVideo.aid,
+                                cid = nextVideo.cid,
+                                epid = nextVideo.epid,
+                                seasonId = nextVideo.seasonId,
+                                continuePlayNext = true
+                            )
+                            // 隐藏提示
+                            showSkipToNextEp = false
+                        }
+                    } else {
+                        (context as Activity).finish()
+                    }
+                }
+                ActionAfterPlayItems.Exit -> {
+                    (context as Activity).finish()
+                }
             }
         }
 
