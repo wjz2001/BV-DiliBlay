@@ -416,52 +416,54 @@ fun VideoInfoScreen(
                     }
                     if (Prefs.isLogin) fetchFavoriteData(aid)
 
-                    //如果是从剧集跳转过来的或设置不显示视频详情，就直接播放 P1
-                    if ((fromSeason || !showVideoInfo) && !fromController) {
-                        if (!showVideoInfo) videoInfoRepository.videoList.clear()
-                        val playPart = videoDetailViewModel.videoDetail!!.pages.first()
-                        withContext(Dispatchers.Default) {
-                            val singlePartVideoList = listOf(
-                                VideoListItem(
-                                    aid = videoDetailViewModel.videoDetail!!.aid,
-                                    cid = playPart.cid,
-                                    title = playPart.title,
-                                    index = 0,
-                                    isEpisode = false
+                    if(!fromController){
+                        //如果是从剧集跳转过来的或设置不显示视频详情，就直接播放 P1
+                        if (fromSeason || !showVideoInfo) {
+                            if (!showVideoInfo) videoInfoRepository.videoList.clear()
+                            val playPart = videoDetailViewModel.videoDetail!!.pages.first()
+                            withContext(Dispatchers.Default) {
+                                val singlePartVideoList = listOf(
+                                    VideoListItem(
+                                        aid = videoDetailViewModel.videoDetail!!.aid,
+                                        cid = playPart.cid,
+                                        title = playPart.title,
+                                        index = 0,
+                                        isEpisode = false
+                                    )
                                 )
-                            )
-                            videoInfoRepository.videoList.clear()
-                            videoInfoRepository.videoList.addAll(singlePartVideoList)
-                        }
-                        launchPlayerActivity(
-                            context = context,
-                            avid = videoDetailViewModel.videoDetail!!.aid,
-                            cid = playPart.cid,
-                            title = videoDetailViewModel.videoDetail!!.title,
-                            partTitle = videoDetailViewModel.videoDetail!!.pages.find { it.cid == playPart.cid }!!.title,
-                            played = if (playPart.cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
-                            fromSeason = fromSeason,
-                            isVerticalVideo = containsVerticalScreenVideo,
-                            author = videoDetailViewModel.videoDetail!!.author
-                        )
-                        context.finish()
-                    } else if (videoDetailViewModel.videoDetail?.ugcSeason != null) {
-                        //如果不是剧集，则设置分p数据，以便播放器读取（合集）
-                        updateUgcSeasonSectionVideoList(0)
-                    } else {
-                        //如果不是剧集，则设置分p数据，以便播放器读取（分P）
-                        val partVideoList =
-                            videoDetailViewModel.videoDetail!!.pages.mapIndexed { index, videoPage ->
-                                VideoListItem(
-                                    aid = aid,
-                                    cid = videoPage.cid,
-                                    title = videoPage.title,
-                                    index = index,
-                                    isEpisode = false
-                                )
+                                videoInfoRepository.videoList.clear()
+                                videoInfoRepository.videoList.addAll(singlePartVideoList)
                             }
-                        videoInfoRepository.videoList.clear()
-                        videoInfoRepository.videoList.addAll(partVideoList)
+                            launchPlayerActivity(
+                                context = context,
+                                avid = videoDetailViewModel.videoDetail!!.aid,
+                                cid = playPart.cid,
+                                title = videoDetailViewModel.videoDetail!!.title,
+                                partTitle = videoDetailViewModel.videoDetail!!.pages.find { it.cid == playPart.cid }!!.title,
+                                played = if (playPart.cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
+                                fromSeason = fromSeason,
+                                isVerticalVideo = containsVerticalScreenVideo,
+                                author = videoDetailViewModel.videoDetail!!.author
+                            )
+                            context.finish()
+                        } else if (videoDetailViewModel.videoDetail?.ugcSeason != null) {
+                            //如果不是剧集，则设置分p数据，以便播放器读取（合集）
+                            updateUgcSeasonSectionVideoList(0)
+                        } else {
+                            //如果不是剧集，则设置分p数据，以便播放器读取（分P）
+                            val partVideoList =
+                                videoDetailViewModel.videoDetail!!.pages.mapIndexed { index, videoPage ->
+                                    VideoListItem(
+                                        aid = aid,
+                                        cid = videoPage.cid,
+                                        title = videoPage.title,
+                                        index = index,
+                                        isEpisode = false
+                                    )
+                                }
+                            videoInfoRepository.videoList.clear()
+                            videoInfoRepository.videoList.addAll(partVideoList)
+                        }
                     }
                 }.onFailure {
                     val errorMessage = it.localizedMessage
