@@ -343,7 +343,7 @@ fun VideoPlayerV3Screen(
 
     DisposableEffect(Unit) {
         val updateSeekTimer = timeTask(0, 100, "updateSeekTimer", false) {
-            scope.launch { updateSeek() }
+            updateSeek()
         }
         onDispose {
             updateSeekTimer.cancel()
@@ -450,7 +450,7 @@ fun VideoPlayerV3Screen(
     DisposableEffect(Unit) {
         clockRefreshTimer = countDownTimer(
             millisInFuture = Long.MAX_VALUE,
-            countDownInterval = 1000,
+            countDownInterval = 1000*60,
             tag = "clockRefreshTimer",
             showLogs = false,
             onTick = {
