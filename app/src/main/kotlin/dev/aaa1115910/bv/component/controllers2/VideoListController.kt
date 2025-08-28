@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -28,7 +27,6 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import dev.aaa1115910.bv.component.controllers.MenuListItem
 import dev.aaa1115910.bv.entity.VideoListItem
-import dev.aaa1115910.bv.util.requestFocus
 
 @Composable
 fun VideoListController(
@@ -44,8 +42,10 @@ fun VideoListController(
     LaunchedEffect(show) {
         if (show) {
             val currentIndex = videoList.indexOfFirst { it.cid == currentCid }
-            listState.animateScrollToItem(currentIndex)
-            focusRequester.requestFocus()
+            if (currentIndex != -1) {
+                listState.animateScrollToItem(currentIndex)
+                focusRequester.requestFocus()
+            }
         }
     }
 
