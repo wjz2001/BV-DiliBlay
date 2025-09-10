@@ -20,6 +20,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.component.PersonalTopNavItem
 import dev.aaa1115910.bv.component.TopNav
@@ -47,6 +52,31 @@ fun PersonalContent(
 
     var selectedTab by remember { mutableStateOf(PersonalTopNavItem.Favorite) }
     var focusOnContent by remember { mutableStateOf(false) }
+
+    fun refreshPageData(nav: PersonalTopNavItem) {
+        when (nav) {
+            PersonalTopNavItem.Favorite -> {
+                favouriteViewModel.clearData()
+                favouriteViewModel.updateFoldersInfo()
+                favouriteViewModel.updateFolderItems(force = true)
+            }
+
+            PersonalTopNavItem.History -> {
+                historyViewModel.clearData()
+                historyViewModel.update()
+            }
+
+            PersonalTopNavItem.ToView -> {
+                toViewViewModel.clearData()
+                toViewViewModel.update()
+            }
+
+            PersonalTopNavItem.FollowingSeason -> {
+                followingSeasonViewModel.clearData()
+                followingSeasonViewModel.loadMore()
+            }
+        }
+    }
 
     //启动时刷新数据
     LaunchedEffect(Unit) {
@@ -77,28 +107,7 @@ fun PersonalContent(
                     selectedTab = nav as PersonalTopNavItem
                 },
                 onClick = { nav ->
-                    when (nav as PersonalTopNavItem) {
-                        PersonalTopNavItem.Favorite -> {
-                            favouriteViewModel.clearData()
-                            favouriteViewModel.updateFoldersInfo()
-                            favouriteViewModel.updateFolderItems(force = true)
-                        }
-
-                        PersonalTopNavItem.History -> {
-                            historyViewModel.clearData()
-                            historyViewModel.update()
-                        }
-
-                        PersonalTopNavItem.ToView -> {
-                            toViewViewModel.clearData()
-                            toViewViewModel.update()
-                        }
-
-                        PersonalTopNavItem.FollowingSeason -> {
-                            followingSeasonViewModel.clearData()
-                            followingSeasonViewModel.loadMore()
-                        }
-                    }
+                    refreshPageData(nav as PersonalTopNavItem)
                 }
             )
         }
@@ -107,10 +116,19 @@ fun PersonalContent(
             modifier = Modifier
                 .padding(innerPadding)
                 .onFocusChanged { focusOnContent = it.hasFocus }
+                .onPreviewKeyEvent {
+                    if (it.key == Key.Menu) {
+                        if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
+                        refreshPageData(selectedTab)
+                        navFocusRequester.requestFocus()
+                        return@onPreviewKeyEvent true
+                    }
+                    return@onPreviewKeyEvent false
+                },
         ) {
             AnimatedContent(
                 targetState = selectedTab,
-                label = "home animated content",
+                label = "personal animated content",
                 transitionSpec = {
                     val coefficient = 10
                     if (targetState.ordinal < initialState.ordinal) {

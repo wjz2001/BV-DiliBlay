@@ -11,14 +11,15 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.core.text.HtmlCompat
-import dev.aaa1115910.bv.BVApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 fun String.toast(context: Context, duration: Int = Toast.LENGTH_SHORT) {
@@ -103,12 +104,18 @@ fun <K, V> SnapshotStateMap<K, V>.swapMap(newMap: Map<K, V>, afterSwap: () -> Un
     afterSwap()
 }
 
-fun Date.formatPubTimeString(context: Context = BVApp.context): String {
-    // 创建一个SimpleDateFormat对象，指定格式
-    val formatter = SimpleDateFormat("yyyy年MM月dd日HH:mm")
-    // 格式化Date对象
-    val formattedDate = formatter.format(this)
-    return formattedDate
+fun Date.formatPubTimeString(): String {
+    val calendar = Calendar.getInstance()
+    calendar.time = this
+    val year = calendar.get(Calendar.YEAR)
+    val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+
+    val formatter = if (year == currentYear) {
+        SimpleDateFormat("MM月dd日HH:mm")
+    } else {
+        SimpleDateFormat("yyyy年MM月dd日HH:mm")
+    }
+    return formatter.format(this)
 }
 
 fun Long.formatHourMinSec(): String {
@@ -154,3 +161,11 @@ fun KeyEvent.isDpadLeft(): Boolean = key == Key.DirectionLeft
 fun KeyEvent.isDpadRight(): Boolean = key == Key.DirectionRight
 
 fun Int.stringRes(context: Context): String = context.getString(this)
+
+fun Int.toWanString(): String {
+    return if (this >= 10_000) {
+        String.format(Locale.CHINA, "%.1f万", this / 10_000f)
+    } else {
+        this.toString()
+    }
+}
