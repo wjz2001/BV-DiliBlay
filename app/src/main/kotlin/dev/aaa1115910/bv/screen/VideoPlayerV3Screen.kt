@@ -37,7 +37,7 @@ import dev.aaa1115910.bv.component.controllers.VideoPlayerControllerData
 import dev.aaa1115910.bv.component.controllers.info.VideoPlayerInfoData
 import dev.aaa1115910.bv.component.controllers2.DanmakuType
 import dev.aaa1115910.bv.component.controllers2.VideoPlayerController
-import dev.aaa1115910.bv.component.controllers2.playermenu.PlaySpeedItem
+import dev.aaa1115910.bv.component.controllers2.VideoProgressSeek
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
@@ -706,7 +706,17 @@ fun VideoPlayerV3Screen(
                         ),
                     danmakuPlayer = playerViewModel.danmakuPlayer
                 )
-
+                if (Prefs.showPersistentSeek){
+                    VideoProgressSeek(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth(),
+                        duration = infoData.totalDuration,
+                        position = infoData.currentTime,
+                        bufferedPercentage = infoData.bufferedPercentage,
+                        isPersistentSeek = true
+                    )
+                }
                 if (showLogs) {
                     Column(
                         modifier = Modifier.align(Alignment.BottomStart)

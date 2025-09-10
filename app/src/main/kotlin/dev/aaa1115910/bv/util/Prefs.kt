@@ -240,6 +240,10 @@ object Prefs {
         get() = runBlocking { dsm.getPreferenceFlow(PrefKeys.prefShowVideoInfoRequest).first() }
         set(value) = runBlocking { dsm.editPreference(PrefKeys.prefShowVideoInfoKey, value) }
 
+    var showPersistentSeek: Boolean
+        get() = runBlocking { dsm.getPreferenceFlow(PrefKeys.prefShowPersistentSeekRequest).first() }
+        set(value) = runBlocking { dsm.editPreference(PrefKeys.prefShowPersistentSeekKey, value) }
+
     var showHotword: Boolean
         get() = runBlocking { dsm.getPreferenceFlow(PrefKeys.prefShowHotwordRequest).first() }
         set(value) = runBlocking { dsm.editPreference(PrefKeys.prefShowHotwordKey, value) }
@@ -346,6 +350,7 @@ private object PrefKeys {
     val prefDensityKey = floatPreferencesKey("density")
     val prefFirstHomeTopNavItemKey = intPreferencesKey("first_home_top_nav")
     val prefShowVideoInfoKey = booleanPreferencesKey("show_video_info")
+    val prefShowPersistentSeekKey = booleanPreferencesKey("show_persistent_seek")
     val prefShowHotwordKey = booleanPreferencesKey("shw")
     val prefUseOldPlayerKey = booleanPreferencesKey("uop")
     val prefAlphaKey = booleanPreferencesKey("alpha")
@@ -398,6 +403,7 @@ private object PrefKeys {
         PreferenceRequest(prefDensityKey, BVApp.context.resources.displayMetrics.widthPixels / 960f)
     val prefFirstHomeTopNavItemRequest = PreferenceRequest(prefFirstHomeTopNavItemKey, HomeTopNavItem.Dynamics.ordinal)
     val prefShowVideoInfoRequest = PreferenceRequest(prefShowVideoInfoKey, true)
+    val prefShowPersistentSeekRequest = PreferenceRequest(prefShowPersistentSeekKey, false)
     val prefShowHotwordRequest = PreferenceRequest(prefShowHotwordKey, true)
     val prefUseOldPlayerRequest = PreferenceRequest(prefUseOldPlayerKey, false)
 

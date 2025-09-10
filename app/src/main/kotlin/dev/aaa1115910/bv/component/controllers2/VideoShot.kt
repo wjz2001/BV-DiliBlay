@@ -142,7 +142,8 @@ private fun VideoShotPreview(@PreviewParameter(VideoShotProgressProvider::class)
             VideoProgressSeek(
                 duration = data.first,
                 position = data.second,
-                bufferedPercentage = 1
+                bufferedPercentage = 1,
+                isPersistentSeek = false
             )
         }
     }
