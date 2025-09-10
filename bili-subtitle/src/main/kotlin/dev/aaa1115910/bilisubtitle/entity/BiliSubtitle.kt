@@ -2,6 +2,7 @@ package dev.aaa1115910.bilisubtitle.entity
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonNames
 
 @Serializable
 data class BiliSubtitle(
@@ -13,7 +14,9 @@ data class BiliSubtitle(
     val backgroundAlpha: Float? = null,
     @SerialName("background_color")
     val backgroundColor: String? = null,
-    @SerialName("Stroke")
+    // AI字幕返回的属性是大写的（Stroke），非AI字幕是小写的（stroke）
+    // 兼容大小写写法，序列化输出使用小写 stroke
+    @JsonNames("Stroke")
     val stroke: String? = null,
     val type: String? = null,
     val lang: String? = null,
@@ -28,5 +31,6 @@ data class BiliSubtitleItem(
     val sid: Int? = null,
     val location: Int,
     val content: String,
-    val music: Float? = null
+    val music: Float? = null,
+    val version: String? = null // 自动翻译字幕特有属性
 )

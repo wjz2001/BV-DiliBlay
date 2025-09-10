@@ -1,7 +1,6 @@
 package dev.aaa1115910.bv.screen
 
 import android.app.Activity
-import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
@@ -111,9 +110,9 @@ import dev.aaa1115910.bv.component.buttons.FavoriteButton
 import dev.aaa1115910.bv.component.buttons.LikeButton
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.videocard.VideosRow
+import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.repository.VideoInfoRepository
-import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fDebug
@@ -125,6 +124,7 @@ import dev.aaa1115910.bv.util.launchPlayerActivity
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.swapList
 import dev.aaa1115910.bv.util.swapListWithMainContext
+import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.video.VideoDetailViewModel
 import dev.aaa1115910.bv.viewmodel.video.VideoInfoState
@@ -908,11 +908,15 @@ fun VideoInfoData(
                     ) {
                         Text(text = "发布于 ${videoDetail.publishDate.formatPubTimeString()}")
                         Text(text = "·")
-                        Text(text = "点赞 ${videoDetail.stat.like}")
+                        Text(text = "播放量 ${(videoDetail.stat.view).toWanString()}")
                         Text(text = "·")
-                        Text(text = "投币 ${videoDetail.stat.coin}")
+                        Text(text = "弹幕 ${(videoDetail.stat.danmaku).toWanString()}")
                         Text(text = "·")
-                        Text(text = "收藏 ${videoDetail.stat.favorite}")
+                        Text(text = "点赞 ${videoDetail.stat.like.toWanString()}")
+                        Text(text = "·")
+                        Text(text = "投币 ${videoDetail.stat.coin.toWanString()}")
+                        Text(text = "·")
+                        Text(text = "收藏 ${videoDetail.stat.favorite.toWanString()}")
                     }
                 }
                 Row(

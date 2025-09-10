@@ -235,12 +235,6 @@ fun VideoPlayerController(
                             showListController = false
                             showInfoSeekController = false
                         } else {
-                            if (!videoPlayer.isPlaying) {
-                                logger.fInfo { "Exiting video player" }
-                                onExit()
-                                return@onPreviewKeyEvent true
-                            }
-
                             val currentTime = System.currentTimeMillis()
                             if (currentTime - lastPressBack < 1000 * 3) {
                                 logger.fInfo { "Exiting video player" }
