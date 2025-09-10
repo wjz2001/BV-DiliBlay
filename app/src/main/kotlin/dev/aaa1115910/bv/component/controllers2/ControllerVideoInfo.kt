@@ -255,7 +255,7 @@ fun ControllerVideoInfoBottom(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
-                modifier = Modifier.padding(top = 6.dp, bottom = 0.dp, start = 32.dp),
+                modifier = Modifier.padding(bottom = 2.dp, start = 24.dp),
                 text = "${if (isSeeking) goTime.formatHourMinSec() else infoData.currentTime.formatHourMinSec()} / ${infoData.totalDuration.formatHourMinSec()}",
                 color = Color.White,
                 style = TextStyle(
@@ -268,7 +268,7 @@ fun ControllerVideoInfoBottom(
                 .padding(horizontal = 24.dp)
                 .border(
                     width = 1.dp,
-                    color = Color.White.copy(alpha = if (isSeekFocused) 0.5f else 0f),
+                    color = Color.White.copy(alpha = if (isSeekFocused) 1f else 0f),
                     shape = RoundedCornerShape(8.dp)
                 )
                 .focusable()
@@ -316,6 +316,7 @@ fun ControllerVideoInfoBottom(
                 duration = infoData.totalDuration,
                 position = if (isSeeking) goTime else infoData.currentTime,
                 bufferedPercentage = infoData.bufferedPercentage,
+                isPersistentSeek = false
             )
         }
 
@@ -340,7 +341,7 @@ fun ControllerVideoInfoBottom(
                     }
                     return@onKeyEvent false
                 }
-                .padding(horizontal = 32.dp, vertical = 8.dp),
+                .padding(horizontal = 24.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start)
         ) {
             icons.forEach { (icon, function) ->

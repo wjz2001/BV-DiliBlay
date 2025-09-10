@@ -22,63 +22,55 @@ fun VideoProgressSeek(
     duration: Long,
     position: Long,
     bufferedPercentage: Int,
+    isPersistentSeek: Boolean
 ) {
-    Seek(
-        modifier = modifier,
-        duration = duration,
-        position = position,
-        bufferedPercentage = bufferedPercentage,
-    )
-}
+    val colors: SliderColors = SliderDefaults.colors()
+    val trackWidthDp = if (isPersistentSeek) 2.dp else 8.dp
 
-@Composable
-private fun Seek(
-    modifier: Modifier = Modifier,
-    duration: Long,
-    position: Long,
-    bufferedPercentage: Int,
-    colors: SliderColors = SliderDefaults.colors(),
-) {
-
-    val trackWidth = 12f
     Canvas(
         modifier = modifier
             .fillMaxWidth()
-            .height(trackWidth.dp)
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+            .height(trackWidthDp)
     ) {
+        val trackWidthPx = trackWidthDp.toPx()
+
         drawLine(
             color = colors.inactiveTrackColor,
-            start = Offset(trackWidth / 2, center.y),
-            end = Offset(size.width - trackWidth / 2, center.y),
-            strokeWidth = trackWidth,
+            start = Offset(trackWidthPx / 2, center.y),
+            end = Offset(size.width - trackWidthPx / 2, center.y),
+            strokeWidth = trackWidthPx,
             cap = StrokeCap.Round
         )
-        drawLine(
-            color = colors.disabledActiveTrackColor,
-            start = Offset(trackWidth / 2, center.y),
-            end = Offset(size.width * bufferedPercentage / 100, center.y),
-            strokeWidth = trackWidth,
-            cap = StrokeCap.Round
-        )
+        if (!isPersistentSeek) {
+            drawLine(
+                color = colors.disabledActiveTrackColor,
+                start = Offset(trackWidthPx / 2, center.y),
+                end = Offset(size.width * bufferedPercentage / 100, center.y),
+                strokeWidth = trackWidthPx,
+                cap = StrokeCap.Round
+            )
+        }
         drawLine(
             color = colors.activeTrackColor,
-            start = Offset(trackWidth / 2, center.y),
+            start = Offset(trackWidthPx / 2, center.y),
             end = Offset(size.width * (position / duration.toFloat()), center.y),
-            strokeWidth = trackWidth,
+            strokeWidth = trackWidthPx,
             cap = StrokeCap.Round
         )
     }
+
 }
+
 
 @Preview(device = "id:tv_1080p")
 @Composable
 private fun SeekPreview() {
     BVTheme {
-        Seek(
+        VideoProgressSeek(
             duration = 1000,
             position = 300,
-            bufferedPercentage = 50
+            bufferedPercentage = 50,
+            isPersistentSeek = true
         )
     }
 }
@@ -87,11 +79,12 @@ private fun SeekPreview() {
 @Composable
 private fun SeekWithThumbPreview(@PreviewParameter(ProgressProvider::class) data: Triple<Long, Long, Int>) {
     BVTheme {
-        Seek(
+        VideoProgressSeek(
             duration = data.first,
             position = data.second,
             bufferedPercentage = data.third,
-            )
+            isPersistentSeek = false
+        )
     }
 }
 

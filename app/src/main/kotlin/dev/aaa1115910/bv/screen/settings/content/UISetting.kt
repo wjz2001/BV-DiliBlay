@@ -61,6 +61,9 @@ fun UISetting(
     var showDensityDialog by remember { mutableStateOf(false) }
     var showHomepageDialog by remember { mutableStateOf(false) }
 
+    var showVideoInfo by remember { mutableStateOf(Prefs.showVideoInfo) }
+    var showPersistentSeek by remember { mutableStateOf(Prefs.showPersistentSeek) }
+
     val density by Prefs.densityFlow.collectAsState(context.resources.displayMetrics.widthPixels / 960f)
     var selectedFirstHomeTopNavItem by remember { mutableStateOf(Prefs.firstHomeTopNavItem) }
 
@@ -91,9 +94,21 @@ fun UISetting(
                     SettingSwitchListItem(
                         title = stringResource(R.string.settings_ui_show_video_info_title),
                         supportText = stringResource(R.string.settings_ui_show_video_info_text),
-                        checked = Prefs.showVideoInfo,
+                        checked = showVideoInfo,
                         onCheckedChange = {
+                            showVideoInfo = it
                             Prefs.showVideoInfo = it
+                        }
+                    )
+                }
+                item {
+                    SettingSwitchListItem(
+                        title = stringResource(R.string.settings_ui_show_persistent_seek_title),
+                        supportText = stringResource(R.string.settings_ui_show_persistent_seek_text),
+                        checked = showPersistentSeek,
+                        onCheckedChange = {
+                            showPersistentSeek = it
+                            Prefs.showPersistentSeek = it
                         }
                     )
                 }
