@@ -583,6 +583,9 @@ fun VideoInfoScreen(
                         Column(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            if (videoDetailViewModel.videoDetail?.isUpowerExclusive == true) {
+                                ArgueTip(text = stringResource(R.string.video_info_argue_tip_upower_exclusive))
+                            }
                             if (containsVerticalScreenVideo) {
                                 ArgueTip(text = stringResource(R.string.video_info_argue_tip_vertical_screen))
                             }
