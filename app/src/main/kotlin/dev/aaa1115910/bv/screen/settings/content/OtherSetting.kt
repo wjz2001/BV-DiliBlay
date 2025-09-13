@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -29,7 +28,6 @@ import dev.aaa1115910.bv.activities.settings.LogsActivity
 import dev.aaa1115910.bv.component.settings.CookiesDialog
 import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
-import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
 import dev.aaa1115910.bv.util.FirebaseUtil
 import dev.aaa1115910.bv.util.Prefs
@@ -45,8 +43,6 @@ fun OtherSetting(
     var showPreferedApiDialog by remember { mutableStateOf(false) }
 
     var showFps by remember { mutableStateOf(Prefs.showFps) }
-    var useOldPlayer by remember { mutableStateOf(Prefs.useOldPlayer) }
-    var updateAlpha by remember { mutableStateOf(Prefs.updateAlpha) }
     var enableFfmpegAudioRenderer by remember { mutableStateOf(Prefs.enableFfmpegAudioRenderer) }
     var selectedApi by remember { mutableStateOf(Prefs.apiType) }
 
@@ -95,28 +91,6 @@ fun OtherSetting(
                 Prefs.showFps = it
             }
         )
-
-        SettingSwitchListItem(
-            title = stringResource(R.string.settings_other_old_player_title),
-            supportText = stringResource(R.string.settings_other_old_player_text),
-            checked = useOldPlayer,
-            onCheckedChange = {
-                useOldPlayer = it
-                Prefs.useOldPlayer = it
-            }
-        )
-
-//            item {
-//                SettingSwitchListItem(
-//                    title = stringResource(R.string.settings_other_alpha_title),
-//                    supportText = stringResource(R.string.settings_other_alpha_text),
-//                    checked = updateAlpha,
-//                    onCheckedChange = {
-//                        updateAlpha = it
-//                        Prefs.updateAlpha = it
-//                    }
-//                )
-//            }
 
         SettingListItem(
             title = stringResource(R.string.settings_create_logs_title),

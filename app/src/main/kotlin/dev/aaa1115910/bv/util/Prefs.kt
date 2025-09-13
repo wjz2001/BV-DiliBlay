@@ -248,13 +248,6 @@ object Prefs {
         get() = runBlocking { dsm.getPreferenceFlow(PrefKeys.prefShowHotwordRequest).first() }
         set(value) = runBlocking { dsm.editPreference(PrefKeys.prefShowHotwordKey, value) }
 
-    var useOldPlayer: Boolean
-        get() = runBlocking { dsm.getPreferenceFlow(PrefKeys.prefUseOldPlayerRequest).first() }
-        set(value) = runBlocking { dsm.editPreference(PrefKeys.prefUseOldPlayerKey, value) }
-
-    var updateAlpha: Boolean
-        get() = runBlocking { dsm.getPreferenceFlow(PrefKeys.prefAlphaRequest).first() }
-        set(value) = runBlocking { dsm.editPreference(PrefKeys.prefAlphaKey, value) }
 
     var accessToken: String
         get() = runBlocking { dsm.getPreferenceFlow(PrefKeys.prefAccessTokenRequest).first() }
@@ -352,8 +345,6 @@ private object PrefKeys {
     val prefShowVideoInfoKey = booleanPreferencesKey("show_video_info")
     val prefShowPersistentSeekKey = booleanPreferencesKey("show_persistent_seek")
     val prefShowHotwordKey = booleanPreferencesKey("shw")
-    val prefUseOldPlayerKey = booleanPreferencesKey("uop")
-    val prefAlphaKey = booleanPreferencesKey("alpha")
     val prefAccessTokenKey = stringPreferencesKey("access_token")
     val prefRefreshTokenKey = stringPreferencesKey("refresh_token")
     val prefApiTypeKey = intPreferencesKey("api_type")
@@ -405,10 +396,6 @@ private object PrefKeys {
     val prefShowVideoInfoRequest = PreferenceRequest(prefShowVideoInfoKey, true)
     val prefShowPersistentSeekRequest = PreferenceRequest(prefShowPersistentSeekKey, false)
     val prefShowHotwordRequest = PreferenceRequest(prefShowHotwordKey, true)
-    val prefUseOldPlayerRequest = PreferenceRequest(prefUseOldPlayerKey, false)
-
-    @Suppress("KotlinConstantConditions")
-    val prefAlphaRequest = PreferenceRequest(prefAlphaKey, BuildConfig.BUILD_TYPE == "alpha")
     val prefAccessTokenRequest = PreferenceRequest(prefAccessTokenKey, "")
     val prefRefreshTokenRequest = PreferenceRequest(prefRefreshTokenKey, "")
     val prefApiTypeRequest = PreferenceRequest(prefApiTypeKey, 0)

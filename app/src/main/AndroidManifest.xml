@@ -36,11 +36,6 @@
             android:label="@string/title_activity_user_lock_settings"
             android:theme="@style/Theme.BV" />
         <activity
-            android:name=".activities.video.RemoteControllerPanelDemoActivity"
-            android:exported="false"
-            android:label="@string/title_activity_remote_controller_panel_demo"
-            android:theme="@style/Theme.BV" />
-        <activity
             android:name=".activities.settings.LogsActivity"
             android:exported="false"
             android:label="@string/title_activity_logs"
@@ -104,11 +99,6 @@
             android:name=".activities.settings.SpeedTestActivity"
             android:exported="false"
             android:label="@string/title_activity_speed_test"
-            android:theme="@style/Theme.BV" />
-        <activity
-            android:name=".activities.video.VideoPlayerActivity"
-            android:exported="false"
-            android:label="@string/title_activity_video_player"
             android:theme="@style/Theme.BV" />
         <activity
             android:name=".activities.video.UpInfoActivity"
