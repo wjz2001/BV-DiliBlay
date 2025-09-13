@@ -38,7 +38,6 @@ object GithubApi {
         prettyPrint = true
     }
     private val isDebug get() = BuildConfig.DEBUG
-    private val isAlpha get() = Prefs.updateAlpha
 
     init {
         createClient()
@@ -100,8 +99,7 @@ object GithubApi {
 
     suspend fun getLatestReleaseBuild(): Release = getLatestRelease()
 
-    suspend fun getLatestBuild(): Release =
-        if (isAlpha) getLatestPreReleaseBuild() else getLatestReleaseBuild()
+    suspend fun getLatestBuild(): Release = getLatestReleaseBuild()
 
     private fun checkErrorMessage(data: String) {
         val responseElement = json.parseToJsonElement(data)

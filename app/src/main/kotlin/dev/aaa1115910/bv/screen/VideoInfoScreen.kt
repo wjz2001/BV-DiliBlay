@@ -606,7 +606,9 @@ fun VideoInfoScreen(
                             onClickCover = {
                                 logger.fInfo { "Click video cover" }
                                 // 点击封面读取分p列表
-                                updatePartVideoList()
+                                scope.launch(Dispatchers.IO){
+                                    updatePartVideoList()
+                                }
                                 launchPlayerActivity(
                                     context = context,
                                     avid = videoDetailViewModel.videoDetail!!.aid,
