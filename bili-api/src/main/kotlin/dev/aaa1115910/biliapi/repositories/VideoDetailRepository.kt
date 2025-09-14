@@ -11,6 +11,7 @@ import dev.aaa1115910.biliapi.http.entity.user.garb.EquipPart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
 import org.koin.core.annotation.Single
 
 @Single
@@ -24,6 +25,10 @@ class VideoDetailRepository(
     private val viewStub
         get() = runCatching {
             ViewGrpcKt.ViewCoroutineStub(channelRepository.defaultChannel!!)
+        }.getOrNull()
+    private val replyStub
+        get() = runCatching {
+            ReplyGrpcKt.ReplyCoroutineStub(channelRepository.defaultChannel!!)
         }.getOrNull()
 
     suspend fun getVideoDetail(
@@ -79,7 +84,8 @@ class VideoDetailRepository(
                             val videoModeInfo = BiliHttpApi.getVideoMoreInfo(
                                 avid = aid,
                                 cid = videoDetailWithoutUserActions.await().cid,
-                                sessData = authRepository.sessionData ?: ""
+                                sessData = authRepository.sessionData ?: "",
+                                buvid3 = authRepository.buvid3 ?: ""
                             ).getResponseData()
                             val history = VideoDetail.History(
                                 progress = videoModeInfo.lastPlayTime / 1000,
@@ -131,7 +137,8 @@ class VideoDetailRepository(
                     val videoModeInfo = BiliHttpApi.getVideoMoreInfo(
                         avid = firstEp.aid,
                         cid = firstEp.cid,
-                        sessData = authRepository.sessionData ?: ""
+                        sessData = authRepository.sessionData ?: "",
+                        buvid3 = authRepository.buvid3 ?: ""
                     ).getResponseData()
                     val playerIcon = VideoDetail.PlayerIcon.fromPlayerIcon(videoModeInfo.playerIcon)
                     playerIcon
