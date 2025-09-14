@@ -2,6 +2,7 @@ package dev.aaa1115910.biliapi.http
 
 import com.tfowl.ktor.client.plugins.JsoupPlugin
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
+import dev.aaa1115910.biliapi.http.BiliHttpApi.getRegionDynamic
 import dev.aaa1115910.biliapi.http.entity.BiliResponse
 import dev.aaa1115910.biliapi.http.entity.BiliResponseWithoutData
 import dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuData
@@ -132,7 +133,6 @@ object BiliHttpApi {
             }
             install(JsoupPlugin)
             defaultRequest {
-//                header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0")
                 url {
                     host = endPoint
                     protocol = URLProtocol.HTTPS
@@ -523,24 +523,25 @@ object BiliHttpApi {
         sessData: String
     ): String = client.post("/x/click-interface/web/heartbeat") {
         require(avid != null || bvid != null) { "avid and bvid cannot be null at the same time" }
-        setBody(FormDataContent(
-            Parameters.build {
-                avid?.let { append("aid", "$it") }
-                bvid?.let { append("bvid", it) }
-                cid?.let { append("cid", "$it") }
-                epid?.let { append("epid", "$it") }
-                sid?.let { append("sid", "$it") }
-                mid?.let { append("mid", "$it") }
-                playedTime?.let { append("played_time", "$it") }
-                realtime?.let { append("realtime", "$it") }
-                startTs?.let { append("start_ts", "$it") }
-                type?.let { append("type", "$it") }
-                subType?.let { append("sub_type", "$it") }
-                dt?.let { append("dt", "$it") }
-                playType?.let { append("play_type", "$it") }
-                csrf?.let { append("csrf", it) }
-            }
-        ))
+        setBody(
+            FormDataContent(
+                Parameters.build {
+                    avid?.let { append("aid", "$it") }
+                    bvid?.let { append("bvid", it) }
+                    cid?.let { append("cid", "$it") }
+                    epid?.let { append("epid", "$it") }
+                    sid?.let { append("sid", "$it") }
+                    mid?.let { append("mid", "$it") }
+                    playedTime?.let { append("played_time", "$it") }
+                    realtime?.let { append("realtime", "$it") }
+                    startTs?.let { append("start_ts", "$it") }
+                    type?.let { append("type", "$it") }
+                    subType?.let { append("sub_type", "$it") }
+                    dt?.let { append("dt", "$it") }
+                    playType?.let { append("play_type", "$it") }
+                    csrf?.let { append("csrf", it) }
+                }
+            ))
         header("Cookie", "SESSDATA=$sessData;")
     }.bodyAsText()
 
@@ -561,24 +562,25 @@ object BiliHttpApi {
         accessKey: String? = null
     ): String = client.post("/x/v2/history/report") {
         require(avid != null || bvid != null) { "avid and bvid cannot be null at the same time" }
-        setBody(FormDataContent(
-            Parameters.build {
-                avid?.let { append("aid", "$it") }
-                bvid?.let { append("bvid", it) }
-                cid?.let { append("cid", "$it") }
-                epid?.let { append("epid", "$it") }
-                sid?.let { append("sid", "$it") }
-                mid?.let { append("mid", "$it") }
-                playedTime?.let { append("progress", "$it") }
-                realtime?.let { append("realtime", "$it") }
-                startTs?.let { append("start_ts", "$it") }
-                type?.let { append("type", "$it") }
-                subType?.let { append("sub_type", "$it") }
-                dt?.let { append("dt", "$it") }
-                playType?.let { append("play_type", "$it") }
-                accessKey?.let { append("access_key", it) }
-            }
-        ))
+        setBody(
+            FormDataContent(
+                Parameters.build {
+                    avid?.let { append("aid", "$it") }
+                    bvid?.let { append("bvid", it) }
+                    cid?.let { append("cid", "$it") }
+                    epid?.let { append("epid", "$it") }
+                    sid?.let { append("sid", "$it") }
+                    mid?.let { append("mid", "$it") }
+                    playedTime?.let { append("progress", "$it") }
+                    realtime?.let { append("realtime", "$it") }
+                    startTs?.let { append("start_ts", "$it") }
+                    type?.let { append("type", "$it") }
+                    subType?.let { append("sub_type", "$it") }
+                    dt?.let { append("dt", "$it") }
+                    playType?.let { append("play_type", "$it") }
+                    accessKey?.let { append("access_key", it) }
+                }
+            ))
     }.bodyAsText()
 
     /**
@@ -587,11 +589,12 @@ object BiliHttpApi {
     suspend fun getVideoMoreInfo(
         avid: Long,
         cid: Long,
-        sessData: String
-    ): BiliResponse<VideoMoreInfo> = client.get("x/player/wbi/v2") {
+        sessData: String,
+        buvid3: String
+    ): BiliResponse<VideoMoreInfo> = client.get("/x/player/wbi/v2") {
         parameter("aid", avid)
         parameter("cid", cid)
-        header("Cookie", "SESSDATA=$sessData;")
+        header("Cookie", "buvid3=$buvid3; SESSDATA=$sessData;")
     }.body()
 
     /**
@@ -610,14 +613,15 @@ object BiliHttpApi {
     ): Pair<Boolean, String> {
         val response = client.post("/x/web-interface/archive/like") {
             require(avid != null || bvid != null) { "avid and bvid cannot be null at the same time" }
-            setBody(FormDataContent(
-                Parameters.build {
-                    avid?.let { append("aid", "$it") }
-                    bvid?.let { append("bvid", it) }
-                    append("like", "${if (like) 1 else 2}")
-                    append("csrf", csrf)
-                }
-            ))
+            setBody(
+                FormDataContent(
+                    Parameters.build {
+                        avid?.let { append("aid", "$it") }
+                        bvid?.let { append("bvid", it) }
+                        append("like", "${if (like) 1 else 2}")
+                        append("csrf", csrf)
+                    }
+                ))
             header("Cookie", "SESSDATA=$sessData;")
         }.body<BiliResponseWithoutData>()
         return Pair(response.code == 0, response.message)
@@ -656,21 +660,21 @@ object BiliHttpApi {
         multiply: Int = 1,
         like: Boolean = false,
         csrf: String,
-        sessData: String,
-        buvid3: String
+        sessData: String
     ): Pair<Boolean, String> {
         require(avid != null || bvid != null) { "avid and bvid cannot be null at the same time" }
         val response = client.post("/x/web-interface/coin/add") {
-            setBody(FormDataContent(
-                Parameters.build {
-                    avid?.let { append("aid", "$it") }
-                    bvid?.let { append("bvid", it) }
-                    append("multiply", "$multiply")
-                    append("select_like", "${if (like) 1 else 0}")
-                    append("csrf", csrf)
-                }
-            ))
-            header("Cookie", "SESSDATA=$sessData;buvid3=$buvid3")
+            setBody(
+                FormDataContent(
+                    Parameters.build {
+                        avid?.let { append("aid", "$it") }
+                        bvid?.let { append("bvid", it) }
+                        append("multiply", "$multiply")
+                        append("select_like", "${if (like) 1 else 0}")
+                        append("csrf", csrf)
+                    }
+                ))
+            header("Cookie", "SESSDATA=$sessData;")
         }.body<BiliResponse<AddCoin>>()
         return Pair(response.code == 0, response.message)
     }
@@ -889,12 +893,13 @@ object BiliHttpApi {
         csrf: String,
         sessData: String
     ): BiliResponse<SeasonFollowData> = client.post("/pgc/web/follow/add") {
-        setBody(FormDataContent(
-            Parameters.build {
-                append("season_id", "$seasonId")
-                append("csrf", csrf)
-            }
-        ))
+        setBody(
+            FormDataContent(
+                Parameters.build {
+                    append("season_id", "$seasonId")
+                    append("csrf", csrf)
+                }
+            ))
         header("Cookie", "SESSDATA=$sessData;")
         //必须得加上 referer 才能通过账号身份验证
         header("referer", "https://www.bilibili.com")
@@ -907,12 +912,13 @@ object BiliHttpApi {
         seasonId: Int,
         accessKey: String
     ): BiliResponse<SeasonFollowData> = client.post("/pgc/app/follow/add") {
-        setBody(FormDataContent(
-            Parameters.build {
-                append("season_id", "$seasonId")
-                append("access_key", accessKey)
-            }
-        ))
+        setBody(
+            FormDataContent(
+                Parameters.build {
+                    append("season_id", "$seasonId")
+                    append("access_key", accessKey)
+                }
+            ))
     }.body()
 
     /**
@@ -923,12 +929,13 @@ object BiliHttpApi {
         csrf: String,
         sessData: String
     ): BiliResponse<SeasonFollowData> = client.post("/pgc/web/follow/del") {
-        setBody(FormDataContent(
-            Parameters.build {
-                append("season_id", "$seasonId")
-                append("csrf", csrf)
-            }
-        ))
+        setBody(
+            FormDataContent(
+                Parameters.build {
+                    append("season_id", "$seasonId")
+                    append("csrf", csrf)
+                }
+            ))
         header("Cookie", "SESSDATA=$sessData;")
         //必须得加上 referer 才能通过账号身份验证
         header("referer", "https://www.bilibili.com")
@@ -941,12 +948,13 @@ object BiliHttpApi {
         seasonId: Int,
         accessKey: String
     ): BiliResponse<SeasonFollowData> = client.post("/pgc/app/follow/del") {
-        setBody(FormDataContent(
-            Parameters.build {
-                append("season_id", "$seasonId")
-                append("access_key", accessKey)
-            }
-        ))
+        setBody(
+            FormDataContent(
+                Parameters.build {
+                    append("season_id", "$seasonId")
+                    append("access_key", accessKey)
+                }
+            ))
     }.body()
 
     /**
@@ -1063,15 +1071,16 @@ object BiliHttpApi {
         sessData: String? = null
     ): BiliResponseWithoutData = client.post("/x/relation/modify") {
         checkToken(accessKey, sessData)
-        setBody(FormDataContent(
-            Parameters.build {
-                append("fid", "$mid")
-                append("act", "${action.id}")
-                append("re_src", "${actionSource.id}")
-                accessKey?.let { append("access_key", accessKey) }
-                csrf?.let { append("csrf", csrf) }
-            }
-        ))
+        setBody(
+            FormDataContent(
+                Parameters.build {
+                    append("fid", "$mid")
+                    append("act", "${action.id}")
+                    append("re_src", "${actionSource.id}")
+                    accessKey?.let { append("access_key", accessKey) }
+                    csrf?.let { append("csrf", csrf) }
+                }
+            ))
         sessData?.let { header("Cookie", "SESSDATA=$sessData;") }
     }.body()
 
@@ -1223,8 +1232,6 @@ object BiliHttpApi {
         order?.let { parameter("order", it) }
         duration?.let { parameter("duration", it) }
         header("Cookie", "buvid3=$buvid3;")
-        header("referer", "https://www.bilibili.com")
-        header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0")
     }.body()
 
     /** 获取番剧首页数据 */
