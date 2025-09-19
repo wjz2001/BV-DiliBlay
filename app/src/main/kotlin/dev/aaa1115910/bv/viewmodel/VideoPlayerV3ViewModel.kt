@@ -1,7 +1,6 @@
 package dev.aaa1115910.bv.viewmodel
 
 import android.net.Uri
-import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -44,7 +43,6 @@ import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.fWarn
 import dev.aaa1115910.bv.util.swapList
 import dev.aaa1115910.bv.util.swapListWithMainContext
-import dev.aaa1115910.bv.util.swapMap
 import dev.aaa1115910.bv.util.swapMapWithMainContext
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.HttpClient
@@ -607,4 +605,8 @@ class VideoPlayerV3ViewModel(
             logger.fWarn { "Load video shot failed: ${it.stackTraceToString()}" }
         }
     }
+}
+
+enum class RequestState {
+    Ready, Doing, Done, Success, Failed
 }

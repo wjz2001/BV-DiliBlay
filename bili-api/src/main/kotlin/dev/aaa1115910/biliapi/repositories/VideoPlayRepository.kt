@@ -203,16 +203,31 @@ class VideoPlayRepository(
         cid: Long,
         preferApiType: ApiType = ApiType.Web
     ): List<Subtitle> {
-        val dmViewReply = runCatching {
-            danmakuStub?.dmView(dmViewReq {
-                pid = aid.toLong()
-                oid = cid.toLong()
-                type = 1
-            })
-        }.onFailure { handleGrpcException(it) }.getOrThrow()
-        return dmViewReply?.subtitle?.subtitlesList
-            ?.map { Subtitle.fromSubtitleItem(it) }
-            ?: emptyList()
+        return when (preferApiType) {
+            ApiType.Web -> {
+                val response = BiliHttpApi.getVideoMoreInfo(
+                    avid = aid,
+                    cid = cid,
+                    sessData = authRepository.sessionData ?: ""
+                ).getResponseData()
+                response.subtitle?.subtitles
+                    ?.map { Subtitle.fromSubtitleItem(it) }
+                    ?: emptyList()
+            }
+
+            ApiType.App -> {
+                val dmViewReply = runCatching {
+                    danmakuStub?.dmView(dmViewReq {
+                        pid = aid
+                        oid = cid
+                        type = 1
+                    })
+                }.onFailure { handleGrpcException(it) }.getOrThrow()
+                dmViewReply?.subtitle?.subtitlesList
+                    ?.map { Subtitle.fromSubtitleItem(it) }
+                    ?: emptyList()
+            }
+        }
     }
 
     suspend fun sendHeartbeat(
