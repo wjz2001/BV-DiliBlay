@@ -660,21 +660,21 @@ object BiliHttpApi {
         multiply: Int = 1,
         like: Boolean = false,
         csrf: String,
-        sessData: String
+        sessData: String,
+        buvid3: String
     ): Pair<Boolean, String> {
         require(avid != null || bvid != null) { "avid and bvid cannot be null at the same time" }
         val response = client.post("/x/web-interface/coin/add") {
-            setBody(
-                FormDataContent(
-                    Parameters.build {
-                        avid?.let { append("aid", "$it") }
-                        bvid?.let { append("bvid", it) }
-                        append("multiply", "$multiply")
-                        append("select_like", "${if (like) 1 else 0}")
-                        append("csrf", csrf)
-                    }
-                ))
-            header("Cookie", "SESSDATA=$sessData;")
+            setBody(FormDataContent(
+                Parameters.build {
+                    avid?.let { append("aid", "$it") }
+                    bvid?.let { append("bvid", it) }
+                    append("multiply", "$multiply")
+                    append("select_like", "${if (like) 1 else 0}")
+                    append("csrf", csrf)
+                }
+            ))
+            header("Cookie", "SESSDATA=$sessData;buvid3=$buvid3")
         }.body<BiliResponse<AddCoin>>()
         return Pair(response.code == 0, response.message)
     }
@@ -1232,6 +1232,7 @@ object BiliHttpApi {
         order?.let { parameter("order", it) }
         duration?.let { parameter("duration", it) }
         header("Cookie", "buvid3=$buvid3;")
+        header("referer", "https://www.bilibili.com")
     }.body()
 
     /** 获取番剧首页数据 */

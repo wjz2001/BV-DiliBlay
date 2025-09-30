@@ -7,11 +7,9 @@ import dev.aaa1115910.biliapi.entity.video.VideoDetail
 import dev.aaa1115910.biliapi.entity.video.season.SeasonDetail
 import dev.aaa1115910.biliapi.grpc.utils.handleGrpcException
 import dev.aaa1115910.biliapi.http.BiliHttpApi
-import dev.aaa1115910.biliapi.http.entity.user.garb.EquipPart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
 import org.koin.core.annotation.Single
 
 @Single
@@ -25,10 +23,6 @@ class VideoDetailRepository(
     private val viewStub
         get() = runCatching {
             ViewGrpcKt.ViewCoroutineStub(channelRepository.defaultChannel!!)
-        }.getOrNull()
-    private val replyStub
-        get() = runCatching {
-            ReplyGrpcKt.ReplyCoroutineStub(channelRepository.defaultChannel!!)
         }.getOrNull()
 
     suspend fun getVideoDetail(
@@ -61,7 +55,7 @@ class VideoDetailRepository(
                     val isLiked = async {
                         runCatching {
                             likeRepository.checkVideoLiked(
-                                aid  = aid,
+                                aid = aid,
                             )
                         }.onFailure {
                             println("Check video liked failed: $it")
