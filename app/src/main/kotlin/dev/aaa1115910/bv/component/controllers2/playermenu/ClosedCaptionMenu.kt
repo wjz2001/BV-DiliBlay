@@ -1,5 +1,6 @@
 package dev.aaa1115910.bv.component.controllers2.playermenu
 
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -30,6 +31,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.aaa1115910.biliapi.entity.video.Subtitle
+import dev.aaa1115910.biliapi.entity.video.SubtitleType
 import dev.aaa1115910.bv.component.controllers.LocalVideoPlayerControllerData
 import dev.aaa1115910.bv.component.controllers2.LocalMenuFocusStateData
 import dev.aaa1115910.bv.component.controllers2.MenuFocusState
@@ -68,7 +70,11 @@ fun ClosedCaptionMenuList(
             when (selectedClosedCaptionMenuItem) {
                 VideoPlayerClosedCaptionMenuItem.Switch -> RadioMenuList(
                     modifier = menuItemsModifier,
-                    items = data.availableSubtitleTracks.map { it.langDoc },
+                    items = data.availableSubtitleTracks.map {
+                        it.langDoc
+                            .replace("（自动生成）", " (AI)")
+                            .replace("（自动翻译）", " (AI)")
+                    },
                     selected = data.availableSubtitleTracks.indexOfFirst { it.id == data.currentSubtitleId },
                     onSelectedChanged = { onSubtitleChange(data.availableSubtitleTracks[it]) },
                     onFocusBackToParent = {
