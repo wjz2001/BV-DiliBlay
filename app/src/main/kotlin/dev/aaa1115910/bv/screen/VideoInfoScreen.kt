@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -32,6 +33,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Done
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.ViewModule
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.AlertDialog
@@ -52,7 +54,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
@@ -609,7 +610,7 @@ fun VideoInfoScreen(
                             onClickCover = {
                                 logger.fInfo { "Click video cover" }
                                 // 点击封面读取分p列表
-                                scope.launch(Dispatchers.IO){
+                                scope.launch(Dispatchers.IO) {
                                     updatePartVideoList()
                                 }
                                 launchPlayerActivity(
@@ -1162,12 +1163,13 @@ fun VideoPartButton(
 }
 
 @Composable
-private fun VideoPartRowButton(
+fun VideoPartRowButton(
     modifier: Modifier = Modifier,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    content: @Composable BoxScope.() -> Unit
 ) {
     Surface(
-        modifier = modifier.height(64.dp),
+        modifier = modifier.size(64.dp),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
             focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
@@ -1178,16 +1180,9 @@ private fun VideoPartRowButton(
     ) {
         Box(
             modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                modifier = Modifier
-                    .size(48.dp)
-                    .rotate(90f),
-                imageVector = Icons.Rounded.ViewModule,
-                contentDescription = null
-            )
-        }
+            contentAlignment = Alignment.Center,
+            content = content
+        )
     }
 }
 
@@ -1232,9 +1227,32 @@ fun VideoPartRow(
                 item {
                     VideoPartRowButton(
                         onClick = { showPartListDialog = true }
-                    )
+                    ) {
+                        Icon(
+                            modifier = Modifier.size(36.dp),
+                            imageVector = Icons.Rounded.ViewModule,
+                            contentDescription = null
+                        )
+                    }
                 }
             }
+
+            val matchedPage = pages.find { it.cid == lastPlayedCid }
+            if (matchedPage != null && pages.size > 1) {
+                item {
+                    // 分P历史播放按钮
+                    VideoPartRowButton(
+                        onClick = { onClick(matchedPage.cid) }
+                    ) {
+                        Icon(
+                            modifier = Modifier.size(36.dp),
+                            imageVector = Icons.Rounded.History,
+                            contentDescription = null
+                        )
+                    }
+                }
+            }
+
             itemsIndexed(items = pages, key = { _, page -> page.cid }) { index, page ->
                 VideoPartButton(
                     modifier = Modifier
@@ -1300,9 +1318,32 @@ fun VideoUgcSeasonRow(
                 item {
                     VideoPartRowButton(
                         onClick = { showUgcListDialog = true }
-                    )
+                    ) {
+                        Icon(
+                            modifier = Modifier.size(36.dp),
+                            imageVector = Icons.Rounded.ViewModule,
+                            contentDescription = null
+                        )
+                    }
                 }
             }
+
+            val matchedEp = episodes.find { it.cid == lastPlayedCid }
+            if (matchedEp != null && episodes.size > 1) {
+                item {
+                    // ugc分季历史播放按钮
+                    VideoPartRowButton(
+                        onClick = { onClick(matchedEp.aid, matchedEp.cid) }
+                    ) {
+                        Icon(
+                            modifier = Modifier.size(36.dp),
+                            imageVector = Icons.Rounded.History,
+                            contentDescription = null
+                        )
+                    }
+                }
+            }
+
             itemsIndexed(items = episodes) { index, episode ->
                 VideoPartButton(
                     modifier = Modifier
