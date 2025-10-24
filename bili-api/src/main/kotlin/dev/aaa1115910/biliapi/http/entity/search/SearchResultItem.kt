@@ -59,7 +59,7 @@ data class SearchArticleResult(
     val rankIndex: Int,
     val desc: String,
     @SerialName("rank_score")
-    val rankScore: Int,
+    val rankScore: Int? = null,
     val type: String,
     val id: Int,
     @SerialName("category_name")
@@ -320,7 +320,7 @@ data class SearchTopicResult(
     @SerialName("arcurl")
     val arcUrl: String,
     @SerialName("rank_score")
-    val rankScore: Int
+    val rankScore: Int? = null
 ) : SearchResultItem()
 
 /**
@@ -383,7 +383,7 @@ data class SearchVideoResult(
     val title: String,
     val description: String,
     @SerialName("arcrank")
-    val arcRank: String,
+    val arcRank: String? = null,
     val pic: String,
     val play: Int,
     @SerialName("video_review")
@@ -411,7 +411,7 @@ data class SearchVideoResult(
     @SerialName("new_rec_tags")
     val newRecTags: List<JsonElement>,
     @SerialName("rank_score")
-    val rankScore: Int,
+    val rankScore: Int? = null,
     val like: Int,
     val upic: String,
     val corner: String,
