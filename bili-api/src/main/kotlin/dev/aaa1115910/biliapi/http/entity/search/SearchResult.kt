@@ -26,7 +26,7 @@ data class SearchResultData(
     @SerialName("rqt_type")
     val rqtType: String,
     @SerialName("cost_time")
-    val costTime: SearchCost,
+    val costTime: SearchCost? = null,
     @SerialName("exp_list")
     val expList: JsonElement? = null,
     @SerialName("egg_hit")
@@ -45,7 +45,7 @@ data class SearchResultData(
     val inBlackKey: Int,
     @SerialName("in_white_key")
     val inWhiteKey: Int,
-    val result: List<JsonElement>,
+    val result: List<JsonElement> = emptyList(),
     @Transient
     val searchAllResults: MutableList<SearchResult<SearchResultItem>> = mutableListOf(),
     @Transient
