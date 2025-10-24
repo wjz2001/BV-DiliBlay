@@ -1,6 +1,7 @@
 package dev.aaa1115910.bv.component.controllers2
 
 import android.os.CountDownTimer
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -59,6 +60,7 @@ import dev.aaa1115910.bv.component.controllers.info.VideoPlayerInfoData
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.countDownTimer
 import dev.aaa1115910.bv.util.formatHourMinSec
+import kotlinx.coroutines.delay
 
 @Composable
 fun ControllerVideoInfo(
@@ -131,6 +133,7 @@ fun ControllerVideoInfo(
                         setHideVideoInfoTimer()
                         return@onPreviewKeyEvent false
                     },
+                show = show,
                 isSeeking = isSeeking,
                 goTime = goTime,
                 infoData = infoData,
@@ -208,6 +211,7 @@ fun ControllerVideoInfoTop(
 @Composable
 fun ControllerVideoInfoBottom(
     modifier: Modifier = Modifier,
+    show: Boolean,
     isSeeking: Boolean,
     goTime: Long,
     infoData: VideoPlayerInfoData,
@@ -230,8 +234,15 @@ fun ControllerVideoInfoBottom(
 
     var isSeekFocused by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        seekFocusRequester.requestFocus()
+    LaunchedEffect(show) {
+        if (show) {
+            delay(50)
+            try {
+                seekFocusRequester.requestFocus()
+            } catch (e: IllegalStateException) {
+                Log.d("ControllerVideoInfo", "requestFocus failed")
+            }
+        }
     }
     Column(
         modifier = modifier
