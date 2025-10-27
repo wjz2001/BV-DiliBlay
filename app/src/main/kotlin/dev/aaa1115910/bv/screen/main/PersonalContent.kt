@@ -50,15 +50,14 @@ fun PersonalContent(
 ) {
     val scope = rememberCoroutineScope()
 
-    var selectedTab by remember { mutableStateOf(PersonalTopNavItem.Favorite) }
+    var selectedTab by remember { mutableStateOf(PersonalTopNavItem.ToView) }
     var focusOnContent by remember { mutableStateOf(false) }
 
     fun refreshPageData(nav: PersonalTopNavItem) {
         when (nav) {
-            PersonalTopNavItem.Favorite -> {
-                favouriteViewModel.clearData()
-                favouriteViewModel.updateFoldersInfo()
-                favouriteViewModel.updateFolderItems(force = true)
+            PersonalTopNavItem.ToView -> {
+                toViewViewModel.clearData()
+                toViewViewModel.update()
             }
 
             PersonalTopNavItem.History -> {
@@ -66,9 +65,10 @@ fun PersonalContent(
                 historyViewModel.update()
             }
 
-            PersonalTopNavItem.ToView -> {
-                toViewViewModel.clearData()
-                toViewViewModel.update()
+            PersonalTopNavItem.Favorite -> {
+                favouriteViewModel.clearData()
+                favouriteViewModel.updateFoldersInfo()
+                favouriteViewModel.updateFolderItems(force = true)
             }
 
             PersonalTopNavItem.FollowingSeason -> {
@@ -141,16 +141,16 @@ fun PersonalContent(
                 }
             ) { screen ->
                 when (screen) {
-                    PersonalTopNavItem.Favorite -> {
-                        FavoriteScreen()
+                    PersonalTopNavItem.ToView -> {
+                        ToViewScreen()
                     }
 
                     PersonalTopNavItem.History -> {
                         HistoryScreen()
                     }
 
-                    PersonalTopNavItem.ToView -> {
-                        ToViewScreen()
+                    PersonalTopNavItem.Favorite -> {
+                        FavoriteScreen()
                     }
 
                     PersonalTopNavItem.FollowingSeason -> {
