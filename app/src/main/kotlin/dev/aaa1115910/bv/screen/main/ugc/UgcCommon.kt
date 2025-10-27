@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
@@ -21,8 +20,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.biliapi.entity.ugc.UgcItem
-import dev.aaa1115910.biliapi.entity.ugc.UgcType
-import dev.aaa1115910.biliapi.entity.ugc.region.UgcRegionPage
+import dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2
+import dev.aaa1115910.biliapi.entity.ugc.region.UgcFeedPage
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
@@ -94,9 +93,9 @@ fun UgcRegionScaffold(
 
 data class UgcScaffoldState(
     val lazyGridState: LazyGridState,
-    val ugcType: UgcType,
+    val ugcType: UgcTypeV2,
     val ugcItems: MutableList<UgcItem> = mutableStateListOf<UgcItem>(),
-    var nextPage: UgcRegionPage = UgcRegionPage(),
+    var nextPage: UgcFeedPage = UgcFeedPage(),
     var hasMore: Boolean = true,
     var updating: Boolean = false
 )

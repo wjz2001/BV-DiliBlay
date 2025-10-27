@@ -2,20 +2,24 @@ package dev.aaa1115910.bv.viewmodel.ugc
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
-import dev.aaa1115910.biliapi.entity.ugc.region.UgcRegionPage
+import androidx.lifecycle.viewModelScope
+import dev.aaa1115910.biliapi.entity.ugc.region.UgcFeedPage
 import dev.aaa1115910.biliapi.repositories.UgcRepository
+import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.component.UgcTopNavItem
 import dev.aaa1115910.bv.screen.main.ugc.UgcScaffoldState
+import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.toast
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import androidx.lifecycle.viewModelScope
-import dev.aaa1115910.bv.BVApp
 import org.koin.android.annotation.KoinViewModel
 
 @KoinViewModel
 class UgcViewModel(private val ugcRepository: UgcRepository) : ViewModel() {
+    private val logger = KotlinLogging.logger("UgcViewModel")
+
     private val _ugcScaffoldStateMap = mutableMapOf<UgcTopNavItem, UgcScaffoldState>()
     val ugcScaffoldStateMap: Map<UgcTopNavItem, UgcScaffoldState> get() = _ugcScaffoldStateMap
 
@@ -26,13 +30,14 @@ class UgcViewModel(private val ugcRepository: UgcRepository) : ViewModel() {
 
     fun reloadAll(item: UgcTopNavItem) {
         _ugcScaffoldStateMap[item]?.let { state ->
-            state.nextPage = UgcRegionPage()
+            logger.fInfo { "reload all ${state.ugcType} data" }
+            state.nextPage = UgcFeedPage()
             state.hasMore = true
             state.ugcItems.clear()
+
             if (!state.updating) {
                 launchWithIO { initUgcRegionData(item) }
-            }
-            else{
+            } else {
                 Log.d("UgcViewModel", "正在更新中")
             }
         }
@@ -50,23 +55,27 @@ class UgcViewModel(private val ugcRepository: UgcRepository) : ViewModel() {
 
     private suspend fun loadData(item: UgcTopNavItem, isInit: Boolean) {
         val state = _ugcScaffoldStateMap[item] ?: return
-        if (!state.hasMore) return
+        if (!state.hasMore || state.updating) return
 
         state.updating = true
         try {
             if (isInit) {
-                val data = ugcRepository.getRegionData(state.ugcType)
+                logger.fInfo { "load ugc ${state.ugcType} region data" }
+                val feedData = ugcRepository.getRegionFeedRcmd(state.ugcType, state.nextPage)
+
                 state.ugcItems.clear()
-                state.ugcItems.addAll(data.items)
-                state.nextPage = data.next
+                state.ugcItems.addAll(feedData.items)
+                state.nextPage = feedData.nextPage
                 state.hasMore = true
             } else {
-                val data = ugcRepository.getRegionMoreData(state.ugcType)
-                state.ugcItems.addAll(data.items)
-                state.nextPage = data.next
-                state.hasMore = data.items.isNotEmpty()
+                logger.fInfo { "load more ${state.ugcType} region data" }
+                val feedData = ugcRepository.getRegionFeedRcmd(state.ugcType, state.nextPage)
+                state.ugcItems.addAll(feedData.items)
+                state.nextPage = feedData.nextPage
+                state.hasMore = feedData.items.isNotEmpty()
             }
         } catch (e: Exception) {
+            logger.fInfo { "load ${state.ugcType} data failed: ${e.stackTraceToString()}" }
             withContext(Dispatchers.Main) {
                 val msg = if (isInit) "加载 ${state.ugcType} 数据失败" else "加载 ${state.ugcType} 更多推荐失败"
                 "$msg: ${e.message}".toast(BVApp.context)
