@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -105,7 +104,7 @@ fun PopularScreen(
                 onGoToDetailPage = {
                     VideoInfoActivity.actionStart(context, item.aid)
                 },
-                onGoToUpPage = if (item.authorMid != null) {
+                onGoToUpPage = if (item.authorMid != null && item.authorMid != 0L) {
                     { UpInfoActivity.actionStart(context, item.authorMid!!, item.author) }
                 } else null
             )

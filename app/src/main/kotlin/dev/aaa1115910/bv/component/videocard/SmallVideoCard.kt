@@ -70,6 +70,14 @@ fun SmallVideoCard(
     // 判断是否有任何操作按钮
     val hasAnyAction = onAddWatchLater != null || onGoToDetailPage != null || onGoToUpPage != null
 
+    LaunchedEffect(showActions) {
+        if (showActions && hasAnyAction) {
+            firstButtonRequester.requestFocus()
+        } else if (!showActions) {
+            releaseLongPress = false // 退出操作态时重置
+        }
+    }
+
     Column(modifier = modifier.fillMaxWidth()) {
         Card(
             onClick = { if (!showActions) onClick() },
@@ -135,12 +143,6 @@ fun SmallVideoCard(
                                 contentDescription = "Up Page"
                             )
                         }
-                    }
-                }
-
-                LaunchedEffect(showActions) {
-                    if (showActions && hasAnyAction) {
-                        firstButtonRequester.requestFocus()
                     }
                 }
             } else {

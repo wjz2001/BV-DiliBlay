@@ -104,7 +104,7 @@ fun RecommendScreen(
                 onGoToDetailPage = {
                     VideoInfoActivity.actionStart(context, item.aid)
                 },
-                onGoToUpPage = if (item.authorMid != null) {
+                onGoToUpPage = if (item.authorMid != null && item.authorMid != 0L) {
                     { UpInfoActivity.actionStart(context, item.authorMid!!, item.author) }
                 } else null
             )
