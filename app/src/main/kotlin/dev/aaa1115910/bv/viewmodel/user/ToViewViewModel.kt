@@ -14,6 +14,7 @@ import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.repository.UserRepository
+import dev.aaa1115910.bv.ui.common.UiEvent
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.addWithMainContext
 import dev.aaa1115910.bv.util.fInfo
@@ -23,6 +24,8 @@ import dev.aaa1115910.bv.util.toast
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.android.annotation.KoinViewModel
@@ -32,6 +35,9 @@ class ToViewViewModel(
     private val userRepository: UserRepository,
     private val ToViewRepository: ToViewRepository
 ) : ViewModel() {
+    private val _uiEvent = MutableSharedFlow<UiEvent>()
+    val uiEvent = _uiEvent.asSharedFlow()
+
     companion object {
         private val logger = KotlinLogging.logger { }
     }
@@ -49,6 +55,20 @@ class ToViewViewModel(
             updateToView()
         }
     }
+
+    fun addToView(aid: Long, bvid: String? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                ToViewRepository.addToView(aid = aid, bvid = bvid)
+            }.onSuccess {
+                _uiEvent.emit(UiEvent.ShowToast("添加到稍后再看"))
+            }.onFailure {
+                logger.fWarn { "Add toview failed: ${it.stackTraceToString()}" }
+                _uiEvent.emit(UiEvent.ShowToast("添加到稍后再看失败"))
+            }
+        }
+    }
+
     fun clearData() {
         updateJob?.cancel()
         histories.clear()

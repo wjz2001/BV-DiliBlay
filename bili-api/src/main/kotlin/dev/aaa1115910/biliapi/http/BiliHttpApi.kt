@@ -9,7 +9,6 @@ import dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuData
 import dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuResponse
 import dev.aaa1115910.biliapi.http.entity.dynamic.DynamicData
 import dev.aaa1115910.biliapi.http.entity.history.HistoryData
-import dev.aaa1115910.biliapi.http.entity.toview.ToViewData
 import dev.aaa1115910.biliapi.http.entity.home.RcmdIndexData
 import dev.aaa1115910.biliapi.http.entity.home.RcmdTopData
 import dev.aaa1115910.biliapi.http.entity.index.IndexResultData
@@ -29,6 +28,7 @@ import dev.aaa1115910.biliapi.http.entity.season.FollowingSeasonAppData
 import dev.aaa1115910.biliapi.http.entity.season.FollowingSeasonWebData
 import dev.aaa1115910.biliapi.http.entity.season.SeasonFollowData
 import dev.aaa1115910.biliapi.http.entity.season.WebSeasonData
+import dev.aaa1115910.biliapi.http.entity.toview.ToViewData
 import dev.aaa1115910.biliapi.http.entity.user.AppSpaceVideoData
 import dev.aaa1115910.biliapi.http.entity.user.FollowAction
 import dev.aaa1115910.biliapi.http.entity.user.FollowActionSource
@@ -386,6 +386,30 @@ object BiliHttpApi {
         // parameter("ps", pageSize)
         header("Cookie", "SESSDATA=$sessData;")
     }.body()
+
+    /**
+     * 添加视频到稍后再看
+     */
+    suspend fun addToView(
+        avid: Long? = null,
+        bvid: String? = null,
+        csrf: String,
+        sessData: String = ""
+    ): Pair<Boolean, String> {
+        val response = client.post("/x/v2/history/toview/add") {
+            require(avid != null || bvid != null) { "avid and bvid cannot be null at the same time" }
+            setBody(
+                FormDataContent(
+                    Parameters.build {
+                        avid?.let { append("aid", "$it") }
+                        bvid?.let { append("bvid", it) }
+                        append("csrf", csrf)
+                    }
+                ))
+            header("Cookie", "SESSDATA=$sessData;")
+        }.body<BiliResponseWithoutData>()
+        return Pair(response.code == 0, response.message)
+    }
 
     /**
      * 获取与视频[avid]或[bvid]有关的相关推荐视频

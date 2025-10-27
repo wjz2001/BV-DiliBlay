@@ -11,6 +11,7 @@ data class UgcItem(
     val title: String,
     val cover: String,
     val author: String,
+    val authorMid: Long?,
     val play: Int,
     val danmaku: Int,
     val duration: Int,
@@ -24,6 +25,7 @@ data class UgcItem(
                 title = rcmdItem.title!!,
                 cover = rcmdItem.cover!!,
                 author = rcmdItem.args.upName ?: "",
+                authorMid = rcmdItem.args.upId,
                 play = with(rcmdItem.coverLeftText1) {
                     runCatching {
                         if (this!!.endsWith("万")) {
@@ -54,6 +56,7 @@ data class UgcItem(
                 title = rcmdItem.title,
                 cover = rcmdItem.pic,
                 author = rcmdItem.owner?.name ?: "",
+                authorMid = rcmdItem.owner?.mid,
                 play = rcmdItem.stat?.view ?: -1,
                 danmaku = rcmdItem.stat?.danmaku ?: -1,
                 duration = rcmdItem.duration,
@@ -66,6 +69,7 @@ data class UgcItem(
                 title = videoInfo.title,
                 duration = videoInfo.duration,
                 author = videoInfo.owner.name,
+                authorMid = videoInfo.owner.mid,
                 cover = videoInfo.pic,
                 play = videoInfo.stat.view,
                 danmaku = videoInfo.stat.danmaku,
@@ -78,6 +82,7 @@ data class UgcItem(
                 title = card.base.title,
                 duration = convertStringTimeToSeconds(card.coverRightText1),
                 author = card.rightDesc1,
+                authorMid = card.up.id,
                 cover = card.base.cover,
                 play = -1,
                 danmaku = -1,
@@ -90,6 +95,7 @@ data class UgcItem(
                 title = item.title,
                 duration = item.duration,
                 author = item.name,
+                authorMid = null,
                 cover = item.cover,
                 play = item.play ?: -1,
                 danmaku = item.danmaku ?: -1,
