@@ -93,7 +93,7 @@ fun UgcContent(
                         ugcViewModel.addUgcScaffoldState(
                             item, UgcScaffoldState(
                                 lazyGridState = rememberLazyGridState(),
-                                ugcType = item.ugcType
+                                ugcType = item.ugcTypeV2
                             )
                         )
                     }

@@ -17,6 +17,7 @@ import dev.aaa1115910.biliapi.http.entity.pgc.PgcFeedV3Data
 import dev.aaa1115910.biliapi.http.entity.pgc.PgcWebInitialStateData
 import dev.aaa1115910.biliapi.http.entity.region.RegionDynamic
 import dev.aaa1115910.biliapi.http.entity.region.RegionDynamicList
+import dev.aaa1115910.biliapi.http.entity.region.RegionFeedRcmd
 import dev.aaa1115910.biliapi.http.entity.region.RegionLocs
 import dev.aaa1115910.biliapi.http.entity.search.AppSearchSquareData
 import dev.aaa1115910.biliapi.http.entity.search.KeywordSuggest
@@ -1693,6 +1694,29 @@ object BiliHttpApi {
         sessData: String? = null
     ): RegionLocs = client.get("/x/web-show/res/locs") {
         parameter("ids", ids.joinToString(","))
+        sessData?.let { header("Cookie", "SESSDATA=$it;") }
+    }.body()
+
+    /**
+     * 获取 UGC 分区推荐视频
+     *
+     * @param displayId 页数
+     * @param requestCnt 每页数量
+     * @param fromRegion 分区id
+     */
+    suspend fun getRegionFeedRcmd(
+        displayId: Int,
+        requestCnt: Int = 15,
+        fromRegion: Int,
+        device: String = "web",
+        plat: Int = 30,
+        sessData: String? = null
+    ): BiliResponse<RegionFeedRcmd> = client.get("/x/web-interface/region/feed/rcmd") {
+        parameter("display_id", displayId)
+        parameter("request_cnt", requestCnt)
+        parameter("from_region", fromRegion)
+        parameter("device", device)
+        parameter("plat", plat)
         sessData?.let { header("Cookie", "SESSDATA=$it;") }
     }.body()
 }

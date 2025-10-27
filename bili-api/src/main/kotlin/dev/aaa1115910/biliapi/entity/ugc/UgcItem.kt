@@ -3,6 +3,7 @@ package dev.aaa1115910.biliapi.entity.ugc
 import dev.aaa1115910.biliapi.http.entity.home.RcmdIndexData
 import dev.aaa1115910.biliapi.http.entity.home.RcmdTopData
 import dev.aaa1115910.biliapi.http.util.smartDate
+import dev.aaa1115910.biliapi.http.util.toSmartDate
 import dev.aaa1115910.biliapi.util.convertStringTimeToSeconds
 
 data class UgcItem(
@@ -89,6 +90,7 @@ data class UgcItem(
                 idx = card.base.idx.toInt()
             )
 
+        @Deprecated("User region v2 instead")
         fun fromRegionDynamicListItem(item: dev.aaa1115910.biliapi.http.entity.region.RegionDynamicList.Item) =
             UgcItem(
                 aid = item.param.toLong(),
@@ -100,6 +102,19 @@ data class UgcItem(
                 play = item.play ?: -1,
                 danmaku = item.danmaku ?: -1,
                 pubTime = item.pubDate.smartDate
+            )
+
+        fun fromRegionRcmdArchive(archive: dev.aaa1115910.biliapi.http.entity.region.RegionFeedRcmd.Archive) =
+            UgcItem(
+                aid = archive.aid,
+                title = archive.title,
+                duration = archive.duration,
+                author = archive.author.name,
+                authorMid = archive.author.mid,
+                cover = archive.cover,
+                play = archive.stat.view,
+                danmaku = archive.stat.danmaku,
+                pubTime = archive.pubdate.toSmartDate()
             )
     }
 }
