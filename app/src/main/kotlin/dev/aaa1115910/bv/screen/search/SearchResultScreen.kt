@@ -319,7 +319,6 @@ private fun SearchResultListItem(
                     pubTime = searchResult.pubTime
                 ),
                 onClick = onClick,
-                onLongClick = onLongClick,
             )
         }
 

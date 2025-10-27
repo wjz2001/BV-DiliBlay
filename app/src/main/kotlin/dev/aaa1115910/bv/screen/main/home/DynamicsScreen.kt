@@ -21,12 +21,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.user.DynamicVideo
+import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+import dev.aaa1115910.bv.ui.common.UiEvent
+import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.home.DynamicViewModel
+import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -36,7 +40,8 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun DynamicsScreen(
     modifier: Modifier = Modifier,
-    dynamicViewModel: DynamicViewModel = koinViewModel()
+    dynamicViewModel: DynamicViewModel = koinViewModel(),
+    toViewViewModel: ToViewViewModel = koinViewModel()
 ) {
     val gridState = rememberLazyGridState()   // 直接用 LazyVerticalGrid
     val scope = rememberCoroutineScope()
@@ -48,6 +53,16 @@ fun DynamicsScreen(
             aid = dynamic.aid,
             proxyArea = ProxyArea.checkProxyArea(dynamic.title)
         )
+    }
+
+    LaunchedEffect(Unit) {
+        toViewViewModel.uiEvent.collect { event ->
+            when (event) {
+                is UiEvent.ShowToast -> {
+                    event.message.toast(context)
+                }
+            }
+        }
     }
 
     // 监听可见区最后一个 item 的 index，距离尾部 20 个就翻页
@@ -90,7 +105,16 @@ fun DynamicsScreen(
                             pubTime = item.pubTime
                         )
                     },
-                    onClick = { onClickVideo(item) }
+                    onClick = { onClickVideo(item) },
+                    onAddWatchLater = {
+                        toViewViewModel.addToView(item.aid)
+                    },
+                    onGoToDetailPage = {
+                        VideoInfoActivity.actionStart(context, item.aid)
+                    },
+                    onGoToUpPage = {
+                        UpInfoActivity.actionStart(context, item.authorMid, item.author)
+                    }
                 )
             }
 

@@ -26,7 +26,6 @@ class ToViewRepository(
                     // viewAt = cursor,
                     sessData = authRepository.sessionData!!,
                 ).getResponseData()
-                print(data)
                 ToViewData.fromToViewResponse(data)
             }
 
@@ -38,5 +37,18 @@ class ToViewRepository(
                 ToViewData.fromToViewResponse(data)
             }
         }
+    }
+
+    suspend fun addToView(
+        aid: Long,
+        bvid: String? = null,
+    ) {
+        val (success, message) = BiliHttpApi.addToView(
+            avid = aid,
+            bvid = bvid,
+            csrf = authRepository.biliJct ?: "",
+            sessData = authRepository.sessionData!!,
+        )
+        if (!success) throw Exception("添加到稍后再看失败：$message")
     }
 }

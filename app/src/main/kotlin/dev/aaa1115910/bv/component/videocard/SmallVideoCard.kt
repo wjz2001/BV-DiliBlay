@@ -1,5 +1,6 @@
 package dev.aaa1115910.bv.component.videocard
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -17,9 +18,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -31,6 +40,7 @@ import androidx.tv.material3.Border
 import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.Icon
+import androidx.tv.material3.IconButton
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
@@ -42,24 +52,37 @@ import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.resizedImageUrl
 
+
 @Composable
 fun SmallVideoCard(
     modifier: Modifier = Modifier,
     data: VideoCardData,
-    onClick: () -> Unit = {},
-    onLongClick: () -> Unit = {}
+    onClick: () -> Unit,
+    onAddWatchLater: (() -> Unit)? = null,
+    onGoToDetailPage : (() -> Unit)? = null,
+    onGoToUpPage : (() -> Unit)? = null,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-    ) {
-        // 1.6f 的封面比例，完全保留
+    var showActions by remember { mutableStateOf(false) }
+    // 解决长按卡片松开会导致一次按钮触发的问题
+    var releaseLongPress by remember { mutableStateOf(false) }
+    val firstButtonRequester = remember { FocusRequester() }
+
+    // 判断是否有任何操作按钮
+    val hasAnyAction = onAddWatchLater != null || onGoToDetailPage != null || onGoToUpPage != null
+
+    Column(modifier = modifier.fillMaxWidth()) {
         Card(
-            onClick = onClick,
-            onLongClick = onLongClick,
+            onClick = { if (!showActions) onClick() },
+            onLongClick = {
+                if (hasAnyAction) showActions = true
+
+            },
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(1.6f),
+                .aspectRatio(1.6f)
+                .onFocusChanged { focusState ->
+                    if (!focusState.hasFocus) showActions = false
+                },
             shape = CardDefaults.shape(MaterialTheme.shapes.large),
             border = CardDefaults.border(
                 focusedBorder = Border(
@@ -68,17 +91,70 @@ fun SmallVideoCard(
                 )
             )
         ) {
-            CardCover(
-                cover = data.cover,
-                play = data.playString,
-                danmaku = data.danmakuString,
-                time = data.timeString
-            )
+            if (showActions) {
+                BackHandler { showActions = false }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    onAddWatchLater?.let {
+                        IconButton(
+                            onClick = {
+                                if (!releaseLongPress) {
+                                    releaseLongPress = true
+                                    return@IconButton
+                                }
+                                it()
+                            },
+                            modifier = Modifier.focusRequester(firstButtonRequester)
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.add_to_list),
+                                contentDescription = "Add to watch later"
+                            )
+                        }
+                    }
+
+                    onGoToDetailPage?.let {
+                        IconButton(onClick = { it() }) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.info_24px),
+                                contentDescription = "Video Detail"
+                            )
+                        }
+                    }
+
+                    onGoToUpPage?.let {
+                        IconButton(onClick = { it() }) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.contact_page_24px),
+                                contentDescription = "Up Page"
+                            )
+                        }
+                    }
+                }
+
+                LaunchedEffect(showActions) {
+                    if (showActions && hasAnyAction) {
+                        firstButtonRequester.requestFocus()
+                    }
+                }
+            } else {
+                CardCover(
+                    cover = data.cover,
+                    play = data.playString,
+                    danmaku = data.danmakuString,
+                    time = data.timeString
+                )
+            }
         }
 
         CardInfo(
-            modifier = Modifier
-                .fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth(),
             title = data.title,
             upName = data.upName,
             pubTime = data.pubTime
@@ -231,6 +307,7 @@ fun SmallVideoCardWithoutFocusPreview() {
         ) {
             SmallVideoCard(
                 modifier = Modifier.padding(20.dp),
+                onClick =  {},
                 data = data,
             )
         }
@@ -256,6 +333,7 @@ fun SmallVideoCardWithFocusPreview() {
         ) {
             SmallVideoCard(
                 modifier = Modifier.padding(20.dp),
+                onClick = {},
                 data = data,
             )
         }
@@ -286,6 +364,7 @@ fun SmallVideoCardsPreview() {
             repeat(20) {
                 item {
                     SmallVideoCard(
+                        onClick = {},
                         data = data
                     )
                 }
