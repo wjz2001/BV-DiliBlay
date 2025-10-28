@@ -178,3 +178,18 @@ enum class PersonalTopNavItem : TopNavItem {
         }
     }
 }
+
+enum class SearchTypeTopNavItem: TopNavItem {
+    Video,
+    MediaBangumi,
+    MediaFt,
+    BiliUser;
+    override fun getDisplayName(context: Context): String {
+        return when (this) {
+            Video -> "视频"
+            MediaBangumi -> "番剧"
+            MediaFt -> "影视"
+            BiliUser -> "用户"
+        }
+    }
+}
