@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -32,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -54,6 +56,9 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.component.PersonalTopNavItem
+import dev.aaa1115910.bv.component.SearchTypeTopNavItem
+import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.videocard.SeasonCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
@@ -96,6 +101,7 @@ fun SearchResultScreen(
     }
 
     var showFilter by remember { mutableStateOf(false) }
+    var focusOnContent by remember { mutableStateOf(false) }
 
     val selectedOrder = searchResultViewModel.selectedOrder
     val selectedDuration = searchResultViewModel.selectedDuration
@@ -218,47 +224,64 @@ fun SearchResultScreen(
         Column(
             modifier = Modifier.padding(innerPadding)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                TabRow(
-                    selectedTabIndex = searchResultViewModel.searchType.ordinal,
-                    separator = { Spacer(modifier = Modifier.width(12.dp)) },
-                ) {
-                    SearchType.entries.forEach { type ->
-                        val isSelected = type == searchResultViewModel.searchType
-                        val tabModifier =
-                            if (isSelected) Modifier.focusRequester(tabRowFocusRequester) else Modifier
-                        Tab(
-                            modifier = tabModifier,
-                            selected = isSelected,
-                            onFocus = { searchResultViewModel.searchType = type },
-                        ) {
-                            Text(
-                                text = type.getDisplayName(context),
-                                fontSize = 12.sp,
-                                color = LocalContentColor.current,
-                                modifier = Modifier.padding(
-                                    horizontal = 16.dp,
-                                    vertical = 6.dp
-                                )
-                            )
-                        }
-                    }
-                }
-            }
+            TopNav(
+                modifier = Modifier
+                    .padding(end = 80.dp)
+                    .focusRequester(tabRowFocusRequester),
+                items = SearchTypeTopNavItem.entries,
+                isLargePadding = !focusOnContent,
+                onSelectedChanged = { nav ->
+                    when (nav) {
+                        SearchTypeTopNavItem.Video -> searchResultViewModel.searchType =
+                            SearchType.Video
 
-            LazyVerticalGrid(
-                modifier = Modifier.onPreviewKeyEvent {
-                    when (it.key) {
-                        Key.Back -> {
-                            if (it.type == KeyEventType.KeyUp) backToTabRow()
-                            return@onPreviewKeyEvent true
-                        }
+                        SearchTypeTopNavItem.MediaBangumi -> searchResultViewModel.searchType =
+                            SearchType.MediaBangumi
+
+                        SearchTypeTopNavItem.MediaFt -> searchResultViewModel.searchType =
+                            SearchType.MediaFt
+
+                        SearchTypeTopNavItem.BiliUser -> searchResultViewModel.searchType =
+                            SearchType.BiliUser
                     }
-                    false
                 },
+                onClick = { }
+            )
+//            {
+//                SearchType.entries.forEach { type ->
+//                    val isSelected = type == searchResultViewModel.searchType
+//                    val tabModifier =
+//                        if (isSelected) Modifier.focusRequester(tabRowFocusRequester) else Modifier
+//                    Tab(
+//                        modifier = tabModifier,
+//                        selected = isSelected,
+//                        onFocus = { searchResultViewModel.searchType = type },
+//                    ) {
+//                        Text(
+//                            text = type.getDisplayName(context),
+//                            fontSize = 12.sp,
+//                            color = LocalContentColor.current,
+//                            modifier = Modifier.padding(
+//                                horizontal = 16.dp,
+//                                vertical = 6.dp
+//                            )
+//                        )
+//                    }
+//                }
+//            }
+            Spacer(modifier = Modifier.height(6.dp))
+            LazyVerticalGrid(
+                modifier = Modifier
+                    .onFocusChanged { focusOnContent = it.hasFocus }
+                    .onPreviewKeyEvent {
+                        when (it.key) {
+                            Key.Back -> {
+                                if (it.type == KeyEventType.KeyUp) backToTabRow()
+                                return@onPreviewKeyEvent true
+                            }
+                        }
+                        false
+                    },
                 state = gridState,
                 columns = GridCells.Fixed(rowSize),
                 contentPadding = PaddingValues(24.dp),
