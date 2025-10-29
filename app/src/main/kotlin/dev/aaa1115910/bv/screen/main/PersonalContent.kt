@@ -99,8 +99,7 @@ fun PersonalContent(
         topBar = {
             TopNav(
                 modifier = Modifier
-                    .focusRequester(navFocusRequester)
-                    .padding(end = 80.dp),
+                    .focusRequester(navFocusRequester),
                 items = PersonalTopNavItem.entries,
                 isLargePadding = !focusOnContent,
                 onSelectedChanged = { nav ->

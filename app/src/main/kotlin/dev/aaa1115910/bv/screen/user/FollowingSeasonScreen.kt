@@ -1,11 +1,9 @@
 package dev.aaa1115910.bv.screen.user
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -13,10 +11,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
-import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -28,7 +24,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.season.FollowingSeasonStatus
@@ -40,7 +35,6 @@ import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.fInfo
-import dev.aaa1115910.bv.util.getDisplayName
 import dev.aaa1115910.bv.util.resizedImageUrl
 import dev.aaa1115910.bv.viewmodel.user.FollowingSeasonViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -100,47 +94,48 @@ fun FollowingSeasonScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            itemsIndexed(items = followingSeasons) { index, followingSeason ->
-                SeasonCard(
-                    data = SeasonCardData(
-                        seasonId = followingSeason.seasonId,
-                        title = followingSeason.title,
-                        cover = followingSeason.cover.resizedImageUrl(ImageSize.SeasonCoverThumbnail),
-                        rating = null
-                    ),
-                    onFocus = {
-                        currentIndex = index
-                        if (index + 30 > followingSeasons.size) {
-                            println("load more by focus")
-                            followingSeasonViewModel.loadMore()
-                        }
-                    },
-                    onClick = {
-                        SeasonInfoActivity.actionStart(
-                            context = context,
+            if (followingSeasons.isNotEmpty()) {
+                itemsIndexed(items = followingSeasons) { index, followingSeason ->
+                    SeasonCard(
+                        data = SeasonCardData(
                             seasonId = followingSeason.seasonId,
-                            proxyArea = ProxyArea.checkProxyArea(followingSeason.title)
-                        )
-                    },
-                    onLongClick = onLongClickSeason
-                )
+                            title = followingSeason.title,
+                            cover = followingSeason.cover.resizedImageUrl(ImageSize.SeasonCoverThumbnail),
+                            rating = null
+                        ),
+                        onFocus = {
+                            currentIndex = index
+                            if (index + 30 > followingSeasons.size) {
+                                println("load more by focus")
+                                followingSeasonViewModel.loadMore()
+                            }
+                        },
+                        onClick = {
+                            SeasonInfoActivity.actionStart(
+                                context = context,
+                                seasonId = followingSeason.seasonId,
+                                proxyArea = ProxyArea.checkProxyArea(followingSeason.title)
+                            )
+                        },
+                        onLongClick = onLongClickSeason
+                    )
+                }
+            } else {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    EmptyTip()
+                }
             }
+
             if (followingSeasons.isEmpty() && noMore) {
-                item(
-                    span = { GridItemSpan(6) }
-                ) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(text = stringResource(R.string.no_data))
-                            OutlinedButton(onClick = { showFilter = true }) {
-                                Text(text = stringResource(R.string.filter_dialog_open_tip_click))
-                            }
+                        OutlinedButton(onClick = { showFilter = true }) {
+                            Text(text = stringResource(R.string.filter_dialog_open_tip_click))
                         }
                     }
                 }

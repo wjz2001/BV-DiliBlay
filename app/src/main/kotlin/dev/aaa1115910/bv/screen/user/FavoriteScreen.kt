@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -90,7 +91,7 @@ fun FavoriteScreen(
         modifier = modifier.fillMaxSize(),
         horizontalAlignment = Alignment.Start
 
-    ){
+    ) {
         TabRow(
             modifier = Modifier
                 .fillMaxWidth()
@@ -137,14 +138,20 @@ fun FavoriteScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            itemsIndexed(favoriteViewModel.favorites) { index, history ->
-                Box(
-                    contentAlignment = Alignment.Center
-                ) {
-                    SmallVideoCard(
-                        data = history,
-                        onClick = { VideoInfoActivity.actionStart(context, history.avid) },
-                    )
+            if (favoriteViewModel.favorites.isNotEmpty()) {
+                itemsIndexed(favoriteViewModel.favorites) { index, history ->
+                    Box(
+                        contentAlignment = Alignment.Center
+                    ) {
+                        SmallVideoCard(
+                            data = history,
+                            onClick = { VideoInfoActivity.actionStart(context, history.avid) },
+                        )
+                    }
+                }
+            } else {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    EmptyTip()
                 }
             }
         }
