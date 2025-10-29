@@ -98,8 +98,7 @@ fun HomeContent(
         topBar = {
             TopNav(
                 modifier = Modifier
-                    .focusRequester(navFocusRequester)
-                    .padding(end = 80.dp),
+                    .focusRequester(navFocusRequester),
                 items = reorderedItems,
                 isLargePadding = !focusOnContent,
                 onSelectedChanged = { nav ->

@@ -325,7 +325,7 @@ data class SearchTypeResult(
                     aid = video.aid,
                     bvid = video.bvid,
                     title = video.title,
-                    cover = "http:${video.pic}",
+                    cover = "https:${video.pic}",
                     author = video.author,
                     duration = convertStringTimeToSeconds(video.duration),
                     play = video.play,
@@ -338,7 +338,7 @@ data class SearchTypeResult(
                     aid = video.param.toLong(),
                     bvid = video.av.share.video.bvid,
                     title = video.av.title,
-                    cover = video.av.cover.replaceFirst("https://", "http://"),
+                    cover = video.av.cover,
                     author = video.av.author,
                     duration = convertStringTimeToSeconds(video.av.duration),
                     play = video.av.play,
@@ -383,7 +383,7 @@ data class SearchTypeResult(
                 User(
                     mid = user.mid,
                     name = user.uname,
-                    avatar = "http:${user.upic}",
+                    avatar = "https:${user.upic}",
                     sign = user.usign
                 )
 

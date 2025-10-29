@@ -1,6 +1,9 @@
 package dev.aaa1115910.bv.viewmodel.home
 
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import dev.aaa1115910.biliapi.entity.user.DynamicVideo
 import dev.aaa1115910.biliapi.http.entity.AuthFailureException
@@ -28,8 +31,12 @@ class DynamicViewModel(
     val dynamicList = mutableStateListOf<DynamicVideo>()
 
     private var currentPage = 0
-    var loading = false
-    var hasMore = true
+    var loading by mutableStateOf(false)
+        private set
+
+    var hasMore by mutableStateOf(true)
+        private set
+
     private var historyOffset: String? = null
     private var updateBaseline: String? = null
     val isLogin get() = bvUserRepository.isLogin
@@ -40,46 +47,52 @@ class DynamicViewModel(
 
     private suspend fun loadData() {
         if (!hasMore || !bvUserRepository.isLogin) return
+        if (loading) return
+
         loading = true
-        logger.fInfo { "Load more dynamic videos [apiType=${Prefs.apiType}, offset=$historyOffset, page=${currentPage + 1}]" }
-        runCatching {
-            val dynamicVideoData = userRepository.getDynamicVideos(
-                page = ++currentPage,
-                offset = historyOffset ?: "",
-                updateBaseline = updateBaseline ?: "",
+        val nextPage = currentPage + 1
+
+        try {
+            logger.fInfo { "Load dynamic page: $nextPage, offset=$historyOffset" }
+
+            val data = userRepository.getDynamicVideos(
+                page = nextPage,
+                offset = historyOffset.orEmpty(),
+                updateBaseline = updateBaseline.orEmpty(),
                 preferApiType = Prefs.apiType
             )
-            dynamicList.addAllWithMainContext(dynamicVideoData.videos)
-            historyOffset = dynamicVideoData.historyOffset
-            updateBaseline = dynamicVideoData.updateBaseline
-            hasMore = dynamicVideoData.hasMore
 
-            logger.fInfo { "Load dynamic list page: ${currentPage},size: ${dynamicVideoData.videos.size}" }
-            val avList = dynamicVideoData.videos.map {
-                it.aid
-            }
-            logger.fInfo { "Load dynamic size: ${avList.size}" }
-            logger.info { "Load dynamic list ${avList}}" }
-        }.onFailure {
-            logger.fWarn { "Load dynamic list failed: ${it.stackTraceToString()}" }
-            when (it) {
+            currentPage = nextPage
+            dynamicList.addAllWithMainContext(data.videos)
+
+            historyOffset = data.historyOffset
+            updateBaseline = data.updateBaseline
+            hasMore = data.hasMore
+
+            logger.fInfo { "Loaded page=$currentPage size=${data.videos.size}" }
+
+        } catch (e: Exception) {
+            logger.fWarn { "Load dynamic failed: ${e.stackTraceToString()}" }
+
+            when (e) {
                 is AuthFailureException -> {
                     withContext(Dispatchers.Main) {
                         BVApp.context.getString(R.string.exception_auth_failure)
                             .toast(BVApp.context)
                     }
-                    logger.fInfo { "User auth failure" }
                     if (!BuildConfig.DEBUG) bvUserRepository.logout()
                 }
 
                 else -> {
                     withContext(Dispatchers.Main) {
-                        "加载动态失败: ${it.localizedMessage}".toast(BVApp.context)
+                        "加载动态失败: ${e.localizedMessage}".toast(BVApp.context)
                     }
                 }
             }
+
+        } finally {
+            loading = false
         }
-        loading = false
     }
 
     fun clearData() {

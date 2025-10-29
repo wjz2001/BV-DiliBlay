@@ -1,6 +1,5 @@
 package dev.aaa1115910.bv.screen.user
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,7 +18,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -110,25 +108,31 @@ fun FollowScreen(
             horizontalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             if (!followViewModel.updating) {
-                itemsIndexed(items = followViewModel.followedUsers) { index, up ->
-                    val upCardModifier =
-                        if (index == 0) Modifier.focusRequester(defaultFocusRequester) else Modifier
-                    UpCard(
-                        modifier = upCardModifier,
-                        face = up.avatar,
-                        sign = up.sign,
-                        username = up.name,
-                        onFocusChange = {
-                            if (it) currentIndex = index
-                        },
-                        onClick = {
-                            UpInfoActivity.actionStart(
-                                context = context,
-                                mid = up.mid,
-                                name = up.name
-                            )
-                        }
-                    )
+                if (followViewModel.followedUsers.isNotEmpty()) {
+                    itemsIndexed(items = followViewModel.followedUsers) { index, up ->
+                        val upCardModifier =
+                            if (index == 0) Modifier.focusRequester(defaultFocusRequester) else Modifier
+                        UpCard(
+                            modifier = upCardModifier,
+                            face = up.avatar,
+                            sign = up.sign,
+                            username = up.name,
+                            onFocusChange = {
+                                if (it) currentIndex = index
+                            },
+                            onClick = {
+                                UpInfoActivity.actionStart(
+                                    context = context,
+                                    mid = up.mid,
+                                    name = up.name
+                                )
+                            }
+                        )
+                    }
+                } else {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        EmptyTip()
+                    }
                 }
             } else {
                 item(

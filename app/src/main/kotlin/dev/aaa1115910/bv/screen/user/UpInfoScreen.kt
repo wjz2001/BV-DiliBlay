@@ -2,7 +2,6 @@ package dev.aaa1115910.bv.screen.user
 
 import android.app.Activity
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,17 +9,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -115,23 +110,29 @@ fun UpSpaceScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            itemsIndexed(
-                items = upInfoViewModel.spaceVideos,
-                key = { index, _ -> index }
-            ) { _, video ->
-                Box(
-                    contentAlignment = Alignment.Center
-                ) {
-                    SmallVideoCard(
-                        data = video,
-                        onClick = {
-                            VideoInfoActivity.actionStart(
-                                context = context,
-                                aid = video.avid,
-                                proxyArea = ProxyArea.checkProxyArea(video.title)
-                            )
-                        },
-                    )
+            if (upInfoViewModel.spaceVideos.isNotEmpty()) {
+                itemsIndexed(
+                    items = upInfoViewModel.spaceVideos,
+                    key = { index, _ -> index }
+                ) { _, video ->
+                    Box(
+                        contentAlignment = Alignment.Center
+                    ) {
+                        SmallVideoCard(
+                            data = video,
+                            onClick = {
+                                VideoInfoActivity.actionStart(
+                                    context = context,
+                                    aid = video.avid,
+                                    proxyArea = ProxyArea.checkProxyArea(video.title)
+                                )
+                            },
+                        )
+                    }
+                }
+            } else {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    EmptyTip()
                 }
             }
         }

@@ -2,8 +2,6 @@ package dev.aaa1115910.bv.screen.search
 
 import android.app.Activity
 import android.content.Context
-import android.util.Log
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,7 +11,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -21,7 +18,6 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -45,9 +41,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.LocalContentColor
-import androidx.tv.material3.Tab
-import androidx.tv.material3.TabRow
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.repositories.SearchType
@@ -56,7 +49,6 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
-import dev.aaa1115910.bv.component.PersonalTopNavItem
 import dev.aaa1115910.bv.component.SearchTypeTopNavItem
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.videocard.SeasonCard
@@ -72,10 +64,8 @@ import dev.aaa1115910.bv.util.removeHtmlTags
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.viewmodel.search.SearchResultViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -247,29 +237,9 @@ fun SearchResultScreen(
                 },
                 onClick = { }
             )
-//            {
-//                SearchType.entries.forEach { type ->
-//                    val isSelected = type == searchResultViewModel.searchType
-//                    val tabModifier =
-//                        if (isSelected) Modifier.focusRequester(tabRowFocusRequester) else Modifier
-//                    Tab(
-//                        modifier = tabModifier,
-//                        selected = isSelected,
-//                        onFocus = { searchResultViewModel.searchType = type },
-//                    ) {
-//                        Text(
-//                            text = type.getDisplayName(context),
-//                            fontSize = 12.sp,
-//                            color = LocalContentColor.current,
-//                            modifier = Modifier.padding(
-//                                horizontal = 16.dp,
-//                                vertical = 6.dp
-//                            )
-//                        )
-//                    }
-//                }
-//            }
+
             Spacer(modifier = Modifier.height(6.dp))
+
             LazyVerticalGrid(
                 modifier = Modifier
                     .onFocusChanged { focusOnContent = it.hasFocus }
