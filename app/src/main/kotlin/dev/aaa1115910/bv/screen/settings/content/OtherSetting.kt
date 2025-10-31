@@ -43,7 +43,6 @@ fun OtherSetting(
     var showPreferedApiDialog by remember { mutableStateOf(false) }
 
     var showFps by remember { mutableStateOf(Prefs.showFps) }
-    var enableFfmpegAudioRenderer by remember { mutableStateOf(Prefs.enableFfmpegAudioRenderer) }
     var selectedApi by remember { mutableStateOf(Prefs.apiType) }
 
     Column(
@@ -110,16 +109,6 @@ fun OtherSetting(
             )
 
         }
-
-        SettingSwitchListItem(
-            title = stringResource(R.string.settings_other_ffmpeg_audio_renderer_title),
-            supportText = stringResource(R.string.settings_other_ffmpeg_audio_renderer_text),
-            checked = enableFfmpegAudioRenderer,
-            onCheckedChange = {
-                enableFfmpegAudioRenderer = it
-                Prefs.enableFfmpegAudioRenderer = it
-            }
-        )
     }
     CookiesDialog(
         show = showCookiesDialog,

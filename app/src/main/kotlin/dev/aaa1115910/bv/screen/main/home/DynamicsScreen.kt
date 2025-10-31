@@ -112,7 +112,11 @@ fun DynamicsScreen(
                         toViewViewModel.addToView(item.aid)
                     },
                     onGoToDetailPage = {
-                        VideoInfoActivity.actionStart(context, item.aid)
+                        VideoInfoActivity.actionStart(
+                            context = context,
+                            fromController = true,
+                            aid = item.aid
+                        )
                     },
                     onGoToUpPage = {
                         UpInfoActivity.actionStart(context, item.authorMid, item.author)
