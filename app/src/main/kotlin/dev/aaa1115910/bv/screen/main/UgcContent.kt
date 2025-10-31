@@ -25,6 +25,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.UgcTopNavItem
 import dev.aaa1115910.bv.screen.main.ugc.UgcRegionScaffold
@@ -44,7 +45,7 @@ fun UgcContent(
     Scaffold(
         topBar = {
             TopNav(
-                modifier = Modifier
+                modifier = Modifier.padding(horizontal = 10.dp)
                     .focusRequester(navFocusRequester),
                 items = ugcTopNavItems,
                 isLargePadding = !focusOnContent,

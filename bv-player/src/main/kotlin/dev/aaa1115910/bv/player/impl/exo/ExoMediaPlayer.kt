@@ -11,6 +11,8 @@ import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.Renderer
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
@@ -47,6 +49,25 @@ class ExoMediaPlayer(
                     false -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
                 }
             )
+            if (options.enableSoftwareVideoDecoder) {
+                // 强制软件解码
+                setMediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
+                    val allDecoders = MediaCodecUtil.getDecoderInfos(
+                        mimeType,
+                        requiresSecureDecoder,
+                        requiresTunnelingDecoder
+                    )
+                    val softwareDecoders = allDecoders.filter {
+                        it.name.startsWith("OMX.google.") || it.name.startsWith("c2.android.")
+                    }
+                    // 兜底回退
+                    softwareDecoders.ifEmpty { allDecoders }
+                }
+
+            } else {
+                // 默认硬件解码
+                setMediaCodecSelector(MediaCodecSelector.DEFAULT)
+            }
         }
         mPlayer = ExoPlayer
             .Builder(context)

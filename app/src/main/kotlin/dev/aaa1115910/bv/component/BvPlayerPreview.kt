@@ -20,7 +20,9 @@ private const val audioUrl = ""
 
 private val options = VideoPlayerOptions(
     userAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36",
-    referer = "https://www.bilibili.com"
+    referer = "https://www.bilibili.com",
+    enableFfmpegAudioRenderer = false,
+    enableSoftwareVideoDecoder = false
 )
 
 private val videoPlayerListener = object : VideoPlayerListener {

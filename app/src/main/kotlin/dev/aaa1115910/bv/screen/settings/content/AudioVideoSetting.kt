@@ -17,11 +17,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.controllers2.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.component.settings.SettingListItem
+import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoCodec
@@ -46,6 +49,9 @@ fun AudioVideoSetting(
     var selectedAudioCodec by remember { mutableStateOf(Prefs.defaultAudio) }
     var selectedPlaySpeed by remember { mutableStateOf(Prefs.defaultPlaySpeed) }
     var selectedActionAfterPlay by remember { mutableStateOf(Prefs.actionAfterPlay) }
+
+    var enableFfmpegAudioRenderer by remember { mutableStateOf(Prefs.enableFfmpegAudioRenderer) }
+    var enableSoftwareVideoRenderer by remember { mutableStateOf(Prefs.enableSoftwareVideoDecoder) }
 
     Column(
         modifier = modifier
@@ -84,6 +90,24 @@ fun AudioVideoSetting(
             title = "播放结束动作",
             supportText = "当前：${selectedActionAfterPlay.getDisplayName(context)}",
             onClick = { showActionAfterPlayDialog = true }
+        )
+        SettingSwitchListItem(
+            title = stringResource(R.string.settings_media_software_video_renderer_title),
+            supportText = stringResource(R.string.settings_media_software_video_renderer_text),
+            checked = enableSoftwareVideoRenderer,
+            onCheckedChange = {
+                enableSoftwareVideoRenderer = it
+                Prefs.enableSoftwareVideoDecoder = it
+            }
+        )
+        SettingSwitchListItem(
+            title = stringResource(R.string.settings_media_ffmpeg_audio_renderer_title),
+            supportText = stringResource(R.string.settings_media_ffmpeg_audio_renderer_text),
+            checked = enableFfmpegAudioRenderer,
+            onCheckedChange = {
+                enableFfmpegAudioRenderer = it
+                Prefs.enableFfmpegAudioRenderer = it
+            }
         )
     }
     // 弹窗复用组件

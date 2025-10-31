@@ -15,7 +15,6 @@ import de.schnettler.datastore.manager.PreferenceRequest
 import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.http.util.generateBuvid
 import dev.aaa1115910.bv.BVApp
-import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.component.controllers2.DanmakuType
 import dev.aaa1115910.bv.component.controllers2.playermenu.PlaySpeedItem
@@ -300,6 +299,17 @@ object Prefs {
             )
         }
 
+    var enableSoftwareVideoDecoder: Boolean
+        get() = runBlocking {
+            dsm.getPreferenceFlow(PrefKeys.prefEnableSoftwareVideoDecoderRequest).first()
+        }
+        set(value) = runBlocking {
+            dsm.editPreference(
+                PrefKeys.prefEnableSoftwareVideoDecoder,
+                value
+            )
+        }
+
     var actionAfterPlay: ActionAfterPlayItems
         get() = runBlocking {
             ActionAfterPlayItems.fromCode(dsm.getPreferenceFlow(PrefKeys.prefActionAfterPlay).first())
@@ -355,6 +365,7 @@ private object PrefKeys {
     val prefPreferOfficialCdn = booleanPreferencesKey("prefer_official_cdn")
     val prefDefaultDanmakuMask = booleanPreferencesKey("prefer_enable_webmark")
     val prefEnableFfmpegAudioRenderer = booleanPreferencesKey("enable_ffmpeg_audio_renderer")
+    val prefEnableSoftwareVideoDecoder = booleanPreferencesKey("enable_software_video_decoder")
     val prefActionAfterPlayKey = intPreferencesKey("action_after_play")
 
     val prefIsLoginRequest = PreferenceRequest(prefIsLoginKey, false)
@@ -406,5 +417,6 @@ private object PrefKeys {
     val prefPreferOfficialCdnRequest = PreferenceRequest(prefPreferOfficialCdn, false)
     val prefDefaultDanmakuMaskRequest = PreferenceRequest(prefDefaultDanmakuMask, false)
     val prefEnableFfmpegEndererRequest = PreferenceRequest(prefEnableFfmpegAudioRenderer, false)
+    val prefEnableSoftwareVideoDecoderRequest = PreferenceRequest(prefEnableSoftwareVideoDecoder, false)
     val prefActionAfterPlay = PreferenceRequest(prefActionAfterPlayKey, ActionAfterPlayItems.PlayNext.code)
 }
