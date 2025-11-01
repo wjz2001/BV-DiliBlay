@@ -981,7 +981,8 @@ fun VideoDescription(
     var hasFocus by remember { mutableStateOf(false) }
     val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
     val titleFontSize by animateFloatAsState(
-        targetValue = if (hasFocus) 30f else 14f,
+        //targetValue = if (hasFocus) 30f else 14f,
+        targetValue = 14f,
         label = "title font size"
     )
     var showDescriptionDialog by remember { mutableStateOf(false) }
@@ -1128,7 +1129,8 @@ fun VideoPartRow(
     var showPartListDialog by remember { mutableStateOf(false) }
     val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
     val titleFontSize by animateFloatAsState(
-        targetValue = if (hasFocus) 30f else 14f,
+        //targetValue = if (hasFocus) 30f else 14f,
+        targetValue = 14f,
         label = "title font size"
     )
 
@@ -1218,7 +1220,8 @@ fun VideoUgcSeasonRow(
     var showUgcListDialog by remember { mutableStateOf(false) }
     val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
     val titleFontSize by animateFloatAsState(
-        targetValue = if (hasFocus) 30f else 14f,
+        // targetValue = if (hasFocus) 30f else 14f,
+        targetValue = 14f,
         label = "title font size"
     )
 
