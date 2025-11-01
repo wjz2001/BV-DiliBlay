@@ -332,10 +332,10 @@ fun ControllerVideoInfoBottom(
         }
 
         val icons = listOfNotNull(
-            (R.drawable.play_pause_24px to "播放/暂停") to onPlayPause,
+            // (R.drawable.play_pause_24px to "播放/暂停") to onPlayPause,
             ((if (danmakuEnabled) (R.drawable.danmaku_on_24px) else (R.drawable.danmaku_off_24px)) to "弹幕开关") to onDanmakuSwitchChange,
-            (R.drawable.settings_24px to "打开设置") to onShowSettings,
-            if (!fromSeason) (R.drawable.info_24px to "视频信息") to onGoToVideoInfo else null,
+            // (R.drawable.settings_24px to "打开设置") to onShowSettings,
+            // if (!fromSeason) (R.drawable.info_24px to "视频信息") to onGoToVideoInfo else null,
             if (!fromSeason) (R.drawable.contact_page_24px to "up主页") to onGoToUpPage else null,
             ((if (isLooping) (R.drawable.repeat_one_on_24px) else (R.drawable.repeat_one_24px)) to "循环播放") to onToggleLoop,
         )
