@@ -75,7 +75,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
+            // signingConfig = signingConfigs.getByName("release")
+            if (signingProp.exists()) signingConfig = signingConfigs.getByName("release")
             configure<CrashlyticsExtension> {
                 mappingFileUploadEnabled = AppConfiguration.googleServicesAvailable
             }
@@ -87,7 +88,8 @@ android {
                 "proguard-rules.pro"
             )
             applicationIdSuffix = ".debug"
-            signingConfig = signingConfigs.getByName("debug")
+            // signingConfig = signingConfigs.getByName("debug")
+            if (signingProp.exists()) signingConfig = signingConfigs.getByName("debug")
             configure<CrashlyticsExtension> {
                 mappingFileUploadEnabled = false
             }
@@ -131,7 +133,8 @@ android {
             excludes += "**/*.proto"
         }
 
-        if (gradle.startParameter.taskNames.find { it.startsWith("assembleLite") } != null) {
+        // if (gradle.startParameter.taskNames.find { it.startsWith("assembleLite") } != null) {
+        if (gradle.startParameter.taskNames.any { it.startsWith("assembleLite") }) {
             jniLibs {
                 val vlcLibs = listOf("libvlc", "libc++_shared", "libvlcjni")
                 val abis = listOf("x86_64", "x86", "arm64-v8a", "armeabi-v7a")
