@@ -826,7 +826,8 @@ fun VideoInfoData(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    text = videoDetail.title,
+                    //text = videoDetail.title,
+                    text = if (videoDetail.isUpowerExclusive) "充电▶ ${videoDetail.title}" else videoDetail.title,
                     style = MaterialTheme.typography.titleLarge,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
