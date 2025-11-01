@@ -84,11 +84,38 @@ fun PlaySpeedMenuList(
 }
 
 enum class PlaySpeedItem(val code: Int, private val strRes: Int, val speed: Float) {
-    x0_5(0, R.string.play_speed_x0_5, 0.5f),
-    x1(1, R.string.play_speed_x1, 1f),
-    x1_25(2, R.string.play_speed_x1_25, 1.25f),
-    x1_5(3, R.string.play_speed_x1_5, 1.5f),
-    x2(4, R.string.play_speed_x2, 2f);
+    x0_25(0, R.string.play_speed_x0_25, 0.25f),
+    x0_5(1, R.string.play_speed_x0_5, 0.5f),
+    x0_75(2, R.string.play_speed_x0_75, 0.75f),
+    x1(3, R.string.play_speed_x1, 1.0f),
+    x1_25(4, R.string.play_speed_x1_25, 1.25f),
+    x1_5(5, R.string.play_speed_x1_5, 1.5f),
+    x1_75(6, R.string.play_speed_x1_75, 1.75f),
+    x2(7, R.string.play_speed_x2, 2.0f),
+    x2_25(8, R.string.play_speed_x2_25, 2.25f),
+    x2_5(9, R.string.play_speed_x2_5, 2.5f),
+    x2_75(10, R.string.play_speed_x2_75, 2.75f),
+    x3(11, R.string.play_speed_x3, 3.0f),
+    x3_25(12, R.string.play_speed_x3_25, 3.25f),
+    x3_5(13, R.string.play_speed_x3_5, 3.5f),
+    x3_75(14, R.string.play_speed_x3_75, 3.75f),
+    x4(15, R.string.play_speed_x4, 4.0f),
+    x4_25(16, R.string.play_speed_x4_25, 4.25f),
+    x4_5(17, R.string.play_speed_x4_5, 4.5f),
+    x4_75(18, R.string.play_speed_x4_75, 4.75f),
+    x5(19, R.string.play_speed_x5, 5.0f),
+    x5_25(20, R.string.play_speed_x5_25, 5.25f),
+    x5_5(21, R.string.play_speed_x5_5, 5.5f),
+    x5_75(22, R.string.play_speed_x5_75, 5.75f),
+    x6(23, R.string.play_speed_x6, 6.0f),
+    x6_25(24, R.string.play_speed_x6_25, 6.25f),
+    x6_5(25, R.string.play_speed_x6_5, 6.5f),
+    x6_75(26, R.string.play_speed_x6_75, 6.75f),
+    x7(27, R.string.play_speed_x7, 7.0f),
+    x7_25(28, R.string.play_speed_x7_25, 7.25f),
+    x7_5(29, R.string.play_speed_x7_5, 7.5f),
+    x7_75(30, R.string.play_speed_x7_75, 7.75f),
+    x8(31, R.string.play_speed_x8, 8.0f);
 
     companion object {
         fun fromCode(code: Int): PlaySpeedItem {
