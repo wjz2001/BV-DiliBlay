@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
@@ -26,7 +27,10 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.controllers.LocalVideoPlayerControllerData
 import dev.aaa1115910.bv.component.controllers2.MenuFocusState
 import dev.aaa1115910.bv.component.controllers2.playermenu.component.MenuListItem
+import dev.aaa1115910.bv.component.controllers2.playermenu.component.StepLessMenuItem
 import dev.aaa1115910.bv.component.ifElse
+import dev.aaa1115910.bv.util.Prefs
+import kotlin.math.roundToInt
 
 @Composable
 fun PlaySpeedMenuList(
@@ -35,15 +39,32 @@ fun PlaySpeedMenuList(
     onPlaySpeedChange: (Float) -> Unit,
     onFocusStateChange: (MenuFocusState) -> Unit
 ) {
-    val context = LocalContext.current
+    // val context = LocalContext.current
     val data = LocalVideoPlayerControllerData.current
-    val focusRequester = remember { FocusRequester() }
+    // val focusRequester = remember { FocusRequester() }
 
     Row(
         modifier = modifier
             .fillMaxHeight(),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        StepLessMenuItem(
+            modifier = Modifier
+                .width(216.dp)
+                .padding(horizontal = 8.dp),
+            value = data.currentVideoSpeed,
+            step = 0.25f,
+            range = 0.25f..8f,
+            text = "${(data.currentVideoSpeed * 100).roundToInt() / 100f}倍",
+            onValueChange = { speed ->
+                onPlaySpeedChange(speed)
+                val speedItem = PlaySpeedItem.fromSpeed(speed)
+                onSelectedPlaySpeedItemChange(speedItem)
+                Prefs.defaultPlaySpeed = speedItem
+            },
+            onFocusBackToParent = { onFocusStateChange(MenuFocusState.MenuNav) }
+        )
+        /*
         LazyColumn(
             modifier = Modifier
                 .padding(horizontal = 8.dp)
@@ -78,6 +99,7 @@ fun PlaySpeedMenuList(
                 )
             }
         }
+        */
     }
 
 
@@ -120,6 +142,13 @@ enum class PlaySpeedItem(val code: Int, private val strRes: Int, val speed: Floa
     companion object {
         fun fromCode(code: Int): PlaySpeedItem {
             return entries.find { it.code == code } ?: x1
+        }
+
+        fun fromSpeed(speed: Float): PlaySpeedItem {
+            // 因为 step 是 0.25f，所以这里的值理论上总能找到精确匹配。
+            // find 会返回第一个满足条件的元素。
+            // 使用 ?: x1 作为安全兜底，以防万一出现意外情况。
+            return entries.find { it.speed == speed } ?: x1
         }
     }
 
