@@ -25,7 +25,7 @@ fun VideoProgressSeek(
     isPersistentSeek: Boolean
 ) {
     val colors: SliderColors = SliderDefaults.colors()
-    val trackWidthDp = if (isPersistentSeek) 2.dp else 8.dp
+    val trackWidthDp = if (isPersistentSeek) 3.dp else 8.dp
 
     Canvas(
         modifier = modifier
@@ -39,7 +39,8 @@ fun VideoProgressSeek(
             start = Offset(trackWidthPx / 2, center.y),
             end = Offset(size.width - trackWidthPx / 2, center.y),
             strokeWidth = trackWidthPx,
-            cap = StrokeCap.Round
+            // cap = StrokeCap.Round
+            cap = StrokeCap.Square
         )
         if (!isPersistentSeek) {
             drawLine(
@@ -47,7 +48,8 @@ fun VideoProgressSeek(
                 start = Offset(trackWidthPx / 2, center.y),
                 end = Offset(size.width * bufferedPercentage / 100, center.y),
                 strokeWidth = trackWidthPx,
-                cap = StrokeCap.Round
+                // cap = StrokeCap.Round
+                cap = StrokeCap.Square
             )
         }
         drawLine(
@@ -55,7 +57,8 @@ fun VideoProgressSeek(
             start = Offset(trackWidthPx / 2, center.y),
             end = Offset(size.width * (position / duration.toFloat()), center.y),
             strokeWidth = trackWidthPx,
-            cap = StrokeCap.Round
+            // cap = StrokeCap.Round
+            cap = StrokeCap.Square
         )
     }
 
