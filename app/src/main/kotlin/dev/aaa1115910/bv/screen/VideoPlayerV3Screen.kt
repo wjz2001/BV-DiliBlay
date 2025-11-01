@@ -237,6 +237,10 @@ fun VideoPlayerV3Screen(
             initDanmakuConfig()
             updateVideoAspectRatio()
 
+            // 添加这两行：从 Prefs 重新读取最新保存的播放速度
+            currentPlaySpeed = Prefs.defaultPlaySpeed.speed
+            currentSelectedPlaySpeedItem = Prefs.defaultPlaySpeed
+
             //reset default play speed
             logger.info { "Reset default play speed: $currentPlaySpeed" }
             videoPlayer.speed = currentPlaySpeed
