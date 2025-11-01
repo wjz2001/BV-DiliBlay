@@ -42,7 +42,6 @@ import dev.aaa1115910.bv.component.controllers2.VideoPlayerController
 import dev.aaa1115910.bv.component.controllers2.VideoProgressSeek
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.VideoAspectRatio
-import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.player.BvVideoPlayer
 import dev.aaa1115910.bv.player.VideoPlayerListener
 import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
@@ -95,7 +94,6 @@ fun VideoPlayerV3Screen(
     var isError by remember { mutableStateOf(false) }
     var isLooping by remember { mutableStateOf(false) }
     var exception: Exception? by remember { mutableStateOf(null) }
-    var proxyArea by remember { mutableStateOf(ProxyArea.MainLand) }
 
     val typeFilter by remember { mutableStateOf(TypeFilter()) }
     var danmakuConfig by remember { mutableStateOf(DanmakuConfig()) }
@@ -645,6 +643,8 @@ fun VideoPlayerV3Screen(
             onSelectedPlaySpeedItemChange = {
                 logger.info { "Set selected play speed: $it" }
                 currentSelectedPlaySpeedItem = it
+                // 读取并保存上次设置的播放速度
+                Prefs.defaultPlaySpeed = it
             },
             onAudioChange = { audio ->
                 playerViewModel.currentAudio = audio
