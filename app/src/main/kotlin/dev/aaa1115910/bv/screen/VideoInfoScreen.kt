@@ -556,6 +556,7 @@ fun VideoInfoScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     item {
+                        /*
                         Column(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
@@ -569,6 +570,7 @@ fun VideoInfoScreen(
                                 ArgueTip(text = videoDetailViewModel.videoDetail!!.argueTip!!)
                             }
                         }
+                        */
                     }
                     item {
                         VideoInfoData(
