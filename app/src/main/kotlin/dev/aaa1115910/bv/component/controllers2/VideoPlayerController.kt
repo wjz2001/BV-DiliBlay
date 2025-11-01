@@ -124,7 +124,9 @@ fun VideoPlayerController(
     }
     val onTimeBack = {
         isSeeking = true
-        val targetTime = goTime - (10000 + calCoefficient() * 5000)
+        // val targetTime = goTime - (10000 + calCoefficient() * 5000)
+        // 快退一次从10s改为5s
+        val targetTime = goTime - (5000 + calCoefficient() * 5000)
         goTime = if (targetTime < 0) 0 else targetTime
         lastSeekChangeTime = System.currentTimeMillis()
         logger.info { "onTimeBack: [current=${videoPlayer.currentPosition}, goTime=$goTime]" }
