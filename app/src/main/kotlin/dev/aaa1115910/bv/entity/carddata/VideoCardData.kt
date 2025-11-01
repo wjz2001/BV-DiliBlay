@@ -16,7 +16,8 @@ data class VideoCardData(
     var timeString: String = "",
     val jumpToSeason: Boolean = false,
     val epId: Int? = null,
-    val pubTime: String? = null
+    val pubTime: String? = null,
+    val isUpowerExclusive: Boolean = false
 ) {
     init {
         play?.let {
