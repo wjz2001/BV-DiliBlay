@@ -276,12 +276,14 @@ fun ControllerVideoInfoBottom(
         }
         Row(
             modifier = Modifier
-                .padding(horizontal = 24.dp)
+                // .padding(horizontal = 24.dp)
+                /*
                 .border(
                     width = 1.dp,
                     color = Color.White.copy(alpha = if (isSeekFocused) 1f else 0f),
                     shape = RoundedCornerShape(8.dp)
                 )
+                */
                 .focusable()
                 .focusRequester(seekFocusRequester)
                 .onKeyEvent {
