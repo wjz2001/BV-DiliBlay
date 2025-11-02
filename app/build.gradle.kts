@@ -186,6 +186,7 @@ ksp {
 }
 
 dependencies {
+    implementation(libs.ui.text)
     annotationProcessor(androidx.room.compiler)
     ksp(androidx.room.compiler)
     ksp(libs.koin.ksp.compiler)
