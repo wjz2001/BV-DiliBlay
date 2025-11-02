@@ -198,18 +198,6 @@
     <string name="play_speed_x4_5">4.5倍</string>
     <string name="play_speed_x4_75">4.75倍</string>
     <string name="play_speed_x5">5倍</string>
-    <string name="play_speed_x5_25">5.25倍</string>
-    <string name="play_speed_x5_5">5.5倍</string>
-    <string name="play_speed_x5_75">5.75倍</string>
-    <string name="play_speed_x6">6倍</string>
-    <string name="play_speed_x6_25">6.25倍</string>
-    <string name="play_speed_x6_5">6.5倍</string>
-    <string name="play_speed_x6_75">6.75倍</string>
-    <string name="play_speed_x7">7倍</string>
-    <string name="play_speed_x7_25">7.25倍</string>
-    <string name="play_speed_x7_5">7.5倍</string>
-    <string name="play_speed_x7_75">7.75倍</string>
-    <string name="play_speed_x8">8倍</string>
 
     <string name="search_input_history">历史记录</string>
     <string name="search_input_history_delete_all_confirm_dialog_cancel_button">手滑了</string>

@@ -55,9 +55,9 @@ fun FavoriteButton(
         modifier = modifier,
         onClick = {
             if (showFavoriteDialog) return@Button
-            if (isFavorite) {
-                showFavoriteDialog = true
-            } else onAddToDefaultFavoriteFolder()
+            // if (isFavorite) {
+            showFavoriteDialog = true
+            // } else onAddToDefaultFavoriteFolder()
         }
     ) {
         Icon(
