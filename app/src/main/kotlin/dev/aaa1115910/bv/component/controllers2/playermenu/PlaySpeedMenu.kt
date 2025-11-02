@@ -54,7 +54,7 @@ fun PlaySpeedMenuList(
                 .padding(horizontal = 8.dp),
             value = data.currentVideoSpeed,
             step = 0.25f,
-            range = 0.25f..8f,
+            range = 0.25f..5f,
             text = "${(data.currentVideoSpeed * 100).roundToInt() / 100f}倍",
             onValueChange = { speed ->
                 onPlaySpeedChange(speed)
@@ -125,19 +125,7 @@ enum class PlaySpeedItem(val code: Int, private val strRes: Int, val speed: Floa
     x4_25(16, R.string.play_speed_x4_25, 4.25f),
     x4_5(17, R.string.play_speed_x4_5, 4.5f),
     x4_75(18, R.string.play_speed_x4_75, 4.75f),
-    x5(19, R.string.play_speed_x5, 5.0f),
-    x5_25(20, R.string.play_speed_x5_25, 5.25f),
-    x5_5(21, R.string.play_speed_x5_5, 5.5f),
-    x5_75(22, R.string.play_speed_x5_75, 5.75f),
-    x6(23, R.string.play_speed_x6, 6.0f),
-    x6_25(24, R.string.play_speed_x6_25, 6.25f),
-    x6_5(25, R.string.play_speed_x6_5, 6.5f),
-    x6_75(26, R.string.play_speed_x6_75, 6.75f),
-    x7(27, R.string.play_speed_x7, 7.0f),
-    x7_25(28, R.string.play_speed_x7_25, 7.25f),
-    x7_5(29, R.string.play_speed_x7_5, 7.5f),
-    x7_75(30, R.string.play_speed_x7_75, 7.75f),
-    x8(31, R.string.play_speed_x8, 8.0f);
+    x5(19, R.string.play_speed_x5, 5.0f);
 
     companion object {
         fun fromCode(code: Int): PlaySpeedItem {
