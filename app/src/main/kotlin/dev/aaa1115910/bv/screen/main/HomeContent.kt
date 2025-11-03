@@ -31,12 +31,20 @@ import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.screen.main.home.DynamicsScreen
 import dev.aaa1115910.bv.screen.main.home.PopularScreen
 import dev.aaa1115910.bv.screen.main.home.RecommendScreen
+import dev.aaa1115910.bv.screen.user.FavoriteScreen
+import dev.aaa1115910.bv.screen.user.FollowingSeasonScreen
+import dev.aaa1115910.bv.screen.user.HistoryScreen
+import dev.aaa1115910.bv.screen.user.ToViewScreen
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.viewmodel.UserViewModel
 import dev.aaa1115910.bv.viewmodel.home.DynamicViewModel
 import dev.aaa1115910.bv.viewmodel.home.PopularViewModel
 import dev.aaa1115910.bv.viewmodel.home.RecommendViewModel
+import dev.aaa1115910.bv.viewmodel.user.FavoriteViewModel
+import dev.aaa1115910.bv.viewmodel.user.FollowingSeasonViewModel
+import dev.aaa1115910.bv.viewmodel.user.HistoryViewModel
+import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -48,7 +56,11 @@ fun HomeContent(
     recommendViewModel: RecommendViewModel = koinViewModel(),
     popularViewModel: PopularViewModel = koinViewModel(),
     dynamicViewModel: DynamicViewModel = koinViewModel(),
-    userViewModel: UserViewModel = koinViewModel()
+    userViewModel: UserViewModel = koinViewModel(),
+    favouriteViewModel: FavoriteViewModel = koinViewModel(),
+    historyViewModel: HistoryViewModel = koinViewModel(),
+    toViewViewModel: ToViewViewModel = koinViewModel(),
+    followingSeasonViewModel: FollowingSeasonViewModel = koinViewModel()
 ) {
     val scope = rememberCoroutineScope()
     val logger = KotlinLogging.logger("HomeContent")
@@ -81,6 +93,18 @@ fun HomeContent(
         scope.launch(Dispatchers.IO) {
             userViewModel.updateUserInfo()
         }
+        scope.launch(Dispatchers.IO) {
+            favouriteViewModel.updateFolderItems()
+        }
+        scope.launch(Dispatchers.IO) {
+            historyViewModel.update()
+        }
+        scope.launch(Dispatchers.IO) {
+            toViewViewModel.update()
+        }
+        scope.launch(Dispatchers.IO) {
+            followingSeasonViewModel.loadMore()
+        }
     }
 
     //监听登录变化
@@ -111,6 +135,23 @@ fun HomeContent(
                                 scope.launch(Dispatchers.IO) { dynamicViewModel.loadMore() }
                             }
                         }
+                        HomeTopNavItem.ToView -> {
+                            toViewViewModel.clearData()
+                            toViewViewModel.update()
+                        }
+                        HomeTopNavItem.History -> {
+                            historyViewModel.clearData()
+                            historyViewModel.update()
+                        }
+                        HomeTopNavItem.Favorite -> {
+                            favouriteViewModel.clearData()
+                            favouriteViewModel.updateFoldersInfo()
+                            favouriteViewModel.updateFolderItems(force = true)
+                        }
+                        HomeTopNavItem.FollowingSeason -> {
+                            followingSeasonViewModel.clearData()
+                            followingSeasonViewModel.loadMore()
+                        }
                     }
                 },
                 onClick = { nav ->
@@ -132,6 +173,25 @@ fun HomeContent(
                         HomeTopNavItem.Dynamics -> {
                             dynamicViewModel.clearData()
                             scope.launch(Dispatchers.IO) { dynamicViewModel.loadMore() }
+                        }
+                        HomeTopNavItem.ToView -> {
+                            toViewViewModel.clearData()
+                            scope.launch(Dispatchers.IO) { toViewViewModel.update() }
+                        }
+                        HomeTopNavItem.History -> {
+                            historyViewModel.clearData()
+                            scope.launch(Dispatchers.IO) { historyViewModel.update() }
+                        }
+                        HomeTopNavItem.Favorite -> {
+                            favouriteViewModel.clearData()
+                            scope.launch(Dispatchers.IO) {
+                                favouriteViewModel.updateFoldersInfo()
+                                favouriteViewModel.updateFolderItems(force = true)
+                            }
+                        }
+                        HomeTopNavItem.FollowingSeason -> {
+                            followingSeasonViewModel.clearData()
+                            scope.launch(Dispatchers.IO) { followingSeasonViewModel.loadMore() }
                         }
                     }
                 }
@@ -160,6 +220,25 @@ fun HomeContent(
                                 dynamicViewModel.clearData()
                                 scope.launch(Dispatchers.IO) { dynamicViewModel.loadMore() }
                             }
+                            HomeTopNavItem.ToView -> {
+                                toViewViewModel.clearData()
+                                scope.launch(Dispatchers.IO) { toViewViewModel.update() }
+                            }
+                            HomeTopNavItem.History -> {
+                                historyViewModel.clearData()
+                                scope.launch(Dispatchers.IO) { historyViewModel.update() }
+                            }
+                            HomeTopNavItem.Favorite -> {
+                                favouriteViewModel.clearData()
+                                scope.launch(Dispatchers.IO) {
+                                    favouriteViewModel.updateFoldersInfo()
+                                    favouriteViewModel.updateFolderItems(force = true)
+                                }
+                            }
+                            HomeTopNavItem.FollowingSeason -> {
+                                followingSeasonViewModel.clearData()
+                                scope.launch(Dispatchers.IO) { followingSeasonViewModel.loadMore() }
+                            }
                         }
                         navFocusRequester.requestFocus()
                         return@onPreviewKeyEvent true
@@ -185,6 +264,10 @@ fun HomeContent(
                     HomeTopNavItem.Recommend -> RecommendScreen()
                     HomeTopNavItem.Popular -> PopularScreen()
                     HomeTopNavItem.Dynamics -> DynamicsScreen()
+                    HomeTopNavItem.ToView -> ToViewScreen()
+                    HomeTopNavItem.History -> HistoryScreen()
+                    HomeTopNavItem.Favorite -> FavoriteScreen()
+                    HomeTopNavItem.FollowingSeason -> FollowingSeasonScreen()
                 }
             }
         }

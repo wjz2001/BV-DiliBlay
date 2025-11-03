@@ -124,8 +124,8 @@ fun LeftNaviContent(
         ) {
             listOf(
                 LeftNaviItem.Search,
-                LeftNaviItem.Personal,
                 LeftNaviItem.Home,
+                LeftNaviItem.Personal,
                 LeftNaviItem.UGC,
                 LeftNaviItem.PGC,
             ).forEach { item ->
