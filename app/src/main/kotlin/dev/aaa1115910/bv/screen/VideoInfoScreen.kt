@@ -575,6 +575,8 @@ fun VideoInfoScreen(
                     item {
                         VideoInfoData(
                             defaultFocusRequester = defaultFocusRequester,
+                            description = videoDetailViewModel.videoDetail?.description
+                                ?: "no desc",
                             videoDetail = videoDetailViewModel.videoDetail!!,
                             showFollowButton = showFollowButton,
                             isFollowing = isFollowing,
@@ -586,8 +588,100 @@ fun VideoInfoScreen(
                             favoriteFolderIds = videoInFavoriteFolderIds,
                             onClickCover = {
                                 logger.fInfo { "Click video cover" }
+<<<<<<< HEAD
                                 // 点击封面播放当前视频
                                 playCurrentVideo(lastPlayedCid.takeIf { it != 0L })
+=======
+                                scope.launch(Dispatchers.IO) {
+                                    updatePartVideoList()
+                                }
+
+                                // ✅ 修改：按优先级查找播放位置
+                                // 1. 首先在普通分P中查找历史记录
+                                val matchedPage =
+                                    videoDetailViewModel.videoDetail!!.pages.find { it.cid == lastPlayedCid }
+
+                                if (matchedPage != null) {
+                                    // ✅ 找到分P播放记录，播放该分P
+                                    logger.fInfo { "Found matched page: cid=${matchedPage.cid}, title=${matchedPage.title}" }
+                                    launchPlayerActivity(
+                                        context = context,
+                                        avid = videoDetailViewModel.videoDetail!!.aid,
+                                        cid = matchedPage.cid,
+                                        title = videoDetailViewModel.videoDetail!!.title,
+                                        partTitle = matchedPage.title,
+                                        played = lastPlayedTime * 1000,
+                                        fromSeason = false,
+                                        isVerticalVideo = containsVerticalScreenVideo,
+                                        author = videoDetailViewModel.videoDetail!!.author
+                                    )
+                                } else {
+                                    // ✅ 2. 在UGC合集中查找历史记录
+                                    val matchedEp =
+                                        videoDetailViewModel.videoDetail!!.ugcSeason?.sections
+                                            ?.flatMap { it.episodes }
+                                            ?.find { it.cid == lastPlayedCid }
+
+                                    if (matchedEp != null) {
+                                        // ✅ 找到UGC合集播放记录，播放该合集视频
+                                        logger.fInfo { "Found matched episode: aid=${matchedEp.aid}, cid=${matchedEp.cid}, title=${matchedEp.title}" }
+
+                                        // 找到对应的section索引，更新视频列表
+                                        val sectionIndex =
+                                            videoDetailViewModel.videoDetail!!.ugcSeason!!.sections
+                                                .indexOfFirst { section -> section.episodes.any { it.cid == matchedEp.cid } }
+                                        if (sectionIndex >= 0) {
+                                            updateUgcSeasonSectionVideoList(sectionIndex)
+                                        }
+
+                                        launchPlayerActivity(
+                                            context = context,
+                                            avid = matchedEp.aid,
+                                            cid = matchedEp.cid,
+                                            title = videoDetailViewModel.videoDetail!!.ugcSeason!!.title,
+                                            partTitle = matchedEp.title,
+                                            played = lastPlayedTime * 1000,
+                                            fromSeason = false,
+                                            isVerticalVideo = containsVerticalScreenVideo,
+                                            author = videoDetailViewModel.videoDetail!!.author
+                                        )
+                                    } else {
+                                        // ✅ 3. 没有任何播放记录，播放第一个分P
+                                        logger.fInfo { "No history found, play first part" }
+                                        val firstPage =
+                                            videoDetailViewModel.videoDetail!!.pages.first()
+                                        launchPlayerActivity(
+                                            context = context,
+                                            avid = videoDetailViewModel.videoDetail!!.aid,
+                                            cid = firstPage.cid,
+                                            title = videoDetailViewModel.videoDetail!!.title,
+                                            partTitle = firstPage.title,
+                                            played = 0,
+                                            fromSeason = false,
+                                            isVerticalVideo = containsVerticalScreenVideo,
+                                            author = videoDetailViewModel.videoDetail!!.author
+                                        )
+                                    }
+                                }
+                                /*
+                                logger.fInfo { "Click video cover" }
+                                // 点击封面读取分p列表
+                                scope.launch(Dispatchers.IO) {
+                                    updatePartVideoList()
+                                }
+                                launchPlayerActivity(
+                                    context = context,
+                                    avid = videoDetailViewModel.videoDetail!!.aid,
+                                    cid = videoDetailViewModel.videoDetail!!.pages.first().cid,
+                                    title = videoDetailViewModel.videoDetail!!.title,
+                                    partTitle = videoDetailViewModel.videoDetail!!.pages.first().title,
+                                    played = if (videoDetailViewModel.videoDetail!!.cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
+                                    fromSeason = false,
+                                    isVerticalVideo = containsVerticalScreenVideo,
+                                    author = videoDetailViewModel.videoDetail!!.author
+                                )
+                                 */
+>>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
                             },
                             onClickUp = {
                                 UpInfoActivity.actionStart(
@@ -651,15 +745,6 @@ fun VideoInfoScreen(
                             }
                         )
                     }
-                    if ((videoDetailViewModel.videoDetail?.description ?: "").isNotBlank()) {
-                        item {
-                            VideoDescription(
-                                description = videoDetailViewModel.videoDetail?.description
-                                    ?: "no desc"
-                            )
-                        }
-                    }
-
                     item {
                         //视频分P
                         VideoPartRow(
@@ -667,7 +752,7 @@ fun VideoInfoScreen(
                             lastPlayedCid = lastPlayedCid,
                             lastPlayedTime = lastPlayedTime,
                             enablePartListDialog =
-                            (videoDetailViewModel.videoDetail?.pages?.size ?: 0) > 5,
+                                (videoDetailViewModel.videoDetail?.pages?.size ?: 0) > 5,
                             onClick = { cid ->
                                 logger.fInfo { "Click video part: [av:${videoDetailViewModel.videoDetail?.aid}, bv:${videoDetailViewModel.videoDetail?.bvid}, cid:$cid]" }
                                 // 播放当前视频的对应分P
@@ -675,6 +760,7 @@ fun VideoInfoScreen(
                             }
                         )
                     }
+<<<<<<< HEAD
 
                     val videoDetail = videoDetailViewModel.videoDetail
                     videoDetail?.ugcSeason?.let { season ->
@@ -707,6 +793,66 @@ fun VideoInfoScreen(
                                     )
                                 }
                             )
+=======
+                    videoDetailViewModel.videoDetail?.ugcSeason?.let { ugcSeason ->
+                        if (ugcSeason.sections.size == 1) {
+                            item {
+                                VideoUgcSeasonRow(
+                                    title = videoDetailViewModel.videoDetail?.ugcSeason!!.title,
+                                    episodes = videoDetailViewModel.videoDetail?.ugcSeason?.sections?.get(
+                                        0
+                                    )?.episodes
+                                        ?: emptyList(),
+                                    lastPlayedCid = lastPlayedCid,
+                                    lastPlayedTime = lastPlayedTime,
+                                    enableUgcListDialog =
+                                        (videoDetailViewModel.videoDetail?.ugcSeason?.sections?.get(
+                                            0
+                                        )?.episodes?.size
+                                            ?: 0) > 5,
+                                    onClick = { aid, cid ->
+                                        logger.fInfo { "Click ugc season part: [av:${videoDetailViewModel.videoDetail?.aid}, bv:${videoDetailViewModel.videoDetail?.bvid}, cid:$cid]" }
+                                        updateUgcSeasonSectionVideoList(0)
+                                        launchPlayerActivity(
+                                            context = context,
+                                            avid = aid,
+                                            cid = cid,
+                                            title = videoDetailViewModel.videoDetail?.ugcSeason!!.title,
+                                            partTitle = videoDetailViewModel.videoDetail!!.ugcSeason!!.sections[0].episodes.find { it.cid == cid }!!.title,
+                                            played = if (cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
+                                            fromSeason = false,
+                                            isVerticalVideo = containsVerticalScreenVideo,
+                                            author = videoDetailViewModel.videoDetail!!.author
+                                        )
+                                    }
+                                )
+                            }
+                        } else {
+                            itemsIndexed(items = videoDetailViewModel.videoDetail?.ugcSeason!!.sections) { index, section ->
+                                VideoUgcSeasonRow(
+                                    title = section.title,
+                                    episodes = section.episodes,
+                                    lastPlayedCid = lastPlayedCid,
+                                    lastPlayedTime = lastPlayedTime,
+                                    enableUgcListDialog = section.episodes.size > 5,
+                                    onClick = { aid, cid ->
+                                        logger.fInfo { "Click ugc season part: [av:${videoDetailViewModel.videoDetail?.aid}, bv:${videoDetailViewModel.videoDetail?.bvid}, cid:$cid]" }
+                                        updateUgcSeasonSectionVideoList(index)
+                                        launchPlayerActivity(
+                                            context = context,
+                                            avid = aid,
+                                            cid = cid,
+                                            title = videoDetailViewModel.videoDetail?.ugcSeason!!.title,
+                                            partTitle = section.episodes.find { it.cid == cid }!!.title,
+                                            played = if (cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
+                                            fromSeason = false,
+                                            isVerticalVideo = containsVerticalScreenVideo,
+                                            author = videoDetailViewModel.videoDetail!!.author
+                                        )
+                                    }
+                                )
+                            }
+>>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
                         }
                     }
                     if (videoDetailViewModel.relatedVideos.isNotEmpty()) {
@@ -762,6 +908,7 @@ fun ArgueTip(
 fun VideoInfoData(
     modifier: Modifier = Modifier,
     defaultFocusRequester: FocusRequester,
+    description: String,
     videoDetail: VideoDetail,
     showFollowButton: Boolean,
     isFollowing: Boolean,
@@ -905,6 +1052,10 @@ fun VideoInfoData(
                     }
                 }
             }
+            VideoDescription(
+                modifier = Modifier,
+                description = description
+            )
         }
     }
 }
@@ -976,8 +1127,10 @@ private fun UpButton(
 @Composable
 fun VideoDescription(
     modifier: Modifier = Modifier,
-    description: String
-) {
+    description: String,
+
+    ) {
+    var showDescriptionDialog by remember { mutableStateOf(false) }
     var hasFocus by remember { mutableStateOf(false) }
     val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
     val titleFontSize by animateFloatAsState(
@@ -985,37 +1138,44 @@ fun VideoDescription(
         targetValue = 14f,
         label = "title font size"
     )
-    var showDescriptionDialog by remember { mutableStateOf(false) }
-
-    Column(
-        modifier = modifier
-            .padding(horizontal = 50.dp),
-    ) {
-        Text(
-            text = stringResource(R.string.video_info_description_title),
-            fontSize = titleFontSize.sp,
-            color = titleColor
-        )
-        Box(
-            modifier = Modifier
-                .padding(top = 15.dp)
-                .onFocusChanged { hasFocus = it.hasFocus }
-                .clip(MaterialTheme.shapes.medium)
-                .focusedBorder(MaterialTheme.shapes.medium)
-                .padding(8.dp)
-                .clickable {
-                    showDescriptionDialog = true
-                }
+    if (description.isNotBlank()) {
+        Column(
+            modifier = modifier
+                // .padding(horizontal = 50.dp),
         ) {
             Text(
+<<<<<<< HEAD
                 text = description,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 color = Color.White
+=======
+                text = stringResource(R.string.video_info_description_title),
+                fontSize = titleFontSize.sp,
+                color = titleColor
+>>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
             )
+            Box(
+                modifier = Modifier
+                    .padding(top = 15.dp)
+                    .onFocusChanged { hasFocus = it.hasFocus }
+                    .clip(MaterialTheme.shapes.medium)
+                    .focusedBorder(MaterialTheme.shapes.medium)
+                    .padding(8.dp)
+                    .clickable {
+                        showDescriptionDialog = true
+                    }
+            ) {
+                Text(
+                    text = description,
+                    maxLines = 3,
+                    fontSize = 20.sp,
+                    overflow = TextOverflow.Ellipsis,
+                    color = Color.White
+                )
+            }
         }
     }
-
     VideoDescriptionDialog(
         show = showDescriptionDialog,
         onHideDialog = { showDescriptionDialog = false },
@@ -1053,6 +1213,27 @@ fun VideoDescriptionDialog(
 }
 
 @Composable
+fun DurationUnitText(
+    duration: Int,
+    unit: String,
+    fontSize: Int // <-- 关键修改：接收 Int 类型
+) {
+    // 1. 根据传入的单位标识符，在内部进行计算
+    val value = when (unit.lowercase()) {
+        "h" -> duration / 3600
+        "m" -> (duration % 3600) / 60
+        "s" -> duration % 60
+        else -> 0L
+    }
+    // 2. 在调用 Text 组件时，将 Int 转换为 .sp
+    Text(
+        text = String.format("%02d", value),
+        fontSize = fontSize.sp, // <-- 关键修改：在这里进行单位转换
+        fontWeight = FontWeight.Bold
+    )
+}
+
+@Composable
 fun VideoPartButton(
     modifier: Modifier = Modifier,
     title: String,
@@ -1061,7 +1242,8 @@ fun VideoPartButton(
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = modifier,
+        // modifier = modifier,
+        modifier = modifier.height(96.dp),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
             focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
@@ -1072,7 +1254,14 @@ fun VideoPartButton(
     ) {
         Box(
             modifier = Modifier
+<<<<<<< HEAD
                 .size(200.dp, 64.dp)
+=======
+                // .size(200.dp, 64.dp)
+                .fillMaxSize(),
+            contentAlignment = Alignment.Center
+
+>>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
         ) {
             Box(
                 modifier = Modifier
@@ -1080,6 +1269,50 @@ fun VideoPartButton(
                     .fillMaxHeight()
                     .fillMaxWidth(if (played < 0) 1f else (played / duration.toFloat()))
             ) {}
+<<<<<<< HEAD
+=======
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 左侧：标题
+                Text(
+                    modifier = Modifier
+                        // weight(1f) 会让标题占据除了时长之外的所有剩余空间
+                        .weight(1f)
+                        .padding(start = 12.dp, end = 6.dp, top = 12.dp, bottom = 12.dp),
+                    text = "P$index $title",
+                    fontSize = LocalTextStyle.current.fontSize * 1.5,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                VerticalDivider(
+                    // 1. (可选) 添加垂直内边距，让线变短一点
+                    modifier = Modifier.padding(vertical = 12.dp),
+                    // 2. 使用 thickness 参数设置分割线的厚度（宽度）
+                    thickness = 1.dp,
+                    // 3. (可选) 设置分割线的颜色
+                    color = Color.White.copy(alpha = 0.5f)
+                )
+                // 右侧：垂直显示的时长
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceAround,
+                    // 增加内边距，使其与按钮边缘有一定距离
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .padding(start = 6.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)
+                ) {
+                    // 只有当视频时长超过1小时才显示小时
+                    if (duration >= 3600) {
+                        DurationUnitText(duration = duration, unit = "h", fontSize = 24)
+                    }
+                    DurationUnitText(duration = duration, unit = "m", fontSize = 21)
+                    DurationUnitText(duration = duration, unit = "s", fontSize = 19)
+                }
+            }
+            /*
+>>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
             Text(
                 modifier = Modifier
                     .padding(8.dp),
@@ -1098,7 +1331,12 @@ fun VideoPartRowButton(
     content: @Composable BoxScope.() -> Unit
 ) {
     Surface(
+<<<<<<< HEAD
         modifier = modifier.size(64.dp),
+=======
+        //modifier = modifier.size(64.dp),
+        modifier = modifier.size(96.dp),
+>>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
         colors = ClickableSurfaceDefaults.colors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
             focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
@@ -1159,7 +1397,12 @@ fun VideoPartRow(
                         onClick = { showPartListDialog = true }
                     ) {
                         Icon(
+<<<<<<< HEAD
                             modifier = Modifier.size(36.dp),
+=======
+                            // modifier = Modifier.size(36.dp),
+                            modifier = Modifier.size(54.dp),
+>>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
                             imageVector = Icons.Rounded.ViewModule,
                             contentDescription = null
                         )
@@ -1175,7 +1418,12 @@ fun VideoPartRow(
                         onClick = { onClick(matchedPage.cid) }
                     ) {
                         Icon(
+<<<<<<< HEAD
                             modifier = Modifier.size(36.dp),
+=======
+                            // modifier = Modifier.size(36.dp),
+                            modifier = Modifier.size(54.dp),
+>>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
                             imageVector = Icons.Rounded.History,
                             contentDescription = null
                         )
@@ -1186,7 +1434,13 @@ fun VideoPartRow(
             itemsIndexed(items = pages, key = { _, page -> page.cid }) { index, page ->
                 VideoPartButton(
                     modifier = Modifier
+<<<<<<< HEAD
                         .ifElse(index == 0, Modifier.focusRequester(focusRequester)),
+=======
+                        .ifElse(index == 0, Modifier.focusRequester(focusRequester))
+                        .width(300.dp),
+                    index = index + 1,
+>>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
                     title = page.title,
                     played = if (page.cid == lastPlayedCid) lastPlayedTime else 0,
                     duration = page.duration,
@@ -1266,7 +1520,12 @@ fun VideoUgcSeasonRow(
                         onClick = { onClick(matchedEp.aid, matchedEp.cid) }
                     ) {
                         Icon(
+<<<<<<< HEAD
                             modifier = Modifier.size(36.dp),
+=======
+                            // modifier = Modifier.size(36.dp),
+                            modifier = Modifier.size(54.dp),
+>>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
                             imageVector = Icons.Rounded.History,
                             contentDescription = null
                         )
@@ -1277,7 +1536,13 @@ fun VideoUgcSeasonRow(
             itemsIndexed(items = episodes) { index, episode ->
                 VideoPartButton(
                     modifier = Modifier
+<<<<<<< HEAD
                         .ifElse(index == 0, Modifier.focusRequester(focusRequester)),
+=======
+                        .ifElse(index == 0, Modifier.focusRequester(focusRequester))
+                        .width(300.dp),
+                    index = index + 1,
+>>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
                     title = episode.title,
                     played = if (episode.cid == lastPlayedCid) lastPlayedTime else 0,
                     duration = episode.duration,
@@ -1308,7 +1573,8 @@ private fun VideoPartListDialog(
     val scope = rememberCoroutineScope()
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val tabCount by remember { mutableIntStateOf(ceil(pages.size / 20.0).toInt()) }
+    // val tabCount by remember { mutableIntStateOf(ceil(pages.size / 20.0).toInt()) }
+    val tabCount by remember { mutableIntStateOf(ceil(pages.size / 35.0).toInt()) }
     val selectedVideoPart = remember { mutableStateListOf<VideoPage>() }
 
     val tabRowFocusRequester = remember { FocusRequester() }
@@ -1316,8 +1582,10 @@ private fun VideoPartListDialog(
     val listState = rememberLazyGridState()
 
     LaunchedEffect(selectedTabIndex) {
-        val fromIndex = selectedTabIndex * 20
-        var toIndex = (selectedTabIndex + 1) * 20
+        // val fromIndex = selectedTabIndex * 20
+        val fromIndex = selectedTabIndex * 35
+        // var toIndex = (selectedTabIndex + 1) * 20
+        var toIndex = (selectedTabIndex + 1) * 35
         if (toIndex >= pages.size) {
             toIndex = pages.size
         }
@@ -1329,7 +1597,132 @@ private fun VideoPartListDialog(
         if (show && tabCount == 1) videoListFocusRequester.requestFocus(scope)
     }
 
+    // ✅ 在 Dialog 外部获取当前正确的 Density
+    val currentDensity = LocalDensity.current
+
     if (show) {
+<<<<<<< HEAD
+=======
+        Dialog(
+            onDismissRequest = onHideDialog,
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,  // 不使用默认宽度
+                dismissOnBackPress = true,        // 返回键关闭
+                dismissOnClickOutside = false     // 点击外部不关闭（TV端建议）
+            )
+        ) {
+            // 使用 CompositionLocalProvider 将正确的 Density 应用到 Dialog 的内容中
+            CompositionLocalProvider(LocalDensity provides currentDensity) {
+                // ✅ 使用 Surface 创建全屏背景
+                Surface(
+                    modifier = Modifier
+                        .fillMaxSize()              // ✅ 全屏
+                        .background(Color.Black),  // 半透明背景
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = MaterialTheme.shapes.extraLarge
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(48.dp),  // ✅ 调整内边距
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // ✅ 标题栏
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.headlineMedium,  // ✅ 更大的标题
+                                color = Color.White
+                            )
+                        }
+
+                        // ✅ 标签页
+                        if (tabCount > 1) {
+                            TabRow(
+                                modifier = Modifier
+                                    .onFocusChanged {
+                                        if (it.hasFocus) {
+                                            scope.launch(Dispatchers.Main) {
+                                                listState.scrollToItem(0)
+                                            }
+                                        }
+                                    },
+                                selectedTabIndex = selectedTabIndex,
+                                separator = { Spacer(modifier = Modifier.width(12.dp)) },
+                            ) {
+                                for (i in 0 until tabCount) {
+                                    Tab(
+                                        modifier = if (i == 0) Modifier.focusRequester(
+                                            tabRowFocusRequester
+                                        ) else Modifier,
+                                        selected = i == selectedTabIndex,
+                                        onFocus = { selectedTabIndex = i },
+                                    ) {
+                                        val startIndex = i * 35 + 1
+                                        val endIndex = minOf((i + 1) * 35, pages.size)
+                                        val tabText = if (startIndex == endIndex) {
+                                            "P$startIndex"
+                                        } else {
+                                            "P$startIndex-$endIndex"
+                                        }
+                                        Text(
+                                            // text = "P${i * 20 + 1}-${(i + 1) * 20}",
+                                            text = tabText,
+                                            fontSize = 16.sp,  // ✅ 更大的标签字号
+                                            color = LocalContentColor.current,
+                                            modifier = Modifier.padding(
+                                                horizontal = 20.dp,
+                                                vertical = 10.dp
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // ✅ 视频列表网格
+                        LazyVerticalGrid(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize(),  // ✅ 填充剩余空间
+                            columns = GridCells.Fixed(5),  // ✅ 从2列增加到5列
+                            contentPadding = PaddingValues(16.dp),
+                            // verticalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(20.dp),
+                            // horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            horizontalArrangement = Arrangement.spacedBy(20.dp)
+                        ) {
+                            itemsIndexed(
+                                items = selectedVideoPart,
+                                key = { _, video -> video.cid }
+                            ) { index, page ->
+                                val buttonModifier =
+                                    if (index == 0 && tabCount == 1) {
+                                        Modifier.focusRequester(videoListFocusRequester)
+                                    } else Modifier
+
+                                VideoPartButton(
+                                    modifier = buttonModifier,
+                                    // index = selectedTabIndex * 20 + index + 1,  //  显示正确的索引
+                                    index = selectedTabIndex * 35 + index + 1,
+                                    title = page.title,
+                                    played = 0,
+                                    duration = page.duration,
+                                    onClick = {
+                                        onClick(page.cid)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        /*
+>>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
         AlertDialog(
             modifier = modifier,
             title = { Text(text = title) },
@@ -1415,7 +1808,8 @@ private fun VideoUgcListDialog(
     val scope = rememberCoroutineScope()
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val tabCount by remember { mutableIntStateOf(ceil(episodes.size / 20.0).toInt()) }
+    // val tabCount by remember { mutableIntStateOf(ceil(episodes.size / 20.0).toInt()) }
+    val tabCount by remember { mutableIntStateOf(ceil(episodes.size / 35.0).toInt()) }
     val selectedVideoPart = remember { mutableStateListOf<Episode>() }
 
     val tabRowFocusRequester = remember { FocusRequester() }
@@ -1423,8 +1817,10 @@ private fun VideoUgcListDialog(
     val listState = rememberLazyGridState()
 
     LaunchedEffect(selectedTabIndex) {
-        val fromIndex = selectedTabIndex * 20
-        var toIndex = (selectedTabIndex + 1) * 20
+        // val fromIndex = selectedTabIndex * 20
+        val fromIndex = selectedTabIndex * 35
+        // var toIndex = (selectedTabIndex + 1) * 20
+        var toIndex = (selectedTabIndex + 1) * 35
         if (toIndex >= episodes.size) {
             toIndex = episodes.size
         }
@@ -1436,7 +1832,129 @@ private fun VideoUgcListDialog(
         if (show && tabCount == 1) videoListFocusRequester.requestFocus(scope)
     }
 
+    // 在 Dialog 外部获取当前正确的 Density
+    val currentDensity = LocalDensity.current
+
     if (show) {
+<<<<<<< HEAD
+=======
+        Dialog(  // ✅ 使用 Dialog
+            onDismissRequest = onHideDialog,
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,  // 不使用默认宽度
+                dismissOnBackPress = true,        // 返回键关闭
+                dismissOnClickOutside = false     // 点击外部不关闭（TV端建议）
+            )
+        ) {
+            // ✅ 步骤 2: 使用 CompositionLocalProvider 将正确的 Density 应用到 Dialog 的内容中
+            CompositionLocalProvider(LocalDensity provides currentDensity) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black),
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = MaterialTheme.shapes.extraLarge
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(48.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.headlineMedium,  // ✅ 更大的标题
+                                color = Color.White
+                            )
+                        }
+
+                        // ✅ 标签页
+                        if (tabCount > 1) {
+                            TabRow(
+                                modifier = Modifier
+                                    .onFocusChanged {
+                                        if (it.hasFocus) {
+                                            scope.launch(Dispatchers.Main) {
+                                                listState.scrollToItem(0)
+                                            }
+                                        }
+                                    },
+                                selectedTabIndex = selectedTabIndex,
+                                separator = { Spacer(modifier = Modifier.width(12.dp)) },
+                            ) {
+                                for (i in 0 until tabCount) {
+                                    Tab(
+                                        modifier = if (i == 0) Modifier.focusRequester(
+                                            tabRowFocusRequester
+                                        ) else Modifier,
+                                        selected = i == selectedTabIndex,
+                                        onFocus = { selectedTabIndex = i },
+                                    ) {
+                                        val startIndex = i * 35 + 1
+                                        val endIndex = minOf((i + 1) * 35, episodes.size)
+                                        val tabText = if (startIndex == endIndex) {
+                                            "P$startIndex"
+                                        } else {
+                                            "P$startIndex-$endIndex"
+                                        }
+                                        Text(
+                                            // text = "P${i * 20 + 1}-${(i + 1) * 20}",
+                                            text = tabText,
+                                            fontSize = 16.sp,  // ✅ 更大的标签字号
+                                            color = LocalContentColor.current,
+                                            modifier = Modifier.padding(
+                                                horizontal = 20.dp,
+                                                vertical = 10.dp
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // 视频列表
+                        LazyVerticalGrid(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize(),
+                            columns = GridCells.Fixed(5),
+                            contentPadding = PaddingValues(16.dp),
+                            // verticalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(20.dp),
+                            // horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            horizontalArrangement = Arrangement.spacedBy(20.dp)
+                        ) {
+                            itemsIndexed(
+                                items = selectedVideoPart,
+                                key = { _, video -> video.cid }
+                            ) { index, episode ->
+                                val buttonModifier =
+                                    if (index == 0 && tabCount == 1) {
+                                        Modifier.focusRequester(videoListFocusRequester)
+                                    } else Modifier
+
+                                VideoPartButton(
+                                    modifier = buttonModifier,
+                                    // index = selectedTabIndex * 20 + index + 1,
+                                    index = selectedTabIndex * 35 + index + 1,
+                                    title = episode.title,
+                                    played = 0,
+                                    duration = episode.duration,
+                                    onClick = {
+                                        onClick(episode.aid, episode.cid)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            /*
+>>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
         AlertDialog(
             modifier = modifier,
             title = { Text(text = title) },
@@ -1529,7 +2047,7 @@ fun VideoPartButtonLongTextPreview() {
         VideoPartButton(
             title = "这可能是我这辈子距离梅西最近的一次",
             played = 23333,
-            duration = 100,
+            duration = 3800,
             onClick = {}
         )
     }
