@@ -95,7 +95,11 @@ fun VideosRow(
                         } else {
                             VideoInfoActivity.actionStart(context, videoData.avid)
                         }
-                    }
+                    },
+                    coverDensityMultiplier = 1f,
+                    coverFontScaleMultiplier = 1f,
+                    infoDensityMultiplier = 1f,
+                    infoFontScaleMultiplier = 1f
                 )
             }
             if (!hideShowMore) {

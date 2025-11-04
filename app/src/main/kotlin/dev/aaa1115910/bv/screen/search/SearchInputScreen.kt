@@ -33,6 +33,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,11 +44,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
@@ -126,6 +129,12 @@ private fun SearchInputScreenContent(
     onDeleteHistory: (SearchHistoryDB) -> Unit,
     onDeleteAllHistories: () -> Unit
 ) {
+    CompositionLocalProvider(
+        LocalDensity provides Density(
+            density = LocalDensity.current.density * 1.5f,
+            fontScale = LocalDensity.current.fontScale * 1.5f
+        )
+    ) {
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -185,6 +194,7 @@ private fun SearchInputScreenContent(
             )
         }
     }
+}
 }
 
 @Composable

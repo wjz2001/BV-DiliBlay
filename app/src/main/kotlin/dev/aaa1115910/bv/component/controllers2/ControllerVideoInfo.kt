@@ -12,12 +12,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +41,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -46,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
@@ -53,6 +58,7 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
+import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.bv.R
@@ -61,6 +67,7 @@ import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.countDownTimer
 import dev.aaa1115910.bv.util.formatHourMinSec
 import kotlinx.coroutines.delay
+import java.util.Calendar
 
 @Composable
 fun ControllerVideoInfo(
@@ -71,6 +78,7 @@ fun ControllerVideoInfo(
     infoData: VideoPlayerInfoData,
     title: String,
     clock: Triple<Int, Int, Int>,
+    currentPlaySpeed: Float,
     videoShot: VideoShot?,
     fromSeason: Boolean,
     danmakuEnabled: Boolean,
@@ -102,81 +110,101 @@ fun ControllerVideoInfo(
         }
     }
 
-    Box(
-        modifier = modifier.fillMaxSize()
-    ) {
-        AnimatedVisibility(
-            modifier = Modifier.align(Alignment.TopCenter),
-            visible = show,
-            enter = expandVertically(),
-            exit = shrinkVertically(),
-            label = "ControllerTopVideoInfo"
+        Box(
+            modifier = modifier.fillMaxSize()
         ) {
-            ControllerVideoInfoTop(
+            AnimatedVisibility(
                 modifier = Modifier.align(Alignment.TopCenter),
-                title = title,
-                clock = clock
-            )
+                visible = show,
+                enter = expandVertically(),
+                exit = shrinkVertically(),
+                label = "ControllerTopVideoInfo"
+            ) {
+                ControllerVideoInfoTop(
+                    modifier = Modifier.align(Alignment.TopCenter),
+                    title = title,
+                    clock = clock,
+                    currentTime = infoData.currentTime,
+                    totalDuration = infoData.totalDuration,
+                    currentPlaySpeed = currentPlaySpeed
+                )
+            }
+            AnimatedVisibility(
+                modifier = Modifier.align(Alignment.BottomCenter),
+                visible = show,
+                enter = expandVertically(),
+                exit = shrinkVertically(),
+                label = "ControllerBottomVideoInfo"
+            ) {
+                ControllerVideoInfoBottom(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .onPreviewKeyEvent {
+                            hideVideoInfoTimer?.cancel()
+                            setHideVideoInfoTimer()
+                            return@onPreviewKeyEvent false
+                        },
+                    show = show,
+                    isSeeking = isSeeking,
+                    goTime = goTime,
+                    infoData = infoData,
+                    videoShot = videoShot,
+                    fromSeason = fromSeason,
+                    danmakuEnabled = danmakuEnabled,
+                    isLooping = isLooping,
+                    onDirectionLeft = onDirectionLeft,
+                    onDirectionRight = onDirectionRight,
+                    onSeekGoTime = onSeekGoTime,
+                    onPlayPause = onPlayPause,
+                    onDanmakuSwitchChange = onDanmakuSwitchChange,
+                    onShowSettings = onShowSettings,
+                    onGoToVideoInfo = onGoToVideoInfo,
+                    onToggleLoop = onToggleLoop,
+                    onGoToUpPage = onGoToUpPage
+                )
+            }
         }
-        AnimatedVisibility(
-            modifier = Modifier.align(Alignment.BottomCenter),
-            visible = show,
-            enter = expandVertically(),
-            exit = shrinkVertically(),
-            label = "ControllerBottomVideoInfo"
-        ) {
-            ControllerVideoInfoBottom(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .onPreviewKeyEvent {
-                        hideVideoInfoTimer?.cancel()
-                        setHideVideoInfoTimer()
-                        return@onPreviewKeyEvent false
-                    },
-                show = show,
-                isSeeking = isSeeking,
-                goTime = goTime,
-                infoData = infoData,
-                videoShot = videoShot,
-                fromSeason = fromSeason,
-                danmakuEnabled = danmakuEnabled,
-                isLooping = isLooping,
-                onDirectionLeft = onDirectionLeft,
-                onDirectionRight = onDirectionRight,
-                onSeekGoTime = onSeekGoTime,
-                onPlayPause = onPlayPause,
-                onDanmakuSwitchChange = onDanmakuSwitchChange,
-                onShowSettings = onShowSettings,
-                onGoToVideoInfo = onGoToVideoInfo,
-                onToggleLoop = onToggleLoop,
-                onGoToUpPage = onGoToUpPage
-            )
-        }
-    }
 }
 
 @Composable
 fun ControllerVideoInfoTop(
     modifier: Modifier = Modifier,
     title: String,
-    clock: Triple<Int, Int, Int>
+    clock: Triple<Int, Int, Int>,
+    currentTime: Long = 0,
+    totalDuration: Long = 0,
+    // 3. 接收播放速度
+    currentPlaySpeed: Float
 ) {
+    // 计算视频结束时间
+    val remainingSeconds = totalDuration - currentTime
+    val currentTimeInSeconds = clock.first * 3600L + clock.second * 60L + clock.third
+    val endTimeInSeconds = (currentTimeInSeconds + remainingSeconds) % 86400  // 86400秒 = 24小时
+    val endHour = (endTimeInSeconds / 3600).toInt()
+    val endMinute = ((endTimeInSeconds % 3600) / 60).toInt()
+    val endSecond = (endTimeInSeconds % 60).toInt()
+
     Column(
         modifier = modifier
             .fillMaxWidth()
+            /*
             .clip(
                 MaterialTheme.shapes.large.copy(
                     topStart = CornerSize(0.dp),
                     topEnd = CornerSize(0.dp)
                 )
             )
+             */
             .background(
+                Color.Black.copy(alpha = 0.5f)
+                /*
                 brush = Brush.verticalGradient(
                     colors = listOf(
                         Color.Black.copy(alpha = 0.5f), // 上部颜色较深
                         Color.Black.copy(alpha = 0f)  // 下部颜色较浅
                     )
                 )
+                 */
             )
             .padding(horizontal = 32.dp, vertical = 16.dp)
     ) {
@@ -203,6 +231,11 @@ fun ControllerVideoInfoTop(
             Clock(
                 hour = clock.first,
                 minute = clock.second,
+                second = clock.third,
+                // 4. 将计算所需的所有数据都传给 Clock 组件
+                currentTime = currentTime,
+                totalDuration = totalDuration,
+                currentPlaySpeed = currentPlaySpeed
             )
         }
     }
@@ -246,10 +279,15 @@ fun ControllerVideoInfoBottom(
     }
     Column(
         modifier = modifier
+            /*
             .clip(
                 MaterialTheme.shapes.large
-                    .copy(bottomStart = CornerSize(0.dp), bottomEnd = CornerSize(0.dp))
-            ),
+
+            )
+             */
+            .background(Color.Black.copy(alpha = 0.5f))
+            .padding(top = 5.dp),
+
         verticalArrangement = Arrangement.Bottom
     ) {
         if (isSeeking && videoShot != null) {
@@ -269,6 +307,17 @@ fun ControllerVideoInfoBottom(
                 modifier = Modifier.padding(bottom = 2.dp, start = 24.dp),
                 text = "${if (isSeeking) goTime.formatHourMinSec() else infoData.currentTime.formatHourMinSec()} / ${infoData.totalDuration.formatHourMinSec()}",
                 color = Color.White,
+                fontWeight = FontWeight.Bold,
+                style = TextStyle(
+                    shadow = Shadow(color = Color.Black, blurRadius = 1f),
+                ),
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                modifier = Modifier.padding(bottom = 2.dp, end = 24.dp),
+                text = "${if (isSeeking) goTime.formatHourMinSec() else infoData.currentTime.formatHourMinSec()} / ${infoData.totalDuration.formatHourMinSec()}",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
                 style = TextStyle(
                     shadow = Shadow(color = Color.Black, blurRadius = 1f),
                 ),
@@ -380,32 +429,97 @@ private fun Clock(
     modifier: Modifier = Modifier,
     hour: Int,
     minute: Int,
+    second: Int,
+    // 5. 修改 Clock 组件的参数，接收计算所需的数据
+    currentTime: Long,
+    totalDuration: Long,
+    currentPlaySpeed: Float
 ) {
-    Text(
-        modifier = modifier,
-        color = Color.White,
-        fontWeight = FontWeight.Bold,
-        style = TextStyle(
-            shadow = Shadow(color = Color.Black, blurRadius = 1f),
-        ),
-        text = buildAnnotatedString {
-            withStyle(SpanStyle(fontSize = 32.sp)) {
-                append("$hour".padStart(2, '0'))
-                append(":")
-                append("$minute".padStart(2, '0'))
+    // 创建一个状态来存储“稳定”的结束时间文本
+    var stableFinishTimeText by remember { mutableStateOf("") }
+
+    // 使用 LaunchedEffect，它的 key 是显示的秒数 (second)
+    // 这意味着，只有当 `second` 的值从 41 -> 42 这样变化时，
+    // 内部的代码块才会重新执行。在一秒内 currentTime 的微小变化不会触发它。
+    LaunchedEffect(second) {
+        if (totalDuration > 0 && currentTime < totalDuration && currentPlaySpeed > 0) {
+            val remainingMillis = totalDuration - currentTime
+            // 根据播放速度计算真实的剩余时间
+            val actualRemainingMillis = (remainingMillis / currentPlaySpeed).toLong()
+
+            val finishTime = Calendar.getInstance().apply {
+                //设置时分秒
+                set(Calendar.HOUR_OF_DAY, hour)
+                set(Calendar.MINUTE, minute)
+                set(Calendar.SECOND, second)
+
+                add(Calendar.MILLISECOND, actualRemainingMillis.toInt())
             }
+
+            val finishHour = finishTime.get(Calendar.HOUR_OF_DAY)
+            val finishMinute = finishTime.get(Calendar.MINUTE)
+            val finishSecond = finishTime.get(Calendar.SECOND) // 获取秒
+
+            // 计算结果并更新到我们的状态中
+            stableFinishTimeText =
+                "${String.format("%02d:%02d:%02d", finishHour, finishMinute, finishSecond)} 结束"
+        } else {
+            stableFinishTimeText = ""
         }
-    )
+    }
+
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            // modifier = modifier,
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            style = TextStyle(
+                shadow = Shadow(color = Color.Black, blurRadius = 1f),
+            ),
+            text = buildAnnotatedString {
+                withStyle(SpanStyle(fontSize = 32.sp)) {
+                    append("$hour".padStart(2, '0'))
+                    append(":")
+                    append("$minute".padStart(2, '0'))
+                    append(":")
+                    append("$second".padStart(2, '0'))
+                }
+            }
+        )
+        // 视频结束时间
+        if (stableFinishTimeText.isNotEmpty()) {
+            Text(
+                modifier = Modifier.padding(top = 2.dp),
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                style = TextStyle(
+                    shadow = Shadow(color = Color.Black, blurRadius = 1f),
+                ),
+                text = stableFinishTimeText
+            )
+        }
+    }
 }
 
 @Preview
 @Composable
 private fun ClockPreview() {
     val clock = Triple(12, 30, 30)
+    val endHour = 13
+    val endMinute = 40
+    val endSecond = 50
     BVTheme {
         Clock(
             hour = clock.first,
             minute = clock.second,
+            second = clock.third,
+            currentTime = 1000 * 60 * 15, // 15分钟
+            totalDuration = 1000 * 60 * 45, // 45分钟
+            currentPlaySpeed = 1.0f
         )
     }
 }
@@ -432,8 +546,8 @@ private fun ControllerVideoInfoPreview() {
             isSeeking = false,
             goTime = 0,
             infoData = VideoPlayerInfoData(
-                totalDuration = 100,
-                currentTime = 33,
+                totalDuration = 1000 * 60 * 45, // 45分钟
+                currentTime = 1000 * 60 * 10,   // 10分钟
                 bufferedPercentage = 66,
                 resolutionWidth = 0,
                 resolutionHeight = 0,
@@ -441,6 +555,7 @@ private fun ControllerVideoInfoPreview() {
             ),
             title = "【A320】民航史上最佳逆袭！A320的前世今生！民航史上最佳逆袭！A320的前世今生！",
             clock = Triple(12, 30, 30),
+            currentPlaySpeed = 1.0f,
             videoShot = null,
             fromSeason = false,
             danmakuEnabled = false,

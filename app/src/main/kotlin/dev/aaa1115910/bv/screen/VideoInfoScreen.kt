@@ -38,6 +38,8 @@ import androidx.compose.material.icons.rounded.ViewModule
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -59,16 +61,24 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -105,6 +115,7 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.activities.video.TagActivity
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
+import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.component.buttons.CoinButton
 import dev.aaa1115910.bv.component.buttons.FavoriteButton
@@ -113,6 +124,7 @@ import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.videocard.VideosRow
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+import dev.aaa1115910.bv.repository.VideoInfoRepository
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fDebug
@@ -140,6 +152,7 @@ import kotlin.math.ceil
 fun VideoInfoScreen(
     modifier: Modifier = Modifier,
     lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current,
+    videoInfoRepository: VideoInfoRepository = getKoin().get(),
     videoDetailViewModel: VideoDetailViewModel = koinViewModel(),
     userRepository: UserRepository = getKoin().get(),
     favoriteRepository: FavoriteRepository = getKoin().get(),
@@ -395,7 +408,6 @@ fun VideoInfoScreen(
         }
     }
 
-
     LaunchedEffect(Unit) {
         if (intent.hasExtra("aid")) {
             val aid = intent.getLongExtra("aid", 170001)
@@ -433,7 +445,7 @@ fun VideoInfoScreen(
                     if (Prefs.isLogin) fetchFavoriteData(aid)
 
                     if (!fromController) {
-                        //如果是从剧集跳转过来的或设置不显示视频详情，就直接播放当前视频
+                        //如果是从剧集跳转过来的或设置不显示视频详情，就直接播放 P1
                         if (fromSeason || !showVideoInfo) {
                             playCurrentVideo(lastPlayedCid.takeIf { it != 0L })
                             context.finish()
@@ -549,7 +561,30 @@ fun VideoInfoScreen(
             containerColor = MaterialTheme.colorScheme.background
         ) { innerPadding ->
             Box(
-                modifier.padding(innerPadding)
+                modifier
+                    .padding(innerPadding)
+                    // ✅ 添加：基于 viewModel 状态拦截按键
+                    .onPreviewKeyEvent {
+                        if (videoDetailViewModel.state == VideoInfoState.Loading) {
+                            // 加载中或错误状态：只允许返回键通过
+                            when (it.key) {
+                                Key.Back -> {
+                                    // 不拦截返回键，让用户可以退出
+                                    return@onPreviewKeyEvent false
+                                }
+                                else -> {
+                                    // 拦截所有其他按键
+                                    if (it.type == KeyEventType.KeyDown) {
+                                        logger.fDebug { "Key ${it.key} blocked, state: ${videoDetailViewModel.state}" }
+                                    }
+                                    return@onPreviewKeyEvent true
+                                }
+                            }
+                        } else {
+                            // 加载完成：不拦截任何按键
+                            return@onPreviewKeyEvent false
+                        }
+                    }
             ) {
                 LazyColumn(
                     contentPadding = PaddingValues(top = 16.dp, bottom = 32.dp),
@@ -575,8 +610,7 @@ fun VideoInfoScreen(
                     item {
                         VideoInfoData(
                             defaultFocusRequester = defaultFocusRequester,
-                            description = videoDetailViewModel.videoDetail?.description
-                                ?: "no desc",
+                            description = videoDetailViewModel.videoDetail?.description ?: "",
                             videoDetail = videoDetailViewModel.videoDetail!!,
                             showFollowButton = showFollowButton,
                             isFollowing = isFollowing,
@@ -588,100 +622,8 @@ fun VideoInfoScreen(
                             favoriteFolderIds = videoInFavoriteFolderIds,
                             onClickCover = {
                                 logger.fInfo { "Click video cover" }
-<<<<<<< HEAD
                                 // 点击封面播放当前视频
                                 playCurrentVideo(lastPlayedCid.takeIf { it != 0L })
-=======
-                                scope.launch(Dispatchers.IO) {
-                                    updatePartVideoList()
-                                }
-
-                                // ✅ 修改：按优先级查找播放位置
-                                // 1. 首先在普通分P中查找历史记录
-                                val matchedPage =
-                                    videoDetailViewModel.videoDetail!!.pages.find { it.cid == lastPlayedCid }
-
-                                if (matchedPage != null) {
-                                    // ✅ 找到分P播放记录，播放该分P
-                                    logger.fInfo { "Found matched page: cid=${matchedPage.cid}, title=${matchedPage.title}" }
-                                    launchPlayerActivity(
-                                        context = context,
-                                        avid = videoDetailViewModel.videoDetail!!.aid,
-                                        cid = matchedPage.cid,
-                                        title = videoDetailViewModel.videoDetail!!.title,
-                                        partTitle = matchedPage.title,
-                                        played = lastPlayedTime * 1000,
-                                        fromSeason = false,
-                                        isVerticalVideo = containsVerticalScreenVideo,
-                                        author = videoDetailViewModel.videoDetail!!.author
-                                    )
-                                } else {
-                                    // ✅ 2. 在UGC合集中查找历史记录
-                                    val matchedEp =
-                                        videoDetailViewModel.videoDetail!!.ugcSeason?.sections
-                                            ?.flatMap { it.episodes }
-                                            ?.find { it.cid == lastPlayedCid }
-
-                                    if (matchedEp != null) {
-                                        // ✅ 找到UGC合集播放记录，播放该合集视频
-                                        logger.fInfo { "Found matched episode: aid=${matchedEp.aid}, cid=${matchedEp.cid}, title=${matchedEp.title}" }
-
-                                        // 找到对应的section索引，更新视频列表
-                                        val sectionIndex =
-                                            videoDetailViewModel.videoDetail!!.ugcSeason!!.sections
-                                                .indexOfFirst { section -> section.episodes.any { it.cid == matchedEp.cid } }
-                                        if (sectionIndex >= 0) {
-                                            updateUgcSeasonSectionVideoList(sectionIndex)
-                                        }
-
-                                        launchPlayerActivity(
-                                            context = context,
-                                            avid = matchedEp.aid,
-                                            cid = matchedEp.cid,
-                                            title = videoDetailViewModel.videoDetail!!.ugcSeason!!.title,
-                                            partTitle = matchedEp.title,
-                                            played = lastPlayedTime * 1000,
-                                            fromSeason = false,
-                                            isVerticalVideo = containsVerticalScreenVideo,
-                                            author = videoDetailViewModel.videoDetail!!.author
-                                        )
-                                    } else {
-                                        // ✅ 3. 没有任何播放记录，播放第一个分P
-                                        logger.fInfo { "No history found, play first part" }
-                                        val firstPage =
-                                            videoDetailViewModel.videoDetail!!.pages.first()
-                                        launchPlayerActivity(
-                                            context = context,
-                                            avid = videoDetailViewModel.videoDetail!!.aid,
-                                            cid = firstPage.cid,
-                                            title = videoDetailViewModel.videoDetail!!.title,
-                                            partTitle = firstPage.title,
-                                            played = 0,
-                                            fromSeason = false,
-                                            isVerticalVideo = containsVerticalScreenVideo,
-                                            author = videoDetailViewModel.videoDetail!!.author
-                                        )
-                                    }
-                                }
-                                /*
-                                logger.fInfo { "Click video cover" }
-                                // 点击封面读取分p列表
-                                scope.launch(Dispatchers.IO) {
-                                    updatePartVideoList()
-                                }
-                                launchPlayerActivity(
-                                    context = context,
-                                    avid = videoDetailViewModel.videoDetail!!.aid,
-                                    cid = videoDetailViewModel.videoDetail!!.pages.first().cid,
-                                    title = videoDetailViewModel.videoDetail!!.title,
-                                    partTitle = videoDetailViewModel.videoDetail!!.pages.first().title,
-                                    played = if (videoDetailViewModel.videoDetail!!.cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
-                                    fromSeason = false,
-                                    isVerticalVideo = containsVerticalScreenVideo,
-                                    author = videoDetailViewModel.videoDetail!!.author
-                                )
-                                 */
->>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
                             },
                             onClickUp = {
                                 UpInfoActivity.actionStart(
@@ -745,6 +687,14 @@ fun VideoInfoScreen(
                             }
                         )
                     }
+                    if ((videoDetailViewModel.videoDetail?.description ?: "").isNotBlank()) {
+                        item {
+                            VideoDescription(
+                                description = videoDetailViewModel.videoDetail?.description
+                                    ?: "no desc"
+                            )
+                        }
+                    }
                     item {
                         //视频分P
                         VideoPartRow(
@@ -760,7 +710,6 @@ fun VideoInfoScreen(
                             }
                         )
                     }
-<<<<<<< HEAD
 
                     val videoDetail = videoDetailViewModel.videoDetail
                     videoDetail?.ugcSeason?.let { season ->
@@ -793,75 +742,22 @@ fun VideoInfoScreen(
                                     )
                                 }
                             )
-=======
-                    videoDetailViewModel.videoDetail?.ugcSeason?.let { ugcSeason ->
-                        if (ugcSeason.sections.size == 1) {
-                            item {
-                                VideoUgcSeasonRow(
-                                    title = videoDetailViewModel.videoDetail?.ugcSeason!!.title,
-                                    episodes = videoDetailViewModel.videoDetail?.ugcSeason?.sections?.get(
-                                        0
-                                    )?.episodes
-                                        ?: emptyList(),
-                                    lastPlayedCid = lastPlayedCid,
-                                    lastPlayedTime = lastPlayedTime,
-                                    enableUgcListDialog =
-                                        (videoDetailViewModel.videoDetail?.ugcSeason?.sections?.get(
-                                            0
-                                        )?.episodes?.size
-                                            ?: 0) > 5,
-                                    onClick = { aid, cid ->
-                                        logger.fInfo { "Click ugc season part: [av:${videoDetailViewModel.videoDetail?.aid}, bv:${videoDetailViewModel.videoDetail?.bvid}, cid:$cid]" }
-                                        updateUgcSeasonSectionVideoList(0)
-                                        launchPlayerActivity(
-                                            context = context,
-                                            avid = aid,
-                                            cid = cid,
-                                            title = videoDetailViewModel.videoDetail?.ugcSeason!!.title,
-                                            partTitle = videoDetailViewModel.videoDetail!!.ugcSeason!!.sections[0].episodes.find { it.cid == cid }!!.title,
-                                            played = if (cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
-                                            fromSeason = false,
-                                            isVerticalVideo = containsVerticalScreenVideo,
-                                            author = videoDetailViewModel.videoDetail!!.author
-                                        )
-                                    }
-                                )
-                            }
-                        } else {
-                            itemsIndexed(items = videoDetailViewModel.videoDetail?.ugcSeason!!.sections) { index, section ->
-                                VideoUgcSeasonRow(
-                                    title = section.title,
-                                    episodes = section.episodes,
-                                    lastPlayedCid = lastPlayedCid,
-                                    lastPlayedTime = lastPlayedTime,
-                                    enableUgcListDialog = section.episodes.size > 5,
-                                    onClick = { aid, cid ->
-                                        logger.fInfo { "Click ugc season part: [av:${videoDetailViewModel.videoDetail?.aid}, bv:${videoDetailViewModel.videoDetail?.bvid}, cid:$cid]" }
-                                        updateUgcSeasonSectionVideoList(index)
-                                        launchPlayerActivity(
-                                            context = context,
-                                            avid = aid,
-                                            cid = cid,
-                                            title = videoDetailViewModel.videoDetail?.ugcSeason!!.title,
-                                            partTitle = section.episodes.find { it.cid == cid }!!.title,
-                                            played = if (cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
-                                            fromSeason = false,
-                                            isVerticalVideo = containsVerticalScreenVideo,
-                                            author = videoDetailViewModel.videoDetail!!.author
-                                        )
-                                    }
-                                )
-                            }
->>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
                         }
                     }
                     if (videoDetailViewModel.relatedVideos.isNotEmpty()) {
                         item {
-                            VideosRow(
-                                header = stringResource(R.string.video_info_related_video_title),
-                                videos = videoDetailViewModel.relatedVideos,
-                                showMore = {}
-                            )
+                            CompositionLocalProvider(
+                                LocalDensity provides Density(
+                                    density = LocalDensity.current.density * 1.25f,
+                                    fontScale = LocalDensity.current.fontScale * 1.25f
+                                )
+                            ) {
+                                VideosRow(
+                                    header = stringResource(R.string.video_info_related_video_title),
+                                    videos = videoDetailViewModel.relatedVideos,
+                                    showMore = {}
+                                )
+                            }
                         }
                     }
                 }
@@ -962,12 +858,14 @@ fun VideoInfoData(
                 contentScale = ContentScale.Crop
             )
         }
-        Spacer(modifier = Modifier.width(24.dp))
+        // Spacer(modifier = Modifier.width(24.dp))
+        Spacer(modifier = Modifier.width(48.dp))
         Column(
             modifier = Modifier
                 .weight(7f)
                 .height(heightIs),
-            verticalArrangement = Arrangement.SpaceBetween
+            // verticalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             Column(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -975,8 +873,11 @@ fun VideoInfoData(
                 Text(
                     //text = videoDetail.title,
                     text = if (videoDetail.isUpowerExclusive) "充电▶ ${videoDetail.title}" else videoDetail.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    maxLines = 1,
+                    // style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 44.sp),
+                    // maxLines = 1,
+                    maxLines = 2,
+                    lineHeight = 50.sp,
                     overflow = TextOverflow.Ellipsis,
                     color = Color.White
                 )
@@ -984,25 +885,6 @@ fun VideoInfoData(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    CompositionLocalProvider(
-                        LocalTextStyle provides MaterialTheme.typography.labelMedium
-                    ) {
-                        Text(text = "发布于 ${videoDetail.publishDate.formatPubTimeString()}")
-                        Text(text = "·")
-                        Text(text = "播放量 ${(videoDetail.stat.view).toWanString()}")
-                        Text(text = "·")
-                        Text(text = "弹幕 ${(videoDetail.stat.danmaku).toWanString()}")
-                        Text(text = "·")
-                        Text(text = "点赞 ${videoDetail.stat.like.toWanString()}")
-                        Text(text = "·")
-                        Text(text = "投币 ${videoDetail.stat.coin.toWanString()}")
-                        Text(text = "·")
-                        Text(text = "收藏 ${videoDetail.stat.favorite.toWanString()}")
-                    }
-                }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     UpButton(
                         name = videoDetail.author.name,
@@ -1012,7 +894,47 @@ fun VideoInfoData(
                         onAddFollow = onAddFollow,
                         onDelFollow = onDelFollow
                     )
+                    Row(
+                        modifier = Modifier
+                            .padding(start = 4.dp)
+                            .weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CompositionLocalProvider(
+                            // LocalTextStyle provides MaterialTheme.typography.labelMedium
+                            LocalTextStyle provides MaterialTheme.typography.labelMedium.copy(
+                                fontSize = 27.sp
+                            )
+                        ) {
+                            Text(text = "发布于 ${videoDetail.publishDate.formatPubTimeString()}")
+                            Text(text = "·")
+                            Text(text = "播放量 ${(videoDetail.stat.view).toWanString()}")
+                            Text(text = "·")
+                            Text(text = "弹幕 ${(videoDetail.stat.danmaku).toWanString()}")
+                            Text(text = "·")
+                            Text(text = "点赞 ${videoDetail.stat.like.toWanString()}")
+                            Text(text = "·")
+                            Text(text = "投币 ${videoDetail.stat.coin.toWanString()}")
+                            Text(text = "·")
+                            Text(text = "收藏 ${videoDetail.stat.favorite.toWanString()}")
+                        }
+                    }
                 }
+                /*
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                   UpButton(
+                        name = videoDetail.author.name,
+                        followed = isFollowing,
+                        showFollowButton = showFollowButton,
+                        onClickUp = onClickUp,
+                        onAddFollow = onAddFollow,
+                        onDelFollow = onDelFollow
+                    )
+
+                }
+                 */
             }
             Row(
                 modifier = Modifier
@@ -1021,6 +943,14 @@ fun VideoInfoData(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
+                FavoriteButton(
+                    isFavorite = isFavorite,
+                    userFavoriteFolders = userFavoriteFolders,
+                    favoriteFolderIds = favoriteFolderIds,
+                    onAddToDefaultFavoriteFolder = onAddToDefaultFavoriteFolder,
+                    onUpdateFavoriteFolders = onUpdateFavoriteFolders
+                )
+                Spacer(modifier = Modifier.width(5.dp))
                 LikeButton(
                     isLiked = isLiked,
                     onClick = { onUpdateLiked(!isLiked) },
@@ -1029,14 +959,6 @@ fun VideoInfoData(
                 CoinButton(
                     isCoined = isCoined,
                     onClick = onSendVideoCoin,
-                )
-                Spacer(modifier = Modifier.width(5.dp))
-                FavoriteButton(
-                    isFavorite = isFavorite,
-                    userFavoriteFolders = userFavoriteFolders,
-                    favoriteFolderIds = favoriteFolderIds,
-                    onAddToDefaultFavoriteFolder = onAddToDefaultFavoriteFolder,
-                    onUpdateFavoriteFolders = onUpdateFavoriteFolders
                 )
                 LazyRow(
                     modifier = Modifier.weight(1f),
@@ -1107,17 +1029,19 @@ private fun UpButton(
                         contentDescription = null,
                         tint = Color.White
                     )
+                    /*
                     Text(
                         text = stringResource(R.string.video_info_followed),
                         color = Color.White
                     )
+                     */
                 } else {
                     Icon(
                         imageVector = Icons.Rounded.Add,
                         contentDescription = null,
                         tint = Color.White
                     )
-                    Text(text = stringResource(R.string.video_info_follow), color = Color.White)
+                    // Text(text = stringResource(R.string.video_info_follow), color = Color.White)
                 }
             }
         }
@@ -1127,10 +1051,8 @@ private fun UpButton(
 @Composable
 fun VideoDescription(
     modifier: Modifier = Modifier,
-    description: String,
-
-    ) {
-    var showDescriptionDialog by remember { mutableStateOf(false) }
+    description: String
+) {
     var hasFocus by remember { mutableStateOf(false) }
     val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
     val titleFontSize by animateFloatAsState(
@@ -1138,22 +1060,16 @@ fun VideoDescription(
         targetValue = 14f,
         label = "title font size"
     )
+    var showDescriptionDialog by remember { mutableStateOf(false) }
     if (description.isNotBlank()) {
         Column(
             modifier = modifier
-                // .padding(horizontal = 50.dp),
+            // .padding(horizontal = 50.dp),
         ) {
             Text(
-<<<<<<< HEAD
-                text = description,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                color = Color.White
-=======
                 text = stringResource(R.string.video_info_description_title),
                 fontSize = titleFontSize.sp,
                 color = titleColor
->>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
             )
             Box(
                 modifier = Modifier
@@ -1169,7 +1085,7 @@ fun VideoDescription(
                 Text(
                     text = description,
                     maxLines = 3,
-                    fontSize = 20.sp,
+                    fontSize = 22.sp,
                     overflow = TextOverflow.Ellipsis,
                     color = Color.White
                 )
@@ -1236,6 +1152,7 @@ fun DurationUnitText(
 @Composable
 fun VideoPartButton(
     modifier: Modifier = Modifier,
+    index: Int,
     title: String,
     duration: Int,
     played: Int = 0,
@@ -1254,14 +1171,11 @@ fun VideoPartButton(
     ) {
         Box(
             modifier = Modifier
-<<<<<<< HEAD
-                .size(200.dp, 64.dp)
-=======
                 // .size(200.dp, 64.dp)
                 .fillMaxSize(),
-            contentAlignment = Alignment.Center
+            // contentAlignment = Alignment.Center
+            contentAlignment = Alignment.CenterStart
 
->>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
         ) {
             Box(
                 modifier = Modifier
@@ -1269,8 +1183,6 @@ fun VideoPartButton(
                     .fillMaxHeight()
                     .fillMaxWidth(if (played < 0) 1f else (played / duration.toFloat()))
             ) {}
-<<<<<<< HEAD
-=======
             Row(
                 modifier = Modifier.fillMaxSize(),
                 verticalAlignment = Alignment.CenterVertically
@@ -1312,14 +1224,16 @@ fun VideoPartButton(
                 }
             }
             /*
->>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
             Text(
                 modifier = Modifier
-                    .padding(8.dp),
-                text = title,
+                    // .padding(8.dp),
+                    .padding(10.dp),
+                text = "P$index $title",
+                fontSize = LocalTextStyle.current.fontSize * 1.4,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+            */
         }
     }
 }
@@ -1331,12 +1245,8 @@ fun VideoPartRowButton(
     content: @Composable BoxScope.() -> Unit
 ) {
     Surface(
-<<<<<<< HEAD
-        modifier = modifier.size(64.dp),
-=======
         //modifier = modifier.size(64.dp),
         modifier = modifier.size(96.dp),
->>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
         colors = ClickableSurfaceDefaults.colors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
             focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
@@ -1389,7 +1299,8 @@ fun VideoPartRow(
                 .padding(top = 15.dp)
                 .focusRestorer(focusRequester),
             contentPadding = PaddingValues(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            // horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             if (enablePartListDialog) {
                 item {
@@ -1397,12 +1308,8 @@ fun VideoPartRow(
                         onClick = { showPartListDialog = true }
                     ) {
                         Icon(
-<<<<<<< HEAD
-                            modifier = Modifier.size(36.dp),
-=======
                             // modifier = Modifier.size(36.dp),
                             modifier = Modifier.size(54.dp),
->>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
                             imageVector = Icons.Rounded.ViewModule,
                             contentDescription = null
                         )
@@ -1418,12 +1325,8 @@ fun VideoPartRow(
                         onClick = { onClick(matchedPage.cid) }
                     ) {
                         Icon(
-<<<<<<< HEAD
-                            modifier = Modifier.size(36.dp),
-=======
                             // modifier = Modifier.size(36.dp),
                             modifier = Modifier.size(54.dp),
->>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
                             imageVector = Icons.Rounded.History,
                             contentDescription = null
                         )
@@ -1434,13 +1337,10 @@ fun VideoPartRow(
             itemsIndexed(items = pages, key = { _, page -> page.cid }) { index, page ->
                 VideoPartButton(
                     modifier = Modifier
-<<<<<<< HEAD
-                        .ifElse(index == 0, Modifier.focusRequester(focusRequester)),
-=======
                         .ifElse(index == 0, Modifier.focusRequester(focusRequester))
+                        // .width(200.dp),
                         .width(300.dp),
                     index = index + 1,
->>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
                     title = page.title,
                     played = if (page.cid == lastPlayedCid) lastPlayedTime else 0,
                     duration = page.duration,
@@ -1479,6 +1379,11 @@ fun VideoUgcSeasonRow(
         label = "title font size"
     )
 
+    // 计算当前正在播放的视频在列表中的索引
+    val playingIndex = remember(episodes, lastPlayedCid) {
+        episodes.indexOfFirst { it.cid == lastPlayedCid }
+    }
+
     Column(
         modifier = modifier
             .padding(start = 50.dp)
@@ -1496,7 +1401,8 @@ fun VideoUgcSeasonRow(
                 .padding(top = 15.dp)
                 .focusRestorer(focusRequester),
             contentPadding = PaddingValues(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            // horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             if (enableUgcListDialog) {
                 item {
@@ -1504,7 +1410,8 @@ fun VideoUgcSeasonRow(
                         onClick = { showUgcListDialog = true }
                     ) {
                         Icon(
-                            modifier = Modifier.size(36.dp),
+                            // modifier = Modifier.size(36.dp),
+                            modifier = Modifier.size(54.dp),
                             imageVector = Icons.Rounded.ViewModule,
                             contentDescription = null
                         )
@@ -1520,12 +1427,8 @@ fun VideoUgcSeasonRow(
                         onClick = { onClick(matchedEp.aid, matchedEp.cid) }
                     ) {
                         Icon(
-<<<<<<< HEAD
-                            modifier = Modifier.size(36.dp),
-=======
                             // modifier = Modifier.size(36.dp),
                             modifier = Modifier.size(54.dp),
->>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
                             imageVector = Icons.Rounded.History,
                             contentDescription = null
                         )
@@ -1534,17 +1437,29 @@ fun VideoUgcSeasonRow(
             }
 
             itemsIndexed(items = episodes) { index, episode ->
+
+                // 为每个分P独立计算播放进度
+                val currentPlayedTime = when {
+                    // 1. 如果没有播放记录，所有分P进度都为0
+                    playingIndex == -1 -> 0
+                    // 2. 如果当前分P在正在播放的分P之前，说明已经看完，进度为满
+                    index < playingIndex -> episode.duration
+                    // 3. 如果当前分P就是正在播放的分P，使用历史记录的进度
+                    index == playingIndex -> lastPlayedTime
+                    // 4. 如果当前分P在正在播放的分P之后，说明还没看，进度为0
+                    else -> 0
+                }
+
                 VideoPartButton(
                     modifier = Modifier
-<<<<<<< HEAD
-                        .ifElse(index == 0, Modifier.focusRequester(focusRequester)),
-=======
                         .ifElse(index == 0, Modifier.focusRequester(focusRequester))
+                        // .width(200.dp),
                         .width(300.dp),
                     index = index + 1,
->>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
                     title = episode.title,
-                    played = if (episode.cid == lastPlayedCid) lastPlayedTime else 0,
+                    // played = if (episode.cid == lastPlayedCid) lastPlayedTime else 0,
+                    // duration = episode.duration,
+                    played = currentPlayedTime,
                     duration = episode.duration,
                     onClick = { onClick(episode.aid, episode.cid) }
                 )
@@ -1601,8 +1516,6 @@ private fun VideoPartListDialog(
     val currentDensity = LocalDensity.current
 
     if (show) {
-<<<<<<< HEAD
-=======
         Dialog(
             onDismissRequest = onHideDialog,
             properties = DialogProperties(
@@ -1722,7 +1635,6 @@ private fun VideoPartListDialog(
             }
         }
         /*
->>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
         AlertDialog(
             modifier = modifier,
             title = { Text(text = title) },
@@ -1783,6 +1695,7 @@ private fun VideoPartListDialog(
 
                             VideoPartButton(
                                 modifier = buttonModifier,
+                                index = index + 1,
                                 title = page.title,
                                 played = 0,
                                 duration = page.duration,
@@ -1793,6 +1706,7 @@ private fun VideoPartListDialog(
                 }
             }
         )
+        */
     }
 }
 
@@ -1836,8 +1750,6 @@ private fun VideoUgcListDialog(
     val currentDensity = LocalDensity.current
 
     if (show) {
-<<<<<<< HEAD
-=======
         Dialog(  // ✅ 使用 Dialog
             onDismissRequest = onHideDialog,
             properties = DialogProperties(
@@ -1954,7 +1866,6 @@ private fun VideoUgcListDialog(
                 }
             }
             /*
->>>>>>> 49a702f (修复分集按钮时间显示不正确的问题、调整视频简介位置、分集列表行数与列数增加)
         AlertDialog(
             modifier = modifier,
             title = { Text(text = title) },
@@ -2015,6 +1926,7 @@ private fun VideoUgcListDialog(
 
                             VideoPartButton(
                                 modifier = buttonModifier,
+                                index = index + 1,
                                 title = episode.title,
                                 played = 0,
                                 duration = episode.duration,
@@ -2025,6 +1937,8 @@ private fun VideoUgcListDialog(
                 }
             }
         )
+        */
+        }
     }
 }
 
@@ -2033,6 +1947,7 @@ private fun VideoUgcListDialog(
 fun VideoPartButtonShortTextPreview() {
     BVTheme {
         VideoPartButton(
+            index = 2,
             title = "这是一段短文字",
             duration = 100,
             onClick = {}
@@ -2045,6 +1960,7 @@ fun VideoPartButtonShortTextPreview() {
 fun VideoPartButtonLongTextPreview() {
     BVTheme {
         VideoPartButton(
+            index = 2,
             title = "这可能是我这辈子距离梅西最近的一次",
             played = 23333,
             duration = 3800,
