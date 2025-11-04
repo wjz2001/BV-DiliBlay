@@ -25,6 +25,7 @@ slf4j-android-mvysny = "2.0.13"
 slf4j-simple = "2.0.9"
 vlc = "3.6.0-eap5"
 uiText = "1.9.4"
+runtime = "1.9.4"
 
 [libraries]
 # https://github.com/shenbengit/AkDanmaku
@@ -114,3 +115,4 @@ slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j-simple"
 # https://code.videolan.org/videolan/vlc-android
 vlc-android-all = { module = "org.videolan.android:libvlc-all", version.ref = "vlc" }
 ui-text = { group = "androidx.compose.ui", name = "ui-text", version.ref = "uiText" }
+runtime = { group = "androidx.compose.runtime", name = "runtime", version.ref = "runtime" }

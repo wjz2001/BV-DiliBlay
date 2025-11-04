@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,9 +33,11 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Border
 import androidx.tv.material3.Card
@@ -61,6 +64,11 @@ fun SmallVideoCard(
     onAddWatchLater: (() -> Unit)? = null,
     onGoToDetailPage : (() -> Unit)? = null,
     onGoToUpPage : (() -> Unit)? = null,
+    // 1. 为 SmallVideoCard 添加独立的参数，用于分别控制 Cover 和 Info
+    coverDensityMultiplier: Float = 1.5f,
+    coverFontScaleMultiplier: Float = 1.5f,
+    infoDensityMultiplier: Float = 1.35f,
+    infoFontScaleMultiplier: Float = 1.35f
 ) {
     var showActions by remember { mutableStateOf(false) }
     // 解决长按卡片松开会导致一次按钮触发的问题
@@ -150,7 +158,10 @@ fun SmallVideoCard(
                     cover = data.cover,
                     play = data.playString,
                     danmaku = data.danmakuString,
-                    time = data.timeString
+                    time = data.timeString,
+                    // 2. 将封面相关的参数传递给 CardCover
+                    coverDensityMultiplier = coverDensityMultiplier,
+                    coverFontScaleMultiplier = coverFontScaleMultiplier
                 )
             }
         }
@@ -159,7 +170,10 @@ fun SmallVideoCard(
             modifier = Modifier.fillMaxWidth(),
             title = data.title,
             upName = data.upName,
-            pubTime = data.pubTime
+            pubTime = data.pubTime,
+            // 3. 将信息相关的参数传递给 CardInfo
+            infoDensityMultiplier = infoDensityMultiplier,
+            infoFontScaleMultiplier = infoFontScaleMultiplier
         )
     }
 }
@@ -171,7 +185,10 @@ fun CardCover(
     cover: String,
     play: String,
     danmaku: String,
-    time: String
+    time: String,
+    // 4. CardCover 使用独立的参数名
+    coverDensityMultiplier: Float,
+    coverFontScaleMultiplier: Float
 ) {
     Box(
         modifier = modifier
@@ -189,6 +206,7 @@ fun CardCover(
         )
 
         // 渐变遮罩
+        /*
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -202,48 +220,67 @@ fun CardCover(
                     )
                 )
         )
+         */
 
-        // 播放数、弹幕数、时间
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (play.isNotBlank()) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_play_count),
-                    contentDescription = null,
-                    tint = Color.White
-                )
-                Spacer(Modifier.width(2.dp))
-                Text(
-                    text = play,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White
-                )
-                Spacer(Modifier.width(8.dp))
-            }
-            if (danmaku.isNotBlank()) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_danmaku_count),
-                    contentDescription = null,
-                    tint = Color.White
-                )
-                Spacer(Modifier.width(2.dp))
-                Text(
-                    text = danmaku,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White
-                )
-            }
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = time,
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.White,
-                maxLines = 1
+        CompositionLocalProvider(
+            LocalDensity provides Density(
+                density = LocalDensity.current.density * coverDensityMultiplier,
+                fontScale = LocalDensity.current.fontScale * coverFontScaleMultiplier
             )
+        ) {
+            // 播放数、弹幕数、时间
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            // 2. 调整颜色和透明度以达到期望的效果
+                            // 0.0f 表示从顶部开始，1.0f 表示到底部结束
+                            // 这里我们让渐变从一半高度的位置才开始，效果更集中在文字区域
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.8f) // 可以让底部颜色更深
+                            )
+                        )
+                    )
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (play.isNotBlank()) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_play_count),
+                        contentDescription = null,
+                        tint = Color.White
+                    )
+                    Spacer(Modifier.width(2.dp))
+                    Text(
+                        text = play,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
+                if (danmaku.isNotBlank()) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_danmaku_count),
+                        contentDescription = null,
+                        tint = Color.White
+                    )
+                    Spacer(Modifier.width(2.dp))
+                    Text(
+                        text = danmaku,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = time,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White,
+                    maxLines = 1
+                )
+            }
         }
     }
 }
@@ -253,38 +290,48 @@ fun CardInfo(
     modifier: Modifier = Modifier,
     title: String,
     upName: String,
-    pubTime: String?
+    pubTime: String?,
+    infoDensityMultiplier: Float,
+    infoFontScaleMultiplier: Float
 ) {
-    Column(
-        modifier = modifier
-            .padding(vertical = 6.dp)
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth()
+    CompositionLocalProvider(
+        LocalDensity provides Density(
+            density = LocalDensity.current.density * infoDensityMultiplier,
+            fontScale = LocalDensity.current.fontScale * infoFontScaleMultiplier
         )
-        Spacer(Modifier.height(4.dp))
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Column(
+            modifier = modifier
+                .padding(vertical = 6.dp)
         ) {
-            UpIcon()
             Text(
-                modifier = Modifier.weight(1f),
-                text = upName,
-                style = MaterialTheme.typography.labelMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                // maxLines = 2,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
             )
-            Text(
-                text = pubTime ?: "",
-                style = MaterialTheme.typography.labelMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Spacer(Modifier.height(4.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                UpIcon()
+                Text(
+                    modifier = Modifier.weight(1f),
+                    text = upName,
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = pubTime ?: "",
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
