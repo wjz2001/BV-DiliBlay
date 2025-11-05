@@ -23,9 +23,8 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.component.PersonalTopNavItem
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.screen.user.FavoriteScreen
@@ -115,14 +114,14 @@ fun PersonalContent(
             modifier = Modifier
                 .padding(innerPadding)
                 .onFocusChanged { focusOnContent = it.hasFocus }
-                .onPreviewKeyEvent {
+                .onKeyEvent {
                     if (it.key == Key.Menu) {
-                        if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
+                        if (it.type == KeyEventType.KeyDown) return@onKeyEvent true
                         refreshPageData(selectedTab)
                         navFocusRequester.requestFocus()
-                        return@onPreviewKeyEvent true
+                        return@onKeyEvent true
                     }
-                    return@onPreviewKeyEvent false
+                    return@onKeyEvent false
                 },
         ) {
             AnimatedContent(
