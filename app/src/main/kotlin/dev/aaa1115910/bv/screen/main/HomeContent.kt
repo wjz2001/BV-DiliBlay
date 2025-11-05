@@ -23,7 +23,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.component.HomeTopNavItem
@@ -68,6 +68,12 @@ fun HomeContent(
     val firstTab = remember { Prefs.firstHomeTopNavItem }
     var selectedTab by remember { mutableStateOf(firstTab) }
     var focusOnContent by remember { mutableStateOf(false) }
+
+    // 1. 在这里定义 backToTabRow 函数
+    // 它会使用从外部传入的 navFocusRequester 来请求焦点
+    val backToTabRow: () -> Unit = {
+        navFocusRequester.requestFocus()
+    }
 
     val getReorderedItems: (HomeTopNavItem) -> List<HomeTopNavItem> = { item ->
         val allItems = HomeTopNavItem.entries
@@ -202,9 +208,20 @@ fun HomeContent(
             modifier = Modifier
                 .padding(innerPadding)
                 .onFocusChanged { focusOnContent = it.hasFocus }
-                .onPreviewKeyEvent {
+                .onKeyEvent {
+                    if (it.key == Key.Back) {
+                        // 确保是按键抬起事件，防止重复触发
+                        // 同时检查焦点是否确实在内容区域
+                        if (it.type == KeyEventType.KeyUp && focusOnContent) {
+                            backToTabRow()
+                            // 返回 true 表示我们已经处理了这个事件，
+                            // 系统不需要再执行默认的返回操作（例如退出页面）
+                            return@onKeyEvent true
+                        }
+                    }
+
                     if (it.key == Key.Menu) {
-                        if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
+                        if (it.type == KeyEventType.KeyDown) return@onKeyEvent true
                         when (selectedTab) {
                             HomeTopNavItem.Recommend -> {
                                 recommendViewModel.clearData()
@@ -241,9 +258,9 @@ fun HomeContent(
                             }
                         }
                         navFocusRequester.requestFocus()
-                        return@onPreviewKeyEvent true
+                        return@onKeyEvent true
                     }
-                    return@onPreviewKeyEvent false
+                    return@onKeyEvent false
                 },
         ) {
             AnimatedContent(
@@ -266,7 +283,7 @@ fun HomeContent(
                     HomeTopNavItem.Dynamics -> DynamicsScreen()
                     HomeTopNavItem.ToView -> ToViewScreen()
                     HomeTopNavItem.History -> HistoryScreen()
-                    HomeTopNavItem.Favorite -> FavoriteScreen()
+                    HomeTopNavItem.Favorite -> FavoriteScreen(onBack = backToTabRow)
                     HomeTopNavItem.FollowingSeason -> FollowingSeasonScreen()
                 }
             }
