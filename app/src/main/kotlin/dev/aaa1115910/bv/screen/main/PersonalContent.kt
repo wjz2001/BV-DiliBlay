@@ -51,6 +51,11 @@ fun PersonalContent(
 
     var selectedTab by remember { mutableStateOf(PersonalTopNavItem.ToView) }
     var focusOnContent by remember { mutableStateOf(false) }
+    // 1. 在这里定义 backToTabRow 函数
+    // 它会使用从外部传入的 navFocusRequester 来请求焦点
+    val backToTabRow: () -> Unit = {
+        navFocusRequester.requestFocus()
+    }
 
     fun refreshPageData(nav: PersonalTopNavItem) {
         when (nav) {
@@ -115,6 +120,17 @@ fun PersonalContent(
                 .padding(innerPadding)
                 .onFocusChanged { focusOnContent = it.hasFocus }
                 .onKeyEvent {
+                    if (it.key == Key.Back) {
+                        // 确保是按键抬起事件，防止重复触发
+                        // 同时检查焦点是否确实在内容区域
+                        if (it.type == KeyEventType.KeyUp && focusOnContent) {
+                            backToTabRow()
+                            // 返回 true 表示我们已经处理了这个事件，
+                            // 系统不需要再执行默认的返回操作（例如退出页面）
+                            return@onKeyEvent true
+                        }
+                    }
+
                     if (it.key == Key.Menu) {
                         if (it.type == KeyEventType.KeyDown) return@onKeyEvent true
                         refreshPageData(selectedTab)
@@ -148,7 +164,7 @@ fun PersonalContent(
                     }
 
                     PersonalTopNavItem.Favorite -> {
-                        FavoriteScreen()
+                        FavoriteScreen(onBack = backToTabRow)
                     }
 
                     PersonalTopNavItem.FollowingSeason -> {

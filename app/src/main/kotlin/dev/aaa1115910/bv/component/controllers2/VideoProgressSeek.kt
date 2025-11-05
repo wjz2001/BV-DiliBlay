@@ -9,6 +9,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
@@ -44,7 +45,8 @@ fun VideoProgressSeek(
         )
         if (!isPersistentSeek) {
             drawLine(
-                color = colors.disabledActiveTrackColor,
+                // color = colors.disabledActiveTrackColor,
+                color = Color(0xFFFFB3B3),
                 start = Offset(trackWidthPx / 2, center.y),
                 end = Offset(trackWidthPx / 2 + size.width * bufferedPercentage / 100, center.y),
                 strokeWidth = trackWidthPx,
@@ -53,7 +55,8 @@ fun VideoProgressSeek(
             )
         }
         drawLine(
-            color = colors.activeTrackColor,
+            // color = colors.activeTrackColor,
+            color = Color(0xFFFF0000),
             start = Offset(trackWidthPx / 2, center.y),
             end = Offset(trackWidthPx / 2 + size.width * (position / duration.toFloat()), center.y),
             strokeWidth = trackWidthPx,

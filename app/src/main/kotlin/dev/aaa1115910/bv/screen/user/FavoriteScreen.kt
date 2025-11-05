@@ -30,6 +30,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.LocalContentColor
@@ -51,7 +56,10 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun FavoriteScreen(
     modifier: Modifier = Modifier,
-    favoriteViewModel: FavoriteViewModel = koinViewModel()
+    favoriteViewModel: FavoriteViewModel = koinViewModel(),
+            // 1. 添加 onBack 回调参数
+            onBack: () -> Unit
+
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -88,7 +96,26 @@ fun FavoriteScreen(
     }
 
     Column(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .onPreviewKeyEvent {
+                // 只处理返回键的抬起事件
+                if (it.key == Key.Back && it.type == KeyEventType.KeyUp) {
+                    // 如果焦点当前在 TabRow 上
+                    if (focusOnTabs) {
+                        // 调用父组件传递的 onBack 回调
+                        onBack()
+                    } else {
+                        // 如果焦点在下面的内容（LazyVerticalGrid）里，
+                        // 则将焦点移动到 TabRow
+                        defaultFocusRequester.requestFocus()
+                    }
+                    // 返回 true，表示我们已经处理了此事件，系统无需再做默认的返回操作
+                    return@onPreviewKeyEvent true
+                }
+                // 对于其他按键，返回 false
+                false
+            },
         horizontalAlignment = Alignment.Start
 
     ) {
