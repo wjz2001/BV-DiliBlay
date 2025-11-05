@@ -77,6 +77,7 @@ fun ControllerVideoInfo(
     goTime: Long,
     infoData: VideoPlayerInfoData,
     title: String,
+    subtitle: String,
     clock: Triple<Int, Int, Int>,
     currentPlaySpeed: Float,
     videoShot: VideoShot?,
@@ -144,6 +145,7 @@ fun ControllerVideoInfo(
                             setHideVideoInfoTimer()
                             return@onPreviewKeyEvent false
                         },
+                    subtitle = subtitle,
                     show = show,
                     isSeeking = isSeeking,
                     goTime = goTime,
@@ -244,6 +246,7 @@ fun ControllerVideoInfoTop(
 @Composable
 fun ControllerVideoInfoBottom(
     modifier: Modifier = Modifier,
+    subtitle: String,
     show: Boolean,
     isSeeking: Boolean,
     goTime: Long,
@@ -301,10 +304,14 @@ fun ControllerVideoInfoBottom(
             )
         }
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 5.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                modifier = Modifier.padding(bottom = 2.dp, start = 24.dp),
+                modifier = Modifier
+                    .padding(horizontal = 24.dp),
                 text = "${if (isSeeking) goTime.formatHourMinSec() else infoData.currentTime.formatHourMinSec()} / ${infoData.totalDuration.formatHourMinSec()}",
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
@@ -312,9 +319,19 @@ fun ControllerVideoInfoBottom(
                     shadow = Shadow(color = Color.Black, blurRadius = 1f),
                 ),
             )
-            Spacer(modifier = Modifier.weight(1f))
             Text(
-                modifier = Modifier.padding(bottom = 2.dp, end = 24.dp),
+                text = subtitle,
+                color = Color.White,
+                style = TextStyle(
+                    shadow = Shadow(color = Color.Black, blurRadius = 1f),
+                ),
+                maxLines = 1,
+                // 如果文本超出1行，则以省略号(...)结尾
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                modifier = Modifier
+                    .padding(horizontal = 24.dp),
                 text = "${if (isSeeking) goTime.formatHourMinSec() else infoData.currentTime.formatHourMinSec()} / ${infoData.totalDuration.formatHourMinSec()}",
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
@@ -323,6 +340,20 @@ fun ControllerVideoInfoBottom(
                 ),
             )
         }
+        /*
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                modifier = Modifier.padding(bottom = 2.dp, start = 24.dp),
+                text = "${if (isSeeking) goTime.formatHourMinSec() else infoData.currentTime.formatHourMinSec()} / ${infoData.totalDuration.formatHourMinSec()}",
+                color = Color.White,
+                style = TextStyle(
+                    shadow = Shadow(color = Color.Black, blurRadius = 1f),
+                ),
+            )
+        }
+         */
         Row(
             modifier = Modifier
                 // .padding(horizontal = 24.dp)
@@ -448,11 +479,6 @@ private fun Clock(
             val actualRemainingMillis = (remainingMillis / currentPlaySpeed).toLong()
 
             val finishTime = Calendar.getInstance().apply {
-                //设置时分秒
-                set(Calendar.HOUR_OF_DAY, hour)
-                set(Calendar.MINUTE, minute)
-                set(Calendar.SECOND, second)
-
                 add(Calendar.MILLISECOND, actualRemainingMillis.toInt())
             }
 
@@ -554,6 +580,7 @@ private fun ControllerVideoInfoPreview() {
                 codec = ""
             ),
             title = "【A320】民航史上最佳逆袭！A320的前世今生！民航史上最佳逆袭！A320的前世今生！",
+            subtitle = "哈哈哈",
             clock = Triple(12, 30, 30),
             currentPlaySpeed = 1.0f,
             videoShot = null,

@@ -57,27 +57,27 @@ class VideoDetailViewModel(
             state = VideoInfoState.Loading
         }
         withContext(Dispatchers.IO) {
-        runCatching {
-            val videoDetailData = videoDetailRepository.getVideoDetail(
-                aid = aid,
-                preferApiType = Prefs.apiType
-            )
-            withContext(Dispatchers.Main) { videoDetail = videoDetailData }
-        }.onFailure {
-            withContext(Dispatchers.Main) {
-                state = VideoInfoState.Error
-                logger.fInfo { "Load video av$aid failed: ${it.stackTraceToString()}" }
-            }
-        }.onSuccess {
-            withContext(Dispatchers.Main) {
-            state = VideoInfoState.Success
-            logger.fInfo { "Load video av$aid success" }
-
-            updateRelatedVideos()
+            runCatching {
+                val videoDetailData = videoDetailRepository.getVideoDetail(
+                    aid = aid,
+                    preferApiType = Prefs.apiType
+                )
+                withContext(Dispatchers.Main) { videoDetail = videoDetailData }
+            }.onFailure {
+                withContext(Dispatchers.Main) {
+                    state = VideoInfoState.Error
+                    logger.fInfo { "Load video av$aid failed: ${it.stackTraceToString()}" }
                 }
-        }.getOrThrow()
+            }.onSuccess {
+                withContext(Dispatchers.Main) {
+                    state = VideoInfoState.Success
+                    logger.fInfo { "Load video av$aid success" }
+
+                    updateRelatedVideos()
+                }
+            }.getOrThrow()
+        }
     }
-}
 
     suspend fun loadDetailOnlyUpdateHistory(aid: Long) {
         logger.fInfo { "Load detail only update history: [avid=$aid, preferApiType=${Prefs.apiType.name}]" }
