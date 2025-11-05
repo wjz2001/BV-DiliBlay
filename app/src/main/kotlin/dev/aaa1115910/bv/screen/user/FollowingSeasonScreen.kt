@@ -21,6 +21,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -66,10 +71,6 @@ fun FollowingSeasonScreen(
         followingSeasonViewModel.followingSeasonStatus = it
     }
 
-    val onLongClickSeason = {
-        showFilter = true
-    }
-
     LaunchedEffect(followingSeasonType, followingSeasonStatus) {
         logger.fInfo { "Start update search result because filter updated" }
         followingSeasonViewModel.clearData()
@@ -77,7 +78,16 @@ fun FollowingSeasonScreen(
     }
 
     Column(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .onKeyEvent {
+                if (it.key == Key.Menu) {
+                    if (it.type == KeyEventType.KeyDown) return@onKeyEvent true
+                    showFilter = true
+                    return@onKeyEvent true
+                }
+                false
+            },
         horizontalAlignment = Alignment.Start
     ) {
         Text(
@@ -116,8 +126,7 @@ fun FollowingSeasonScreen(
                                 seasonId = followingSeason.seasonId,
                                 proxyArea = ProxyArea.checkProxyArea(followingSeason.title)
                             )
-                        },
-                        onLongClick = onLongClickSeason
+                        }
                     )
                 }
             } else {

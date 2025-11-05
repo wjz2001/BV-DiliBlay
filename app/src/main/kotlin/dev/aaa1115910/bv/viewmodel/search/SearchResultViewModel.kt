@@ -63,10 +63,10 @@ class SearchResultViewModel(
     }
 
     private fun clearResults() {
-        videoSearchResult.clearResult()
-        mediaBangumiSearchResult.clearResult()
-        mediaFtSearchResult.clearResult()
-        biliUserSearchResult.clearResult()
+        videoSearchResult = videoSearchResult.clear()
+        mediaBangumiSearchResult = mediaBangumiSearchResult.clear()
+        mediaFtSearchResult = mediaFtSearchResult.clear()
+        biliUserSearchResult = biliUserSearchResult.clear()
     }
 
     fun loadMore(
@@ -126,12 +126,13 @@ class SearchResultViewModel(
             page = SearchTypePage()
         }
 
-        fun clearResult() {
-            videos = emptyList()
-            mediaBangumis = emptyList()
-            mediaFts = emptyList()
-            biliUsers = emptyList()
-        }
+        fun clear() :SearchResult = copy(
+            videos = emptyList(),
+            mediaBangumis = emptyList(),
+            mediaFts = emptyList(),
+            biliUsers = emptyList(),
+            page = SearchTypePage()
+        )
 
         fun appendSearchResultData(searchTypeResult: SearchTypeResult): SearchResult {
             return when (type) {

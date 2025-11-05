@@ -1,7 +1,6 @@
 package dev.aaa1115910.bv.screen.main.pgc
 
 import android.app.Activity
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,7 +16,6 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -27,6 +25,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -62,10 +65,6 @@ fun PgcIndexScreen(
     val pgcItems = pgcIndexViewModel.indexResultItems
     val noMore = pgcIndexViewModel.noMore
     var showFilter by remember { mutableStateOf(false) }
-
-    val onLongClickSeason = {
-        showFilter = true
-    }
 
     val reloadData = {
         scope.launch(Dispatchers.IO) {
@@ -105,7 +104,14 @@ fun PgcIndexScreen(
     }
 
     Scaffold(
-        modifier = modifier,
+        modifier = modifier.onKeyEvent {
+            if (it.key == Key.Menu) {
+                if (it.type == KeyEventType.KeyDown) return@onKeyEvent true
+                showFilter = true
+                return@onKeyEvent true
+            }
+            false
+        },
         topBar = {
             Box(
                 modifier = Modifier.padding(start = 48.dp, top = 24.dp, bottom = 8.dp, end = 48.dp)
@@ -151,8 +157,7 @@ fun PgcIndexScreen(
                             seasonId = pgcItem.seasonId,
                             proxyArea = ProxyArea.checkProxyArea(pgcItem.title)
                         )
-                    },
-                    onLongClick = onLongClickSeason
+                    }
                 )
             }
             if (pgcItems.isEmpty() && noMore) {

@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -34,10 +35,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -93,6 +96,13 @@ fun SearchResultScreen(
     var showFilter by remember { mutableStateOf(false) }
     var focusOnContent by remember { mutableStateOf(false) }
 
+    val isVideoSearchViaWebApi by remember {
+        derivedStateOf {
+            searchResultViewModel.searchType == SearchType.Video &&
+                    Prefs.apiType == ApiType.Web
+        }
+    }
+
     val selectedOrder = searchResultViewModel.selectedOrder
     val selectedDuration = searchResultViewModel.selectedDuration
     val selectedPartition = searchResultViewModel.selectedPartition
@@ -130,12 +140,6 @@ fun SearchResultScreen(
 
     val backToTabRow: () -> Unit = {
         tabRowFocusRequester.requestFocus(scope)
-    }
-
-    val onLongClickSearchResultItem = {
-        if (searchResultViewModel.searchType == SearchType.Video) {
-            if (Prefs.apiType == ApiType.Web) showFilter = true
-        }
     }
 
     LaunchedEffect(Unit) {
@@ -179,34 +183,37 @@ fun SearchResultScreen(
     }
 
     Scaffold(
-        modifier = modifier,
+        modifier = modifier.onKeyEvent {
+            if (it.key == Key.Menu) {
+                if (it.type == KeyEventType.KeyDown) return@onKeyEvent true
+                if (isVideoSearchViaWebApi) {
+                    showFilter = true
+                    return@onKeyEvent true
+                }
+            }
+            false
+        },
         topBar = {
             Box(
                 modifier = Modifier.padding(start = 48.dp, top = 24.dp, bottom = 8.dp, end = 48.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    verticalAlignment = Alignment.Bottom
                 ) {
                     Text(
-                        modifier = Modifier.fillMaxWidth(0.7f),
                         text = searchKeyword,
                         fontSize = 24.sp,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
                     )
-                    Column(
-                        horizontalAlignment = Alignment.End,
-                    ) {
-                        Text(
-                            text = stringResource(
-                                R.string.load_data_count,
-                                searchResult.count
-                            ),
-                            color = Color.White.copy(alpha = 0.6f)
-                        )
-                    }
+                    Text(
+                        text = (if (isVideoSearchViaWebApi) "菜单键打开筛选 | " else "") +
+                                stringResource(R.string.load_data_count, searchResult.count),
+                        color = Color.White.copy(alpha = 0.6f),
+                        textAlign = TextAlign.End
+                    )
                 }
             }
         }
@@ -216,7 +223,6 @@ fun SearchResultScreen(
         ) {
             TopNav(
                 modifier = Modifier
-                    .padding(end = 80.dp)
                     .focusRequester(tabRowFocusRequester),
                 items = SearchTypeTopNavItem.entries,
                 isLargePadding = !focusOnContent,
@@ -268,8 +274,7 @@ fun SearchResultScreen(
                 ) { index, searchResultItem ->
                     SearchResultListItem(
                         searchResult = searchResultItem,
-                        onClick = { onClickResult(searchResultItem) },
-                        onLongClick = onLongClickSearchResultItem,
+                        onClick = { onClickResult(searchResultItem) }
                     )
                 }
             }
@@ -286,7 +291,9 @@ fun SearchResultScreen(
         onSelectedOrderChange = { searchResultViewModel.selectedOrder = it },
         onSelectedDurationChange = { searchResultViewModel.selectedDuration = it },
         onSelectedPartitionChange = { searchResultViewModel.selectedPartition = it },
-        onSelectedChildPartitionChange = { searchResultViewModel.selectedChildPartition = it }
+        onSelectedChildPartitionChange = {
+            searchResultViewModel.selectedChildPartition = it
+        }
     )
 }
 
@@ -295,7 +302,6 @@ private fun SearchResultListItem(
     modifier: Modifier = Modifier,
     searchResult: SearchTypeResult.SearchTypeResultItem,
     onClick: () -> Unit,
-    onLongClick: () -> Unit,
 ) {
     when (searchResult) {
         is SearchTypeResult.Video -> {
@@ -325,7 +331,6 @@ private fun SearchResultListItem(
                     rating = String.format("%.1f", searchResult.star)
                 ),
                 onClick = onClick,
-                onLongClick = onLongClick,
                 onFocus = {}
             )
         }
@@ -337,8 +342,7 @@ private fun SearchResultListItem(
                 sign = searchResult.sign,
                 username = searchResult.name,
                 onFocusChange = { },
-                onClick = onClick,
-                onLongClick = onLongClick
+                onClick = onClick
             )
         }
 
