@@ -195,11 +195,13 @@ fun VideoPlayerController(
                 }
                 when (it.key) {
                     Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
+                        /*
                         if (!showClickableControllers && data.showBackToStart) {
                             if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
                             onBackToStart()
                             return@onPreviewKeyEvent true
                         }
+                         */
 
                         if (showInfoSeekController) {
                             return@onPreviewKeyEvent false
@@ -330,6 +332,12 @@ fun VideoPlayerController(
                     }
 
                     Key.DirectionDown -> {
+                        if (!showClickableControllers && data.showBackToStart && videoPlayer.isPlaying) {
+                            if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
+                            onBackToStart()
+                            return@onPreviewKeyEvent true
+                        }
+
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
                         logger.info { "[${it.key} press]" }
                         if (showClickableControllers) {
@@ -385,7 +393,9 @@ fun VideoPlayerController(
                 isSeeking = isSeeking,
                 goTime = goTime,
                 infoData = data.infoData,
-                title = data.secondTitle,
+                // title = data.secondTitle,
+                title = data.title,
+                subtitle = data.secondTitle,
                 clock = data.clock,
                 // 新增这一行，将播放速度传递下去
                 currentPlaySpeed = data.currentVideoSpeed,

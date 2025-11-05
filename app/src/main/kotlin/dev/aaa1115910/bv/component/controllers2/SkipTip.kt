@@ -27,7 +27,8 @@ fun BackToStartTip(
     SkipTip(
         modifier = modifier,
         show = show,
-        text = "跳转到上次播放位置，按确认键从头播放"
+        // text = "跳转到上次播放位置，按确认键从头播放"
+        text = "已跳转到上次播放位置，如果视频正在播放，按下键从头开始"
     )
 }
 
