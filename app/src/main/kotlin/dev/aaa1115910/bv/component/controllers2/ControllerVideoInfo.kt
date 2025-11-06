@@ -179,14 +179,6 @@ fun ControllerVideoInfoTop(
     // 3. 接收播放速度
     currentPlaySpeed: Float
 ) {
-    // 计算视频结束时间
-    val remainingSeconds = totalDuration - currentTime
-    val currentTimeInSeconds = clock.first * 3600L + clock.second * 60L + clock.third
-    val endTimeInSeconds = (currentTimeInSeconds + remainingSeconds) % 86400  // 86400秒 = 24小时
-    val endHour = (endTimeInSeconds / 3600).toInt()
-    val endMinute = ((endTimeInSeconds % 3600) / 60).toInt()
-    val endSecond = (endTimeInSeconds % 60).toInt()
-
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -539,9 +531,6 @@ private fun Clock(
 @Composable
 private fun ClockPreview() {
     val clock = Triple(12, 30, 30)
-    val endHour = 13
-    val endMinute = 40
-    val endSecond = 50
     BVTheme {
         Clock(
             hour = clock.first,
