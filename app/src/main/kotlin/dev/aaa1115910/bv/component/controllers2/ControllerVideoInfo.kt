@@ -47,6 +47,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
@@ -307,7 +308,7 @@ fun ControllerVideoInfoBottom(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 5.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 modifier = Modifier
@@ -320,6 +321,9 @@ fun ControllerVideoInfoBottom(
                 ),
             )
             Text(
+                modifier = Modifier
+                    .weight(1f),
+                textAlign = TextAlign.Center,
                 text = subtitle,
                 color = Color.White,
                 style = TextStyle(
