@@ -312,7 +312,8 @@ fun VideoPlayerV3Screen(
                     if (nextUgcPage != null || videoListIndex + 1 < availableVideoList.size) {
                         showSkipToNextEp = true
                         hideSkipToNextEpTimer = countDownTimer(
-                            millisInFuture = 5000,
+                            //millisInFuture = 5000,
+                            millisInFuture = 1000,
                             countDownInterval = 1000,
                             tag = "nextEpisodeCountDown"
                         ) {
