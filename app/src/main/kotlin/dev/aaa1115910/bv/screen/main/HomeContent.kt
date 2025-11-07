@@ -137,9 +137,11 @@ fun HomeContent(
                         HomeTopNavItem.Recommend -> {}
                         HomeTopNavItem.Popular -> {}
                         HomeTopNavItem.Dynamics -> {
+                            /*
                             if (!dynamicViewModel.loading && dynamicViewModel.isLogin && dynamicViewModel.dynamicList.isEmpty()) {
                                 scope.launch(Dispatchers.IO) { dynamicViewModel.loadMore() }
                             }
+                             */
                         }
                         HomeTopNavItem.ToView -> {
                             toViewViewModel.clearData()

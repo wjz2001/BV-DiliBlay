@@ -234,13 +234,20 @@ fun CardCover(
                     .fillMaxWidth()
                     .background(
                         Brush.verticalGradient(
-                            // 2. 调整颜色和透明度以达到期望的效果
-                            // 0.0f 表示从顶部开始，1.0f 表示到底部结束
-                            // 这里我们让渐变从一半高度的位置才开始，效果更集中在文字区域
+                            // 使用 colorStops 来精确控制渐变的位置和颜色
+                            // 0.0f 代表顶部, 1.0f 代表底部
+                            colorStops = arrayOf(
+                                0.0f to Color.Transparent,
+                                0.15f to Color.Transparent,
+                                0.16f to Color.Black.copy(alpha = 0.7f),
+                                1.0f to Color.Black.copy(alpha = 0.7f)
+                            )
+                            /*
                             colors = listOf(
                                 Color.Transparent,
                                 Color.Black.copy(alpha = 0.8f) // 可以让底部颜色更深
                             )
+                             */
                         )
                     )
                     .padding(horizontal = 12.dp, vertical = 8.dp),

@@ -462,16 +462,17 @@ private fun Clock(
     totalDuration: Long,
     currentPlaySpeed: Float
 ) {
-    // 创建一个状态来存储“稳定”的结束时间文本
-    var stableFinishTimeText by remember { mutableStateOf("") }
+    // 1. 创建两个状态，一个用于显示时钟，一个用于显示结束时间
+    var clockText by remember { mutableStateOf("") }
+    var finishTimeText by remember { mutableStateOf("") }
 
-    // 使用 LaunchedEffect，它的 key 是显示的秒数 (second)
-    // 这意味着，只有当 `second` 的值从 41 -> 42 这样变化时，
-    // 内部的代码块才会重新执行。在一秒内 currentTime 的微小变化不会触发它。
-    LaunchedEffect(second) {
+    // 2. 使用一个 LaunchedEffect，但它的 key 包含了所有外部依赖项
+    // 这样，无论是时间流逝（内部 delay 驱动）还是外部播放进度变化（key 变化驱动），
+    // 都会重新执行计算，保证了数据的即时性。
+    LaunchedEffect(currentTime, totalDuration, currentPlaySpeed) {
+        // 视频结束时间的计算逻辑
         if (totalDuration > 0 && currentTime < totalDuration && currentPlaySpeed > 0) {
             val remainingMillis = totalDuration - currentTime
-            // 根据播放速度计算真实的剩余时间
             val actualRemainingMillis = (remainingMillis / currentPlaySpeed).toLong()
 
             val finishTime = Calendar.getInstance().apply {
@@ -480,13 +481,32 @@ private fun Clock(
 
             val finishHour = finishTime.get(Calendar.HOUR_OF_DAY)
             val finishMinute = finishTime.get(Calendar.MINUTE)
-            val finishSecond = finishTime.get(Calendar.SECOND) // 获取秒
+            val finishSecond = finishTime.get(Calendar.SECOND)
 
-            // 计算结果并更新到我们的状态中
-            stableFinishTimeText =
+            finishTimeText =
                 "${String.format("%02d:%02d:%02d", finishHour, finishMinute, finishSecond)} 结束"
         } else {
-            stableFinishTimeText = ""
+            finishTimeText = ""
+        }
+    }
+
+    // 3. 这个 LaunchedEffect 只负责驱动系统时钟的更新，每秒一次
+    LaunchedEffect(Unit) {
+        while (true) {
+            val calendar = Calendar.getInstance()
+            val hour = calendar.get(Calendar.HOUR_OF_DAY)
+            val minute = calendar.get(Calendar.MINUTE)
+            val second = calendar.get(Calendar.SECOND)
+            clockText = buildAnnotatedString {
+                withStyle(SpanStyle(fontSize = 32.sp)) {
+                    append(hour.toString().padStart(2, '0'))
+                    append(":")
+                    append(minute.toString().padStart(2, '0'))
+                    append(":")
+                    append(second.toString().padStart(2, '0'))
+                }
+            }.toString() // 将 AnnotatedString 转换为普通 String
+            delay(1000)
         }
     }
 
@@ -501,6 +521,8 @@ private fun Clock(
             style = TextStyle(
                 shadow = Shadow(color = Color.Black, blurRadius = 1f),
             ),
+            text = clockText
+            /*
             text = buildAnnotatedString {
                 withStyle(SpanStyle(fontSize = 32.sp)) {
                     append("$hour".padStart(2, '0'))
@@ -510,18 +532,19 @@ private fun Clock(
                     append("$second".padStart(2, '0'))
                 }
             }
+             */
         )
         // 视频结束时间
-        if (stableFinishTimeText.isNotEmpty()) {
+        if (finishTimeText.isNotEmpty()) {
             Text(
                 modifier = Modifier.padding(top = 2.dp),
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
-                fontSize = 13.sp,
+                fontSize = 32.sp,
                 style = TextStyle(
                     shadow = Shadow(color = Color.Black, blurRadius = 1f),
                 ),
-                text = stableFinishTimeText
+                text = finishTimeText
             )
         }
     }
