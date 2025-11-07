@@ -262,6 +262,18 @@ fun VideoInfoScreen(
                         rid = avid,
                         preferApiType = Prefs.apiType
                     )
+                // 2. 从原始数据中派生出另一个普通的 List
+                val videoInFavoriteFolderIdsResult = favoriteFolderMetadataListResult
+                    .filter { it.videoInThisFav }
+
+                // 3. (关键修改) 在更新状态之前，使用安全的本地变量来记录日志
+                logger.fDebug { "Update favoriteFolders: ${favoriteFolderMetadataListResult.map { it.title }}" }
+                logger.fDebug { "Update videoInFavoriteFolderIds: ${videoInFavoriteFolderIdsResult.map { it.title }}" }
+
+                // 4. 调用函数更新UI状态 (这些函数内部会切换到主线程)
+                favoriteFolderMetadataList.swapListWithMainContext(favoriteFolderMetadataListResult)
+                videoInFavoriteFolderIds.swapListWithMainContext(videoInFavoriteFolderIdsResult.map { it.id })
+                /*
                 favoriteFolderMetadataList.swapListWithMainContext(favoriteFolderMetadataListResult)
 
                 val videoInFavoriteFolderIdsResult = favoriteFolderMetadataListResult
@@ -270,6 +282,7 @@ fun VideoInfoScreen(
 
                 logger.fDebug { "Update favoriteFolders: ${favoriteFolderMetadataList.map { it.title }}" }
                 logger.fDebug { "Update videoInFavoriteFolderIds: ${videoInFavoriteFolderIdsResult.map { it.title }}" }
+                 */
             }
         }
     }
@@ -277,7 +290,11 @@ fun VideoInfoScreen(
     val updateVideoFavoriteData: (List<Long>) -> Unit = { folderIds ->
         scope.launch(Dispatchers.IO) {
             runCatching {
-                require(favoriteFolderMetadataList.isNotEmpty()) { "Not found favorite folder" }
+                // require(favoriteFolderMetadataList.isNotEmpty()) { "Not found favorite folder" }
+                val folders = withContext(Dispatchers.Main) {
+                    favoriteFolderMetadataList.toList()
+                }
+                require(folders.isNotEmpty()) { "Not found favorite folder" }
                 require(videoDetailViewModel.videoDetail?.aid != null) { "Video info is null" }
                 logger.info { "Update video av${videoDetailViewModel.videoDetail?.aid} to favorite folder $folderIds" }
 
