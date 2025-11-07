@@ -2,7 +2,6 @@ package dev.aaa1115910.bv.network
 
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.network.entity.Release
-import dev.aaa1115910.bv.util.Prefs
 import io.ktor.client.HttpClient
 import io.ktor.client.content.ProgressListener
 import io.ktor.client.engine.okhttp.OkHttp
@@ -127,7 +126,7 @@ object GithubApi {
     }
 
     private fun toGhProxyUrl(originalUrl: String): String {
-        val prefix = "https://githubfast.com/"
+        val prefix = "https://ghfast.top/"
         return prefix + originalUrl
     }
 }
