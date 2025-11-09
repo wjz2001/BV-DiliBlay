@@ -137,6 +137,7 @@ private fun SearchInputScreenContent(
     ) {
     Scaffold(
         modifier = modifier,
+        /*
         topBar = {
             Box(
                 modifier = Modifier.padding(start = 48.dp, top = 24.dp, bottom = 8.dp, end = 48.dp)
@@ -153,13 +154,14 @@ private fun SearchInputScreenContent(
                 }
             }
         }
+         */
     ) { innerPadding ->
         Row(
             modifier = Modifier
                 .padding(innerPadding)
                 .padding(vertical = 8.dp)
-                .padding(start = 24.dp)
-                .horizontalScroll(rememberScrollState()),
+                .padding(start = 24.dp),
+                // .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             SearchInput(
@@ -174,11 +176,13 @@ private fun SearchInputScreenContent(
 
             if (searchKeyword.isEmpty()) {
                 SearchHotwords(
+                    modifier = Modifier.weight(1f),
                     hotwords = hotwords,
                     onSearch = onSearch
                 )
             } else {
                 SearchSuggestion(
+                    modifier = Modifier.weight(1f),
                     suggests = suggests,
                     onSearch = onSearch
                 )
@@ -186,6 +190,7 @@ private fun SearchInputScreenContent(
 
             SearchHistory(
                 modifier = Modifier
+                    .weight(1f)
                     .padding(end = 10.dp),
                 histories = histories,
                 onSearch = onSearch,

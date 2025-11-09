@@ -520,6 +520,7 @@ private fun Clock(
             fontWeight = FontWeight.Bold,
             style = TextStyle(
                 shadow = Shadow(color = Color.Black, blurRadius = 1f),
+                fontSize = 32.sp
             ),
             text = clockText
             /*
@@ -540,7 +541,7 @@ private fun Clock(
                 modifier = Modifier.padding(top = 2.dp),
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
-                fontSize = 32.sp,
+                fontSize = 13.sp,
                 style = TextStyle(
                     shadow = Shadow(color = Color.Black, blurRadius = 1f),
                 ),
