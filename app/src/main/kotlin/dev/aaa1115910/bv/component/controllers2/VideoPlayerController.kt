@@ -338,6 +338,12 @@ fun VideoPlayerController(
                             return@onPreviewKeyEvent true
                         }
 
+                        if (it.nativeKeyEvent.isLongPress) {
+                            logger.fInfo { "[${it.key}] long press" }
+                            onBackToStart()
+                            return@onPreviewKeyEvent true
+                        }
+
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
                         logger.info { "[${it.key} press]" }
                         if (showClickableControllers) {
