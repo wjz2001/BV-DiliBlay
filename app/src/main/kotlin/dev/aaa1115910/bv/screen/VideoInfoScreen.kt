@@ -1056,26 +1056,6 @@ fun VideoInfoData(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    CompositionLocalProvider(
-                        // LocalTextStyle provides MaterialTheme.typography.labelMedium
-                        LocalTextStyle provides MaterialTheme.typography.labelMedium.copy(fontSize = 27.sp)
-                    ) {
-                        Text(text = "发布于 ${videoDetail.publishDate.formatPubTimeString()}")
-                        Text(text = "·")
-                        Text(text = "播放量 ${(videoDetail.stat.view).toWanString()}")
-                        Text(text = "·")
-                        Text(text = "弹幕 ${(videoDetail.stat.danmaku).toWanString()}")
-                        Text(text = "·")
-                        Text(text = "点赞 ${videoDetail.stat.like.toWanString()}")
-                        Text(text = "·")
-                        Text(text = "投币 ${videoDetail.stat.coin.toWanString()}")
-                        Text(text = "·")
-                        Text(text = "收藏 ${videoDetail.stat.favorite.toWanString()}")
-                    }
-                }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
                     UpButton(
                         name = videoDetail.author.name,
                         followed = isFollowing,
@@ -1084,7 +1064,39 @@ fun VideoInfoData(
                         onAddFollow = onAddFollow,
                         onDelFollow = onDelFollow
                     )
+                    Row(
+                        modifier = Modifier
+                            .padding(start = 4.dp)
+                            .weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CompositionLocalProvider(
+                            // LocalTextStyle provides MaterialTheme.typography.labelMedium
+                            LocalTextStyle provides MaterialTheme.typography.labelMedium.copy(
+                                fontSize = 27.sp
+                            )
+                        ) {
+                            Text(text = "发布于 ${videoDetail.publishDate.formatPubTimeString()}")
+                            Text(text = "·")
+                            Text(text = "播放量 ${(videoDetail.stat.view).toWanString()}")
+                            Text(text = "·")
+                            Text(text = "弹幕 ${(videoDetail.stat.danmaku).toWanString()}")
+                            Text(text = "·")
+                            Text(text = "点赞 ${videoDetail.stat.like.toWanString()}")
+                            Text(text = "·")
+                            Text(text = "投币 ${videoDetail.stat.coin.toWanString()}")
+                            Text(text = "·")
+                            Text(text = "收藏 ${videoDetail.stat.favorite.toWanString()}")
+                        }
+                    }
                 }
+                /*
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+
+                }
+                 */
             }
             Row(
                 modifier = Modifier
