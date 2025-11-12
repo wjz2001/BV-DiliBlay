@@ -140,7 +140,7 @@ fun Long.toMBString(): String = String.format("%.2f MB", this / 1024f / 1024f)
  */
 fun FocusRequester.requestFocus(scope: CoroutineScope) {
     // scope.launch(Dispatchers.Default) {
-    scope.launch( Dispatchers.Main) {
+    scope.launch( Dispatchers.Main.immediate) {
         runCatching {
             requestFocus()
         }.onFailure {

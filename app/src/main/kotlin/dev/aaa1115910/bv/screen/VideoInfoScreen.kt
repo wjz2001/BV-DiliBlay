@@ -1095,6 +1095,14 @@ fun VideoInfoData(
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                   UpButton(
+                        name = videoDetail.author.name,
+                        followed = isFollowing,
+                        showFollowButton = showFollowButton,
+                        onClickUp = onClickUp,
+                        onAddFollow = onAddFollow,
+                        onDelFollow = onDelFollow
+                    )
 
                 }
                  */
@@ -1192,17 +1200,19 @@ private fun UpButton(
                         contentDescription = null,
                         tint = Color.White
                     )
+                    /*
                     Text(
                         text = stringResource(R.string.video_info_followed),
                         color = Color.White
                     )
+                     */
                 } else {
                     Icon(
                         imageVector = Icons.Rounded.Add,
                         contentDescription = null,
                         tint = Color.White
                     )
-                    Text(text = stringResource(R.string.video_info_follow), color = Color.White)
+                    // Text(text = stringResource(R.string.video_info_follow), color = Color.White)
                 }
             }
         }
