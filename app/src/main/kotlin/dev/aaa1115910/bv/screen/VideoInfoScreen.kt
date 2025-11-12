@@ -1035,7 +1035,8 @@ fun VideoInfoData(
             modifier = Modifier
                 .weight(7f)
                 .height(heightIs),
-            verticalArrangement = Arrangement.SpaceBetween
+            // verticalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             Column(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
