@@ -26,8 +26,8 @@ data class VideoDetail(
     val argueTip: String?,
     val tags: List<Tag>,
     val userActions: UserActions,
-    var history: History,
-    var playerIcon: PlayerIcon? = null,
+    val history: History,
+    val playerIcon: PlayerIcon? = null,
     val isUpowerExclusive: Boolean = false
 ) {
     companion object {
@@ -194,10 +194,10 @@ data class VideoDetail(
 }
 
 data class UserActions(
-    var like: Boolean = false,
-    var favorite: Boolean = false,
-    var coin: Boolean = false,
-    var dislike: Boolean = false
+    val like: Boolean = false,
+    val favorite: Boolean = false,
+    val coin: Boolean = false,
+    val dislike: Boolean = false
 ) {
     companion object {
         fun fromReqUser(reqUser: ReqUser): UserActions {
