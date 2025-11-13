@@ -53,7 +53,15 @@ class VideoDetailViewModel(
                 aid = aid,
                 preferApiType = Prefs.apiType
             ).history
-            withContext(Dispatchers.Main) { videoDetail?.history = historyData }
+            // withContext(Dispatchers.Main) { videoDetail?.history = historyData }
+            // 切换到主线程来安全地更新状态
+            withContext(Dispatchers.Main) {
+                    // 使用 data class 的 copy() 方法创建一个新的 VideoDetail 实例，
+                    // 只更新其中的 history 字段，然后用这个新实例替换整个旧的状态。
+                videoDetail?.let { detail ->
+                    videoDetail = detail.copy(history = historyData)
+                }
+            }
         }.onFailure {
             logger.fInfo { "Load video av$aid only update history failed: ${it.stackTraceToString()}" }
         }.onSuccess {
