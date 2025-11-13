@@ -91,12 +91,17 @@ class VideoDetailRepository(
                         }.getOrDefault(VideoDetail.History(0, 0))
                     }
 
-                    videoDetailWithoutUserActions.await().apply {
-                        userActions.favorite = isFavoured.await()
-                        userActions.like = isLiked.await()
-                        userActions.coin = isCoined.await()
-                        val history = historyAndPlayerIcon.await()
-                        this.history = history
+                    videoDetailWithoutUserActions.await().let { detail ->
+                        val newUserActions = detail.userActions.copy(
+                            favorite = isFavoured.await(),
+                            like = isLiked.await(),
+                            coin = isCoined.await()
+                        )
+                        val newHistory = historyAndPlayerIcon.await()
+                        detail.copy(
+                            userActions = newUserActions,
+                            history = newHistory
+                        )
                     }
                 }
             }
