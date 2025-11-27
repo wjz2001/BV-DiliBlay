@@ -12,7 +12,7 @@ import dev.aaa1115910.biliapi.http.util.encApiSign
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
-import io.ktor.client.plugins.BrowserUserAgent
+import io.ktor.client.plugins.UserAgent
 import io.ktor.client.plugins.compression.ContentEncoding
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
@@ -37,7 +37,9 @@ object BiliPassportHttpApi {
 
     private fun createClient() {
         client = HttpClient(OkHttp) {
-            BrowserUserAgent()
+            install(UserAgent) {
+                agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
             install(ContentNegotiation) {
                 json(Json {
                     coerceInputValues = true

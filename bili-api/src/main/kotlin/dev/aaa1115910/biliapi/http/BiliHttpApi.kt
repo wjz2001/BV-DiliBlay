@@ -69,8 +69,8 @@ import dev.aaa1115910.biliapi.http.util.encApiSign
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
-import io.ktor.client.plugins.BrowserUserAgent
 import io.ktor.client.plugins.HttpRequestRetry
+import io.ktor.client.plugins.UserAgent
 import io.ktor.client.plugins.compression.ContentEncoding
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
@@ -83,6 +83,7 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.client.statement.readRawBytes
+import io.ktor.client.statement.request
 import io.ktor.http.Parameters
 import io.ktor.http.URLProtocol
 import io.ktor.serialization.kotlinx.json.json
@@ -121,7 +122,9 @@ object BiliHttpApi {
 
     private fun createClient() {
         client = HttpClient(OkHttp) {
-            BrowserUserAgent()
+            install(UserAgent) {
+                agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
             install(ContentNegotiation) {
                 json(json)
             }
@@ -192,28 +195,46 @@ object BiliHttpApi {
         cid: Long,
         qn: Int? = null,
         fnval: Int? = null,
-        fnver: Int? = null,
+        fnver: Int? = 0,
         fourk: Int? = 0,
         session: String? = null,
         otype: String = "json",
         type: String = "",
-        platform: String = "oc",
+        platform: String = "pc",
         sessData: String? = null
-    ): BiliResponse<PlayUrlData> = client.get("/x/player/playurl") {
-        require(av != null || bv != null) { "av and bv cannot be null at the same time" }
-        parameter("avid", av)
-        parameter("bvid", bv)
-        parameter("cid", cid)
-        parameter("qn", qn)
-        parameter("fnval", fnval)
-        parameter("fnver", fnver)
-        parameter("fourk", fourk)
-        parameter("session", session)
-        parameter("otype", otype)
-        parameter("type", type)
-        parameter("platform", platform)
-        sessData?.let { header("Cookie", "SESSDATA=$sessData;") }
-    }.body()
+    ): BiliResponse<PlayUrlData> {
+        val response = client.get("x/player/wbi/playurl") {
+            require(av != null || bv != null) { "av and bv cannot be null at the same time" }
+            parameter("avid", av)
+            parameter("bvid", bv)
+            parameter("cid", cid)
+            parameter("qn", qn)
+            parameter("fnval", fnval)
+            parameter("fnver", fnver)
+            parameter("fourk", fourk)
+            parameter("session", session)
+            parameter("otype", otype)
+            parameter("platform", platform)
+            header("referer", "https://www.bilibili.com")
+            header("Accept", "application/json, text/plain, */*")
+            header("Accept-Language", "zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2")
+            header("Accept-Encoding", "gzip, deflate, br, zstd")
+            header("Connection", "keep-alive")
+            header("Sec-Fetch-Dest", "empty")
+            header("Sec-Fetch-Mode", "cors")
+            header("Sec-Fetch-Site", "same-site")
+            header("TE", "trailers")
+            sessData?.let { header("Cookie", "SESSDATA=$sessData;") }
+        }
+
+        println("=== Request Debug Info ===")
+        println("Full URL: ${response.request.url}") // 打印完整拼接后的 URL
+        println("Headers: ${response.request.headers}") // 打印最终发送的 Headers
+        println("Method: ${response.request.method}")
+        println("==========================")
+
+        return response.body()
+    }
 
     /**
      * 获取剧集视频流
@@ -1367,21 +1388,21 @@ object BiliHttpApi {
      * 更新 wbi keys
      */
     suspend fun updateWbi() {
-        val needToUpdate =
-            wbiImgKey == null || wbiSubKey == null || System.currentTimeMillis() - wbiLastRefreshDate < 2 * 60 * 60 * 1000L
+        val now = System.currentTimeMillis()
+        val needToUpdate = wbiImgKey == null || wbiSubKey == null ||
+                (now - wbiLastRefreshDate > 2 * 60 * 60 * 1000L)
+
         if (!needToUpdate) {
             println("Skip update wbi keys")
             return
         }
 
-        println("Updating wbi keys...")
         runCatching {
             val wbiData = getWebInterfaceNav().data!!.wbiImg
             wbiImgKey = wbiData.getImgKey()
             wbiSubKey = wbiData.getSubKey()
-            wbiLastRefreshDate = System.currentTimeMillis()
-        }.onSuccess {
-            println("Update wbi data success")
+            println("Update wbi keys: $wbiImgKey, $wbiSubKey")
+            wbiLastRefreshDate = now
         }.onFailure {
             println("Update wbi data failed: ${it.stackTraceToString()}")
         }
