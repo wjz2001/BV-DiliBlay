@@ -6,6 +6,9 @@ import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.entity.user.Author
 import dev.aaa1115910.bv.R
@@ -77,6 +80,18 @@ class VideoPlayerV3Activity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+
+        // 视频全屏播放，隐藏状态栏
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            hide(WindowInsetsCompat.Type.systemBars())
+            systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         if (currentInstance === this) {
@@ -92,6 +107,11 @@ class VideoPlayerV3Activity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
+
+        // 恢复状态栏
+        WindowInsetsControllerCompat(window, window.decorView)
+            .show(WindowInsetsCompat.Type.systemBars())
+
         playerViewModel.videoPlayer?.pause()
         playerViewModel.danmakuPlayer?.pause()
     }

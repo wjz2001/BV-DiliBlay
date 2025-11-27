@@ -38,14 +38,13 @@ class SearchResultViewModel(
     var mediaFtSearchResult by mutableStateOf(SearchResult(SearchType.MediaFt))
     var biliUserSearchResult by mutableStateOf(SearchResult(SearchType.BiliUser))
 
-    var selectedOrder by mutableStateOf(SearchFilterOrderType.MostClicks)
+    var selectedOrder by mutableStateOf(SearchFilterOrderType.ComprehensiveSort)
     var selectedDuration by mutableStateOf(SearchFilterDuration.All)
     var selectedPartition: Partition? by mutableStateOf(null)
     var selectedChildPartition: Partition? by mutableStateOf(null)
 
     private var updating = false
-    val hasMore = true
-    private var page = SearchTypePage()
+    private val hasMore = true
 
     var enableProxySearchResult = false
 
@@ -56,10 +55,10 @@ class SearchResultViewModel(
     }
 
     private fun resetPages() {
-        videoSearchResult.resetPage()
-        mediaBangumiSearchResult.resetPage()
-        mediaFtSearchResult.resetPage()
-        biliUserSearchResult.resetPage()
+        videoSearchResult = videoSearchResult.resetPage()
+        mediaBangumiSearchResult = mediaBangumiSearchResult.resetPage()
+        mediaFtSearchResult = mediaFtSearchResult.resetPage()
+        biliUserSearchResult = biliUserSearchResult.resetPage()
     }
 
     private fun clearResults() {
@@ -78,6 +77,12 @@ class SearchResultViewModel(
 
         updating = true
         viewModelScope.launch(Dispatchers.IO) {
+            val page = when (searchType) {
+                SearchType.Video -> videoSearchResult.page
+                SearchType.MediaBangumi -> mediaBangumiSearchResult.page
+                SearchType.MediaFt -> mediaFtSearchResult.page
+                SearchType.BiliUser -> biliUserSearchResult.page
+            }
             logger.fInfo { "Load search result: [keyword=$keyword, type=$searchType, page=${page}]" }
             runCatching {
                 val searchResultResponse = searchRepository.searchType(
@@ -92,39 +97,40 @@ class SearchResultViewModel(
                 )
                 withContext(Dispatchers.Main) {
                     when (searchType) {
-                        SearchType.Video -> videoSearchResult =
-                            videoSearchResult.appendSearchResultData(searchResultResponse)
+                        SearchType.Video -> {
+                            videoSearchResult = videoSearchResult.appendSearchResultData(searchResultResponse)
 
-                        SearchType.MediaBangumi -> mediaBangumiSearchResult =
-                            mediaBangumiSearchResult.appendSearchResultData(searchResultResponse)
+                        }
 
-                        SearchType.MediaFt -> mediaFtSearchResult =
-                            mediaFtSearchResult.appendSearchResultData(searchResultResponse)
+                        SearchType.MediaBangumi -> {
+                            mediaBangumiSearchResult = mediaBangumiSearchResult.appendSearchResultData(searchResultResponse)
+                        }
 
-                        SearchType.BiliUser -> biliUserSearchResult =
-                            biliUserSearchResult.appendSearchResultData(searchResultResponse)
+                        SearchType.MediaFt -> {
+                            mediaFtSearchResult = mediaFtSearchResult.appendSearchResultData(searchResultResponse)
+                        }
+
+                        SearchType.BiliUser -> {
+                            biliUserSearchResult = biliUserSearchResult.appendSearchResultData(searchResultResponse)
+                        }
                     }
                 }
-
-                page = searchResultResponse.page
             }
             updating = false
         }
     }
 
     data class SearchResult(
-        var type: SearchType,
-        var videos: List<SearchTypeResult.Video> = emptyList(),
-        var mediaBangumis: List<SearchTypeResult.Pgc> = emptyList(),
-        var mediaFts: List<SearchTypeResult.Pgc> = emptyList(),
-        var biliUsers: List<SearchTypeResult.User> = emptyList(),
-        var page: SearchTypePage = SearchTypePage()
+        val type: SearchType,
+        val videos: List<SearchTypeResult.Video> = emptyList(),
+        val mediaBangumis: List<SearchTypeResult.Pgc> = emptyList(),
+        val mediaFts: List<SearchTypeResult.Pgc> = emptyList(),
+        val biliUsers: List<SearchTypeResult.User> = emptyList(),
+        val page: SearchTypePage = SearchTypePage()
     ) {
         val count get() = videos.size + mediaBangumis.size + mediaFts.size + biliUsers.size
 
-        fun resetPage() {
-            page = SearchTypePage()
-        }
+        fun resetPage() = copy(page = SearchTypePage())
 
         fun clear() :SearchResult = copy(
             videos = emptyList(),
@@ -136,31 +142,25 @@ class SearchResultViewModel(
 
         fun appendSearchResultData(searchTypeResult: SearchTypeResult): SearchResult {
             return when (type) {
-                SearchType.Video -> {
-                    SearchResult(type).apply {
-                        this.videos = this@SearchResult.videos + searchTypeResult.videos
-                    }
-                }
-
-                SearchType.MediaBangumi -> {
-                    SearchResult(type).apply {
-                        this.mediaBangumis = this@SearchResult.mediaBangumis + searchTypeResult.pgcs
-                    }
-                }
-
-                SearchType.MediaFt -> {
-                    SearchResult(type).apply {
-                        this.mediaFts = this@SearchResult.mediaFts + searchTypeResult.pgcs
-                    }
-                }
-
-                SearchType.BiliUser -> {
-                    SearchResult(type).apply {
-                        this.biliUsers = this@SearchResult.biliUsers + searchTypeResult.users
-                    }
-                }
+                SearchType.Video -> copy(
+                    videos = videos + searchTypeResult.videos,
+                    page = searchTypeResult.page
+                )
+                SearchType.MediaBangumi -> copy(
+                    mediaBangumis = mediaBangumis + searchTypeResult.pgcs,
+                    page = searchTypeResult.page
+                )
+                SearchType.MediaFt -> copy(
+                    mediaFts = mediaFts + searchTypeResult.pgcs,
+                    page = searchTypeResult.page
+                )
+                SearchType.BiliUser -> copy(
+                    biliUsers = biliUsers + searchTypeResult.users,
+                    page = searchTypeResult.page
+                )
             }
         }
+
     }
 }
 
