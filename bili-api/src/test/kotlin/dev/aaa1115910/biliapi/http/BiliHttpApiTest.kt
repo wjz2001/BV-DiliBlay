@@ -78,7 +78,8 @@ internal class BiliHttpApiTest {
                     cid = 903675075,
                     fnval = 4048,
                     qn = 127,
-                    sessData = SESSDATA
+                    sessData = SESSDATA,
+                    dedeUserID = UID
                 )
                 println(response)
             }
@@ -90,6 +91,22 @@ internal class BiliHttpApiTest {
         runBlocking {
             println(
                 BiliHttpApi.getPgcVideoPlayUrl(
+                    av = 672676070,
+                    cid = 331748015,
+                    fnval = 4048,
+                    qn = 127,
+                    sessData = SESSDATA,
+                    dedeUserID = UID
+                )
+            )
+        }
+    }
+
+    @Test
+    fun `get pgc video play url v2`() {
+        runBlocking {
+            println(
+                BiliHttpApi.getPgcVideoPlayUrlV2(
                     av = 672676070,
                     cid = 331748015,
                     fnval = 4048,

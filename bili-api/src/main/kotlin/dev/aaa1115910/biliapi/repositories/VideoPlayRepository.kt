@@ -54,49 +54,67 @@ class VideoPlayRepository(
         cid: Long,
         preferApiType: ApiType = ApiType.Web
     ): PlayData {
-        return withContext(Dispatchers.IO) {
-            val codecTypes = listOf(
-                CodeType.Code264,
-                CodeType.Code265,
-                CodeType.CodeAv1
-            )
-            val replies = codecTypes.map { codecType ->
-                async {
-                    val playUniteReply = runCatching {
-                        playerStub?.playViewUnite(playViewUniteReq {
-                            vod = videoVod {
-                                this.aid = aid
-                                this.cid = cid
-                                fnval = 4048
-                                qn = 127
-                                fnver = 0
-                                fourk = true
-                                preferCodecType = codecType.toPlayerSharedCodeType()
-                            }
-                        }) ?: throw IllegalStateException("Player stub is not initialized")
-                    }.onFailure {
-                        // dont throw
-                        runCatching { handleGrpcException(it) }
-                            .onFailure {
-                                println("get play data failed: [aid=$aid, cid=$cid, preferCodec=$codecType, preferApiType=$preferApiType]")
-                                it.printStackTrace()
-                            }
-                    }.getOrNull()
-                    playUniteReply
+        return when (preferApiType) {
+            ApiType.Web -> {
+                val playUrlData = BiliHttpApi.getVideoPlayUrl(
+                    av = aid,
+                    cid = cid,
+                    fnval = 4048,
+                    qn = 127,
+                    fnver = 0,
+                    fourk = 1,
+                    sessData = authRepository.sessionData,
+                    dedeUserID = authRepository.mid
+                ).getResponseData()
+                PlayData.fromPlayUrlData(playUrlData)
+            }
+
+            ApiType.App -> {
+                withContext(Dispatchers.IO) {
+                    val codecTypes = listOf(
+                        CodeType.Code264,
+                        CodeType.Code265,
+                        CodeType.CodeAv1
+                    )
+                    val replies = codecTypes.map { codecType ->
+                        async {
+                            val playUniteReply = runCatching {
+                                playerStub?.playViewUnite(playViewUniteReq {
+                                    vod = videoVod {
+                                        this.aid = aid
+                                        this.cid = cid
+                                        fnval = 4048
+                                        qn = 127
+                                        fnver = 0
+                                        fourk = true
+                                        preferCodecType = codecType.toPlayerSharedCodeType()
+                                    }
+                                }) ?: throw IllegalStateException("Player stub is not initialized")
+                            }.onFailure {
+                                // dont throw
+                                runCatching { handleGrpcException(it) }
+                                    .onFailure {
+                                        println("get play data failed: [aid=$aid, cid=$cid, preferCodec=$codecType, preferApiType=$preferApiType]")
+                                        it.printStackTrace()
+                                    }
+                            }.getOrNull()
+                            playUniteReply
+                        }
+                    }.awaitAll()
+                    val result = replies.map {
+                        it?.let { PlayData.fromPlayViewUniteReply(it) }
+                    }.reduce { acc, playData ->
+                        acc?.let { playData?.let { acc + playData } ?: acc } ?: playData
+                    } ?: throw IllegalStateException("All codec types are failed to get play data")
+                    result
                 }
-            }.awaitAll()
-            val result = replies.map {
-                it?.let { PlayData.fromPlayViewUniteReply(it) }
-            }.reduce { acc, playData ->
-                acc?.let { playData?.let { acc + playData } ?: acc } ?: playData
-            } ?: throw IllegalStateException("All codec types are failed to get play data")
-            result
+            }
         }
     }
 
     suspend fun getPgcPlayData(
-        aid: Long,
-        cid: Long,
+        aid: Long?,
+        cid: Long?,
         epid: Int,
         preferCodec: CodeType = CodeType.NoCode,
         preferApiType: ApiType = ApiType.Web,
@@ -110,11 +128,13 @@ class VideoPlayRepository(
                     BiliHttpProxyApi.getPgcVideoPlayUrl(
                         av = aid,
                         cid = cid,
+                        epid = epid,
                         fnval = 4048,
                         qn = 127,
                         fnver = 0,
                         fourk = 1,
-                        sessData = authRepository.sessionData
+                        sessData = authRepository.sessionData,
+                        dedeUserID = authRepository.mid
                     )
                 } else {
                     BiliHttpApi.getPgcVideoPlayUrl(
@@ -124,7 +144,8 @@ class VideoPlayRepository(
                         qn = 127,
                         fnver = 0,
                         fourk = 1,
-                        sessData = authRepository.sessionData
+                        sessData = authRepository.sessionData,
+                        dedeUserID = authRepository.mid
                     )
                 }.getResponseData()
 
@@ -141,7 +162,7 @@ class VideoPlayRepository(
                     val replies = codecTypes.map { codecType ->
                         val req = playViewReq {
                             this.epid = epid.toLong()
-                            this.cid = cid
+                            cid?.let { this.cid = it }
                             qn = 127
                             fnver = 0
                             fnval = 4048
@@ -202,8 +223,8 @@ class VideoPlayRepository(
             ApiType.App -> {
                 val dmViewReply = runCatching {
                     danmakuStub?.dmView(dmViewReq {
-                        pid = aid
-                        oid = cid
+                        pid = aid.toLong()
+                        oid = cid.toLong()
                         type = 1
                     })
                 }.onFailure { handleGrpcException(it) }.getOrThrow()
