@@ -51,6 +51,7 @@ import dev.aaa1115910.biliapi.http.entity.video.CheckSentCoin
 import dev.aaa1115910.biliapi.http.entity.video.CheckVideoFavoured
 import dev.aaa1115910.biliapi.http.entity.video.OneClickTripleAction
 import dev.aaa1115910.biliapi.http.entity.video.PlayUrlData
+import dev.aaa1115910.biliapi.http.entity.video.PlayUrlV2Data
 import dev.aaa1115910.biliapi.http.entity.video.PopularVideoData
 import dev.aaa1115910.biliapi.http.entity.video.RelatedVideosResponse
 import dev.aaa1115910.biliapi.http.entity.video.SetVideoFavorite
@@ -64,13 +65,13 @@ import dev.aaa1115910.biliapi.http.entity.video.VideoInfo
 import dev.aaa1115910.biliapi.http.entity.video.VideoMoreInfo
 import dev.aaa1115910.biliapi.http.entity.video.VideoShot
 import dev.aaa1115910.biliapi.http.entity.web.NavResponseData
+import dev.aaa1115910.biliapi.http.plugins.BiliUserAgent
 import dev.aaa1115910.biliapi.http.util.BiliAppConf
 import dev.aaa1115910.biliapi.http.util.encApiSign
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpRequestRetry
-import io.ktor.client.plugins.UserAgent
 import io.ktor.client.plugins.compression.ContentEncoding
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
@@ -83,7 +84,6 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.client.statement.readRawBytes
-import io.ktor.client.statement.request
 import io.ktor.http.Parameters
 import io.ktor.http.URLProtocol
 import io.ktor.serialization.kotlinx.json.json
@@ -122,9 +122,7 @@ object BiliHttpApi {
 
     private fun createClient() {
         client = HttpClient(OkHttp) {
-            install(UserAgent) {
-                agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            }
+            BiliUserAgent()
             install(ContentNegotiation) {
                 json(json)
             }
@@ -195,46 +193,29 @@ object BiliHttpApi {
         cid: Long,
         qn: Int? = null,
         fnval: Int? = null,
-        fnver: Int? = 0,
+        fnver: Int? = null,
         fourk: Int? = 0,
         session: String? = null,
         otype: String = "json",
         type: String = "",
-        platform: String = "pc",
-        sessData: String? = null
-    ): BiliResponse<PlayUrlData> {
-        val response = client.get("x/player/wbi/playurl") {
-            require(av != null || bv != null) { "av and bv cannot be null at the same time" }
-            parameter("avid", av)
-            parameter("bvid", bv)
-            parameter("cid", cid)
-            parameter("qn", qn)
-            parameter("fnval", fnval)
-            parameter("fnver", fnver)
-            parameter("fourk", fourk)
-            parameter("session", session)
-            parameter("otype", otype)
-            parameter("platform", platform)
-            header("referer", "https://www.bilibili.com")
-            header("Accept", "application/json, text/plain, */*")
-            header("Accept-Language", "zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2")
-            header("Accept-Encoding", "gzip, deflate, br, zstd")
-            header("Connection", "keep-alive")
-            header("Sec-Fetch-Dest", "empty")
-            header("Sec-Fetch-Mode", "cors")
-            header("Sec-Fetch-Site", "same-site")
-            header("TE", "trailers")
-            sessData?.let { header("Cookie", "SESSDATA=$sessData;") }
-        }
-
-        println("=== Request Debug Info ===")
-        println("Full URL: ${response.request.url}") // 打印完整拼接后的 URL
-        println("Headers: ${response.request.headers}") // 打印最终发送的 Headers
-        println("Method: ${response.request.method}")
-        println("==========================")
-
-        return response.body()
-    }
+        platform: String = "oc",
+        sessData: String? = null,
+        dedeUserID: Long? = null
+    ): BiliResponse<PlayUrlData> = client.get("/x/player/playurl") {
+        require(av != null || bv != null) { "av and bv cannot be null at the same time" }
+        parameter("avid", av)
+        parameter("bvid", bv)
+        parameter("cid", cid)
+        parameter("qn", qn)
+        parameter("fnval", fnval)
+        parameter("fnver", fnver)
+        parameter("fourk", fourk)
+        parameter("session", session)
+        parameter("otype", otype)
+        parameter("type", type)
+        parameter("platform", platform)
+        sessData?.let { header("Cookie", "SESSDATA=$sessData;DedeUserID=$dedeUserID") }
+    }.body()
 
     /**
      * 获取剧集视频流
@@ -252,10 +233,46 @@ object BiliHttpApi {
         supportMultiAudio: Boolean? = null,
         drmTechType: Int? = null,
         fromClient: String? = null,
-        sessData: String? = null
+        sessData: String? = null,
+        dedeUserID: Long? = null
     ): BiliResponse<PlayUrlData> = client.get("/pgc/player/web/playurl") {
         require(av != null || bv != null) { "av and bv cannot be null at the same time" }
         require(epid != null || cid != null) { "epid and cid cannot be null at the same time" }
+        av?.let { parameter("avid", it) }
+        bv?.let { parameter("bvid", it) }
+        epid?.let { parameter("ep_id", it) }
+        cid?.let { parameter("cid", it) }
+        qn?.let { parameter("qn", it) }
+        fnval?.let { parameter("fnval", it) }
+        fnver?.let { parameter("fnver", it) }
+        fourk?.let { parameter("fourk", it) }
+        session?.let { parameter("session", it) }
+        supportMultiAudio?.let { parameter("support_multi_audio", it) }
+        drmTechType?.let { parameter("drm_tech_type", it) }
+        fromClient?.let { parameter("from_client", it) }
+        sessData?.let { header("Cookie", "SESSDATA=$sessData;DedeUserID=$dedeUserID") }
+        //必须得加上 referer 才能通过账号身份验证
+        header("referer", "https://www.bilibili.com")
+    }.body()
+
+    /**
+     * 获取剧集视频流 v2
+     */
+    suspend fun getPgcVideoPlayUrlV2(
+        av: Long? = null,
+        bv: String? = null,
+        epid: Int? = null,
+        cid: Long? = null,
+        qn: Int? = null,
+        fnval: Int? = null,
+        fnver: Int? = null,
+        fourk: Int? = null,
+        session: String? = null,
+        supportMultiAudio: Boolean? = null,
+        drmTechType: Int? = null,
+        fromClient: String? = null,
+        sessData: String? = null
+    ): BiliResponse<PlayUrlV2Data> = client.get("/pgc/player/web/v2/playurl") {
         av?.let { parameter("avid", it) }
         bv?.let { parameter("bvid", it) }
         epid?.let { parameter("ep_id", it) }
