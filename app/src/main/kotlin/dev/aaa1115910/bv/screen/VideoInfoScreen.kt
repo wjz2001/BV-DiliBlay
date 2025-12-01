@@ -368,36 +368,6 @@ fun VideoInfoScreen(
         coined = videoDetailViewModel.videoDetail?.userActions?.coin ?: false
     }
 
-    val updatePartVideoList: () -> Unit = {
-        val partVideoList =
-            videoDetailViewModel.videoDetail!!.pages.mapIndexed { index, videoPage ->
-                VideoListItem(
-                    aid = videoDetailViewModel.videoDetail!!.aid,
-                    cid = videoPage.cid,
-                    title = videoPage.title,
-                    index = index,
-                    isEpisode = false
-                )
-            }
-        videoInfoRepository.videoList.clear()
-        videoInfoRepository.videoList.addAll(partVideoList)
-    }
-
-    val updateUgcSeasonSectionVideoList: (Int) -> Unit = { sectionIndex ->
-        val partVideoList =
-            videoDetailViewModel.videoDetail!!.ugcSeason!!.sections[sectionIndex].episodes.mapIndexed { index, episode ->
-                VideoListItem(
-                    aid = episode.aid,
-                    cid = episode.cid,
-                    title = episode.title,
-                    index = index,
-                    isEpisode = false
-                )
-            }
-        videoInfoRepository.videoList.clear()
-        videoInfoRepository.videoList.addAll(partVideoList)
-    }
-
     LaunchedEffect(Unit) {
         if (intent.hasExtra("aid")) {
             val aid = intent.getLongExtra("aid", 170001)
@@ -611,7 +581,7 @@ fun VideoInfoScreen(
                                 logger.fInfo { "Click video cover" }
                                 // 点击封面读取分p列表
                                 scope.launch(Dispatchers.IO) {
-                                    updatePartVideoList()
+                                    videoDetailViewModel.updatePartVideoList()
                                 }
                                 launchPlayerActivity(
                                     context = context,
@@ -706,7 +676,7 @@ fun VideoInfoScreen(
                             (videoDetailViewModel.videoDetail?.pages?.size ?: 0) > 5,
                             onClick = { cid ->
                                 logger.fInfo { "Click video part: [av:${videoDetailViewModel.videoDetail?.aid}, bv:${videoDetailViewModel.videoDetail?.bvid}, cid:$cid]" }
-                                updatePartVideoList()
+                                videoDetailViewModel.updatePartVideoList()
                                 launchPlayerActivity(
                                     context = context,
                                     avid = videoDetailViewModel.videoDetail!!.aid,
@@ -721,64 +691,37 @@ fun VideoInfoScreen(
                             }
                         )
                     }
-                    videoDetailViewModel.videoDetail?.ugcSeason?.let { ugcSeason ->
-                        if (ugcSeason.sections.size == 1) {
-                            item {
-                                VideoUgcSeasonRow(
-                                    title = videoDetailViewModel.videoDetail?.ugcSeason!!.title,
-                                    episodes = videoDetailViewModel.videoDetail?.ugcSeason?.sections?.get(
-                                        0
-                                    )?.episodes
-                                        ?: emptyList(),
-                                    lastPlayedCid = lastPlayedCid,
-                                    lastPlayedTime = lastPlayedTime,
-                                    enableUgcListDialog =
-                                    (videoDetailViewModel.videoDetail?.ugcSeason?.sections?.get(
-                                        0
-                                    )?.episodes?.size
-                                        ?: 0) > 5,
-                                    onClick = { aid, cid ->
-                                        logger.fInfo { "Click ugc season part: [av:${videoDetailViewModel.videoDetail?.aid}, bv:${videoDetailViewModel.videoDetail?.bvid}, cid:$cid]" }
-                                        updateUgcSeasonSectionVideoList(0)
-                                        launchPlayerActivity(
-                                            context = context,
-                                            avid = aid,
-                                            cid = cid,
-                                            title = videoDetailViewModel.videoDetail?.ugcSeason!!.title,
-                                            partTitle = videoDetailViewModel.videoDetail!!.ugcSeason!!.sections[0].episodes.find { it.cid == cid }!!.title,
-                                            played = if (cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
-                                            fromSeason = false,
-                                            isVerticalVideo = containsVerticalScreenVideo,
-                                            author = videoDetailViewModel.videoDetail!!.author
-                                        )
-                                    }
-                                )
-                            }
-                        } else {
-                            itemsIndexed(items = videoDetailViewModel.videoDetail?.ugcSeason!!.sections) { index, section ->
-                                VideoUgcSeasonRow(
-                                    title = section.title,
-                                    episodes = section.episodes,
-                                    lastPlayedCid = lastPlayedCid,
-                                    lastPlayedTime = lastPlayedTime,
-                                    enableUgcListDialog = section.episodes.size > 5,
-                                    onClick = { aid, cid ->
-                                        logger.fInfo { "Click ugc season part: [av:${videoDetailViewModel.videoDetail?.aid}, bv:${videoDetailViewModel.videoDetail?.bvid}, cid:$cid]" }
-                                        updateUgcSeasonSectionVideoList(index)
-                                        launchPlayerActivity(
-                                            context = context,
-                                            avid = aid,
-                                            cid = cid,
-                                            title = videoDetailViewModel.videoDetail?.ugcSeason!!.title,
-                                            partTitle = section.episodes.find { it.cid == cid }!!.title,
-                                            played = if (cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
-                                            fromSeason = false,
-                                            isVerticalVideo = containsVerticalScreenVideo,
-                                            author = videoDetailViewModel.videoDetail!!.author
-                                        )
-                                    }
-                                )
-                            }
+
+                    val videoDetail = videoDetailViewModel.videoDetail
+                    videoDetail?.ugcSeason?.let { season ->
+                        itemsIndexed(items = season.sections) { index, section ->
+                            VideoUgcSeasonRow(
+                                title = if (season.sections.size == 1) season.title else section.title,
+                                episodes = section.episodes,
+                                lastPlayedCid = lastPlayedCid,
+                                lastPlayedTime = lastPlayedTime,
+                                enableUgcListDialog = section.episodes.size > 5,
+                                onClick = { aid, cid ->
+                                    logger.fInfo { "Click ugc season part: [av:${videoDetail.aid}, bv:${videoDetail.bvid}, cid:$lastPlayedCid]" }
+
+                                    videoDetailViewModel.updateUgcSeasonSectionVideoList(index)
+
+                                    val currentEpisode = section.episodes.find { it.cid == cid }
+                                    val partTitle = currentEpisode?.title ?: ""
+
+                                    launchPlayerActivity(
+                                        context = context,
+                                        avid = aid,
+                                        cid = cid,
+                                        title = season.title,
+                                        partTitle = partTitle,
+                                        played = if (cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
+                                        fromSeason = false,
+                                        isVerticalVideo = containsVerticalScreenVideo,
+                                        author = videoDetail.author
+                                    )
+                                }
+                            )
                         }
                     }
                     if (videoDetailViewModel.relatedVideos.isNotEmpty()) {
@@ -1125,7 +1068,6 @@ fun VideoDescriptionDialog(
 @Composable
 fun VideoPartButton(
     modifier: Modifier = Modifier,
-    index: Int,
     title: String,
     duration: Int,
     played: Int = 0,
@@ -1154,7 +1096,7 @@ fun VideoPartButton(
             Text(
                 modifier = Modifier
                     .padding(8.dp),
-                text = "P$index $title",
+                text = title,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
@@ -1257,7 +1199,6 @@ fun VideoPartRow(
                 VideoPartButton(
                     modifier = Modifier
                         .ifElse(index == 0, Modifier.focusRequester(focusRequester)),
-                    index = index + 1,
                     title = page.title,
                     played = if (page.cid == lastPlayedCid) lastPlayedTime else 0,
                     duration = page.duration,
@@ -1348,7 +1289,6 @@ fun VideoUgcSeasonRow(
                 VideoPartButton(
                     modifier = Modifier
                         .ifElse(index == 0, Modifier.focusRequester(focusRequester)),
-                    index = index + 1,
                     title = episode.title,
                     played = if (episode.cid == lastPlayedCid) lastPlayedTime else 0,
                     duration = episode.duration,
@@ -1461,7 +1401,6 @@ private fun VideoPartListDialog(
 
                             VideoPartButton(
                                 modifier = buttonModifier,
-                                index = index + 1,
                                 title = page.title,
                                 played = 0,
                                 duration = page.duration,
@@ -1569,7 +1508,6 @@ private fun VideoUgcListDialog(
 
                             VideoPartButton(
                                 modifier = buttonModifier,
-                                index = index + 1,
                                 title = episode.title,
                                 played = 0,
                                 duration = episode.duration,
@@ -1588,7 +1526,6 @@ private fun VideoUgcListDialog(
 fun VideoPartButtonShortTextPreview() {
     BVTheme {
         VideoPartButton(
-            index = 2,
             title = "这是一段短文字",
             duration = 100,
             onClick = {}
@@ -1601,7 +1538,6 @@ fun VideoPartButtonShortTextPreview() {
 fun VideoPartButtonLongTextPreview() {
     BVTheme {
         VideoPartButton(
-            index = 2,
             title = "这可能是我这辈子距离梅西最近的一次",
             played = 23333,
             duration = 100,
