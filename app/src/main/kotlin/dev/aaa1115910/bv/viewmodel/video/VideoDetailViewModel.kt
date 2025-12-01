@@ -7,7 +7,9 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import dev.aaa1115910.biliapi.entity.video.VideoDetail
 import dev.aaa1115910.biliapi.repositories.VideoDetailRepository
+import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
+import dev.aaa1115910.bv.repository.VideoInfoRepository
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.swapListWithMainContext
@@ -18,6 +20,7 @@ import org.koin.android.annotation.KoinViewModel
 
 @KoinViewModel
 class VideoDetailViewModel(
+    private val videoInfoRepository: VideoInfoRepository,
     private val videoDetailRepository: VideoDetailRepository
 ) : ViewModel() {
     private val logger = KotlinLogging.logger { }
@@ -25,6 +28,36 @@ class VideoDetailViewModel(
     var videoDetail: VideoDetail? by mutableStateOf(null)
 
     var relatedVideos = mutableStateListOf<VideoCardData>()
+
+    fun updatePartVideoList() {
+        val partVideoList =
+            videoDetail!!.pages.mapIndexed { index, videoPage ->
+                VideoListItem(
+                    aid = videoDetail!!.aid,
+                    cid = videoPage.cid,
+                    title = videoPage.title,
+                    index = index,
+                    isEpisode = false
+                )
+            }
+        videoInfoRepository.videoList.clear()
+        videoInfoRepository.videoList.addAll(partVideoList)
+    }
+
+    fun updateUgcSeasonSectionVideoList(sectionIndex: Int): Unit {
+        val partVideoList =
+            videoDetail!!.ugcSeason!!.sections[sectionIndex].episodes.mapIndexed { index, episode ->
+                VideoListItem(
+                    aid = episode.aid,
+                    cid = episode.cid,
+                    title = episode.title,
+                    index = index,
+                    isEpisode = false
+                )
+            }
+        videoInfoRepository.videoList.clear()
+        videoInfoRepository.videoList.addAll(partVideoList)
+    }
 
     suspend fun loadDetail(aid: Long) {
         logger.fInfo { "Load detail: [avid=$aid, preferApiType=${Prefs.apiType.name}]" }

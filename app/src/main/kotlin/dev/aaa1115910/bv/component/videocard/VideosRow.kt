@@ -75,7 +75,7 @@ fun VideosRow(
                     }
                 },
             horizontalArrangement = Arrangement.spacedBy(24.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.Top,
             contentPadding = PaddingValues(horizontal = 62.dp)
         ) {
             itemsIndexed(items = videos) { index, videoData ->
