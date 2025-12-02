@@ -163,6 +163,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
                     cid = cid,
                     epid = epid.takeIf { it != 0 }
                 )
+                updateVideoPages()
                 this.title = title
                 this.partTitle = partTitle
                 this.lastPlayed = played

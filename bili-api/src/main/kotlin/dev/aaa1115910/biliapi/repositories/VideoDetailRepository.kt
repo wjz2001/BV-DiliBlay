@@ -4,6 +4,7 @@ import bilibili.app.view.v1.ViewGrpcKt
 import bilibili.app.view.v1.viewReq
 import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.entity.video.VideoDetail
+import dev.aaa1115910.biliapi.entity.video.VideoPage
 import dev.aaa1115910.biliapi.entity.video.season.SeasonDetail
 import dev.aaa1115910.biliapi.grpc.utils.handleGrpcException
 import dev.aaa1115910.biliapi.http.BiliHttpApi
@@ -113,6 +114,30 @@ class VideoDetailRepository(
                     }) ?: throw IllegalStateException("Player stub is not initialized")
                 }.onFailure { handleGrpcException(it) }.getOrThrow()
                 VideoDetail.fromViewReply(viewReply)
+            }
+        }
+    }
+
+    suspend fun getUgcPages(
+        aid: Long,
+        preferApiType: ApiType = ApiType.Web
+    ): List<VideoPage> {
+        when (preferApiType) {
+            ApiType.Web -> {
+                val detail = BiliHttpApi.getVideoInfo(
+                    av = aid,
+                    sessData = authRepository.sessionData ?: ""
+                ).getResponseData()
+                return detail.pages.map { VideoPage.fromVideoPage(it) }
+            }
+
+            ApiType.App -> {
+                val viewReply = runCatching {
+                    viewStub?.view(viewReq {
+                        this.aid = aid
+                    }) ?: throw IllegalStateException("Player stub is not initialized")
+                }.onFailure { handleGrpcException(it) }.getOrThrow()
+                return viewReply.pagesList.map { VideoPage.fromViewPage(it) }
             }
         }
     }

@@ -372,7 +372,7 @@ fun VideoPlayerController(
             isSeeking = isSeeking,
             goTime = goTime,
             infoData = data.infoData,
-            title = data.secondTitle,
+            title = data.title,
             clock = data.clock,
             videoShot = data.videoShot,
             fromSeason = fromSeason,
