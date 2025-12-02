@@ -29,34 +29,24 @@ class VideoDetailViewModel(
 
     var relatedVideos = mutableStateListOf<VideoCardData>()
 
-    fun updatePartVideoList() {
+    fun updateUgcSeasonSectionVideoList(sectionIndex: Int){
         val partVideoList =
-            videoDetail!!.pages.mapIndexed { index, videoPage ->
-                VideoListItem(
-                    aid = videoDetail!!.aid,
-                    cid = videoPage.cid,
-                    title = videoPage.title,
-                    index = index,
-                    isEpisode = false
-                )
-            }
-        videoInfoRepository.videoList.clear()
-        videoInfoRepository.videoList.addAll(partVideoList)
-    }
-
-    fun updateUgcSeasonSectionVideoList(sectionIndex: Int): Unit {
-        val partVideoList =
-            videoDetail!!.ugcSeason!!.sections[sectionIndex].episodes.mapIndexed { index, episode ->
+            videoDetail!!.ugcSeason!!.sections[sectionIndex].episodes.mapIndexed { _, episode ->
                 VideoListItem(
                     aid = episode.aid,
                     cid = episode.cid,
-                    title = episode.title,
-                    index = index,
-                    isEpisode = false
+                    title = episode.title
                 )
             }
-        videoInfoRepository.videoList.clear()
-        videoInfoRepository.videoList.addAll(partVideoList)
+        videoInfoRepository.clearVideoList()
+        videoInfoRepository.addToVideoList(partVideoList)
+    }
+
+    fun clearVideoList() {
+        videoInfoRepository.clearVideoList()
+    }
+    fun addToVideoList(videoListItem: List<VideoListItem>) {
+        videoInfoRepository.addToVideoList(videoListItem)
     }
 
     suspend fun loadDetail(aid: Long) {

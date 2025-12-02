@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -30,6 +31,7 @@ import com.kuaishou.akdanmaku.data.DanmakuItemData
 import com.kuaishou.akdanmaku.ecs.component.filter.TypeFilter
 import com.kuaishou.akdanmaku.ext.RETAINER_BILIBILI
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskFrame
+import dev.aaa1115910.biliapi.entity.video.VideoPage
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.DanmakuPlayerCompose
 import dev.aaa1115910.bv.component.controllers.LocalVideoPlayerControllerData
@@ -113,6 +115,8 @@ fun VideoPlayerV3Screen(
     var hideSkipToNextEpTimer: CountDownTimer? by remember { mutableStateOf(null) }
 
     var currentDanmakuMaskFrame: DanmakuMaskFrame? by remember { mutableStateOf(null) }
+
+    val availableVideoList by playerViewModel.availableVideoList.collectAsState()
 
     val updateSeek: () -> Unit = {
         currentPosition = videoPlayer.currentPosition.coerceAtLeast(0L)
@@ -275,38 +279,65 @@ fun VideoPlayerV3Screen(
             isPlaying = false
             if (!Prefs.incognitoMode) sendHeartbeat()
 
-            if (isLooping){
+            if (isLooping) {
                 onBackToStart()
                 return
             }
 
-            val videoListIndex = playerViewModel.availableVideoList.indexOfFirst {
-                it.cid == playerViewModel.currentCid
-            }
-
-            when(currentActionAfterPlayItem){
+            when (currentActionAfterPlayItem) {
                 ActionAfterPlayItems.Pause -> {
                 }
+
                 ActionAfterPlayItems.PlayNext -> {
                     // 存在下一集时，使用 countDownTimer 延迟5秒后播放下一集
-                    if (videoListIndex + 1 < playerViewModel.availableVideoList.size) {
+                    val videoListIndex = availableVideoList.indexOfFirst { it.aid == playerViewModel.currentAid }
+                    val currentVideoItem = availableVideoList.getOrNull(videoListIndex)
+                    val currentCid = playerViewModel.currentCid
+
+                    var nextUgcPage: VideoPage? = null
+
+                    // 查找视频的分P
+                    if (currentVideoItem?.ugcPages != null && currentVideoItem.ugcPages.isNotEmpty()) {
+                        val currentInnerIndex =
+                            currentVideoItem.ugcPages.indexOfFirst { it.cid == currentCid }
+
+                        if (currentInnerIndex != -1 && currentInnerIndex + 1 < currentVideoItem.ugcPages.size) {
+                            nextUgcPage = currentVideoItem.ugcPages[currentInnerIndex + 1]
+                        }
+                    }
+
+                    // 存在下一个分P或视频
+                    if (nextUgcPage != null || videoListIndex + 1 < availableVideoList.size) {
                         showSkipToNextEp = true
                         hideSkipToNextEpTimer = countDownTimer(
                             millisInFuture = 5000,
                             countDownInterval = 1000,
                             tag = "nextEpisodeCountDown"
                         ) {
-                            val nextVideo = playerViewModel.availableVideoList[videoListIndex + 1]
-                            logger.info { "Play next video: $nextVideo" }
-                            playerViewModel.partTitle = nextVideo.title
-                            playerViewModel.loadPlayUrl(
-                                avid = nextVideo.aid,
-                                cid = nextVideo.cid,
-                                epid = nextVideo.epid,
-                                seasonId = nextVideo.seasonId,
-                                continuePlayNext = true
-                            )
-                            // 隐藏提示
+                            // 下一个分P
+                            if (nextUgcPage != null) {
+                                logger.info { "Play next UGC page: ${nextUgcPage.title}" }
+                                playerViewModel.loadPlayUrl(
+                                    avid = currentVideoItem!!.aid,
+                                    cid = nextUgcPage.cid,
+                                    epid = null,
+                                    seasonId = null,
+                                    continuePlayNext = true
+                                )
+                            } else {
+                                // 下一个视频
+                                val nextVideo = availableVideoList[videoListIndex + 1]
+                                logger.info { "Play next video item: $nextVideo" }
+                                playerViewModel.title = nextVideo.title
+                                playerViewModel.loadPlayUrl(
+                                    avid = nextVideo.aid,
+                                    cid = nextVideo.cid,
+                                    epid = nextVideo.epid,
+                                    seasonId = nextVideo.seasonId,
+                                    continuePlayNext = true
+                                )
+                            }
+
                             showSkipToNextEp = false
                         }
                     } else {
@@ -450,7 +481,7 @@ fun VideoPlayerV3Screen(
     DisposableEffect(Unit) {
         clockRefreshTimer = countDownTimer(
             millisInFuture = Long.MAX_VALUE,
-            countDownInterval = 1000*60,
+            countDownInterval = 1000 * 60,
             tag = "clockRefreshTimer",
             showLogs = false,
             onTick = {
@@ -474,7 +505,7 @@ fun VideoPlayerV3Screen(
             availableVideoCodec = playerViewModel.availableVideoCodec,
             availableAudio = playerViewModel.availableAudio,
             availableSubtitleTracks = playerViewModel.availableSubtitle,
-            availableVideoList = playerViewModel.availableVideoList,
+            availableVideoList = availableVideoList,
             currentVideoCid = playerViewModel.currentCid,
             currentResolution = playerViewModel.currentQuality,
             currentVideoCodec = playerViewModel.currentVideoCodec,
@@ -706,7 +737,7 @@ fun VideoPlayerV3Screen(
                         ),
                     danmakuPlayer = playerViewModel.danmakuPlayer
                 )
-                if (Prefs.showPersistentSeek){
+                if (Prefs.showPersistentSeek) {
                     VideoProgressSeek(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)

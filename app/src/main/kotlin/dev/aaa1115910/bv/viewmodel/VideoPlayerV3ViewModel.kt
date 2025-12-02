@@ -173,6 +173,13 @@ class VideoPlayerV3ViewModel(
         }
     }
 
+    // 加载合集内的分P
+    fun updateVideoPages(){
+        viewModelScope.launch(Dispatchers.IO){
+            videoInfoRepository.updateUgcPages(Prefs.apiType)
+        }
+    }
+
     private suspend fun loadPlayUrl(
         avid: Long,
         cid: Long,

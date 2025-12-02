@@ -347,7 +347,7 @@ fun SeasonInfoScreen(
                                     lastPlayProgress?.lastTime ?: 0
                                 )
 
-                                val partVideoList = episodeList.mapIndexed { index, episode ->
+                                val partVideoList = episodeList.mapIndexed { _, episode ->
                                     VideoListItem(
                                         aid = episode.aid,
                                         cid = episode.cid,
@@ -355,13 +355,11 @@ fun SeasonInfoScreen(
                                         seasonId = seasonData?.seasonId,
                                         title = runCatching {
                                             "第 ${episode.title.toInt()} 集"
-                                        }.getOrDefault(episode.title) + " " + episode.longTitle,
-                                        index = index,
-                                        isEpisode = true
+                                        }.getOrDefault(episode.title) + " " + episode.longTitle
                                     )
                                 }
-                                videoInfoRepository.videoList.clear()
-                                videoInfoRepository.videoList.addAll(partVideoList)
+                                videoInfoRepository.clearVideoList()
+                                videoInfoRepository.addToVideoList(partVideoList)
                             }
                         },
                         onClickFollow = {
@@ -419,7 +417,7 @@ fun SeasonInfoScreen(
                                 onClickVideo(avid, cid, epid, episodeTitle, startTime)
 
                                 val partVideoList =
-                                    seasonData?.episodes?.mapIndexed { index, episode ->
+                                    seasonData?.episodes?.mapIndexed { _, episode ->
                                         VideoListItem(
                                             aid = episode.aid,
                                             cid = episode.cid,
@@ -427,13 +425,11 @@ fun SeasonInfoScreen(
                                             seasonId = seasonData?.seasonId,
                                             title = runCatching {
                                                 "第 ${episode.title.toInt()} 集"
-                                            }.getOrDefault(episode.title) + " " + episode.longTitle,
-                                            index = index,
-                                            isEpisode = true
+                                            }.getOrDefault(episode.title) + " " + episode.longTitle
                                         )
                                     } ?: emptyList()
-                                videoInfoRepository.videoList.clear()
-                                videoInfoRepository.videoList.addAll(partVideoList)
+                                videoInfoRepository.clearVideoList()
+                                videoInfoRepository.addToVideoList(partVideoList)
                             }
                         )
                     }
@@ -448,7 +444,7 @@ fun SeasonInfoScreen(
                             onClick = { avid, cid, epid, episodeTitle, startTime ->
                                 onClickVideo(avid, cid, epid, episodeTitle, startTime)
 
-                                val partVideoList = section.episodes.mapIndexed { index, episode ->
+                                val partVideoList = section.episodes.mapIndexed { _, episode ->
                                     VideoListItem(
                                         aid = episode.aid,
                                         cid = episode.cid,
@@ -456,13 +452,11 @@ fun SeasonInfoScreen(
                                         seasonId = seasonData?.seasonId,
                                         title = runCatching {
                                             "第 ${episode.title.toInt()} 集"
-                                        }.getOrDefault(episode.title) + " " + episode.longTitle,
-                                        index = index,
-                                        isEpisode = true
+                                        }.getOrDefault(episode.title) + " " + episode.longTitle
                                     )
                                 }
-                                videoInfoRepository.videoList.clear()
-                                videoInfoRepository.videoList.addAll(partVideoList)
+                                videoInfoRepository.clearVideoList()
+                                videoInfoRepository.addToVideoList(partVideoList)
                             }
                         )
                     }

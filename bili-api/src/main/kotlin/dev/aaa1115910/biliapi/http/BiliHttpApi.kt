@@ -162,7 +162,7 @@ object BiliHttpApi {
      * 获取视频详细信息
      */
     suspend fun getVideoInfo(
-        av: Int? = null,
+        av: Long? = null,
         bv: String? = null,
         sessData: String? = null
     ): BiliResponse<VideoInfo> = client.get("/x/web-interface/view") {
