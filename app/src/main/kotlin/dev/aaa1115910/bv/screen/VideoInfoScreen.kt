@@ -124,7 +124,6 @@ import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.videocard.VideosRow
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
-import dev.aaa1115910.bv.repository.VideoInfoRepository
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fDebug
@@ -152,7 +151,6 @@ import kotlin.math.ceil
 fun VideoInfoScreen(
     modifier: Modifier = Modifier,
     lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current,
-    videoInfoRepository: VideoInfoRepository = getKoin().get(),
     videoDetailViewModel: VideoDetailViewModel = koinViewModel(),
     userRepository: UserRepository = getKoin().get(),
     favoriteRepository: FavoriteRepository = getKoin().get(),
@@ -262,18 +260,6 @@ fun VideoInfoScreen(
                         rid = avid,
                         preferApiType = Prefs.apiType
                     )
-                // 2. 从原始数据中派生出另一个普通的 List
-                val videoInFavoriteFolderIdsResult = favoriteFolderMetadataListResult
-                    .filter { it.videoInThisFav }
-
-                // 3. (关键修改) 在更新状态之前，使用安全的本地变量来记录日志
-                logger.fDebug { "Update favoriteFolders: ${favoriteFolderMetadataListResult.map { it.title }}" }
-                logger.fDebug { "Update videoInFavoriteFolderIds: ${videoInFavoriteFolderIdsResult.map { it.title }}" }
-
-                // 4. 调用函数更新UI状态 (这些函数内部会切换到主线程)
-                favoriteFolderMetadataList.swapListWithMainContext(favoriteFolderMetadataListResult)
-                videoInFavoriteFolderIds.swapListWithMainContext(videoInFavoriteFolderIdsResult.map { it.id })
-                /*
                 favoriteFolderMetadataList.swapListWithMainContext(favoriteFolderMetadataListResult)
 
                 val videoInFavoriteFolderIdsResult = favoriteFolderMetadataListResult
@@ -282,7 +268,6 @@ fun VideoInfoScreen(
 
                 logger.fDebug { "Update favoriteFolders: ${favoriteFolderMetadataList.map { it.title }}" }
                 logger.fDebug { "Update videoInFavoriteFolderIds: ${videoInFavoriteFolderIdsResult.map { it.title }}" }
-                 */
             }
         }
     }
@@ -290,11 +275,7 @@ fun VideoInfoScreen(
     val updateVideoFavoriteData: (List<Long>) -> Unit = { folderIds ->
         scope.launch(Dispatchers.IO) {
             runCatching {
-                // require(favoriteFolderMetadataList.isNotEmpty()) { "Not found favorite folder" }
-                val folders = withContext(Dispatchers.Main) {
-                    favoriteFolderMetadataList.toList()
-                }
-                require(folders.isNotEmpty()) { "Not found favorite folder" }
+                require(favoriteFolderMetadataList.isNotEmpty()) { "Not found favorite folder" }
                 require(videoDetailViewModel.videoDetail?.aid != null) { "Video info is null" }
                 logger.info { "Update video av${videoDetailViewModel.videoDetail?.aid} to favorite folder $folderIds" }
 
@@ -331,6 +312,43 @@ fun VideoInfoScreen(
         favorited = videoDetailViewModel.videoDetail?.userActions?.favorite ?: false
     }
 
+
+    val updateVideoIsLiked = {
+        liked = videoDetailViewModel.videoDetail?.userActions?.like ?: false
+    }
+
+    val updateVideoIsCoined = {
+        coined = videoDetailViewModel.videoDetail?.userActions?.coin ?: false
+    }
+
+    fun playCurrentVideo(cid: Long? = null) {
+        val videoDetail = videoDetailViewModel.videoDetail!!
+        videoDetailViewModel.clearVideoList()
+        videoDetailViewModel.addToVideoList(
+            listOf(
+                VideoListItem(
+                    aid = videoDetail.aid,
+                    cid = cid ?: videoDetail.cid,
+                    title = videoDetail.title,
+                )
+            )
+        )
+
+        launchPlayerActivity(
+            context = context,
+            avid = videoDetail.aid,
+            cid = cid ?: videoDetail.cid,
+            title = videoDetail.title,
+            partTitle = videoDetail.pages.find { it.cid == cid }?.title
+                ?: videoDetail.pages.first().title,
+            played = if (cid?.let { it == lastPlayedCid } ?: (videoDetail.cid == lastPlayedCid)) {
+                lastPlayedTime * 1000
+            } else 0,
+            fromSeason = fromSeason,
+            isVerticalVideo = containsVerticalScreenVideo,
+            author = videoDetail.author
+        )
+    }
     suspend fun updateVideoLikedData(like: Boolean): Boolean {
         return withContext(Dispatchers.IO) {
             runCatching {
@@ -388,44 +406,6 @@ fun VideoInfoScreen(
         }
     }
 
-    val updateVideoIsLiked = {
-        liked = videoDetailViewModel.videoDetail?.userActions?.like ?: false
-    }
-
-    val updateVideoIsCoined = {
-        coined = videoDetailViewModel.videoDetail?.userActions?.coin ?: false
-    }
-
-    val updatePartVideoList: () -> Unit = {
-        val partVideoList =
-            videoDetailViewModel.videoDetail!!.pages.mapIndexed { index, videoPage ->
-                VideoListItem(
-                    aid = videoDetailViewModel.videoDetail!!.aid,
-                    cid = videoPage.cid,
-                    title = videoPage.title,
-                    index = index,
-                    isEpisode = false
-                )
-            }
-        videoInfoRepository.videoList.clear()
-        videoInfoRepository.videoList.addAll(partVideoList)
-    }
-
-    val updateUgcSeasonSectionVideoList: (Int) -> Unit = { sectionIndex ->
-        val partVideoList =
-            videoDetailViewModel.videoDetail!!.ugcSeason!!.sections[sectionIndex].episodes.mapIndexed { index, episode ->
-                VideoListItem(
-                    aid = episode.aid,
-                    cid = episode.cid,
-                    title = episode.title,
-                    index = index,
-                    isEpisode = false
-                )
-            }
-        videoInfoRepository.videoList.clear()
-        videoInfoRepository.videoList.addAll(partVideoList)
-    }
-
     LaunchedEffect(Unit) {
         if (intent.hasExtra("aid")) {
             val aid = intent.getLongExtra("aid", 170001)
@@ -463,32 +443,9 @@ fun VideoInfoScreen(
                     if (Prefs.isLogin) fetchFavoriteData(aid)
 
                     if (!fromController) {
-                        //如果是从剧集跳转过来的或设置不显示视频详情，就直接播放 P1
+                        //如果是从剧集跳转过来的或设置不显示视频详情，就直接播放当前视频
                         if (fromSeason || !showVideoInfo) {
-                            if (!showVideoInfo) videoInfoRepository.videoList.clear()
-                            val playPart = videoDetailViewModel.videoDetail!!.pages.first()
-                            val singlePartVideoList = listOf(
-                                VideoListItem(
-                                    aid = videoDetailViewModel.videoDetail!!.aid,
-                                    cid = playPart.cid,
-                                    title = playPart.title,
-                                    index = 0,
-                                    isEpisode = false
-                                )
-                            )
-                            videoInfoRepository.videoList.clear()
-                            videoInfoRepository.videoList.addAll(singlePartVideoList)
-                            launchPlayerActivity(
-                                context = context,
-                                avid = videoDetailViewModel.videoDetail!!.aid,
-                                cid = playPart.cid,
-                                title = videoDetailViewModel.videoDetail!!.title,
-                                partTitle = videoDetailViewModel.videoDetail!!.pages.find { it.cid == playPart.cid }!!.title,
-                                played = if (playPart.cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
-                                fromSeason = fromSeason,
-                                isVerticalVideo = containsVerticalScreenVideo,
-                                author = videoDetailViewModel.videoDetail!!.author
-                            )
+                            playCurrentVideo(lastPlayedCid.takeIf { it != 0L })
                             context.finish()
                         }
                     }
@@ -664,95 +621,9 @@ fun VideoInfoScreen(
                             favoriteFolderIds = videoInFavoriteFolderIds,
                             onClickCover = {
                                 logger.fInfo { "Click video cover" }
-                                scope.launch(Dispatchers.IO) {
-                                    updatePartVideoList()
-                                }
+                                // 点击封面播放当前视频
+                                playCurrentVideo(lastPlayedCid.takeIf { it != 0L })
 
-                                // ✅ 修改：按优先级查找播放位置
-                                // 1. 首先在普通分P中查找历史记录
-                                val matchedPage =
-                                    videoDetailViewModel.videoDetail!!.pages.find { it.cid == lastPlayedCid }
-
-                                if (matchedPage != null) {
-                                    // ✅ 找到分P播放记录，播放该分P
-                                    logger.fInfo { "Found matched page: cid=${matchedPage.cid}, title=${matchedPage.title}" }
-                                    launchPlayerActivity(
-                                        context = context,
-                                        avid = videoDetailViewModel.videoDetail!!.aid,
-                                        cid = matchedPage.cid,
-                                        title = videoDetailViewModel.videoDetail!!.title,
-                                        partTitle = matchedPage.title,
-                                        played = lastPlayedTime * 1000,
-                                        fromSeason = false,
-                                        isVerticalVideo = containsVerticalScreenVideo,
-                                        author = videoDetailViewModel.videoDetail!!.author
-                                    )
-                                } else {
-                                    // ✅ 2. 在UGC合集中查找历史记录
-                                    val matchedEp =
-                                        videoDetailViewModel.videoDetail!!.ugcSeason?.sections
-                                            ?.flatMap { it.episodes }
-                                            ?.find { it.cid == lastPlayedCid }
-
-                                    if (matchedEp != null) {
-                                        // ✅ 找到UGC合集播放记录，播放该合集视频
-                                        logger.fInfo { "Found matched episode: aid=${matchedEp.aid}, cid=${matchedEp.cid}, title=${matchedEp.title}" }
-
-                                        // 找到对应的section索引，更新视频列表
-                                        val sectionIndex =
-                                            videoDetailViewModel.videoDetail!!.ugcSeason!!.sections
-                                                .indexOfFirst { section -> section.episodes.any { it.cid == matchedEp.cid } }
-                                        if (sectionIndex >= 0) {
-                                            updateUgcSeasonSectionVideoList(sectionIndex)
-                                        }
-
-                                        launchPlayerActivity(
-                                            context = context,
-                                            avid = matchedEp.aid,
-                                            cid = matchedEp.cid,
-                                            title = videoDetailViewModel.videoDetail!!.ugcSeason!!.title,
-                                            partTitle = matchedEp.title,
-                                            played = lastPlayedTime * 1000,
-                                            fromSeason = false,
-                                            isVerticalVideo = containsVerticalScreenVideo,
-                                            author = videoDetailViewModel.videoDetail!!.author
-                                        )
-                                    } else {
-                                        // ✅ 3. 没有任何播放记录，播放第一个分P
-                                        logger.fInfo { "No history found, play first part" }
-                                        val firstPage =
-                                            videoDetailViewModel.videoDetail!!.pages.first()
-                                        launchPlayerActivity(
-                                            context = context,
-                                            avid = videoDetailViewModel.videoDetail!!.aid,
-                                            cid = firstPage.cid,
-                                            title = videoDetailViewModel.videoDetail!!.title,
-                                            partTitle = firstPage.title,
-                                            played = 0,
-                                            fromSeason = false,
-                                            isVerticalVideo = containsVerticalScreenVideo,
-                                            author = videoDetailViewModel.videoDetail!!.author
-                                        )
-                                    }
-                                }
-                                /*
-                                logger.fInfo { "Click video cover" }
-                                // 点击封面读取分p列表
-                                scope.launch(Dispatchers.IO) {
-                                    updatePartVideoList()
-                                }
-                                launchPlayerActivity(
-                                    context = context,
-                                    avid = videoDetailViewModel.videoDetail!!.aid,
-                                    cid = videoDetailViewModel.videoDetail!!.pages.first().cid,
-                                    title = videoDetailViewModel.videoDetail!!.title,
-                                    partTitle = videoDetailViewModel.videoDetail!!.pages.first().title,
-                                    played = if (videoDetailViewModel.videoDetail!!.cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
-                                    fromSeason = false,
-                                    isVerticalVideo = containsVerticalScreenVideo,
-                                    author = videoDetailViewModel.videoDetail!!.author
-                                )
-                                 */
                             },
                             onClickUp = {
                                 UpInfoActivity.actionStart(
@@ -826,115 +697,72 @@ fun VideoInfoScreen(
                                 (videoDetailViewModel.videoDetail?.pages?.size ?: 0) > 5,
                             onClick = { cid ->
                                 logger.fInfo { "Click video part: [av:${videoDetailViewModel.videoDetail?.aid}, bv:${videoDetailViewModel.videoDetail?.bvid}, cid:$cid]" }
-                                updatePartVideoList()
-                                launchPlayerActivity(
-                                    context = context,
-                                    avid = videoDetailViewModel.videoDetail!!.aid,
-                                    cid = cid,
-                                    title = videoDetailViewModel.videoDetail!!.title,
-                                    partTitle = videoDetailViewModel.videoDetail!!.pages.find { it.cid == cid }!!.title,
-                                    played = if (cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
-                                    fromSeason = false,
-                                    isVerticalVideo = containsVerticalScreenVideo,
-                                    author = videoDetailViewModel.videoDetail!!.author
-                                )
+                                // 播放当前视频的对应分P
+                                playCurrentVideo(cid)
                             }
                         )
                     }
-                    videoDetailViewModel.videoDetail?.ugcSeason?.let { ugcSeason ->
-                        if (ugcSeason.sections.size == 1) {
-                            item {
-                                VideoUgcSeasonRow(
-                                    title = videoDetailViewModel.videoDetail?.ugcSeason!!.title,
-                                    episodes = videoDetailViewModel.videoDetail?.ugcSeason?.sections?.get(
-                                        0
-                                    )?.episodes
-                                        ?: emptyList(),
-                                    lastPlayedCid = lastPlayedCid,
-                                    lastPlayedTime = lastPlayedTime,
-                                    enableUgcListDialog =
-                                        (videoDetailViewModel.videoDetail?.ugcSeason?.sections?.get(
-                                            0
-                                        )?.episodes?.size
-                                            ?: 0) > 5,
-                                    /*
-                                    onClick = { aid, cid ->
-                                        logger.fInfo { "Click ugc season part: [av:${videoDetailViewModel.videoDetail?.aid}, bv:${videoDetailViewModel.videoDetail?.bvid}, cid:$cid]" }
-                                        updateUgcSeasonSectionVideoList(0)
-                                        launchPlayerActivity(
-                                            context = context,
-                                            avid = aid,
-                                            cid = cid,
-                                            title = videoDetailViewModel.videoDetail?.ugcSeason!!.title,
-                                            partTitle = videoDetailViewModel.videoDetail!!.ugcSeason!!.sections[0].episodes.find { it.cid == cid }!!.title,
-                                            played = if (cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
-                                            fromSeason = false,
-                                            isVerticalVideo = containsVerticalScreenVideo,
-                                            author = videoDetailViewModel.videoDetail!!.author
-                                        )
-                                    }
-                                     */
-                                    onClick = { aid, _ -> // cid 在这里不再需要，可以用 _ 忽略
-                                        logger.fInfo { "Click ugc season part, navigating to VideoInfoScreen for avid: $aid" }
-                                        // 直接启动新的 VideoInfoActivity
-                                        VideoInfoActivity.actionStart(context, aid)
-                                    }
-                                )
-                            }
-                        } else {
-                            itemsIndexed(items = videoDetailViewModel.videoDetail?.ugcSeason!!.sections) { index, section ->
-                                VideoUgcSeasonRow(
-                                    title = section.title,
-                                    episodes = section.episodes,
-                                    lastPlayedCid = lastPlayedCid,
-                                    lastPlayedTime = lastPlayedTime,
-                                    enableUgcListDialog = section.episodes.size > 5,
-                                    /*
-                                    onClick = { aid, cid ->
-                                        logger.fInfo { "Click ugc season part: [av:${videoDetailViewModel.videoDetail?.aid}, bv:${videoDetailViewModel.videoDetail?.bvid}, cid:$cid]" }
-                                        updateUgcSeasonSectionVideoList(index)
-                                        launchPlayerActivity(
-                                            context = context,
-                                            avid = aid,
-                                            cid = cid,
-                                            title = videoDetailViewModel.videoDetail?.ugcSeason!!.title,
-                                            partTitle = section.episodes.find { it.cid == cid }!!.title,
-                                            played = if (cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
-                                            fromSeason = false,
-                                            isVerticalVideo = containsVerticalScreenVideo,
-                                            author = videoDetailViewModel.videoDetail!!.author
-                                        )
-                                    }
-                                     */
-                                    onClick = { aid, _ -> // cid 在这里不再需要，可以用 _ 忽略
-                                        logger.fInfo { "Click ugc season part, navigating to VideoInfoScreen for avid: $aid" }
-                                        // 直接启动新的 VideoInfoActivity
-                                        VideoInfoActivity.actionStart(context, aid)
-                                    }
-                                )
-                            }
+
+                    val videoDetail = videoDetailViewModel.videoDetail
+                    videoDetail?.ugcSeason?.let { season ->
+                        itemsIndexed(items = season.sections) { index, section ->
+                            VideoUgcSeasonRow(
+                                title = if (season.sections.size == 1) season.title else section.title,
+                                episodes = section.episodes,
+                                lastPlayedCid = lastPlayedCid,
+                                lastPlayedTime = lastPlayedTime,
+                                enableUgcListDialog = section.episodes.size > 5,
+                                /*
+                                onClick = { aid, cid ->
+                                    logger.fInfo { "Click ugc season part: [av:${videoDetail.aid}, bv:${videoDetail.bvid}, cid:$lastPlayedCid]" }
+
+                                    // 读取合集内视频
+                                    videoDetailViewModel.updateUgcSeasonSectionVideoList(index)
+
+                                    val currentEpisode = section.episodes.find { it.cid == cid }
+                                    val episodeTitle = currentEpisode?.title ?: ""
+
+                                    launchPlayerActivity(
+                                        context = context,
+                                        avid = aid,
+                                        cid = cid,
+                                        title = episodeTitle,
+                                        partTitle = episodeTitle,
+                                        played = if (cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
+                                        fromSeason = false,
+                                        isVerticalVideo = containsVerticalScreenVideo,
+                                        author = videoDetail.author
+                                    )
+                                }
+                                 */
+                                onClick = { aid, _ -> // cid 在这里不再需要，可以用 _ 忽略
+                                    logger.fInfo { "Click ugc season part, navigating to VideoInfoScreen for avid: $aid" }
+                                    // 直接启动新的 VideoInfoActivity
+                                    VideoInfoActivity.actionStart(context, aid)
+                                }
+                            )
                         }
                     }
-                    if (videoDetailViewModel.relatedVideos.isNotEmpty()) {
-                        item {
-                            CompositionLocalProvider(
-                                LocalDensity provides Density(
-                                    density = LocalDensity.current.density * 1.25f,
-                                    fontScale = LocalDensity.current.fontScale * 1.25f
-                                )
-                            ) {
-                                VideosRow(
-                                    header = stringResource(R.string.video_info_related_video_title),
-                                    videos = videoDetailViewModel.relatedVideos,
-                                    showMore = {}
-                                )
-                            }
+                if (videoDetailViewModel.relatedVideos.isNotEmpty()) {
+                    item {
+                        CompositionLocalProvider(
+                            LocalDensity provides Density(
+                                density = LocalDensity.current.density * 1.25f,
+                                fontScale = LocalDensity.current.fontScale * 1.25f
+                            )
+                        ) {
+                            VideosRow(
+                                header = stringResource(R.string.video_info_related_video_title),
+                                videos = videoDetailViewModel.relatedVideos,
+                                showMore = {}
+                            )
                         }
                     }
                 }
             }
         }
     }
+  }
 }
 
 @Composable
@@ -1041,17 +869,17 @@ fun VideoInfoData(
             Column(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                    Text(
-                        //text = videoDetail.title,
-                        text = if (videoDetail.isUpowerExclusive) "充电▶ ${videoDetail.title}" else videoDetail.title,
-                        // style = MaterialTheme.typography.titleLarge,
-                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 44.sp),
-                        // maxLines = 1,
-                        maxLines = 2,
-                        lineHeight = 50.sp,
-                        overflow = TextOverflow.Ellipsis,
-                        color = Color.White
-                    )
+                Text(
+                    //text = videoDetail.title,
+                    text = if (videoDetail.isUpowerExclusive) "充电▶ ${videoDetail.title}" else videoDetail.title,
+                    // style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 44.sp),
+                    // maxLines = 1,
+                    maxLines = 2,
+                    lineHeight = 50.sp,
+                    overflow = TextOverflow.Ellipsis,
+                    color = Color.White
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -1236,7 +1064,7 @@ fun VideoDescription(
     if (description.isNotBlank()) {
         Column(
             modifier = modifier
-                // .padding(horizontal = 50.dp),
+            // .padding(horizontal = 50.dp),
         ) {
             Text(
                 text = stringResource(R.string.video_info_description_title),
@@ -1371,11 +1199,11 @@ fun VideoPartButton(
                     overflow = TextOverflow.Ellipsis
                 )
                 VerticalDivider(
-                    // 1. (可选) 添加垂直内边距，让线变短一点
+                    // 添加垂直内边距，让线变短一点
                     modifier = Modifier.padding(vertical = 12.dp),
-                    // 2. 使用 thickness 参数设置分割线的厚度（宽度）
+                    // 使用 thickness 参数设置分割线的厚度（宽度）
                     thickness = 1.dp,
-                    // 3. (可选) 设置分割线的颜色
+                    // 设置分割线的颜色
                     color = Color.White.copy(alpha = 0.5f)
                 )
                 // 右侧：垂直显示的时长
