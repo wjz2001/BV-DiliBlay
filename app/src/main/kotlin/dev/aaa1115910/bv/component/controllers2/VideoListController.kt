@@ -142,7 +142,8 @@ fun VideoListController(
                                 headlineContent = {
                                     Text(
                                         text = video.title,
-                                        maxLines = 1,
+                                        // maxLines = 1,
+                                        maxLines = 3,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 },
