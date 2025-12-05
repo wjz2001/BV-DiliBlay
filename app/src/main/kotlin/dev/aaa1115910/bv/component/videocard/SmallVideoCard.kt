@@ -1,6 +1,5 @@
 package dev.aaa1115910.bv.component.videocard
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -57,10 +56,11 @@ import dev.aaa1115910.bv.util.resizedImageUrl
 fun SmallVideoCard(
     modifier: Modifier = Modifier,
     data: VideoCardData,
+    delToView: Boolean = false,
     onClick: () -> Unit,
     onAddWatchLater: (() -> Unit)? = null,
-    onGoToDetailPage : (() -> Unit)? = null,
-    onGoToUpPage : (() -> Unit)? = null,
+    onGoToDetailPage: (() -> Unit)? = null,
+    onGoToUpPage: (() -> Unit)? = null,
 ) {
     var showActions by remember { mutableStateOf(false) }
     // 解决长按卡片松开会导致一次按钮触发的问题
@@ -100,8 +100,6 @@ fun SmallVideoCard(
             )
         ) {
             if (showActions) {
-                BackHandler { showActions = false }
-
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
@@ -121,8 +119,13 @@ fun SmallVideoCard(
                             modifier = Modifier.focusRequester(firstButtonRequester)
                         ) {
                             Icon(
-                                painter = painterResource(id = R.drawable.add_to_list),
-                                contentDescription = "Add to watch later"
+                                painter = painterResource(
+                                    id = if (delToView)
+                                        R.drawable.remove_from_list
+                                    else
+                                        R.drawable.add_to_list
+                                ),
+                                contentDescription = "Add to/Remove from watch later"
                             )
                         }
                     }
@@ -309,7 +312,7 @@ fun SmallVideoCardWithoutFocusPreview() {
         ) {
             SmallVideoCard(
                 modifier = Modifier.padding(20.dp),
-                onClick =  {},
+                onClick = {},
                 data = data,
             )
         }

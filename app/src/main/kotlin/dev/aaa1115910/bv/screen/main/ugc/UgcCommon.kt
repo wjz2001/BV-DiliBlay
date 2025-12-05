@@ -34,6 +34,9 @@ fun UgcRegionScaffold(
     modifier: Modifier = Modifier,
     state: UgcScaffoldState,
     onLoadMore: () -> Unit,
+    onAddWatchLater: ((Long) -> Unit),
+    onGoToDetailPage: ((Long) -> Unit),
+    onGoToUpPage: ((Long, String) -> Unit),
 ) {
     val gridState = state.lazyGridState
     val context = LocalContext.current
@@ -73,7 +76,12 @@ fun UgcRegionScaffold(
                         pubTime = item.pubTime
                     )
                 },
-                onClick = { VideoInfoActivity.actionStart(context, item.aid) }
+                onClick = { VideoInfoActivity.actionStart(context, item.aid) },
+                onAddWatchLater = { onAddWatchLater(item.aid) },
+                onGoToDetailPage = { onGoToDetailPage(item.aid) },
+                onGoToUpPage = item.authorMid?.let {
+                    { onGoToUpPage(it, item.author) }
+                }
             )
         }
 

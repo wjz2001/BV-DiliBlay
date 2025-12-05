@@ -105,6 +105,7 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.activities.video.TagActivity
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
+import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.component.buttons.CoinButton
 import dev.aaa1115910.bv.component.buttons.FavoriteButton
@@ -113,6 +114,7 @@ import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.videocard.VideosRow
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+import dev.aaa1115910.bv.ui.common.UiEvent
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fDebug
@@ -126,6 +128,7 @@ import dev.aaa1115910.bv.util.swapList
 import dev.aaa1115910.bv.util.swapListWithMainContext
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.util.toast
+import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import dev.aaa1115910.bv.viewmodel.video.VideoDetailViewModel
 import dev.aaa1115910.bv.viewmodel.video.VideoInfoState
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -141,6 +144,7 @@ fun VideoInfoScreen(
     modifier: Modifier = Modifier,
     lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current,
     videoDetailViewModel: VideoDetailViewModel = koinViewModel(),
+    toViewViewModel: ToViewViewModel = koinViewModel(),
     userRepository: UserRepository = getKoin().get(),
     favoriteRepository: FavoriteRepository = getKoin().get(),
     likeRepository: LikeRepository = getKoin().get(),
@@ -487,6 +491,16 @@ fun VideoInfoScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        toViewViewModel.uiEvent.collect { event ->
+            when (event) {
+                is UiEvent.ShowToast -> {
+                    event.message.toast(context)
+                }
+            }
+        }
+    }
+
     LaunchedEffect(videoDetailViewModel.videoDetail) {
         //如果是从剧集页跳转回来的，那就不需要再跳转到剧集页了
         if (fromSeason) return@LaunchedEffect
@@ -707,12 +721,27 @@ fun VideoInfoScreen(
                             )
                         }
                     }
-                    if (videoDetailViewModel.relatedVideos.isNotEmpty()) {
+
+                    val relatedVideos = videoDetailViewModel.relatedVideos
+                    if (relatedVideos.isNotEmpty()) {
                         item {
                             VideosRow(
                                 header = stringResource(R.string.video_info_related_video_title),
-                                videos = videoDetailViewModel.relatedVideos,
-                                showMore = {}
+                                videos = relatedVideos,
+                                showMore = {},
+                                onAddWatchLater = { aid ->
+                                    toViewViewModel.addToView(aid)
+                                },
+                                onGoToDetailPage = { aid ->
+                                    VideoInfoActivity.actionStart(
+                                        context = context,
+                                        fromController = true,
+                                        aid = aid
+                                    )
+                                },
+                                onGoToUpPage = { mid, upName ->
+                                    UpInfoActivity.actionStart(context, mid, upName)
+                                }
                             )
                         }
                     }

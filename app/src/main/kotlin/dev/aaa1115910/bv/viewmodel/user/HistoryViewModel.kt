@@ -76,6 +76,7 @@ class HistoryViewModel(
                         title = historyItem.title,
                         cover = historyItem.cover,
                         upName = historyItem.author,
+                        upMid = historyItem.mid,
                         timeString = if (historyItem.progress == -1) context.getString(R.string.play_time_finish)
                         else context.getString(
                             R.string.play_time_history,
