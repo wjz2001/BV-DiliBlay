@@ -314,6 +314,7 @@ data class SearchTypeResult(
         val title: String,
         val cover: String,
         val author: String,
+        val mid: Long,
         val duration: Int,
         val play: Int,
         val danmaku: Int,
@@ -327,6 +328,7 @@ data class SearchTypeResult(
                     title = video.title,
                     cover = "https:${video.pic}",
                     author = video.author,
+                    mid = video.mid,
                     duration = convertStringTimeToSeconds(video.duration),
                     play = video.play,
                     danmaku = video.danmaku,
@@ -340,6 +342,7 @@ data class SearchTypeResult(
                     title = video.av.title,
                     cover = video.av.cover,
                     author = video.av.author,
+                    mid = video.av.mid,
                     duration = convertStringTimeToSeconds(video.av.duration),
                     play = video.av.play,
                     danmaku = video.av.danmaku

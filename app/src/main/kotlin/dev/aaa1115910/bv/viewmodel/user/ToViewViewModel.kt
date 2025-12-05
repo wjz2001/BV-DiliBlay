@@ -68,6 +68,19 @@ class ToViewViewModel(
             }
         }
     }
+    fun delToView(aid: Long, viewed: Boolean = false) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                ToViewRepository.delToView(viewed = viewed, aid = aid)
+            }.onSuccess {
+                histories.removeAll { it.avid == aid }
+                _uiEvent.emit(UiEvent.ShowToast("删除稍后再看"))
+            }.onFailure {
+                logger.fWarn { "Delete toview failed: ${it.stackTraceToString()}" }
+                _uiEvent.emit(UiEvent.ShowToast("删除稍后再看失败"))
+            }
+        }
+    }
 
     fun clearData() {
         updateJob?.cancel()
@@ -93,6 +106,7 @@ class ToViewViewModel(
                         title = ToViewItem.title,
                         cover = ToViewItem.cover,
                         upName = ToViewItem.author,
+                        upMid = ToViewItem.mid,
                         timeString = if (ToViewItem.progress == -1) context.getString(R.string.play_time_finish)
                         else context.getString(
                             R.string.play_time_history,

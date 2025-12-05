@@ -2,6 +2,7 @@ package dev.aaa1115910.bv.screen.search
 
 import android.app.Activity
 import android.content.Context
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,12 +61,15 @@ import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.screen.user.UpCard
+import dev.aaa1115910.bv.ui.common.UiEvent
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.focusedScale
 import dev.aaa1115910.bv.util.removeHtmlTags
 import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.search.SearchResultViewModel
+import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -74,7 +78,8 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun SearchResultScreen(
     modifier: Modifier = Modifier,
-    searchResultViewModel: SearchResultViewModel = koinViewModel()
+    searchResultViewModel: SearchResultViewModel = koinViewModel(),
+    toViewViewModel: ToViewViewModel = koinViewModel()
 ) {
     val gridState = rememberLazyGridState()
     val context = LocalContext.current
@@ -155,6 +160,16 @@ fun SearchResultScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        toViewViewModel.uiEvent.collect { event ->
+            when (event) {
+                is UiEvent.ShowToast -> {
+                    event.message.toast(context)
+                }
+            }
+        }
+    }
+
     LaunchedEffect(searchResultViewModel.searchType) {
         rowSize = when (searchResultViewModel.searchType) {
             SearchType.Video -> 4
@@ -218,6 +233,8 @@ fun SearchResultScreen(
             }
         }
     ) { innerPadding ->
+        BackHandler(focusOnContent) { backToTabRow() }
+
         Column(
             modifier = Modifier.padding(innerPadding)
         ) {
@@ -248,16 +265,7 @@ fun SearchResultScreen(
 
             LazyVerticalGrid(
                 modifier = Modifier
-                    .onFocusChanged { focusOnContent = it.hasFocus }
-                    .onPreviewKeyEvent {
-                        when (it.key) {
-                            Key.Back -> {
-                                if (it.type == KeyEventType.KeyUp) backToTabRow()
-                                return@onPreviewKeyEvent true
-                            }
-                        }
-                        false
-                    },
+                    .onFocusChanged { focusOnContent = it.hasFocus },
                 state = gridState,
                 columns = GridCells.Fixed(rowSize),
                 contentPadding = PaddingValues(24.dp),
@@ -274,7 +282,20 @@ fun SearchResultScreen(
                 ) { index, searchResultItem ->
                     SearchResultListItem(
                         searchResult = searchResultItem,
-                        onClick = { onClickResult(searchResultItem) }
+                        onClick = { onClickResult(searchResultItem) },
+                        onAddWatchLater = { aid ->
+                            toViewViewModel.addToView(aid)
+                        },
+                        onGoToDetailPage = { aid ->
+                            VideoInfoActivity.actionStart(
+                                context = context,
+                                fromController = true,
+                                aid = aid
+                            )
+                        },
+                        onGoToUpPage = { mid, upName ->
+                            UpInfoActivity.actionStart(context, mid, upName)
+                        }
                     )
                 }
             }
@@ -302,6 +323,9 @@ private fun SearchResultListItem(
     modifier: Modifier = Modifier,
     searchResult: SearchTypeResult.SearchTypeResultItem,
     onClick: () -> Unit,
+    onAddWatchLater: ((Long) -> Unit),
+    onGoToDetailPage: ((Long) -> Unit),
+    onGoToUpPage: ((Long, String) -> Unit),
 ) {
     when (searchResult) {
         is SearchTypeResult.Video -> {
@@ -318,6 +342,9 @@ private fun SearchResultListItem(
                     pubTime = searchResult.pubTime
                 ),
                 onClick = onClick,
+                onAddWatchLater = { onAddWatchLater(searchResult.aid) },
+                onGoToDetailPage = { onGoToDetailPage(searchResult.aid) },
+                onGoToUpPage = { onGoToUpPage(searchResult.mid, searchResult.author) }
             )
         }
 

@@ -29,6 +29,9 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+import dev.aaa1115910.bv.ui.common.UiEvent
+import dev.aaa1115910.bv.util.toast
+import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import dev.aaa1115910.bv.viewmodel.user.UpInfoViewModel
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -37,7 +40,8 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun UpSpaceScreen(
     modifier: Modifier = Modifier,
-    upInfoViewModel: UpInfoViewModel = koinViewModel()
+    upInfoViewModel: UpInfoViewModel = koinViewModel(),
+    toViewViewModel: ToViewViewModel = koinViewModel()
 ) {
     val gridState = rememberLazyGridState()
     val context = LocalContext.current
@@ -52,6 +56,16 @@ fun UpSpaceScreen(
             upInfoViewModel.update()
         } else {
             context.finish()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        toViewViewModel.uiEvent.collect { event ->
+            when (event) {
+                is UiEvent.ShowToast -> {
+                    event.message.toast(context)
+                }
+            }
         }
     }
 
@@ -125,6 +139,16 @@ fun UpSpaceScreen(
                                     context = context,
                                     aid = video.avid,
                                     proxyArea = ProxyArea.checkProxyArea(video.title)
+                                )
+                            },
+                            onAddWatchLater = {
+                                toViewViewModel.addToView(video.avid)
+                            },
+                            onGoToDetailPage = {
+                                VideoInfoActivity.actionStart(
+                                    context = context,
+                                    fromController = true,
+                                    aid = video.avid
                                 )
                             },
                         )

@@ -96,6 +96,7 @@ class VideoDetailViewModel(
                 title = it.title,
                 cover = it.cover,
                 upName = it.author?.name ?: "",
+                upMid = it.author?.mid,
                 time = it.duration * 1000L,
                 play = it.view,
                 danmaku = it.danmaku,

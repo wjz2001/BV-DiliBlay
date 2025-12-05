@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,10 +38,14 @@ import androidx.tv.material3.Tab
 import androidx.tv.material3.TabRow
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
+import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
+import dev.aaa1115910.bv.ui.common.UiEvent
+import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.FavoriteViewModel
+import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -51,7 +55,8 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun FavoriteScreen(
     modifier: Modifier = Modifier,
-    favoriteViewModel: FavoriteViewModel = koinViewModel()
+    favoriteViewModel: FavoriteViewModel = koinViewModel(),
+    toViewViewModel: ToViewViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -85,6 +90,16 @@ fun FavoriteScreen(
                     favoriteViewModel.updateFolderItems()
                 }
             }
+    }
+
+    LaunchedEffect(Unit) {
+        toViewViewModel.uiEvent.collect { event ->
+            when (event) {
+                is UiEvent.ShowToast -> {
+                    event.message.toast(context)
+                }
+            }
+        }
     }
 
     Column(
@@ -139,13 +154,29 @@ fun FavoriteScreen(
             horizontalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             if (favoriteViewModel.favorites.isNotEmpty()) {
-                itemsIndexed(favoriteViewModel.favorites) { index, history ->
+                items(
+                    items = favoriteViewModel.favorites,
+                    key = { favorite -> favorite.avid })
+                { favorite ->
                     Box(
                         contentAlignment = Alignment.Center
                     ) {
                         SmallVideoCard(
-                            data = history,
-                            onClick = { VideoInfoActivity.actionStart(context, history.avid) },
+                            data = favorite,
+                            onClick = { VideoInfoActivity.actionStart(context, favorite.avid) },
+                            onAddWatchLater = {
+                                toViewViewModel.addToView(favorite.avid)
+                            },
+                            onGoToDetailPage = {
+                                VideoInfoActivity.actionStart(
+                                    context = context,
+                                    fromController = true,
+                                    aid = favorite.avid
+                                )
+                            },
+                            onGoToUpPage = favorite.upMid?.let {
+                                { UpInfoActivity.actionStart(context, it, favorite.upName) }
+                            }
                         )
                     }
                 }
