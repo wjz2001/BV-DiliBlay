@@ -63,8 +63,6 @@ fun SmallVideoCard(
     delToView: Boolean = false,
     onClick: () -> Unit,
     onAddWatchLater: (() -> Unit)? = null,
-    onGoToDetailPage: (() -> Unit)? = null,
-    onGoToUpPage: (() -> Unit)? = null,
     onGoToDetailPage : (() -> Unit)? = null,
     onGoToUpPage : (() -> Unit)? = null,
     // 1. 为 SmallVideoCard 添加独立的参数，用于分别控制 Cover 和 Info

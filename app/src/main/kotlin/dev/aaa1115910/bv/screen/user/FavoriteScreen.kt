@@ -61,7 +61,9 @@ import org.koin.androidx.compose.koinViewModel
 fun FavoriteScreen(
     modifier: Modifier = Modifier,
     favoriteViewModel: FavoriteViewModel = koinViewModel(),
-    toViewViewModel: ToViewViewModel = koinViewModel()
+    toViewViewModel: ToViewViewModel = koinViewModel(),
+    // 1. 添加 onBack 回调参数
+    onBack: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
