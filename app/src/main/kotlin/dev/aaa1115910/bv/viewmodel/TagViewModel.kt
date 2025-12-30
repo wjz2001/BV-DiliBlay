@@ -1,81 +1,78 @@
 package dev.aaa1115910.bv.viewmodel
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.aaa1115910.biliapi.http.BiliHttpApi
-import dev.aaa1115910.biliapi.http.util.smartDate
-import dev.aaa1115910.bv.entity.carddata.VideoCardData
-import dev.aaa1115910.bv.util.addWithMainContext
-import dev.aaa1115910.bv.util.fInfo
-import io.github.oshai.kotlinlogging.KotlinLogging
+import dev.aaa1115910.biliapi.http.entity.video.VideoInfo
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.koin.android.annotation.KoinViewModel
 
 @KoinViewModel
 class TagViewModel : ViewModel() {
-    companion object {
-        private val logger = KotlinLogging.logger { }
+    private val _uiState = MutableStateFlow(TagUiState())
+    val uiState = _uiState.asStateFlow()
+
+    private val pageSize = 20
+    private var pageNumber = 1
+    private var updating = false
+
+    fun setNameAndId(tagName: String, tagId: Int){
+        _uiState.update {
+            it.copy(
+                tagName = tagName,
+                tagId = tagId
+            )
+        }
     }
 
-    var tagName by mutableStateOf("")
-    var tagId by mutableIntStateOf(0)
-    var topVideos = mutableStateListOf<VideoCardData>()
-
-    private var pageNumber = 1
-    private var pageSize = 40
-    private var total = -1
-
-    private var updating = false
-    var noMore = false
-
     fun update() {
-        viewModelScope.launch(Dispatchers.Default) {
+        viewModelScope.launch(Dispatchers.IO) {
             updateTagVideos()
         }
     }
 
     private suspend fun updateTagVideos() {
-        if (total != -1 && pageNumber * pageSize >= total) {
-            noMore = true
-            return
-        }
-        if (updating) return
-        updating = true
-        runCatching {
-            val response = BiliHttpApi.getTagTopVideos(
-                tagId = tagId,
-                pageNumber = pageNumber,
-                pageSize = pageSize
-            )
-            total = response.total
-            val videoList = response.data
-            if (videoList.isEmpty()) noMore = true
-            videoList.forEach { tagVideoItem ->
-                topVideos.addWithMainContext(
-                    VideoCardData(
-                        avid = tagVideoItem.aid,
-                        title = tagVideoItem.title,
-                        cover = tagVideoItem.pic,
-                        upName = tagVideoItem.owner.name,
-                        play = tagVideoItem.stat.view,
-                        danmaku = tagVideoItem.stat.danmaku,
-                        time = tagVideoItem.duration * 1000L,
-                        pubTime = tagVideoItem.pubdate.smartDate
-                    )
+        if (_uiState.value.noMore || updating) return
+
+        try {
+            updating = true
+            _uiState.update { it.copy(loading = true) }
+
+            val result = runCatching {
+                BiliHttpApi.getTagTopVideos(
+                    tagId = _uiState.value.tagId,
+                    pageNumber = pageNumber,
+                    pageSize = pageSize
                 )
             }
-            logger.fInfo { "Update tag top videos success" }
-        }.onFailure {
-            logger.fInfo { "Update tag top videos failed: ${it.stackTraceToString()}" }
-        }.onSuccess {
-            pageNumber++
+            result.onSuccess { response ->
+                val newData = response.data
+                _uiState.update {
+                    it.copy(
+                        videoList = it.videoList + newData,
+                        noMore = newData.isEmpty(),
+                        loading = false
+                    )
+                }
+                pageNumber++
+            }.onFailure { exception ->
+                exception.printStackTrace()
+                _uiState.update { it.copy(loading = false) }
+            }
+        } finally {
+            updating = false
         }
-        updating = false
     }
 }
+
+data class TagUiState(
+    val tagName: String = "",
+    val tagId: Int = 0,
+    val noMore: Boolean = false,
+    val loading: Boolean = false,
+    val videoList: List<VideoInfo> = emptyList(),
+)

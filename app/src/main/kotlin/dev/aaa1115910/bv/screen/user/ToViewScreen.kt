@@ -7,17 +7,22 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+import dev.aaa1115910.bv.ui.common.UiEvent
+import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import org.koin.androidx.compose.koinViewModel
 
@@ -32,7 +37,17 @@ fun ToViewScreen(
     // 按 playString 分组
     val (unwatched, watched) = toViewViewModel.histories.partition { it.timeString != "已看完" }
 
-    LazyVerticalGrid(
+    LaunchedEffect(Unit) {
+        toViewViewModel.uiEvent.collect { event ->
+            when (event) {
+                is UiEvent.ShowToast -> {
+                    event.message.toast(context)
+                }
+            }
+        }
+    }
+
+    TvLazyVerticalGrid(
         modifier = modifier,
         columns = GridCells.Fixed(4),
         contentPadding = PaddingValues(24.dp),
@@ -49,10 +64,11 @@ fun ToViewScreen(
             )
         }
         if (unwatched.isNotEmpty()) {
-            itemsIndexed(unwatched) { _, item ->
+            items(items = unwatched) { item ->
                 Box(contentAlignment = Alignment.Center) {
                     SmallVideoCard(
                         data = item,
+                        delToView = true,
                         onClick = {
                             VideoInfoActivity.actionStart(
                                 context = context,
@@ -60,6 +76,19 @@ fun ToViewScreen(
                                 proxyArea = ProxyArea.checkProxyArea(item.title)
                             )
                         },
+                        onAddWatchLater = {
+                            toViewViewModel.delToView(item.avid)
+                        },
+                        onGoToDetailPage = {
+                            VideoInfoActivity.actionStart(
+                                context = context,
+                                fromController = true,
+                                aid = item.avid
+                            )
+                        },
+                        onGoToUpPage = item.upMid?.let {
+                            { UpInfoActivity.actionStart(context, it, item.upName) }
+                        }
                     )
                 }
             }
@@ -79,10 +108,11 @@ fun ToViewScreen(
             )
         }
         if (watched.isNotEmpty()) {
-            itemsIndexed(watched) { _, item ->
+            items(items = watched) { item ->
                 Box(contentAlignment = Alignment.Center) {
                     SmallVideoCard(
                         data = item,
+                        delToView = true,
                         onClick = {
                             VideoInfoActivity.actionStart(
                                 context = context,
@@ -90,6 +120,19 @@ fun ToViewScreen(
                                 proxyArea = ProxyArea.checkProxyArea(item.title)
                             )
                         },
+                        onAddWatchLater = {
+                            toViewViewModel.delToView(item.avid)
+                        },
+                        onGoToDetailPage = {
+                            VideoInfoActivity.actionStart(
+                                context = context,
+                                fromController = true,
+                                aid = item.avid
+                            )
+                        },
+                        onGoToUpPage = item.upMid?.let {
+                            { UpInfoActivity.actionStart(context, it, item.upName) }
+                        }
                     )
                 }
             }

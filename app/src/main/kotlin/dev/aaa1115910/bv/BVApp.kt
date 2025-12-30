@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import android.os.Build
-import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
@@ -17,119 +16,107 @@ import dev.aaa1115910.biliapi.repositories.AuthRepository
 import dev.aaa1115910.biliapi.repositories.BiliApiModule
 import dev.aaa1115910.biliapi.repositories.ChannelRepository
 import dev.aaa1115910.bv.dao.AppDatabase
-import dev.aaa1115910.bv.entity.AuthData
-import dev.aaa1115910.bv.entity.db.UserDB
 import dev.aaa1115910.bv.network.HttpServer
-import dev.aaa1115910.bv.repository.UserRepository
-import dev.aaa1115910.bv.repository.VideoInfoRepository
 import dev.aaa1115910.bv.util.FirebaseUtil
 import dev.aaa1115910.bv.util.LogCatcherUtil
 import dev.aaa1115910.bv.util.Prefs
-import dev.aaa1115910.bv.util.toast
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
 import org.koin.core.KoinApplication
 import org.koin.core.annotation.ComponentScan
 import org.koin.core.annotation.Module
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.get
 import org.koin.core.context.startKoin
 import org.koin.core.logger.Level
 import org.koin.ksp.generated.module
 import org.slf4j.impl.HandroidLoggerAdapter
 
-class BVApp : Application() {
+class BVApp : Application(), KoinComponent {
     companion object {
         @SuppressLint("StaticFieldLeak")
         lateinit var context: Context
+            private set
+
         lateinit var dataStoreManager: DataStoreManager
+            private set
+
         lateinit var koinApplication: KoinApplication
+            private set
+
+        @SuppressLint("StaticFieldLeak")
         var instance: BVApp? = null
+            private set
 
         fun getAppDatabase(context: Context = this.context) = AppDatabase.getDatabase(context)
     }
 
     override fun onCreate() {
         super.onCreate()
+
+        instance = this
         context = this.applicationContext
+
+        initCoreLibraries()
+        Prefs.init()
+        initDeviceInfo()
+        initRepository()
+        initProxy()
+        HttpServer.startServer()
+    }
+
+    private fun initCoreLibraries() {
         HandroidLoggerAdapter.DEBUG = BuildConfig.DEBUG
+        LogCatcherUtil.installLogCatcher()
+        FirebaseUtil.init(this)
+
         dataStoreManager = DataStoreManager(applicationContext.dataStore)
+
         koinApplication = startKoin {
             androidLogger(if (BuildConfig.DEBUG) Level.ERROR else Level.NONE)
             androidContext(this@BVApp)
             modules(AppModule().module)
         }
-        FirebaseUtil.init(applicationContext)
-        LogCatcherUtil.installLogCatcher()
-        initApiConfig()
-        initRepository()
-        initProxy()
-        instance = this
-        updateMigration()
-        HttpServer.startServer()
-    }
-
-    private fun initApiConfig() {
-        BiliAppConf.osVersion = Build.VERSION.RELEASE
-        BiliAppConf.model = Build.MODEL
-        BiliWebConf.webViewVersion = runCatching {
-            WebViewCompat.getCurrentLoadedWebViewPackage()!!.versionName!!
-                .substringBefore(".").toInt()
-        }.getOrDefault(144)
     }
 
     fun initRepository() {
-        val channelRepository by koinApplication.koin.inject<ChannelRepository>()
+        val channelRepository: ChannelRepository = get()
+        val authRepository: AuthRepository = get()
+
         channelRepository.initDefaultChannel(Prefs.accessToken, Prefs.buvid)
 
-        val authRepository by koinApplication.koin.inject<AuthRepository>()
-        authRepository.sessionData = Prefs.sessData.takeIf { it.isNotEmpty() }
-        authRepository.biliJct = Prefs.biliJct.takeIf { it.isNotEmpty() }
-        authRepository.accessToken = Prefs.accessToken.takeIf { it.isNotEmpty() }
-        authRepository.mid = Prefs.uid.takeIf { it != 0L }
-        authRepository.buvid3 = Prefs.buvid3
-        authRepository.buvid = Prefs.buvid
+        authRepository.apply {
+            sessionData = Prefs.sessData.takeIf { it.isNotEmpty() }
+            biliJct = Prefs.biliJct.takeIf { it.isNotEmpty() }
+            accessToken = Prefs.accessToken.takeIf { it.isNotEmpty() }
+            mid = Prefs.uid.takeIf { it != 0L }
+            buvid3 = Prefs.buvid3
+            buvid = Prefs.buvid
+        }
     }
 
     fun initProxy() {
-        if (Prefs.enableProxy) {
-            BiliHttpProxyApi.createClient(Prefs.proxyHttpServer)
+        if (!Prefs.enableProxy) return
 
-            val channelRepository by koinApplication.koin.inject<ChannelRepository>()
-            runCatching {
-                channelRepository.initProxyChannel(
-                    Prefs.accessToken,
-                    Prefs.buvid,
-                    Prefs.proxyGRPCServer
-                )
-            }
+        BiliHttpProxyApi.createClient(Prefs.proxyHttpServer)
+
+        runCatching {
+            val channelRepository: ChannelRepository = get()
+            channelRepository.initProxyChannel(
+                Prefs.accessToken,
+                Prefs.buvid,
+                Prefs.proxyGRPCServer
+            )
         }
     }
 
-    private fun updateMigration() {
-        val lastVersionCode = Prefs.lastVersionCode
-        if (lastVersionCode >= BuildConfig.VERSION_CODE) return
-        Log.i("BVApp", "updateMigration from $lastVersionCode")
-        if (lastVersionCode < 576) {
-            // 从 Prefs 中读取登录数据写入 UserDB
-            if (Prefs.isLogin) {
-                runBlocking {
-                    val existedUser = getAppDatabase().userDao().findUserByUid(Prefs.uid)
-                    if (existedUser == null) {
-                        val user = UserDB(
-                            uid = Prefs.uid,
-                            username = "Unknown",
-                            avatar = "",
-                            auth = AuthData.fromPrefs().toJson()
-                        )
-                        getAppDatabase().userDao().insert(user)
-                    }
-                }
-            }
-        }
-        Prefs.lastVersionCode = BuildConfig.VERSION_CODE
+    fun initDeviceInfo() {
+        BiliAppConf.osVersion = Build.VERSION.RELEASE
+        BiliAppConf.model = Build.MODEL
+        BiliWebConf.webViewVersion = runCatching {
+            WebViewCompat.getCurrentLoadedWebViewPackage()?.versionName
+                ?.substringBefore(".")?.toInt()
+        }.getOrDefault(144) ?: 144
     }
 }
 
