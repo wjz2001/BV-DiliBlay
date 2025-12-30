@@ -142,7 +142,8 @@ fun VideoListController(
                                 headlineContent = {
                                     Text(
                                         text = video.title,
-                                        maxLines = 1,
+                                        // maxLines = 1,
+                                        maxLines = 3,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 },
@@ -167,7 +168,7 @@ fun VideoListController(
                                         .padding(start = 16.dp, top = 4.dp),
                                     verticalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    video.ugcPages?.forEach { page ->
+                                    video.ugcPages.forEach { page ->
 
                                         key(page.cid) {
                                             val isPageSelected = page.cid == currentCid

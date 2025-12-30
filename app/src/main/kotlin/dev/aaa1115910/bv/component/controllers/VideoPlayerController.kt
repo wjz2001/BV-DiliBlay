@@ -6,6 +6,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -24,6 +25,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -124,7 +127,9 @@ fun VideoPlayerController(
     }
     val onTimeBack = {
         isSeeking = true
-        val targetTime = goTime - (10000 + calCoefficient() * 5000)
+        // val targetTime = goTime - (10000 + calCoefficient() * 5000)
+        // 快退一次从10s改为5s
+        val targetTime = goTime - (5000 + calCoefficient() * 5000)
         goTime = if (targetTime < 0) 0 else targetTime
         lastSeekChangeTime = System.currentTimeMillis()
         logger.info { "onTimeBack: [current=${videoPlayer.currentPosition}, goTime=$goTime]" }
@@ -134,7 +139,8 @@ fun VideoPlayerController(
         if (!isSeeking) goTime = data.infoData.currentTime
         onTimeBack()
         onTimeForwardBackTimer?.cancel()
-        onTimeForwardBackTimer = countDownTimer(1000, 100, "onTimeBackTimer") {
+        // onTimeForwardBackTimer = countDownTimer(1000, 100, "onTimeBackTimer") {
+        onTimeForwardBackTimer = countDownTimer(500, 100, "onTimeBackTimer") {
             onGoTime(goTime)
             isSeeking = false
             if (!videoPlayer.isPlaying) onPlay()
@@ -147,7 +153,8 @@ fun VideoPlayerController(
         if (!isSeeking) goTime = data.infoData.currentTime
         onTimeForward()
         onTimeForwardBackTimer?.cancel()
-        onTimeForwardBackTimer = countDownTimer(1000, 100, "onTimeBackTimer") {
+        //onTimeForwardBackTimer = countDownTimer(1000, 100, "onTimeBackTimer") {
+        onTimeForwardBackTimer = countDownTimer(500, 100, "onTimeBackTimer") {
             onGoTime(goTime)
             isSeeking = false
             if (!videoPlayer.isPlaying) onPlay()
@@ -188,11 +195,13 @@ fun VideoPlayerController(
                 }
                 when (it.key) {
                     Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
+                        /*
                         if (!showClickableControllers && data.showBackToStart) {
                             if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
                             onBackToStart()
                             return@onPreviewKeyEvent true
                         }
+                         */
 
                         if (showInfoSeekController) {
                             return@onPreviewKeyEvent false
@@ -323,6 +332,12 @@ fun VideoPlayerController(
                     }
 
                     Key.DirectionDown -> {
+                        if (it.nativeKeyEvent.isLongPress) {
+                            logger.fInfo { "[${it.key}] long press" }
+                            onBackToStart()
+                            return@onPreviewKeyEvent true
+                        }
+
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
                         logger.info { "[${it.key} press]" }
                         if (showClickableControllers) {
@@ -352,86 +367,96 @@ fun VideoPlayerController(
                 )
             }
         }
-        BottomSubtitle()
-        SkipTips(
-            historyTime = data.lastPlayed.toLong(),
-            showBackToStart = data.showBackToStart,
-            showSkipToNextEp = data.showSkipToNextEp,
-        )
-        PlayStateTips(
-            isPlaying = data.isPlaying,
-            isBuffering = data.isBuffering,
-            isError = data.isError,
-            exception = data.exception,
-            needPay = data.needPay,
-            epid = data.epid
-        )
-        ControllerVideoInfo(
-            modifier = Modifier.focusable(),
-            show = showInfoSeekController,
-            isSeeking = isSeeking,
-            goTime = goTime,
-            infoData = data.infoData,
-            title = data.title,
-            clock = data.clock,
-            videoShot = data.videoShot,
-            fromSeason = fromSeason,
-            danmakuEnabled = data.currentDanmakuEnabledList.isNotEmpty(),
-            isLooping = isLooping,
-            onHideInfo = { showInfoSeekController = false },
-            onDirectionLeft = onDirectionLeft,
-            onDirectionRight = onDirectionRight,
-            onSeekGoTime = onSeekGoTime,
-            onPlayPause = onPlayPause,
-            onDanmakuSwitchChange = {
-                if (data.currentDanmakuEnabledList.isEmpty()) {
-                    onDanmakuSwitchChange(DanmakuType.entries)
-                } else {
-                    onDanmakuSwitchChange(listOf())
-                }
-            },
-            onShowSettings = {
-                showInfoSeekController = false
-                showMenuController = true
-            },
-            onGoToVideoInfo = {
-                VideoInfoActivity.actionStart(
-                    context = context,
-                    aid = aid,
-                    fromSeason = fromSeason,
-                    fromController = true,
-                    proxyArea = proxyArea
-                )
-            },
-            onToggleLoop = onToggleLoop,
-            onGoToUpPage = onGoToUpPage
-        )
-        VideoListController(
-            show = showListController,
-            currentCid = data.currentVideoCid,
-            videoList = data.availableVideoList,
-            onPlayNewVideo = onPlayNewVideo
-        )
-        MenuController(
-            show = showMenuController,
-            onResolutionChange = onResolutionChange,
-            onCodecChange = onCodecChange,
-            onAspectRatioChange = onAspectRatioChange,
-            onPlaySpeedChange = onPlaySpeedChange,
-            onSelectedPlaySpeedItemChange = onSelectedPlaySpeedItemChange,
-            onAudioChange = onAudioChange,
-            onDanmakuSwitchChange = onDanmakuSwitchChange,
-            onDanmakuSizeChange = onDanmakuSizeChange,
-            onDanmakuOpacityChange = onDanmakuOpacityChange,
-            onDanmakuAreaChange = onDanmakuAreaChange,
-            onDanmakuMaskChange = onDanmakuMaskChange,
-            onSubtitleChange = onSubtitleChange,
-            onSubtitleSizeChange = onSubtitleSizeChange,
-            onSubtitleBackgroundOpacityChange = onSubtitleBackgroundOpacityChange,
-            onSubtitleBottomPadding = onSubtitleBottomPadding
-        )
+        CompositionLocalProvider(
+            LocalDensity provides Density(
+                density = LocalDensity.current.density * 1.5f,
+                fontScale = LocalDensity.current.fontScale * 1.5f
+            )
+        ) {
+            BottomSubtitle()
+            SkipTips(
+                historyTime = data.lastPlayed.toLong(),
+                showBackToStart = data.showBackToStart,
+                showSkipToNextEp = data.showSkipToNextEp,
+            )
+            PlayStateTips(
+                isPlaying = data.isPlaying,
+                isBuffering = data.isBuffering,
+                isError = data.isError,
+                exception = data.exception,
+                needPay = data.needPay,
+                epid = data.epid
+            )
+            ControllerVideoInfo(
+                modifier = Modifier.focusable(),
+                show = showInfoSeekController,
+                isSeeking = isSeeking,
+                goTime = goTime,
+                infoData = data.infoData,
+                // title = data.secondTitle,
+                title = data.title,
+                subtitle = data.secondTitle,
+                clock = data.clock,
+                // 新增这一行，将播放速度传递下去
+                currentPlaySpeed = data.currentVideoSpeed,
+                videoShot = data.videoShot,
+                fromSeason = fromSeason,
+                danmakuEnabled = data.currentDanmakuEnabledList.isNotEmpty(),
+                isLooping = isLooping,
+                onHideInfo = { showInfoSeekController = false },
+                onDirectionLeft = onDirectionLeft,
+                onDirectionRight = onDirectionRight,
+                onSeekGoTime = onSeekGoTime,
+                onPlayPause = onPlayPause,
+                onDanmakuSwitchChange = {
+                    if (data.currentDanmakuEnabledList.isEmpty()) {
+                        onDanmakuSwitchChange(DanmakuType.entries)
+                    } else {
+                        onDanmakuSwitchChange(listOf())
+                    }
+                },
+                onShowSettings = {
+                    showInfoSeekController = false
+                    showMenuController = true
+                },
+                onGoToVideoInfo = {
+                    VideoInfoActivity.actionStart(
+                        context = context,
+                        aid = aid,
+                        fromSeason = fromSeason,
+                        fromController = true,
+                        proxyArea = proxyArea
+                    )
+                },
+                onToggleLoop = onToggleLoop,
+                onGoToUpPage = onGoToUpPage
+            )
+            VideoListController(
+                show = showListController,
+                currentCid = data.currentVideoCid,
+                videoList = data.availableVideoList,
+                onPlayNewVideo = onPlayNewVideo
+            )
+            MenuController(
+                show = showMenuController,
+                onResolutionChange = onResolutionChange,
+                onCodecChange = onCodecChange,
+                onAspectRatioChange = onAspectRatioChange,
+                onPlaySpeedChange = onPlaySpeedChange,
+                onSelectedPlaySpeedItemChange = onSelectedPlaySpeedItemChange,
+                onAudioChange = onAudioChange,
+                onDanmakuSwitchChange = onDanmakuSwitchChange,
+                onDanmakuSizeChange = onDanmakuSizeChange,
+                onDanmakuOpacityChange = onDanmakuOpacityChange,
+                onDanmakuAreaChange = onDanmakuAreaChange,
+                onDanmakuMaskChange = onDanmakuMaskChange,
+                onSubtitleChange = onSubtitleChange,
+                onSubtitleSizeChange = onSubtitleSizeChange,
+                onSubtitleBackgroundOpacityChange = onSubtitleBackgroundOpacityChange,
+                onSubtitleBottomPadding = onSubtitleBottomPadding
+            )
+        }
     }
 }
-
 
 
