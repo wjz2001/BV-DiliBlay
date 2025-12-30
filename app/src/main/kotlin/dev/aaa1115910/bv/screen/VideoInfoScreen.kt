@@ -199,7 +199,7 @@ fun VideoInfoScreen(
     val favoriteFolderMetadataList = remember { mutableStateListOf<FavoriteFolderMetadata>() }
     val videoInFavoriteFolderIds = remember { mutableStateListOf<Long>() }
 
-    val bringIntoViewSpec = remember{
+    val bringIntoViewSpec = remember {
         object : BringIntoViewSpec {
             override fun calculateScrollDistance(
                 offset: Float,
@@ -407,7 +407,8 @@ fun VideoInfoScreen(
                 ?: videoDetail.pages.first().title,
              */
             partTitle = videoDetail.pages.find { it.cid == cid ?: videoDetail.cid }?.title
-                ?: videoDetail.ugcSeason?.sections?.flatMap { it.episodes }?.find { it.cid == cid ?: videoDetail.cid }?.title
+                ?: videoDetail.ugcSeason?.sections?.flatMap { it.episodes }
+                    ?.find { it.cid == cid ?: videoDetail.cid }?.title
                 ?: "",
             played = if (cid?.let { it == lastPlayedCid } ?: (videoDetail.cid == lastPlayedCid)) {
                 lastPlayedTime * 1000
@@ -417,6 +418,7 @@ fun VideoInfoScreen(
             author = videoDetail.author
         )
     }
+
     suspend fun updateVideoLikedData(like: Boolean): Boolean {
         return withContext(Dispatchers.IO) {
             runCatching {
@@ -635,7 +637,7 @@ fun VideoInfoScreen(
     } else {
         CompositionLocalProvider(
             LocalBringIntoViewSpec provides bringIntoViewSpec
-        ){
+        ) {
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.background
             ) { innerPadding ->
@@ -743,14 +745,7 @@ fun VideoInfoScreen(
                                 }
                             )
                         }
-                        if ((videoDetailViewModel.videoDetail?.description ?: "").isNotBlank()) {
-                            item {
-                                VideoDescription(
-                                    description = videoDetailViewModel.videoDetail?.description
-                                        ?: "no desc"
-                                )
-                            }
-                        }
+
 
                         item {
                             //视频分P
@@ -759,7 +754,7 @@ fun VideoInfoScreen(
                                 lastPlayedCid = lastPlayedCid,
                                 lastPlayedTime = lastPlayedTime,
                                 enablePartListDialog =
-                                (videoDetailViewModel.videoDetail?.pages?.size ?: 0) > 5,
+                                    (videoDetailViewModel.videoDetail?.pages?.size ?: 0) > 5,
                                 onClick = { cid ->
                                     logger.fInfo { "Click video part: [av:${videoDetailViewModel.videoDetail?.aid}, bv:${videoDetailViewModel.videoDetail?.bvid}, cid:$cid]" }
                                     // 播放当前视频的对应分P
@@ -768,16 +763,16 @@ fun VideoInfoScreen(
                             )
                         }
 
-                    val videoDetail = videoDetailViewModel.videoDetail
-                    videoDetail?.ugcSeason?.let { season ->
-                        itemsIndexed(items = season.sections) { index, section ->
-                            VideoUgcSeasonRow(
-                                title = if (season.sections.size == 1) season.title else section.title,
-                                episodes = section.episodes,
-                                lastPlayedCid = lastPlayedCid,
-                                lastPlayedTime = lastPlayedTime,
-                                enableUgcListDialog = section.episodes.size > 5,
-                                /*
+                        val videoDetail = videoDetailViewModel.videoDetail
+                        videoDetail?.ugcSeason?.let { season ->
+                            itemsIndexed(items = season.sections) { index, section ->
+                                VideoUgcSeasonRow(
+                                    title = if (season.sections.size == 1) season.title else section.title,
+                                    episodes = section.episodes,
+                                    lastPlayedCid = lastPlayedCid,
+                                    lastPlayedTime = lastPlayedTime,
+                                    enableUgcListDialog = section.episodes.size > 5,
+                                    /*
                                 onClick = { aid, cid ->
                                     logger.fInfo { "Click ugc season part: [av:${videoDetail.aid}, bv:${videoDetail.bvid}, cid:$lastPlayedCid]" }
 
@@ -800,205 +795,208 @@ fun VideoInfoScreen(
                                     )
                                 }
                                  */
-                                onClick = { aid, _ -> // cid 在这里不再需要，可以用 _ 忽略
-                                    logger.fInfo { "Click ugc season part, navigating to VideoInfoScreen for avid: $aid" }
-                                    // 直接启动新的 VideoInfoActivity
-                                    VideoInfoActivity.actionStart(context, aid)
-                                }
-                            )
+                                    onClick = { aid, _ -> // cid 在这里不再需要，可以用 _ 忽略
+                                        logger.fInfo { "Click ugc season part, navigating to VideoInfoScreen for avid: $aid" }
+                                        // 直接启动新的 VideoInfoActivity
+                                        VideoInfoActivity.actionStart(context, aid)
+                                    }
+                                )
+                            }
                         }
-                    }
                         val relatedVideos = videoDetailViewModel.relatedVideos
                         if (relatedVideos.isNotEmpty()) {
-                    item {
-                        CompositionLocalProvider(
-                            LocalDensity provides Density(
-                                density = LocalDensity.current.density * 1.25f,
-                                fontScale = LocalDensity.current.fontScale * 1.25f
-                            )
-                        ) {
-                            VideosRow(
-                                header = stringResource(R.string.video_info_related_video_title),
-                                videos = relatedVideos,
-                                showMore = {},
-                                onAddWatchLater = { aid ->
-                                    toViewViewModel.addToView(aid)
-                                },
-                                onGoToDetailPage = { aid ->
-                                    VideoInfoActivity.actionStart(
-                                        context = context,
-                                        fromController = true,
-                                        aid = aid
+                            item {
+                                CompositionLocalProvider(
+                                    LocalDensity provides Density(
+                                        density = LocalDensity.current.density * 1.25f,
+                                        fontScale = LocalDensity.current.fontScale * 1.25f
                                     )
-                                },
-                                onGoToUpPage = { mid, upName ->
-                                    UpInfoActivity.actionStart(context, mid, upName)
+                                ) {
+                                    VideosRow(
+                                        header = stringResource(R.string.video_info_related_video_title),
+                                        videos = relatedVideos,
+                                        showMore = {},
+                                        onAddWatchLater = { aid ->
+                                            toViewViewModel.addToView(aid)
+                                        },
+                                        onGoToDetailPage = { aid ->
+                                            VideoInfoActivity.actionStart(
+                                                context = context,
+                                                fromController = true,
+                                                aid = aid
+                                            )
+                                        },
+                                        onGoToUpPage = { mid, upName ->
+                                            UpInfoActivity.actionStart(context, mid, upName)
+                                        }
+                                    )
                                 }
-                            )
+                            }
                         }
                     }
                 }
             }
         }
     }
-  }
-}
-
-@Composable
-fun ArgueTip(
-    modifier: Modifier = Modifier,
-    text: String
-) {
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 50.dp),
-        colors = SurfaceDefaults.colors(
-            containerColor = Color.Yellow.copy(alpha = 0.2f),
-            contentColor = Color.Yellow
-        ),
-        shape = MaterialTheme.shapes.small
-    ) {
-        Row(
-            modifier = Modifier.padding(
-                horizontal = 16.dp,
-                vertical = 8.dp
-            ),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Warning,
-                contentDescription = null,
-                tint = Color.Yellow
-            )
-            Text(text = text)
-        }
     }
-}
 
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-fun VideoInfoData(
-    modifier: Modifier = Modifier,
-    defaultFocusRequester: FocusRequester,
-    description: String,
-    videoDetail: VideoDetail,
-    showFollowButton: Boolean,
-    isFollowing: Boolean,
-    tags: List<Tag>,
-    isFavorite: Boolean,
-    isLiked: Boolean,
-    isCoined: Boolean,
-    userFavoriteFolders: List<FavoriteFolderMetadata> = emptyList(),
-    favoriteFolderIds: List<Long> = emptyList(),
-    onClickCover: () -> Unit,
-    onClickUp: () -> Unit,
-    onAddFollow: () -> Unit,
-    onDelFollow: () -> Unit,
-    onClickTip: (Tag) -> Unit,
-    onAddToDefaultFavoriteFolder: () -> Unit,
-    onUpdateFavoriteFolders: (List<Long>) -> Unit,
-    onUpdateLiked: (Boolean) -> Unit,
-    onSendVideoCoin: () -> Unit,
-    onSendVideoOneClickTripleAction: () -> Unit
-) {
-    val localDensity = LocalDensity.current
-    var heightIs by remember { mutableStateOf(0.dp) }
-
-    Row(
-        modifier = modifier
-            .padding(horizontal = 50.dp, vertical = 16.dp),
+    @Composable
+    fun ArgueTip(
+        modifier: Modifier = Modifier,
+        text: String
     ) {
         Surface(
-            modifier = Modifier
-                .focusRequester(defaultFocusRequester)
-                .weight(3f)
-                .aspectRatio(1.6f)
-                .onGloballyPositioned { coordinates ->
-                    heightIs = with(localDensity) { coordinates.size.height.toDp() }
-                },
-            onClick = onClickCover,
-            shape = ClickableSurfaceDefaults.shape(
-                shape = MaterialTheme.shapes.large,
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(horizontal = 50.dp),
+            colors = SurfaceDefaults.colors(
+                containerColor = Color.Yellow.copy(alpha = 0.2f),
+                contentColor = Color.Yellow
             ),
-            border = ClickableSurfaceDefaults.border(
-                focusedBorder = Border(
-                    border = BorderStroke(width = 3.dp, color = MaterialTheme.colorScheme.border),
-                    shape = MaterialTheme.shapes.large
-                )
-            ),
+            shape = MaterialTheme.shapes.small
         ) {
-            AsyncImage(
-                modifier = Modifier.fillMaxSize(),
-                model = videoDetail.cover,
-                contentDescription = null,
-                contentScale = ContentScale.Crop
-            )
-        }
-        // Spacer(modifier = Modifier.width(24.dp))
-        Spacer(modifier = Modifier.width(48.dp))
-        Column(
-            modifier = Modifier
-                .weight(7f)
-                .height(heightIs),
-            // verticalArrangement = Arrangement.SpaceBetween
-            verticalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+            Row(
+                modifier = Modifier.padding(
+                    horizontal = 16.dp,
+                    vertical = 8.dp
+                ),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    //text = videoDetail.title,
-                    text = if (videoDetail.isUpowerExclusive) "充电▶ ${videoDetail.title}" else videoDetail.title,
-                    // style = MaterialTheme.typography.titleLarge,
-                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 44.sp),
-                    // maxLines = 1,
-                    maxLines = 2,
-                    lineHeight = 50.sp,
-                    overflow = TextOverflow.Ellipsis,
-                    color = Color.White
+                Icon(
+                    imageVector = Icons.Rounded.Warning,
+                    contentDescription = null,
+                    tint = Color.Yellow
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                Text(text = text)
+            }
+        }
+    }
+
+    @OptIn(ExperimentalTvMaterial3Api::class)
+    @Composable
+    fun VideoInfoData(
+        modifier: Modifier = Modifier,
+        defaultFocusRequester: FocusRequester,
+        videoDetail: VideoDetail,
+        showFollowButton: Boolean,
+        isFollowing: Boolean,
+        tags: List<Tag>,
+        isFavorite: Boolean,
+        isLiked: Boolean,
+        isCoined: Boolean,
+        userFavoriteFolders: List<FavoriteFolderMetadata> = emptyList(),
+        favoriteFolderIds: List<Long> = emptyList(),
+        onClickCover: () -> Unit,
+        onClickUp: () -> Unit,
+        onAddFollow: () -> Unit,
+        onDelFollow: () -> Unit,
+        onClickTip: (Tag) -> Unit,
+        onAddToDefaultFavoriteFolder: () -> Unit,
+        onUpdateFavoriteFolders: (List<Long>) -> Unit,
+        onUpdateLiked: (Boolean) -> Unit,
+        onSendVideoCoin: () -> Unit,
+        onSendVideoOneClickTripleAction: () -> Unit
+    ) {
+        val localDensity = LocalDensity.current
+        var heightIs by remember { mutableStateOf(0.dp) }
+
+        Row(
+            modifier = modifier
+                .padding(horizontal = 50.dp, vertical = 16.dp),
+        ) {
+            Surface(
+                modifier = Modifier
+                    .focusRequester(defaultFocusRequester)
+                    .weight(3f)
+                    .aspectRatio(1.6f)
+                    .onGloballyPositioned { coordinates ->
+                        heightIs = with(localDensity) { coordinates.size.height.toDp() }
+                    },
+                onClick = onClickCover,
+                shape = ClickableSurfaceDefaults.shape(
+                    shape = MaterialTheme.shapes.large,
+                ),
+                border = ClickableSurfaceDefaults.border(
+                    focusedBorder = Border(
+                        border = BorderStroke(
+                            width = 3.dp,
+                            color = MaterialTheme.colorScheme.border
+                        ),
+                        shape = MaterialTheme.shapes.large
+                    )
+                ),
+            ) {
+                AsyncImage(
+                    modifier = Modifier.fillMaxSize(),
+                    model = videoDetail.cover,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop
+                )
+            }
+            // Spacer(modifier = Modifier.width(24.dp))
+            Spacer(modifier = Modifier.width(48.dp))
+            Column(
+                modifier = Modifier
+                    .weight(7f)
+                    .height(heightIs),
+                // verticalArrangement = Arrangement.SpaceBetween
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    UpButton(
-                        name = videoDetail.author.name,
-                        followed = isFollowing,
-                        showFollowButton = showFollowButton,
-                        onClickUp = onClickUp,
-                        onAddFollow = onAddFollow,
-                        onDelFollow = onDelFollow
+                    Text(
+                        //text = videoDetail.title,
+                        text = if (videoDetail.isUpowerExclusive) "充电▶ ${videoDetail.title}" else videoDetail.title,
+                        // style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 44.sp),
+                        // maxLines = 1,
+                        maxLines = 2,
+                        lineHeight = 50.sp,
+                        overflow = TextOverflow.Ellipsis,
+                        color = Color.White
                     )
                     Row(
-                        modifier = Modifier
-                            .padding(start = 4.dp)
-                            .weight(1f),
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        CompositionLocalProvider(
-                            // LocalTextStyle provides MaterialTheme.typography.labelMedium
-                            LocalTextStyle provides MaterialTheme.typography.labelMedium.copy(
-                                fontSize = 27.sp
-                            )
+                        UpButton(
+                            name = videoDetail.author.name,
+                            followed = isFollowing,
+                            showFollowButton = showFollowButton,
+                            onClickUp = onClickUp,
+                            onAddFollow = onAddFollow,
+                            onDelFollow = onDelFollow
+                        )
+                        Row(
+                            modifier = Modifier
+                                .padding(start = 4.dp)
+                                .weight(1f),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(text = "发布于 ${videoDetail.publishDate.formatPubTimeString()}")
-                            Text(text = "·")
-                            Text(text = "播放量 ${(videoDetail.stat.view).toWanString()}")
-                            Text(text = "·")
-                            Text(text = "弹幕 ${(videoDetail.stat.danmaku).toWanString()}")
-                            Text(text = "·")
-                            Text(text = "点赞 ${videoDetail.stat.like.toWanString()}")
-                            Text(text = "·")
-                            Text(text = "投币 ${videoDetail.stat.coin.toWanString()}")
-                            Text(text = "·")
-                            Text(text = "收藏 ${videoDetail.stat.favorite.toWanString()}")
+                            CompositionLocalProvider(
+                                // LocalTextStyle provides MaterialTheme.typography.labelMedium
+                                LocalTextStyle provides MaterialTheme.typography.labelMedium.copy(
+                                    fontSize = 27.sp
+                                )
+                            ) {
+                                Text(text = "发布于 ${videoDetail.publishDate.formatPubTimeString()}")
+                                Text(text = "·")
+                                Text(text = "播放量 ${(videoDetail.stat.view).toWanString()}")
+                                Text(text = "·")
+                                Text(text = "弹幕 ${(videoDetail.stat.danmaku).toWanString()}")
+                                Text(text = "·")
+                                Text(text = "点赞 ${videoDetail.stat.like.toWanString()}")
+                                Text(text = "·")
+                                Text(text = "投币 ${videoDetail.stat.coin.toWanString()}")
+                                Text(text = "·")
+                                Text(text = "收藏 ${videoDetail.stat.favorite.toWanString()}")
+                            }
                         }
                     }
-                }
-                /*
+                    /*
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1013,296 +1011,295 @@ fun VideoInfoData(
 
                 }
                  */
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.End),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                FavoriteButton(
-                    isFavorite = isFavorite,
-                    userFavoriteFolders = userFavoriteFolders,
-                    favoriteFolderIds = favoriteFolderIds,
-                    onAddToDefaultFavoriteFolder = onAddToDefaultFavoriteFolder,
-                    onUpdateFavoriteFolders = onUpdateFavoriteFolders
-                )
-                Spacer(modifier = Modifier.width(5.dp))
-                LikeButton(
-                    isLiked = isLiked,
-                    onClick = { onUpdateLiked(!isLiked) },
-                    onLongClick = { onSendVideoOneClickTripleAction() })
-                Spacer(modifier = Modifier.width(5.dp))
-                CoinButton(
-                    isCoined = isCoined,
-                    onClick = onSendVideoCoin,
-                )
-                LazyRow(
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 5.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    items(items = tags) { tag ->
-                        SuggestionChip(onClick = {
-                            onClickTip(tag)
-                        }) {
-                            Text(text = tag.name)
+                    FavoriteButton(
+                        isFavorite = isFavorite,
+                        userFavoriteFolders = userFavoriteFolders,
+                        favoriteFolderIds = favoriteFolderIds,
+                        onAddToDefaultFavoriteFolder = onAddToDefaultFavoriteFolder,
+                        onUpdateFavoriteFolders = onUpdateFavoriteFolders
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
+                    LikeButton(
+                        isLiked = isLiked,
+                        onClick = { onUpdateLiked(!isLiked) },
+                        onLongClick = { onSendVideoOneClickTripleAction() })
+                    Spacer(modifier = Modifier.width(5.dp))
+                    CoinButton(
+                        isCoined = isCoined,
+                        onClick = onSendVideoCoin,
+                    )
+                    LazyRow(
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 5.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(items = tags) { tag ->
+                            SuggestionChip(onClick = {
+                                onClickTip(tag)
+                            }) {
+                                Text(text = tag.name)
+                            }
                         }
                     }
                 }
+                VideoDescription(
+                    description = videoDetail.description ?: ""
+                )
             }
-            VideoDescription(
-                modifier = Modifier,
-                description = description
-            )
         }
     }
-}
 
-@Composable
-private fun UpButton(
-    modifier: Modifier = Modifier,
-    name: String,
-    followed: Boolean,
-    showFollowButton: Boolean = false,
-    onClickUp: () -> Unit,
-    onAddFollow: () -> Unit,
-    onDelFollow: () -> Unit
-) {
-    val view = LocalView.current
-    val isLogin by remember { mutableStateOf(if (!view.isInEditMode) Prefs.isLogin else true) }
-
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    @Composable
+    private fun UpButton(
+        modifier: Modifier = Modifier,
+        name: String,
+        followed: Boolean,
+        showFollowButton: Boolean = false,
+        onClickUp: () -> Unit,
+        onAddFollow: () -> Unit,
+        onDelFollow: () -> Unit
     ) {
+        val view = LocalView.current
+        val isLogin by remember { mutableStateOf(if (!view.isInEditMode) Prefs.isLogin else true) }
+
         Row(
-            modifier = Modifier
-                .clip(MaterialTheme.shapes.small)
-                .background(Color.White.copy(alpha = 0.2f))
-                .focusedBorder(MaterialTheme.shapes.small)
-                .padding(4.dp)
-                .clickable { onClickUp() },
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = modifier,
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            UpIcon(color = Color.White)
-            Text(text = name, color = Color.White)
-        }
-        AnimatedVisibility(visible = isLogin && showFollowButton) {
             Row(
                 modifier = Modifier
                     .clip(MaterialTheme.shapes.small)
                     .background(Color.White.copy(alpha = 0.2f))
                     .focusedBorder(MaterialTheme.shapes.small)
-                    .padding(horizontal = 4.dp, vertical = 3.dp)
-                    .clickable { if (followed) onDelFollow() else onAddFollow() }
-                    .animateContentSize()
+                    .padding(4.dp)
+                    .clickable { onClickUp() },
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (followed) {
-                    Icon(
-                        imageVector = Icons.Rounded.Done,
-                        contentDescription = null,
-                        tint = Color.White
-                    )
-                    /*
+                UpIcon(color = Color.White)
+                Text(text = name, color = Color.White)
+            }
+            AnimatedVisibility(visible = isLogin && showFollowButton) {
+                Row(
+                    modifier = Modifier
+                        .clip(MaterialTheme.shapes.small)
+                        .background(Color.White.copy(alpha = 0.2f))
+                        .focusedBorder(MaterialTheme.shapes.small)
+                        .padding(horizontal = 4.dp, vertical = 3.dp)
+                        .clickable { if (followed) onDelFollow() else onAddFollow() }
+                        .animateContentSize()
+                ) {
+                    if (followed) {
+                        Icon(
+                            imageVector = Icons.Rounded.Done,
+                            contentDescription = null,
+                            tint = Color.White
+                        )
+                        /*
                     Text(
                         text = stringResource(R.string.video_info_followed),
                         color = Color.White
                     )
                      */
-                } else {
-                    Icon(
-                        imageVector = Icons.Rounded.Add,
-                        contentDescription = null,
-                        tint = Color.White
-                    )
-                    // Text(text = stringResource(R.string.video_info_follow), color = Color.White)
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = null,
+                            tint = Color.White
+                        )
+                        // Text(text = stringResource(R.string.video_info_follow), color = Color.White)
+                    }
                 }
             }
         }
     }
-}
 
-@Composable
-fun VideoDescription(
-    modifier: Modifier = Modifier,
-    description: String,
+    @Composable
+    fun VideoDescription(
+        modifier: Modifier = Modifier,
+        description: String,
 
-    ) {
-    var showDescriptionDialog by remember { mutableStateOf(false) }
-    var hasFocus by remember { mutableStateOf(false) }
-    val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
-    val titleFontSize by animateFloatAsState(
-        //targetValue = if (hasFocus) 30f else 14f,
-        targetValue = 14f,
-        label = "title font size"
-    )
-    if (description.isNotBlank()) {
-        Column(
-            modifier = modifier
-            // .padding(horizontal = 50.dp),
         ) {
-            Text(
-                text = stringResource(R.string.video_info_description_title),
-                fontSize = titleFontSize.sp,
-                color = titleColor
-            )
-            Box(
-                modifier = Modifier
-                    .padding(top = 15.dp)
-                    .onFocusChanged { hasFocus = it.hasFocus }
-                    .clip(MaterialTheme.shapes.medium)
-                    .focusedBorder(MaterialTheme.shapes.medium)
-                    .padding(8.dp)
-                    .clickable {
-                        showDescriptionDialog = true
-                    }
+        var showDescriptionDialog by remember { mutableStateOf(false) }
+        var hasFocus by remember { mutableStateOf(false) }
+        val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
+        val titleFontSize by animateFloatAsState(
+            //targetValue = if (hasFocus) 30f else 14f,
+            targetValue = 14f,
+            label = "title font size"
+        )
+        if (description.isNotBlank()) {
+            Column(
+                modifier = modifier
+                // .padding(horizontal = 50.dp),
             ) {
-                Text(
-                    text = description,
-                    maxLines = 3,
-                    fontSize = 22.sp,
-                    overflow = TextOverflow.Ellipsis,
-                    color = Color.White
-                )
-            }
-        }
-    }
-    VideoDescriptionDialog(
-        show = showDescriptionDialog,
-        onHideDialog = { showDescriptionDialog = false },
-        description = description
-    )
-}
-
-@Composable
-fun VideoDescriptionDialog(
-    modifier: Modifier = Modifier,
-    show: Boolean,
-    onHideDialog: () -> Unit,
-    description: String
-) {
-    if (show) {
-        AlertDialog(
-            modifier = modifier,
-            onDismissRequest = { onHideDialog() },
-            title = {
                 Text(
                     text = stringResource(R.string.video_info_description_title),
-                    color = Color.White
+                    fontSize = titleFontSize.sp,
+                    color = titleColor
                 )
-            },
-            text = {
-                LazyColumn {
-                    item {
-                        Text(text = description)
-                    }
+                Box(
+                    modifier = Modifier
+                        .padding(top = 15.dp)
+                        .onFocusChanged { hasFocus = it.hasFocus }
+                        .clip(MaterialTheme.shapes.medium)
+                        .focusedBorder(MaterialTheme.shapes.medium)
+                        .padding(8.dp)
+                        .clickable {
+                            showDescriptionDialog = true
+                        }
+                ) {
+                    Text(
+                        text = description,
+                        maxLines = 3,
+                        fontSize = 22.sp,
+                        overflow = TextOverflow.Ellipsis,
+                        color = Color.White
+                    )
                 }
-            },
-            confirmButton = {}
+            }
+        }
+        VideoDescriptionDialog(
+            show = showDescriptionDialog,
+            onHideDialog = { showDescriptionDialog = false },
+            description = description
         )
     }
-}
 
-@Composable
-fun DurationUnitText(
-    duration: Int,
-    unit: String,
-    fontSize: Int // <-- 关键修改：接收 Int 类型
-) {
-    // 1. 根据传入的单位标识符，在内部进行计算
-    val value = when (unit.lowercase()) {
-        "h" -> duration / 3600
-        "m" -> (duration % 3600) / 60
-        "s" -> duration % 60
-        else -> 0L
-    }
-    // 2. 在调用 Text 组件时，将 Int 转换为 .sp
-    Text(
-        text = String.format("%02d", value),
-        fontSize = fontSize.sp, // <-- 关键修改：在这里进行单位转换
-        fontWeight = FontWeight.Bold
-    )
-}
-
-@Composable
-fun VideoPartButton(
-    modifier: Modifier = Modifier,
-    index: Int,
-    title: String,
-    duration: Int,
-    played: Int = 0,
-    onClick: () -> Unit
-) {
-    Surface(
-        // modifier = modifier,
-        modifier = modifier.height(96.dp),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
-            pressedContainerColor = MaterialTheme.colorScheme.inverseSurface
-        ),
-        shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.medium),
-        onClick = { onClick() }
+    @Composable
+    fun VideoDescriptionDialog(
+        modifier: Modifier = Modifier,
+        show: Boolean,
+        onHideDialog: () -> Unit,
+        description: String
     ) {
-        Box(
-            modifier = Modifier
-                // .size(200.dp, 64.dp)
-                .fillMaxSize(),
-            // contentAlignment = Alignment.Center
-            contentAlignment = Alignment.CenterStart
+        if (show) {
+            AlertDialog(
+                modifier = modifier,
+                onDismissRequest = { onHideDialog() },
+                title = {
+                    Text(
+                        text = stringResource(R.string.video_info_description_title),
+                        color = Color.White
+                    )
+                },
+                text = {
+                    LazyColumn {
+                        item {
+                            Text(text = description)
+                        }
+                    }
+                },
+                confirmButton = {}
+            )
+        }
+    }
 
+    @Composable
+    fun DurationUnitText(
+        duration: Int,
+        unit: String,
+        fontSize: Int // <-- 关键修改：接收 Int 类型
+    ) {
+        // 1. 根据传入的单位标识符，在内部进行计算
+        val value = when (unit.lowercase()) {
+            "h" -> duration / 3600
+            "m" -> (duration % 3600) / 60
+            "s" -> duration % 60
+            else -> 0L
+        }
+        // 2. 在调用 Text 组件时，将 Int 转换为 .sp
+        Text(
+            text = String.format("%02d", value),
+            fontSize = fontSize.sp, // <-- 关键修改：在这里进行单位转换
+            fontWeight = FontWeight.Bold
+        )
+    }
+
+    @Composable
+    fun VideoPartButton(
+        modifier: Modifier = Modifier,
+        index: Int,
+        title: String,
+        duration: Int,
+        played: Int = 0,
+        onClick: () -> Unit
+    ) {
+        Surface(
+            // modifier = modifier,
+            modifier = modifier.height(96.dp),
+            colors = ClickableSurfaceDefaults.colors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
+                pressedContainerColor = MaterialTheme.colorScheme.inverseSurface
+            ),
+            shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.medium),
+            onClick = { onClick() }
         ) {
             Box(
                 modifier = Modifier
-                    .background(Color.Black.copy(alpha = 0.2f))
-                    .fillMaxHeight()
-                    .fillMaxWidth(if (played < 0) 1f else (played / duration.toFloat()))
-            ) {}
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                verticalAlignment = Alignment.CenterVertically
+                    // .size(200.dp, 64.dp)
+                    .fillMaxSize(),
+                // contentAlignment = Alignment.Center
+                contentAlignment = Alignment.CenterStart
+
             ) {
-                // 左侧：标题
-                Text(
+                Box(
                     modifier = Modifier
-                        // weight(1f) 会让标题占据除了时长之外的所有剩余空间
-                        .weight(1f)
-                        .padding(start = 12.dp, end = 6.dp, top = 12.dp, bottom = 12.dp),
-                    text = "P$index $title",
-                    fontSize = LocalTextStyle.current.fontSize * 1.5,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                VerticalDivider(
-                    // 添加垂直内边距，让线变短一点
-                    modifier = Modifier.padding(vertical = 12.dp),
-                    // 使用 thickness 参数设置分割线的厚度（宽度）
-                    thickness = 1.dp,
-                    // 设置分割线的颜色
-                    color = Color.White.copy(alpha = 0.5f)
-                )
-                // 右侧：垂直显示的时长
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.SpaceAround,
-                    // 增加内边距，使其与按钮边缘有一定距离
-                    modifier = Modifier
+                        .background(Color.Black.copy(alpha = 0.2f))
                         .fillMaxHeight()
-                        .padding(start = 6.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)
+                        .fillMaxWidth(if (played < 0) 1f else (played / duration.toFloat()))
+                ) {}
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 只有当视频时长超过1小时才显示小时
-                    if (duration >= 3600) {
-                        DurationUnitText(duration = duration, unit = "h", fontSize = 24)
+                    // 左侧：标题
+                    Text(
+                        modifier = Modifier
+                            // weight(1f) 会让标题占据除了时长之外的所有剩余空间
+                            .weight(1f)
+                            .padding(start = 12.dp, end = 6.dp, top = 12.dp, bottom = 12.dp),
+                        text = "P$index $title",
+                        fontSize = LocalTextStyle.current.fontSize * 1.5,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    VerticalDivider(
+                        // 添加垂直内边距，让线变短一点
+                        modifier = Modifier.padding(vertical = 12.dp),
+                        // 使用 thickness 参数设置分割线的厚度（宽度）
+                        thickness = 1.dp,
+                        // 设置分割线的颜色
+                        color = Color.White.copy(alpha = 0.5f)
+                    )
+                    // 右侧：垂直显示的时长
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.SpaceAround,
+                        // 增加内边距，使其与按钮边缘有一定距离
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .padding(start = 6.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)
+                    ) {
+                        // 只有当视频时长超过1小时才显示小时
+                        if (duration >= 3600) {
+                            DurationUnitText(duration = duration, unit = "h", fontSize = 24)
+                        }
+                        DurationUnitText(duration = duration, unit = "m", fontSize = 21)
+                        DurationUnitText(duration = duration, unit = "s", fontSize = 19)
                     }
-                    DurationUnitText(duration = duration, unit = "m", fontSize = 21)
-                    DurationUnitText(duration = duration, unit = "s", fontSize = 19)
                 }
-            }
-            /*
+                /*
             Text(
                 modifier = Modifier
                     // .padding(8.dp),
@@ -1313,407 +1310,407 @@ fun VideoPartButton(
                 overflow = TextOverflow.Ellipsis
             )
             */
+            }
         }
     }
-}
 
-@Composable
-fun VideoPartRowButton(
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-    content: @Composable BoxScope.() -> Unit
-) {
-    Surface(
-        //modifier = modifier.size(64.dp),
-        modifier = modifier.size(96.dp),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
-            pressedContainerColor = MaterialTheme.colorScheme.inverseSurface
-        ),
-        shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.medium),
-        onClick = onClick
+    @Composable
+    fun VideoPartRowButton(
+        modifier: Modifier = Modifier,
+        onClick: () -> Unit,
+        content: @Composable BoxScope.() -> Unit
     ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
-            content = content
-        )
-    }
-}
-
-@Composable
-fun VideoPartRow(
-    modifier: Modifier = Modifier,
-    pages: List<VideoPage>,
-    lastPlayedCid: Long = 0,
-    lastPlayedTime: Int = 0,
-    enablePartListDialog: Boolean = false,
-    onClick: (cid: Long) -> Unit
-) {
-    val focusRequester = remember { FocusRequester() }
-    var hasFocus by remember { mutableStateOf(false) }
-    var showPartListDialog by remember { mutableStateOf(false) }
-    val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
-    val titleFontSize by animateFloatAsState(
-        //targetValue = if (hasFocus) 30f else 14f,
-        targetValue = 14f,
-        label = "title font size"
-    )
-
-    Column(
-        modifier = modifier
-            .padding(start = 50.dp)
-            .onFocusChanged { hasFocus = it.hasFocus },
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = stringResource(R.string.video_info_part_row_title),
-            fontSize = titleFontSize.sp,
-            color = titleColor
-        )
-
-        LazyRow(
-            modifier = Modifier
-                .padding(top = 15.dp)
-                .focusRestorer(focusRequester),
-            contentPadding = PaddingValues(12.dp),
-            // horizontalArrangement = Arrangement.spacedBy(16.dp)
-            horizontalArrangement = Arrangement.spacedBy(20.dp)
+        Surface(
+            //modifier = modifier.size(64.dp),
+            modifier = modifier.size(96.dp),
+            colors = ClickableSurfaceDefaults.colors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
+                pressedContainerColor = MaterialTheme.colorScheme.inverseSurface
+            ),
+            shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.medium),
+            onClick = onClick
         ) {
-            if (enablePartListDialog) {
-                item {
-                    VideoPartRowButton(
-                        onClick = { showPartListDialog = true }
-                    ) {
-                        Icon(
-                            // modifier = Modifier.size(36.dp),
-                            modifier = Modifier.size(54.dp),
-                            imageVector = Icons.Rounded.ViewModule,
-                            contentDescription = null
-                        )
-                    }
-                }
-            }
-
-            val matchedPage = pages.find { it.cid == lastPlayedCid }
-            if (matchedPage != null && pages.size > 1) {
-                item {
-                    // 分P历史播放按钮
-                    VideoPartRowButton(
-                        onClick = { onClick(matchedPage.cid) }
-                    ) {
-                        Icon(
-                            // modifier = Modifier.size(36.dp),
-                            modifier = Modifier.size(54.dp),
-                            imageVector = Icons.Rounded.History,
-                            contentDescription = null
-                        )
-                    }
-                }
-            }
-
-            itemsIndexed(items = pages, key = { _, page -> page.cid }) { index, page ->
-                VideoPartButton(
-                    modifier = Modifier
-                        .ifElse(index == 0, Modifier.focusRequester(focusRequester))
-                        // .width(200.dp),
-                        .width(300.dp),
-                    index = index + 1,
-                    title = page.title,
-                    played = if (page.cid == lastPlayedCid) lastPlayedTime else 0,
-                    duration = page.duration,
-                    onClick = { onClick(page.cid) }
-                )
-            }
-        }
-    }
-
-    VideoPartListDialog(
-        show = showPartListDialog,
-        onHideDialog = { showPartListDialog = false },
-        pages = pages,
-        title = "分 P 列表",
-        onClick = onClick
-    )
-}
-
-@Composable
-fun VideoUgcSeasonRow(
-    modifier: Modifier = Modifier,
-    title: String,
-    episodes: List<Episode>,
-    lastPlayedCid: Long = 0,
-    lastPlayedTime: Int = 0,
-    enableUgcListDialog: Boolean = false,
-    onClick: (avid: Long, cid: Long) -> Unit
-) {
-    val focusRequester = remember { FocusRequester() }
-    var hasFocus by remember { mutableStateOf(false) }
-    var showUgcListDialog by remember { mutableStateOf(false) }
-    val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
-    val titleFontSize by animateFloatAsState(
-        // targetValue = if (hasFocus) 30f else 14f,
-        targetValue = 14f,
-        label = "title font size"
-    )
-
-    // 计算当前正在播放的视频在列表中的索引
-    val playingIndex = remember(episodes, lastPlayedCid) {
-        episodes.indexOfFirst { it.cid == lastPlayedCid }
-    }
-
-    Column(
-        modifier = modifier
-            .padding(start = 50.dp)
-            .onFocusChanged { hasFocus = it.hasFocus },
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = title,
-            fontSize = titleFontSize.sp,
-            color = titleColor
-        )
-
-        LazyRow(
-            modifier = Modifier
-                .padding(top = 15.dp)
-                .focusRestorer(focusRequester),
-            contentPadding = PaddingValues(12.dp),
-            // horizontalArrangement = Arrangement.spacedBy(16.dp)
-            horizontalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            if (enableUgcListDialog) {
-                item {
-                    VideoPartRowButton(
-                        onClick = { showUgcListDialog = true }
-                    ) {
-                        Icon(
-                            // modifier = Modifier.size(36.dp),
-                            modifier = Modifier.size(54.dp),
-                            imageVector = Icons.Rounded.ViewModule,
-                            contentDescription = null
-                        )
-                    }
-                }
-            }
-
-            val matchedEp = episodes.find { it.cid == lastPlayedCid }
-            if (matchedEp != null && episodes.size > 1) {
-                item {
-                    // ugc分季历史播放按钮
-                    VideoPartRowButton(
-                        onClick = { onClick(matchedEp.aid, matchedEp.cid) }
-                    ) {
-                        Icon(
-                            // modifier = Modifier.size(36.dp),
-                            modifier = Modifier.size(54.dp),
-                            imageVector = Icons.Rounded.History,
-                            contentDescription = null
-                        )
-                    }
-                }
-            }
-
-            itemsIndexed(items = episodes) { index, episode ->
-
-                // 为每个分P独立计算播放进度
-                val currentPlayedTime = when {
-                    // 1. 如果没有播放记录，所有分P进度都为0
-                    playingIndex == -1 -> 0
-                    // 2. 如果当前分P在正在播放的分P之前，说明已经看完，进度为满
-                    index < playingIndex -> episode.duration
-                    // 3. 如果当前分P就是正在播放的分P，使用历史记录的进度
-                    index == playingIndex -> lastPlayedTime
-                    // 4. 如果当前分P在正在播放的分P之后，说明还没看，进度为0
-                    else -> 0
-                }
-
-                VideoPartButton(
-                    modifier = Modifier
-                        .ifElse(index == 0, Modifier.focusRequester(focusRequester))
-                        // .width(200.dp),
-                        .width(300.dp),
-                    index = index + 1,
-                    title = episode.title,
-                    // played = if (episode.cid == lastPlayedCid) lastPlayedTime else 0,
-                    // duration = episode.duration,
-                    played = currentPlayedTime,
-                    duration = episode.duration,
-                    onClick = { onClick(episode.aid, episode.cid) }
-                )
-            }
-        }
-    }
-
-    VideoUgcListDialog(
-        show = showUgcListDialog,
-        onHideDialog = { showUgcListDialog = false },
-        episodes = episodes,
-        title = "合集列表",
-        onClick = onClick
-    )
-}
-
-@Composable
-private fun VideoPartListDialog(
-    modifier: Modifier = Modifier,
-    show: Boolean,
-    title: String,
-    pages: List<VideoPage>,
-    onHideDialog: () -> Unit,
-    onClick: (cid: Long) -> Unit
-) {
-    val scope = rememberCoroutineScope()
-
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
-    // val tabCount by remember { mutableIntStateOf(ceil(pages.size / 20.0).toInt()) }
-    val tabCount by remember { mutableIntStateOf(ceil(pages.size / 35.0).toInt()) }
-    val selectedVideoPart = remember { mutableStateListOf<VideoPage>() }
-
-    val tabRowFocusRequester = remember { FocusRequester() }
-    val videoListFocusRequester = remember { FocusRequester() }
-    val listState = rememberLazyGridState()
-
-    LaunchedEffect(selectedTabIndex) {
-        // val fromIndex = selectedTabIndex * 20
-        val fromIndex = selectedTabIndex * 35
-        // var toIndex = (selectedTabIndex + 1) * 20
-        var toIndex = (selectedTabIndex + 1) * 35
-        if (toIndex >= pages.size) {
-            toIndex = pages.size
-        }
-        selectedVideoPart.swapListWithMainContext(pages.subList(fromIndex, toIndex))
-    }
-
-    LaunchedEffect(show) {
-        if (show && tabCount > 1) tabRowFocusRequester.requestFocus(scope)
-        if (show && tabCount == 1) videoListFocusRequester.requestFocus(scope)
-    }
-
-    // ✅ 在 Dialog 外部获取当前正确的 Density
-    val currentDensity = LocalDensity.current
-
-    if (show) {
-        Dialog(
-            onDismissRequest = onHideDialog,
-            properties = DialogProperties(
-                usePlatformDefaultWidth = false,  // 不使用默认宽度
-                dismissOnBackPress = true,        // 返回键关闭
-                dismissOnClickOutside = false     // 点击外部不关闭（TV端建议）
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+                content = content
             )
+        }
+    }
+
+    @Composable
+    fun VideoPartRow(
+        modifier: Modifier = Modifier,
+        pages: List<VideoPage>,
+        lastPlayedCid: Long = 0,
+        lastPlayedTime: Int = 0,
+        enablePartListDialog: Boolean = false,
+        onClick: (cid: Long) -> Unit
+    ) {
+        val focusRequester = remember { FocusRequester() }
+        var hasFocus by remember { mutableStateOf(false) }
+        var showPartListDialog by remember { mutableStateOf(false) }
+        val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
+        val titleFontSize by animateFloatAsState(
+            //targetValue = if (hasFocus) 30f else 14f,
+            targetValue = 14f,
+            label = "title font size"
+        )
+
+        Column(
+            modifier = modifier
+                .padding(start = 50.dp)
+                .onFocusChanged { hasFocus = it.hasFocus },
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // 使用 CompositionLocalProvider 将正确的 Density 应用到 Dialog 的内容中
-            CompositionLocalProvider(LocalDensity provides currentDensity) {
-                // ✅ 使用 Surface 创建全屏背景
-                Surface(
-                    modifier = Modifier
-                        .fillMaxSize()              // ✅ 全屏
-                        .background(Color.Black),  // 半透明背景
-                    color = MaterialTheme.colorScheme.surface,
-                    shape = MaterialTheme.shapes.extraLarge
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(48.dp),  // ✅ 调整内边距
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        // ✅ 标题栏
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+            Text(
+                text = stringResource(R.string.video_info_part_row_title),
+                fontSize = titleFontSize.sp,
+                color = titleColor
+            )
+
+            LazyRow(
+                modifier = Modifier
+                    .padding(top = 15.dp)
+                    .focusRestorer(focusRequester),
+                contentPadding = PaddingValues(12.dp),
+                // horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                if (enablePartListDialog) {
+                    item {
+                        VideoPartRowButton(
+                            onClick = { showPartListDialog = true }
                         ) {
-                            Text(
-                                text = title,
-                                style = MaterialTheme.typography.headlineMedium,  // ✅ 更大的标题
-                                color = Color.White
+                            Icon(
+                                // modifier = Modifier.size(36.dp),
+                                modifier = Modifier.size(54.dp),
+                                imageVector = Icons.Rounded.ViewModule,
+                                contentDescription = null
                             )
                         }
+                    }
+                }
 
-                        // ✅ 标签页
-                        if (tabCount > 1) {
-                            TabRow(
-                                modifier = Modifier
-                                    .onFocusChanged {
-                                        if (it.hasFocus) {
-                                            scope.launch(Dispatchers.Main) {
-                                                listState.scrollToItem(0)
-                                            }
-                                        }
-                                    },
-                                selectedTabIndex = selectedTabIndex,
-                                separator = { Spacer(modifier = Modifier.width(12.dp)) },
+                val matchedPage = pages.find { it.cid == lastPlayedCid }
+                if (matchedPage != null && pages.size > 1) {
+                    item {
+                        // 分P历史播放按钮
+                        VideoPartRowButton(
+                            onClick = { onClick(matchedPage.cid) }
+                        ) {
+                            Icon(
+                                // modifier = Modifier.size(36.dp),
+                                modifier = Modifier.size(54.dp),
+                                imageVector = Icons.Rounded.History,
+                                contentDescription = null
+                            )
+                        }
+                    }
+                }
+
+                itemsIndexed(items = pages, key = { _, page -> page.cid }) { index, page ->
+                    VideoPartButton(
+                        modifier = Modifier
+                            .ifElse(index == 0, Modifier.focusRequester(focusRequester))
+                            // .width(200.dp),
+                            .width(300.dp),
+                        index = index + 1,
+                        title = page.title,
+                        played = if (page.cid == lastPlayedCid) lastPlayedTime else 0,
+                        duration = page.duration,
+                        onClick = { onClick(page.cid) }
+                    )
+                }
+            }
+        }
+
+        VideoPartListDialog(
+            show = showPartListDialog,
+            onHideDialog = { showPartListDialog = false },
+            pages = pages,
+            title = "分 P 列表",
+            onClick = onClick
+        )
+    }
+
+    @Composable
+    fun VideoUgcSeasonRow(
+        modifier: Modifier = Modifier,
+        title: String,
+        episodes: List<Episode>,
+        lastPlayedCid: Long = 0,
+        lastPlayedTime: Int = 0,
+        enableUgcListDialog: Boolean = false,
+        onClick: (avid: Long, cid: Long) -> Unit
+    ) {
+        val focusRequester = remember { FocusRequester() }
+        var hasFocus by remember { mutableStateOf(false) }
+        var showUgcListDialog by remember { mutableStateOf(false) }
+        val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
+        val titleFontSize by animateFloatAsState(
+            // targetValue = if (hasFocus) 30f else 14f,
+            targetValue = 14f,
+            label = "title font size"
+        )
+
+        // 计算当前正在播放的视频在列表中的索引
+        val playingIndex = remember(episodes, lastPlayedCid) {
+            episodes.indexOfFirst { it.cid == lastPlayedCid }
+        }
+
+        Column(
+            modifier = modifier
+                .padding(start = 50.dp)
+                .onFocusChanged { hasFocus = it.hasFocus },
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = title,
+                fontSize = titleFontSize.sp,
+                color = titleColor
+            )
+
+            LazyRow(
+                modifier = Modifier
+                    .padding(top = 15.dp)
+                    .focusRestorer(focusRequester),
+                contentPadding = PaddingValues(12.dp),
+                // horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                if (enableUgcListDialog) {
+                    item {
+                        VideoPartRowButton(
+                            onClick = { showUgcListDialog = true }
+                        ) {
+                            Icon(
+                                // modifier = Modifier.size(36.dp),
+                                modifier = Modifier.size(54.dp),
+                                imageVector = Icons.Rounded.ViewModule,
+                                contentDescription = null
+                            )
+                        }
+                    }
+                }
+
+                val matchedEp = episodes.find { it.cid == lastPlayedCid }
+                if (matchedEp != null && episodes.size > 1) {
+                    item {
+                        // ugc分季历史播放按钮
+                        VideoPartRowButton(
+                            onClick = { onClick(matchedEp.aid, matchedEp.cid) }
+                        ) {
+                            Icon(
+                                // modifier = Modifier.size(36.dp),
+                                modifier = Modifier.size(54.dp),
+                                imageVector = Icons.Rounded.History,
+                                contentDescription = null
+                            )
+                        }
+                    }
+                }
+
+                itemsIndexed(items = episodes) { index, episode ->
+
+                    // 为每个分P独立计算播放进度
+                    val currentPlayedTime = when {
+                        // 1. 如果没有播放记录，所有分P进度都为0
+                        playingIndex == -1 -> 0
+                        // 2. 如果当前分P在正在播放的分P之前，说明已经看完，进度为满
+                        index < playingIndex -> episode.duration
+                        // 3. 如果当前分P就是正在播放的分P，使用历史记录的进度
+                        index == playingIndex -> lastPlayedTime
+                        // 4. 如果当前分P在正在播放的分P之后，说明还没看，进度为0
+                        else -> 0
+                    }
+
+                    VideoPartButton(
+                        modifier = Modifier
+                            .ifElse(index == 0, Modifier.focusRequester(focusRequester))
+                            // .width(200.dp),
+                            .width(300.dp),
+                        index = index + 1,
+                        title = episode.title,
+                        // played = if (episode.cid == lastPlayedCid) lastPlayedTime else 0,
+                        // duration = episode.duration,
+                        played = currentPlayedTime,
+                        duration = episode.duration,
+                        onClick = { onClick(episode.aid, episode.cid) }
+                    )
+                }
+            }
+        }
+
+        VideoUgcListDialog(
+            show = showUgcListDialog,
+            onHideDialog = { showUgcListDialog = false },
+            episodes = episodes,
+            title = "合集列表",
+            onClick = onClick
+        )
+    }
+
+    @Composable
+    private fun VideoPartListDialog(
+        modifier: Modifier = Modifier,
+        show: Boolean,
+        title: String,
+        pages: List<VideoPage>,
+        onHideDialog: () -> Unit,
+        onClick: (cid: Long) -> Unit
+    ) {
+        val scope = rememberCoroutineScope()
+
+        var selectedTabIndex by remember { mutableIntStateOf(0) }
+        // val tabCount by remember { mutableIntStateOf(ceil(pages.size / 20.0).toInt()) }
+        val tabCount by remember { mutableIntStateOf(ceil(pages.size / 35.0).toInt()) }
+        val selectedVideoPart = remember { mutableStateListOf<VideoPage>() }
+
+        val tabRowFocusRequester = remember { FocusRequester() }
+        val videoListFocusRequester = remember { FocusRequester() }
+        val listState = rememberLazyGridState()
+
+        LaunchedEffect(selectedTabIndex) {
+            // val fromIndex = selectedTabIndex * 20
+            val fromIndex = selectedTabIndex * 35
+            // var toIndex = (selectedTabIndex + 1) * 20
+            var toIndex = (selectedTabIndex + 1) * 35
+            if (toIndex >= pages.size) {
+                toIndex = pages.size
+            }
+            selectedVideoPart.swapListWithMainContext(pages.subList(fromIndex, toIndex))
+        }
+
+        LaunchedEffect(show) {
+            if (show && tabCount > 1) tabRowFocusRequester.requestFocus(scope)
+            if (show && tabCount == 1) videoListFocusRequester.requestFocus(scope)
+        }
+
+        // ✅ 在 Dialog 外部获取当前正确的 Density
+        val currentDensity = LocalDensity.current
+
+        if (show) {
+            Dialog(
+                onDismissRequest = onHideDialog,
+                properties = DialogProperties(
+                    usePlatformDefaultWidth = false,  // 不使用默认宽度
+                    dismissOnBackPress = true,        // 返回键关闭
+                    dismissOnClickOutside = false     // 点击外部不关闭（TV端建议）
+                )
+            ) {
+                // 使用 CompositionLocalProvider 将正确的 Density 应用到 Dialog 的内容中
+                CompositionLocalProvider(LocalDensity provides currentDensity) {
+                    // ✅ 使用 Surface 创建全屏背景
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxSize()              // ✅ 全屏
+                            .background(Color.Black),  // 半透明背景
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = MaterialTheme.shapes.extraLarge
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(48.dp),  // ✅ 调整内边距
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            // ✅ 标题栏
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                for (i in 0 until tabCount) {
-                                    Tab(
-                                        modifier = if (i == 0) Modifier.focusRequester(
-                                            tabRowFocusRequester
-                                        ) else Modifier,
-                                        selected = i == selectedTabIndex,
-                                        onFocus = { selectedTabIndex = i },
-                                    ) {
-                                        val startIndex = i * 35 + 1
-                                        val endIndex = minOf((i + 1) * 35, pages.size)
-                                        val tabText = if (startIndex == endIndex) {
-                                            "P$startIndex"
-                                        } else {
-                                            "P$startIndex-$endIndex"
-                                        }
-                                        Text(
-                                            // text = "P${i * 20 + 1}-${(i + 1) * 20}",
-                                            text = tabText,
-                                            fontSize = 16.sp,  // ✅ 更大的标签字号
-                                            color = LocalContentColor.current,
-                                            modifier = Modifier.padding(
-                                                horizontal = 20.dp,
-                                                vertical = 10.dp
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.headlineMedium,  // ✅ 更大的标题
+                                    color = Color.White
+                                )
+                            }
+
+                            // ✅ 标签页
+                            if (tabCount > 1) {
+                                TabRow(
+                                    modifier = Modifier
+                                        .onFocusChanged {
+                                            if (it.hasFocus) {
+                                                scope.launch(Dispatchers.Main) {
+                                                    listState.scrollToItem(0)
+                                                }
+                                            }
+                                        },
+                                    selectedTabIndex = selectedTabIndex,
+                                    separator = { Spacer(modifier = Modifier.width(12.dp)) },
+                                ) {
+                                    for (i in 0 until tabCount) {
+                                        Tab(
+                                            modifier = if (i == 0) Modifier.focusRequester(
+                                                tabRowFocusRequester
+                                            ) else Modifier,
+                                            selected = i == selectedTabIndex,
+                                            onFocus = { selectedTabIndex = i },
+                                        ) {
+                                            val startIndex = i * 35 + 1
+                                            val endIndex = minOf((i + 1) * 35, pages.size)
+                                            val tabText = if (startIndex == endIndex) {
+                                                "P$startIndex"
+                                            } else {
+                                                "P$startIndex-$endIndex"
+                                            }
+                                            Text(
+                                                // text = "P${i * 20 + 1}-${(i + 1) * 20}",
+                                                text = tabText,
+                                                fontSize = 16.sp,  // ✅ 更大的标签字号
+                                                color = LocalContentColor.current,
+                                                modifier = Modifier.padding(
+                                                    horizontal = 20.dp,
+                                                    vertical = 10.dp
+                                                )
                                             )
-                                        )
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        // ✅ 视频列表网格
-                        LazyVerticalGrid(
-                            state = listState,
-                            modifier = Modifier.fillMaxSize(),  // ✅ 填充剩余空间
-                            columns = GridCells.Fixed(5),  // ✅ 从2列增加到5列
-                            contentPadding = PaddingValues(16.dp),
-                            // verticalArrangement = Arrangement.spacedBy(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(20.dp),
-                            // horizontalArrangement = Arrangement.spacedBy(16.dp)
-                            horizontalArrangement = Arrangement.spacedBy(20.dp)
-                        ) {
-                            itemsIndexed(
-                                items = selectedVideoPart,
-                                key = { _, video -> video.cid }
-                            ) { index, page ->
-                                val buttonModifier =
-                                    if (index == 0 && tabCount == 1) {
-                                        Modifier.focusRequester(videoListFocusRequester)
-                                    } else Modifier
+                            // ✅ 视频列表网格
+                            LazyVerticalGrid(
+                                state = listState,
+                                modifier = Modifier.fillMaxSize(),  // ✅ 填充剩余空间
+                                columns = GridCells.Fixed(5),  // ✅ 从2列增加到5列
+                                contentPadding = PaddingValues(16.dp),
+                                // verticalArrangement = Arrangement.spacedBy(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(20.dp),
+                                // horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                horizontalArrangement = Arrangement.spacedBy(20.dp)
+                            ) {
+                                itemsIndexed(
+                                    items = selectedVideoPart,
+                                    key = { _, video -> video.cid }
+                                ) { index, page ->
+                                    val buttonModifier =
+                                        if (index == 0 && tabCount == 1) {
+                                            Modifier.focusRequester(videoListFocusRequester)
+                                        } else Modifier
 
-                                VideoPartButton(
-                                    modifier = buttonModifier,
-                                    // index = selectedTabIndex * 20 + index + 1,  //  显示正确的索引
-                                    index = selectedTabIndex * 35 + index + 1,
-                                    title = page.title,
-                                    played = 0,
-                                    duration = page.duration,
-                                    onClick = {
-                                        onClick(page.cid)
-                                    }
-                                )
+                                    VideoPartButton(
+                                        modifier = buttonModifier,
+                                        // index = selectedTabIndex * 20 + index + 1,  //  显示正确的索引
+                                        index = selectedTabIndex * 35 + index + 1,
+                                        title = page.title,
+                                        played = 0,
+                                        duration = page.duration,
+                                        onClick = {
+                                            onClick(page.cid)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
-        }
-        /*
+            /*
         AlertDialog(
             modifier = modifier,
             title = { Text(text = title) },
@@ -1786,165 +1783,165 @@ private fun VideoPartListDialog(
             }
         )
         */
-    }
-}
-
-@Composable
-private fun VideoUgcListDialog(
-    modifier: Modifier = Modifier,
-    show: Boolean,
-    title: String,
-    episodes: List<Episode>,
-    onHideDialog: () -> Unit,
-    onClick: (avid: Long, cid: Long) -> Unit
-) {
-    val scope = rememberCoroutineScope()
-
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
-    // val tabCount by remember { mutableIntStateOf(ceil(episodes.size / 20.0).toInt()) }
-    val tabCount by remember { mutableIntStateOf(ceil(episodes.size / 35.0).toInt()) }
-    val selectedVideoPart = remember { mutableStateListOf<Episode>() }
-
-    val tabRowFocusRequester = remember { FocusRequester() }
-    val videoListFocusRequester = remember { FocusRequester() }
-    val listState = rememberLazyGridState()
-
-    LaunchedEffect(selectedTabIndex) {
-        // val fromIndex = selectedTabIndex * 20
-        val fromIndex = selectedTabIndex * 35
-        // var toIndex = (selectedTabIndex + 1) * 20
-        var toIndex = (selectedTabIndex + 1) * 35
-        if (toIndex >= episodes.size) {
-            toIndex = episodes.size
         }
-        selectedVideoPart.swapListWithMainContext(episodes.subList(fromIndex, toIndex))
     }
 
-    LaunchedEffect(show) {
-        if (show && tabCount > 1) tabRowFocusRequester.requestFocus(scope)
-        if (show && tabCount == 1) videoListFocusRequester.requestFocus(scope)
-    }
+    @Composable
+    private fun VideoUgcListDialog(
+        modifier: Modifier = Modifier,
+        show: Boolean,
+        title: String,
+        episodes: List<Episode>,
+        onHideDialog: () -> Unit,
+        onClick: (avid: Long, cid: Long) -> Unit
+    ) {
+        val scope = rememberCoroutineScope()
 
-    // 在 Dialog 外部获取当前正确的 Density
-    val currentDensity = LocalDensity.current
+        var selectedTabIndex by remember { mutableIntStateOf(0) }
+        // val tabCount by remember { mutableIntStateOf(ceil(episodes.size / 20.0).toInt()) }
+        val tabCount by remember { mutableIntStateOf(ceil(episodes.size / 35.0).toInt()) }
+        val selectedVideoPart = remember { mutableStateListOf<Episode>() }
 
-    if (show) {
-        Dialog(  // ✅ 使用 Dialog
-            onDismissRequest = onHideDialog,
-            properties = DialogProperties(
-                usePlatformDefaultWidth = false,  // 不使用默认宽度
-                dismissOnBackPress = true,        // 返回键关闭
-                dismissOnClickOutside = false     // 点击外部不关闭（TV端建议）
-            )
-        ) {
-            // ✅ 步骤 2: 使用 CompositionLocalProvider 将正确的 Density 应用到 Dialog 的内容中
-            CompositionLocalProvider(LocalDensity provides currentDensity) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black),
-                    color = MaterialTheme.colorScheme.surface,
-                    shape = MaterialTheme.shapes.extraLarge
-                ) {
-                    Column(
+        val tabRowFocusRequester = remember { FocusRequester() }
+        val videoListFocusRequester = remember { FocusRequester() }
+        val listState = rememberLazyGridState()
+
+        LaunchedEffect(selectedTabIndex) {
+            // val fromIndex = selectedTabIndex * 20
+            val fromIndex = selectedTabIndex * 35
+            // var toIndex = (selectedTabIndex + 1) * 20
+            var toIndex = (selectedTabIndex + 1) * 35
+            if (toIndex >= episodes.size) {
+                toIndex = episodes.size
+            }
+            selectedVideoPart.swapListWithMainContext(episodes.subList(fromIndex, toIndex))
+        }
+
+        LaunchedEffect(show) {
+            if (show && tabCount > 1) tabRowFocusRequester.requestFocus(scope)
+            if (show && tabCount == 1) videoListFocusRequester.requestFocus(scope)
+        }
+
+        // 在 Dialog 外部获取当前正确的 Density
+        val currentDensity = LocalDensity.current
+
+        if (show) {
+            Dialog(  // ✅ 使用 Dialog
+                onDismissRequest = onHideDialog,
+                properties = DialogProperties(
+                    usePlatformDefaultWidth = false,  // 不使用默认宽度
+                    dismissOnBackPress = true,        // 返回键关闭
+                    dismissOnClickOutside = false     // 点击外部不关闭（TV端建议）
+                )
+            ) {
+                // ✅ 步骤 2: 使用 CompositionLocalProvider 将正确的 Density 应用到 Dialog 的内容中
+                CompositionLocalProvider(LocalDensity provides currentDensity) {
+                    Surface(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(48.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                            .background(Color.Black),
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = MaterialTheme.shapes.extraLarge
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(48.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            Text(
-                                text = title,
-                                style = MaterialTheme.typography.headlineMedium,  // ✅ 更大的标题
-                                color = Color.White
-                            )
-                        }
-
-                        // ✅ 标签页
-                        if (tabCount > 1) {
-                            TabRow(
-                                modifier = Modifier
-                                    .onFocusChanged {
-                                        if (it.hasFocus) {
-                                            scope.launch(Dispatchers.Main) {
-                                                listState.scrollToItem(0)
-                                            }
-                                        }
-                                    },
-                                selectedTabIndex = selectedTabIndex,
-                                separator = { Spacer(modifier = Modifier.width(12.dp)) },
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                for (i in 0 until tabCount) {
-                                    Tab(
-                                        modifier = if (i == 0) Modifier.focusRequester(
-                                            tabRowFocusRequester
-                                        ) else Modifier,
-                                        selected = i == selectedTabIndex,
-                                        onFocus = { selectedTabIndex = i },
-                                    ) {
-                                        val startIndex = i * 35 + 1
-                                        val endIndex = minOf((i + 1) * 35, episodes.size)
-                                        val tabText = if (startIndex == endIndex) {
-                                            "P$startIndex"
-                                        } else {
-                                            "P$startIndex-$endIndex"
-                                        }
-                                        Text(
-                                            // text = "P${i * 20 + 1}-${(i + 1) * 20}",
-                                            text = tabText,
-                                            fontSize = 16.sp,  // ✅ 更大的标签字号
-                                            color = LocalContentColor.current,
-                                            modifier = Modifier.padding(
-                                                horizontal = 20.dp,
-                                                vertical = 10.dp
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.headlineMedium,  // ✅ 更大的标题
+                                    color = Color.White
+                                )
+                            }
+
+                            // ✅ 标签页
+                            if (tabCount > 1) {
+                                TabRow(
+                                    modifier = Modifier
+                                        .onFocusChanged {
+                                            if (it.hasFocus) {
+                                                scope.launch(Dispatchers.Main) {
+                                                    listState.scrollToItem(0)
+                                                }
+                                            }
+                                        },
+                                    selectedTabIndex = selectedTabIndex,
+                                    separator = { Spacer(modifier = Modifier.width(12.dp)) },
+                                ) {
+                                    for (i in 0 until tabCount) {
+                                        Tab(
+                                            modifier = if (i == 0) Modifier.focusRequester(
+                                                tabRowFocusRequester
+                                            ) else Modifier,
+                                            selected = i == selectedTabIndex,
+                                            onFocus = { selectedTabIndex = i },
+                                        ) {
+                                            val startIndex = i * 35 + 1
+                                            val endIndex = minOf((i + 1) * 35, episodes.size)
+                                            val tabText = if (startIndex == endIndex) {
+                                                "P$startIndex"
+                                            } else {
+                                                "P$startIndex-$endIndex"
+                                            }
+                                            Text(
+                                                // text = "P${i * 20 + 1}-${(i + 1) * 20}",
+                                                text = tabText,
+                                                fontSize = 16.sp,  // ✅ 更大的标签字号
+                                                color = LocalContentColor.current,
+                                                modifier = Modifier.padding(
+                                                    horizontal = 20.dp,
+                                                    vertical = 10.dp
+                                                )
                                             )
-                                        )
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        // 视频列表
-                        LazyVerticalGrid(
-                            state = listState,
-                            modifier = Modifier.fillMaxSize(),
-                            columns = GridCells.Fixed(5),
-                            contentPadding = PaddingValues(16.dp),
-                            // verticalArrangement = Arrangement.spacedBy(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(20.dp),
-                            // horizontalArrangement = Arrangement.spacedBy(16.dp)
-                            horizontalArrangement = Arrangement.spacedBy(20.dp)
-                        ) {
-                            itemsIndexed(
-                                items = selectedVideoPart,
-                                key = { _, video -> video.cid }
-                            ) { index, episode ->
-                                val buttonModifier =
-                                    if (index == 0 && tabCount == 1) {
-                                        Modifier.focusRequester(videoListFocusRequester)
-                                    } else Modifier
+                            // 视频列表
+                            LazyVerticalGrid(
+                                state = listState,
+                                modifier = Modifier.fillMaxSize(),
+                                columns = GridCells.Fixed(5),
+                                contentPadding = PaddingValues(16.dp),
+                                // verticalArrangement = Arrangement.spacedBy(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(20.dp),
+                                // horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                horizontalArrangement = Arrangement.spacedBy(20.dp)
+                            ) {
+                                itemsIndexed(
+                                    items = selectedVideoPart,
+                                    key = { _, video -> video.cid }
+                                ) { index, episode ->
+                                    val buttonModifier =
+                                        if (index == 0 && tabCount == 1) {
+                                            Modifier.focusRequester(videoListFocusRequester)
+                                        } else Modifier
 
-                                VideoPartButton(
-                                    modifier = buttonModifier,
-                                    // index = selectedTabIndex * 20 + index + 1,
-                                    index = selectedTabIndex * 35 + index + 1,
-                                    title = episode.title,
-                                    played = 0,
-                                    duration = episode.duration,
-                                    onClick = {
-                                        onClick(episode.aid, episode.cid)
-                                    }
-                                )
+                                    VideoPartButton(
+                                        modifier = buttonModifier,
+                                        // index = selectedTabIndex * 20 + index + 1,
+                                        index = selectedTabIndex * 35 + index + 1,
+                                        title = episode.title,
+                                        played = 0,
+                                        duration = episode.duration,
+                                        onClick = {
+                                            onClick(episode.aid, episode.cid)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
-            /*
+                /*
         AlertDialog(
             modifier = modifier,
             title = { Text(text = title) },
@@ -2017,9 +2014,10 @@ private fun VideoUgcListDialog(
             }
         )
         */
+            }
         }
     }
-}
+
 
 @Preview
 @Composable
