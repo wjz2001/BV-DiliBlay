@@ -38,7 +38,7 @@ fun BottomSubtitle(
         }
     }
 
-    LaunchedEffect(time) {
+    LaunchedEffect(subtitleData, time) {
         updateCurrentText()
     }
 
