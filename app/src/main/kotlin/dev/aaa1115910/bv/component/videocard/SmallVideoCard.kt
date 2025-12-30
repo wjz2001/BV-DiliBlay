@@ -1,6 +1,5 @@
 package dev.aaa1115910.bv.component.videocard
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -49,6 +48,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.ui.theme.BVTheme
@@ -60,8 +60,11 @@ import dev.aaa1115910.bv.util.resizedImageUrl
 fun SmallVideoCard(
     modifier: Modifier = Modifier,
     data: VideoCardData,
+    delToView: Boolean = false,
     onClick: () -> Unit,
     onAddWatchLater: (() -> Unit)? = null,
+    onGoToDetailPage: (() -> Unit)? = null,
+    onGoToUpPage: (() -> Unit)? = null,
     onGoToDetailPage : (() -> Unit)? = null,
     onGoToUpPage : (() -> Unit)? = null,
     // 1. 为 SmallVideoCard 添加独立的参数，用于分别控制 Cover 和 Info
@@ -108,8 +111,6 @@ fun SmallVideoCard(
             )
         ) {
             if (showActions) {
-                BackHandler { showActions = false }
-
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
@@ -129,8 +130,13 @@ fun SmallVideoCard(
                             modifier = Modifier.focusRequester(firstButtonRequester)
                         ) {
                             Icon(
-                                painter = painterResource(id = R.drawable.add_to_list),
-                                contentDescription = "Add to watch later"
+                                painter = painterResource(
+                                    id = if (delToView)
+                                        R.drawable.remove_from_list
+                                    else
+                                        R.drawable.add_to_list
+                                ),
+                                contentDescription = "Add to/Remove from watch later"
                             )
                         }
                     }
@@ -363,7 +369,7 @@ fun SmallVideoCardWithoutFocusPreview() {
         ) {
             SmallVideoCard(
                 modifier = Modifier.padding(20.dp),
-                onClick =  {},
+                onClick = {},
                 data = data,
             )
         }
@@ -411,7 +417,7 @@ fun SmallVideoCardsPreview() {
         pubTime = "1小时前"
     )
     BVTheme {
-        LazyVerticalGrid(
+        TvLazyVerticalGrid(
             columns = GridCells.Fixed(4),
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),

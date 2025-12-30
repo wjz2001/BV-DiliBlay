@@ -51,4 +51,17 @@ class ToViewRepository(
         )
         if (!success) throw Exception("添加到稍后再看失败：$message")
     }
+
+    suspend fun delToView(
+        aid: Long,
+        viewed: Boolean = false
+    ) {
+        val (success, message) = BiliHttpApi.delToView(
+            viewed = viewed,
+            avid = aid,
+            csrf = authRepository.biliJct ?: "",
+            sessData = authRepository.sessionData!!,
+        )
+        if (!success) throw Exception("删除稍后再看失败：$message")
+    }
 }

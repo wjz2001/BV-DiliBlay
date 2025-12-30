@@ -113,6 +113,7 @@ class FavoriteViewModel(
                             title = favoriteItem.title,
                             cover = favoriteItem.cover,
                             upName = favoriteItem.upper.name,
+                            upMid = favoriteItem.upper.mid,
                             time = favoriteItem.duration * 1000L
                         )
                     )

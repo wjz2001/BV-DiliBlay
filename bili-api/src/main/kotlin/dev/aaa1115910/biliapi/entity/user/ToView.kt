@@ -36,6 +36,7 @@ data class ToViewItem(
     val title: String,
     val cover: String,
     val author: String,
+    val mid: Long?,
     val duration: Int,
     val progress: Int,
     val type: ToViewItemType
@@ -52,6 +53,7 @@ data class ToViewItem(
                 title = item.title,
                 cover = item.pic,
                 author = item.owner.name,
+                mid = item.owner.mid,
                 duration = item.duration,
                 progress = item.progress,
                 type = ToViewItemType.Archive
@@ -91,6 +93,11 @@ data class ToViewItem(
                 CursorItem.CardItemCase.CARD_UGC -> item.cardUgc.name
                 CursorItem.CardItemCase.CARD_OGV -> ""
                 else -> ""
+            },
+            mid = when (item.cardItemCase) {
+                CursorItem.CardItemCase.CARD_UGC -> item.cardUgc.mid
+                CursorItem.CardItemCase.CARD_OGV -> null
+                else -> null
             },
             duration = when (item.cardItemCase) {
                 CursorItem.CardItemCase.CARD_UGC -> item.cardUgc.duration.toInt()

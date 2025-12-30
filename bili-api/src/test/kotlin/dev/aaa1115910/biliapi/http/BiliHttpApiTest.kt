@@ -783,4 +783,34 @@ internal class BiliHttpApiTest {
             delay((800L..2000L).random())
         }
     }
+
+    @Test
+    fun `add to watch later`() = runBlocking {
+        val result = BiliHttpApi.addToView(
+            avid = 170001,
+            csrf = BILI_JCT,
+            sessData = SESSDATA
+        )
+        println(result)
+        assert(result.first)
+    }
+
+    @Test
+    fun `delete from watch later`() = runBlocking {
+        val addRes = BiliHttpApi.addToView(
+            avid = 170001,
+            csrf = BILI_JCT,
+            sessData = SESSDATA
+        )
+        println(addRes)
+        assert(addRes.first)
+        val result = BiliHttpApi.delToView(
+            viewed = false,
+            avid = 170001,
+            csrf = BILI_JCT,
+            sessData = SESSDATA
+        )
+        println(result)
+        assert(result.first)
+    }
 }

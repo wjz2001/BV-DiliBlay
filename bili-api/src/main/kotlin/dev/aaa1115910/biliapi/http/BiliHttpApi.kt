@@ -451,6 +451,29 @@ object BiliHttpApi {
     }
 
     /**
+     * 移除稍后再看的视频
+     */
+    suspend fun delToView(
+        viewed: Boolean = false,
+        avid: Long? = null,
+        csrf: String,
+        sessData: String = ""
+    ): Pair<Boolean, String> {
+        val response = client.post("/x/v2/history/toview/del") {
+            setBody(
+                FormDataContent(
+                    Parameters.build {
+                        append("viewed", "${if (viewed) 1 else 0}")
+                        avid?.let { append("aid", "$it") }
+                        append("csrf", csrf)
+                    }
+                ))
+            header("Cookie", "SESSDATA=$sessData;")
+        }.body<BiliResponseWithoutData>()
+        return Pair(response.code == 0, response.message)
+    }
+
+    /**
      * 获取与视频[avid]或[bvid]有关的相关推荐视频
      */
     suspend fun getRelatedVideos(

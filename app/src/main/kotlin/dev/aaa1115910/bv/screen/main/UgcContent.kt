@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,22 +26,41 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import dev.aaa1115910.bv.activities.video.UpInfoActivity
+import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.UgcTopNavItem
 import dev.aaa1115910.bv.screen.main.ugc.UgcRegionScaffold
 import dev.aaa1115910.bv.screen.main.ugc.UgcScaffoldState
+import dev.aaa1115910.bv.ui.common.UiEvent
+import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.ugc.UgcViewModel
+import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun UgcContent(
-    navFocusRequester: FocusRequester
+    navFocusRequester: FocusRequester,
+    ugcViewModel: UgcViewModel = koinViewModel(),
+    toViewViewModel: ToViewViewModel = koinViewModel(),
 ) {
-    val ugcViewModel = koinViewModel<UgcViewModel>()
+    val context = LocalContext.current
+
     var selectedTab by remember { mutableStateOf(UgcTopNavItem.Douga) }
     var focusOnContent by remember { mutableStateOf(false) }
     val ugcTopNavItems = UgcTopNavItem.entries
+
+    LaunchedEffect(Unit) {
+        toViewViewModel.uiEvent.collect { event ->
+            when (event) {
+                is UiEvent.ShowToast -> {
+                    event.message.toast(context)
+                }
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -103,6 +123,19 @@ fun UgcContent(
                 UgcRegionScaffold(
                     state = ugcViewModel.ugcScaffoldStateMap[screen]!!,
                     onLoadMore = { ugcViewModel.loadMoreData(screen) },
+                    onAddWatchLater = { aid ->
+                        toViewViewModel.addToView(aid)
+                    },
+                    onGoToDetailPage = { aid ->
+                        VideoInfoActivity.actionStart(
+                            context = context,
+                            fromController = true,
+                            aid = aid
+                        )
+                    },
+                    onGoToUpPage = { mid, upName ->
+                        UpInfoActivity.actionStart(context, mid, upName)
+                    }
                 )
             }
         }

@@ -43,7 +43,10 @@ fun VideosRow(
     header: String,
     hideShowMore: Boolean = true,
     videos: List<VideoCardData>,
-    showMore: () -> Unit
+    showMore: () -> Unit,
+    onAddWatchLater: ((Long) -> Unit),
+    onGoToDetailPage: ((Long) -> Unit),
+    onGoToUpPage: ((Long, String) -> Unit),
 ) {
     val focusRequester = remember { FocusRequester() }
     val context = LocalContext.current
@@ -99,7 +102,12 @@ fun VideosRow(
                     coverDensityMultiplier = 1f,
                     coverFontScaleMultiplier = 1f,
                     infoDensityMultiplier = 1f,
-                    infoFontScaleMultiplier = 1f
+                    infoFontScaleMultiplier = 1f,
+                    onAddWatchLater = { onAddWatchLater(videoData.avid) },
+                    onGoToDetailPage = { onGoToDetailPage(videoData.avid) },
+                    onGoToUpPage = videoData.upMid?.let {
+                        { onGoToUpPage(it, videoData.upName) }
+                    }
                 )
             }
             if (!hideShowMore) {

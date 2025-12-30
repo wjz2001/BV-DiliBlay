@@ -2,6 +2,7 @@ package dev.aaa1115910.bv.screen.search
 
 import android.app.Activity
 import android.content.Context
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Scaffold
@@ -36,7 +36,6 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -54,18 +53,22 @@ import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.SearchTypeTopNavItem
 import dev.aaa1115910.bv.component.TopNav
+import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.videocard.SeasonCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.screen.user.UpCard
+import dev.aaa1115910.bv.ui.common.UiEvent
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.focusedScale
 import dev.aaa1115910.bv.util.removeHtmlTags
 import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.search.SearchResultViewModel
+import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -74,7 +77,8 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun SearchResultScreen(
     modifier: Modifier = Modifier,
-    searchResultViewModel: SearchResultViewModel = koinViewModel()
+    searchResultViewModel: SearchResultViewModel = koinViewModel(),
+    toViewViewModel: ToViewViewModel = koinViewModel()
 ) {
     val gridState = rememberLazyGridState()
     val context = LocalContext.current
@@ -155,6 +159,16 @@ fun SearchResultScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        toViewViewModel.uiEvent.collect { event ->
+            when (event) {
+                is UiEvent.ShowToast -> {
+                    event.message.toast(context)
+                }
+            }
+        }
+    }
+
     LaunchedEffect(searchResultViewModel.searchType) {
         rowSize = when (searchResultViewModel.searchType) {
             SearchType.Video -> 4
@@ -171,7 +185,7 @@ fun SearchResultScreen(
     }
 
 
-    LaunchedEffect(gridState) {
+    LaunchedEffect(gridState, searchResult) {
         snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .distinctUntilChanged()
             .filter { index ->
@@ -218,6 +232,8 @@ fun SearchResultScreen(
             }
         }
     ) { innerPadding ->
+        BackHandler(focusOnContent) { backToTabRow() }
+
         Column(
             modifier = Modifier.padding(innerPadding)
         ) {
@@ -246,18 +262,9 @@ fun SearchResultScreen(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            LazyVerticalGrid(
+            TvLazyVerticalGrid(
                 modifier = Modifier
-                    .onFocusChanged { focusOnContent = it.hasFocus }
-                    .onPreviewKeyEvent {
-                        when (it.key) {
-                            Key.Back -> {
-                                if (it.type == KeyEventType.KeyUp) backToTabRow()
-                                return@onPreviewKeyEvent true
-                            }
-                        }
-                        false
-                    },
+                    .onFocusChanged { focusOnContent = it.hasFocus },
                 state = gridState,
                 columns = GridCells.Fixed(rowSize),
                 contentPadding = PaddingValues(24.dp),
@@ -274,7 +281,20 @@ fun SearchResultScreen(
                 ) { index, searchResultItem ->
                     SearchResultListItem(
                         searchResult = searchResultItem,
-                        onClick = { onClickResult(searchResultItem) }
+                        onClick = { onClickResult(searchResultItem) },
+                        onAddWatchLater = { aid ->
+                            toViewViewModel.addToView(aid)
+                        },
+                        onGoToDetailPage = { aid ->
+                            VideoInfoActivity.actionStart(
+                                context = context,
+                                fromController = true,
+                                aid = aid
+                            )
+                        },
+                        onGoToUpPage = { mid, upName ->
+                            UpInfoActivity.actionStart(context, mid, upName)
+                        }
                     )
                 }
             }
@@ -302,6 +322,9 @@ private fun SearchResultListItem(
     modifier: Modifier = Modifier,
     searchResult: SearchTypeResult.SearchTypeResultItem,
     onClick: () -> Unit,
+    onAddWatchLater: ((Long) -> Unit),
+    onGoToDetailPage: ((Long) -> Unit),
+    onGoToUpPage: ((Long, String) -> Unit),
 ) {
     when (searchResult) {
         is SearchTypeResult.Video -> {
@@ -318,6 +341,9 @@ private fun SearchResultListItem(
                     pubTime = searchResult.pubTime
                 ),
                 onClick = onClick,
+                onAddWatchLater = { onAddWatchLater(searchResult.aid) },
+                onGoToDetailPage = { onGoToDetailPage(searchResult.aid) },
+                onGoToUpPage = { onGoToUpPage(searchResult.mid, searchResult.author) }
             )
         }
 
