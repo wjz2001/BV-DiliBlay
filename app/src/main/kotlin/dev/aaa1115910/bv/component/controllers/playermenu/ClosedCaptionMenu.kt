@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.aaa1115910.biliapi.entity.video.Subtitle
+import dev.aaa1115910.biliapi.entity.video.SubtitleType
 import dev.aaa1115910.bv.entity.LocalVideoPlayerControllerData
 import dev.aaa1115910.bv.component.controllers.LocalMenuFocusStateData
 import dev.aaa1115910.bv.component.controllers.MenuFocusState
@@ -69,9 +70,7 @@ fun ClosedCaptionMenuList(
                 VideoPlayerClosedCaptionMenuItem.Switch -> RadioMenuList(
                     modifier = menuItemsModifier,
                     items = data.availableSubtitleTracks.map {
-                        it.langDoc
-                            .replace("（自动生成）", " (AI)")
-                            .replace("（自动翻译）", " (AI)")
+                        it.langDoc + if (it.type == SubtitleType.AI) "(AI)" else ""
                     },
                     selected = data.availableSubtitleTracks.indexOfFirst { it.id == data.currentSubtitleId },
                     onSelectedChanged = { onSubtitleChange(data.availableSubtitleTracks[it]) },
