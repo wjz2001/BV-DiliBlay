@@ -83,11 +83,17 @@ class VideoPlayerV3ViewModel(
     var currentVideoHeight by mutableIntStateOf(0)
     var currentVideoWidth by mutableIntStateOf(0)
 
+    var currentPlaySpeed by mutableFloatStateOf(Prefs.defaultPlaySpeed.speed)
+        private set
+    var currentSelectedPlaySpeedItem by mutableStateOf(Prefs.defaultPlaySpeed)
+
     var currentQuality by mutableIntStateOf(Prefs.defaultQuality.code)
     var currentVideoCodec by mutableStateOf(Prefs.defaultVideoCodec)
     var currentAudio by mutableStateOf(Prefs.defaultAudio)
     var currentDanmakuScale by mutableFloatStateOf(Prefs.defaultDanmakuScale)
     var currentDanmakuOpacity by mutableFloatStateOf(Prefs.defaultDanmakuOpacity)
+    var currentDanmakuSpeedFactor by mutableFloatStateOf(Prefs.defaultDanmakuSpeedFactor)
+        private set
     var currentDanmakuEnabled by mutableStateOf(Prefs.defaultDanmakuEnabled)
     val currentDanmakuTypes = mutableStateListOf<DanmakuType>().apply {
         addAll(Prefs.defaultDanmakuTypes)
@@ -174,8 +180,8 @@ class VideoPlayerV3ViewModel(
     }
 
     // 加载合集内的分P
-    fun updateVideoPages(){
-        viewModelScope.launch(Dispatchers.IO){
+    fun updateVideoPages() {
+        viewModelScope.launch(Dispatchers.IO) {
             videoInfoRepository.updateUgcPages(Prefs.apiType)
         }
     }
@@ -611,6 +617,27 @@ class VideoPlayerV3ViewModel(
         }.onFailure {
             logger.fWarn { "Load video shot failed: ${it.stackTraceToString()}" }
         }
+    }
+
+    fun updatePlaySpeed(speed: Float = currentPlaySpeed, forceUpdate: Boolean = false) {
+        if (!forceUpdate && currentPlaySpeed == speed) return
+
+        currentPlaySpeed = speed
+        videoPlayer?.speed = currentPlaySpeed
+
+        syncDanmakuSpeed()
+    }
+
+    fun updateDanmakuSpeedFactor(factor: Float) {
+        if (currentDanmakuSpeedFactor == factor) return
+
+        currentDanmakuSpeedFactor = factor
+        syncDanmakuSpeed()
+    }
+
+    private fun syncDanmakuSpeed() {
+        val finalSpeed = currentPlaySpeed * currentDanmakuSpeedFactor
+        danmakuPlayer?.updatePlaySpeed(finalSpeed)
     }
 }
 

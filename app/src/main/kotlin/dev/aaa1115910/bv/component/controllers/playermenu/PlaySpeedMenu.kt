@@ -84,11 +84,11 @@ fun PlaySpeedMenuList(
 }
 
 enum class PlaySpeedItem(val code: Int, private val strRes: Int, val speed: Float) {
-    x0_5(0, R.string.play_speed_x0_5, 0.5f),
-    x1(1, R.string.play_speed_x1, 1f),
-    x1_25(2, R.string.play_speed_x1_25, 1.25f),
+    x2(4, R.string.play_speed_x2, 2f),
     x1_5(3, R.string.play_speed_x1_5, 1.5f),
-    x2(4, R.string.play_speed_x2, 2f);
+    x1_25(2, R.string.play_speed_x1_25, 1.25f),
+    x1(1, R.string.play_speed_x1, 1f),
+    x0_5(0, R.string.play_speed_x0_5, 0.5f);
 
     companion object {
         fun fromCode(code: Int): PlaySpeedItem {

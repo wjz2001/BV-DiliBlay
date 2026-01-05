@@ -36,6 +36,7 @@ import dev.aaa1115910.bv.component.controllers.playermenu.component.MenuListItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.RadioMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.component.StepLessMenuItem
 import dev.aaa1115910.bv.component.ifElse
+import dev.aaa1115910.bv.entity.DanmakuSpeedFactor
 import java.text.NumberFormat
 
 @Composable
@@ -44,6 +45,7 @@ fun DanmakuMenuList(
     onDanmakuSwitchChange: (List<DanmakuType>) -> Unit,
     onDanmakuSizeChange: (Float) -> Unit,
     onDanmakuOpacityChange: (Float) -> Unit,
+    onDanmakuSpeedFactorChange: (Float) -> Unit,
     onDanmakuAreaChange: (Float) -> Unit,
     onDanmakuMaskChange: (Boolean) -> Unit,
     onFocusStateChange: (MenuFocusState) -> Unit
@@ -132,6 +134,17 @@ fun DanmakuMenuList(
                         .format(data.currentDanmakuOpacity),
                     onValueChange = onDanmakuOpacityChange,
                     onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
+                )
+
+                VideoPlayerDanmakuMenuItem.SpeedFactor -> RadioMenuList(
+                    modifier = menuItemsModifier,
+                    items = DanmakuSpeedFactor.entries.map { it.getDisplayName(context) },
+                    selected = DanmakuSpeedFactor.getIndexByFactor(data.currentDanmakuSpeedFactor),
+                    onSelectedChanged = { onDanmakuSpeedFactorChange(DanmakuSpeedFactor.entries[it].factor) },
+                    onFocusBackToParent = {
+                        onFocusStateChange(MenuFocusState.Menu)
+                        focusRequester.requestFocus()
+                    }
                 )
 
                 VideoPlayerDanmakuMenuItem.Area -> StepLessMenuItem(
