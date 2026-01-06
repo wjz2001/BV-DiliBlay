@@ -99,9 +99,10 @@ object Prefs {
         restore = { Audio.fromCode(it) }
     )
 
+    var defaultDanmakuEnabled by pref(PrefKeys.prefDefaultDanmakuEnabledKey, true)
     var defaultDanmakuScale by pref(PrefKeys.prefDefaultDanmakuScaleKey, 1.75f)
     var defaultDanmakuOpacity by pref(PrefKeys.prefDefaultDanmakuOpacityKey, 0.7f)
-    var defaultDanmakuEnabled by pref(PrefKeys.prefDefaultDanmakuEnabledKey, true)
+    var defaultDanmakuSpeedFactor by pref(PrefKeys.prefDefaultDanmakuSpeedFactorKey, 1f)
 
     // 列表类型映射
     var defaultDanmakuTypes by pref(
@@ -304,6 +305,7 @@ private object PrefKeys {
     val prefDefaultPlaySpeedKey = intPreferencesKey("dps")
     val prefDefaultDanmakuScaleKey = floatPreferencesKey("dds2")
     val prefDefaultDanmakuOpacityKey = floatPreferencesKey("ddo")
+    val prefDefaultDanmakuSpeedFactorKey = floatPreferencesKey("ddsf")
     val prefDefaultDanmakuEnabledKey = booleanPreferencesKey("dde")
     val prefDefaultDanmakuTypesKey = stringPreferencesKey("ddts")
     val prefDefaultDanmakuAreaKey = floatPreferencesKey("dda")

@@ -36,9 +36,9 @@ import dev.aaa1115910.biliapi.entity.video.Subtitle
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
-import dev.aaa1115910.bv.entity.LocalVideoPlayerControllerData
 import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.entity.Audio
+import dev.aaa1115910.bv.entity.LocalVideoPlayerControllerData
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.entity.VideoListItem
@@ -80,6 +80,7 @@ fun VideoPlayerController(
     onDanmakuSwitchChange: (List<DanmakuType>) -> Unit,
     onDanmakuSizeChange: (Float) -> Unit,
     onDanmakuOpacityChange: (Float) -> Unit,
+    onDanmakuSpeedFactorChange: (Float) -> Unit,
     onDanmakuAreaChange: (Float) -> Unit,
     onDanmakuMaskChange: (Boolean) -> Unit,
     onSubtitleChange: (Subtitle) -> Unit,
@@ -393,7 +394,6 @@ fun VideoPlayerController(
                 isSeeking = isSeeking,
                 goTime = goTime,
                 infoData = data.infoData,
-                // title = data.secondTitle,
                 title = data.title,
                 subtitle = data.secondTitle,
                 clock = data.clock,
@@ -448,6 +448,7 @@ fun VideoPlayerController(
                 onDanmakuSwitchChange = onDanmakuSwitchChange,
                 onDanmakuSizeChange = onDanmakuSizeChange,
                 onDanmakuOpacityChange = onDanmakuOpacityChange,
+                onDanmakuSpeedFactorChange = onDanmakuSpeedFactorChange,
                 onDanmakuAreaChange = onDanmakuAreaChange,
                 onDanmakuMaskChange = onDanmakuMaskChange,
                 onSubtitleChange = onSubtitleChange,

@@ -70,7 +70,10 @@ fun ClosedCaptionMenuList(
                 VideoPlayerClosedCaptionMenuItem.Switch -> RadioMenuList(
                     modifier = menuItemsModifier,
                     items = data.availableSubtitleTracks.map {
-                        it.langDoc + if (it.type == SubtitleType.AI) "(AI)" else ""
+                        it.langDoc
+                            .replace("（自动生成）", "")
+                            .replace("（自动翻译）", "")
+                            .trim() + if (it.type == SubtitleType.AI) "(AI)" else ""
                     },
                     selected = data.availableSubtitleTracks.indexOfFirst { it.id == data.currentSubtitleId },
                     onSelectedChanged = { onSubtitleChange(data.availableSubtitleTracks[it]) },

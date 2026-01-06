@@ -34,14 +34,15 @@ import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskFrame
 import dev.aaa1115910.biliapi.entity.video.VideoPage
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.DanmakuPlayerCompose
-import dev.aaa1115910.bv.entity.LocalVideoPlayerControllerData
-import dev.aaa1115910.bv.entity.VideoPlayerControllerData
-import dev.aaa1115910.bv.entity.VideoPlayerInfoData
 import dev.aaa1115910.bv.component.controllers.DanmakuType
 import dev.aaa1115910.bv.component.controllers.VideoPlayerController
 import dev.aaa1115910.bv.component.controllers.VideoProgressSeek
 import dev.aaa1115910.bv.component.ifElse
+import dev.aaa1115910.bv.entity.LocalVideoPlayerControllerData
 import dev.aaa1115910.bv.entity.VideoAspectRatio
+import dev.aaa1115910.bv.entity.VideoPlayerControllerData
+import dev.aaa1115910.bv.entity.VideoPlayerInfoData
+import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.player.BvVideoPlayer
 import dev.aaa1115910.bv.player.VideoPlayerListener
 import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
@@ -242,9 +243,8 @@ fun VideoPlayerV3Screen(
             currentSelectedPlaySpeedItem = Prefs.defaultPlaySpeed
 
             //reset default play speed
-            logger.info { "Reset default play speed: $currentPlaySpeed" }
-            videoPlayer.speed = currentPlaySpeed
-            playerViewModel.danmakuPlayer?.updatePlaySpeed(currentPlaySpeed)
+            logger.info { "Reset default play speed: ${playerViewModel.currentPlaySpeed}" }
+            playerViewModel.updatePlaySpeed(forceUpdate = true)
         }
 
         override fun onPlay() {
@@ -292,7 +292,8 @@ fun VideoPlayerV3Screen(
 
                 ActionAfterPlayItems.PlayNext -> {
                     // 存在下一集时，使用 countDownTimer 延迟5秒后播放下一集
-                    val videoListIndex = availableVideoList.indexOfFirst { it.aid == playerViewModel.currentAid }
+                    val videoListIndex =
+                        availableVideoList.indexOfFirst { it.aid == playerViewModel.currentAid }
                     val currentVideoItem = availableVideoList.getOrNull(videoListIndex)
                     val currentCid = playerViewModel.currentCid
 
@@ -347,6 +348,7 @@ fun VideoPlayerV3Screen(
                         (context as Activity).finish()
                     }
                 }
+
                 ActionAfterPlayItems.Exit -> {
                     (context as Activity).finish()
                 }
@@ -520,6 +522,7 @@ fun VideoPlayerV3Screen(
             currentDanmakuEnabledList = playerViewModel.currentDanmakuTypes,
             currentDanmakuScale = playerViewModel.currentDanmakuScale,
             currentDanmakuOpacity = playerViewModel.currentDanmakuOpacity,
+            currentDanmakuSpeedFactor = playerViewModel.currentDanmakuSpeedFactor,
             currentDanmakuArea = playerViewModel.currentDanmakuArea,
             currentDanmakuMask = playerViewModel.currentDanmakuMask,
             currentSubtitleId = playerViewModel.currentSubtitleId,
@@ -640,10 +643,9 @@ fun VideoPlayerV3Screen(
             },
             onPlaySpeedChange = { speed ->
                 logger.info { "Set default play speed: $speed" }
-//                Prefs.defaultPlaySpeed = speed
                 currentPlaySpeed = speed
                 videoPlayer.speed = speed
-                playerViewModel.danmakuPlayer?.updatePlaySpeed(speed)
+                playerViewModel.updatePlaySpeed(speed)
             },
             onSelectedPlaySpeedItemChange = {
                 logger.info { "Set selected play speed: $it" }
@@ -680,6 +682,11 @@ fun VideoPlayerV3Screen(
                 logger.info { "On danmaku opacity change: $opacity" }
                 Prefs.defaultDanmakuOpacity = opacity
                 playerViewModel.currentDanmakuOpacity = opacity
+            },
+            onDanmakuSpeedFactorChange = { factor ->
+                logger.info { "On danmaku speed factor change: $factor" }
+                Prefs.defaultDanmakuSpeedFactor = factor
+                playerViewModel.updateDanmakuSpeedFactor(factor)
             },
             onDanmakuAreaChange = { area ->
                 logger.info { "On danmaku area change: $area" }

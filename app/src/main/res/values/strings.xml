@@ -199,6 +199,12 @@
     <string name="play_speed_x4_75">4.75倍</string>
     <string name="play_speed_x5">5倍</string>
 
+    <string name="danmaku_speed_factor_x0_5">极慢</string>
+    <string name="danmaku_speed_factor_x0_75">较慢</string>
+    <string name="danmaku_speed_factor_x1">适中</string>
+    <string name="danmaku_speed_factor_x1_25">较快</string>
+    <string name="danmaku_speed_factor_x1_5">极快</string>
+
     <string name="search_input_history">历史记录</string>
     <string name="search_input_history_delete_all_confirm_dialog_cancel_button">手滑了</string>
     <string name="search_input_history_delete_all_confirm_dialog_confirm_button">确认删除</string>
@@ -742,6 +748,7 @@
     <string name="video_player_menu_danmaku_mask">防遮挡</string>
     <string name="video_player_menu_danmaku_opacity">不透明度</string>
     <string name="video_player_menu_danmaku_size">字体缩放</string>
+    <string name="video_player_menu_danmaku_speed_factor">弹幕速度</string>
     <string name="video_player_menu_danmaku_switch">弹幕类型</string>
     <string name="video_player_menu_danmaku_type_all">全部弹幕</string>
     <string name="video_player_menu_danmaku_type_bottom">底部弹幕</string>
