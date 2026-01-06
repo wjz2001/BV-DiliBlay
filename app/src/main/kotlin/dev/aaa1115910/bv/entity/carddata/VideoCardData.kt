@@ -21,10 +21,10 @@ data class VideoCardData(
 ) {
     init {
         play?.let {
-            playString = if (it >= 10000) "${it / 10000}万" else "$it"
+            playString = if (it >= 10_000) "%.1f万".format(it / 10_000.0) else it.toString()
         }
         danmaku?.let {
-            danmakuString = if (it >= 10000) "${it / 10000}万" else "$it"
+            danmakuString = if (it >= 10_000) "%.1f万".format(it / 10_000.0) else it.toString()
         }
         time?.let {
             timeString = if (it > 0) it.formatHourMinSec() else ""
