@@ -34,7 +34,7 @@ import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.UgcTopNavItem
 import dev.aaa1115910.bv.screen.main.ugc.UgcRegionScaffold
 import dev.aaa1115910.bv.screen.main.ugc.UgcScaffoldState
-import dev.aaa1115910.bv.ui.common.UiEvent
+import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.ugc.UgcViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
@@ -55,7 +55,7 @@ fun UgcContent(
     LaunchedEffect(Unit) {
         toViewViewModel.uiEvent.collect { event ->
             when (event) {
-                is UiEvent.ShowToast -> {
+                is UiEffect.ShowToast -> {
                     event.message.toast(context)
                 }
             }

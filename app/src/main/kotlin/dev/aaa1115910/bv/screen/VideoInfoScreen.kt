@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
@@ -118,7 +117,7 @@ import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.videocard.VideosRow
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
-import dev.aaa1115910.bv.ui.common.UiEvent
+import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fDebug
@@ -512,7 +511,7 @@ fun VideoInfoScreen(
     LaunchedEffect(Unit) {
         toViewViewModel.uiEvent.collect { event ->
             when (event) {
-                is UiEvent.ShowToast -> {
+                is UiEffect.ShowToast -> {
                     event.message.toast(context)
                 }
             }
