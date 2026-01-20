@@ -97,7 +97,7 @@ fun VideoPlayerController(
     var lastSeekChangeTime by remember { mutableLongStateOf(0L) }
 
     var seekCountdown: Job? by remember { mutableStateOf(null) }
-    var hideInfoSeekControllerCountDown: Job? by remember { mutableStateOf(null) }
+    var hideInfoSeekControllerCountdown: Job? by remember { mutableStateOf(null) }
 
     fun calCoefficient(): Int {
         return if (System.currentTimeMillis() - lastSeekChangeTime < 200) {
@@ -136,7 +136,7 @@ fun VideoPlayerController(
 
             isSeeking = false
             showInfoSeekController = false
-            hideInfoSeekControllerCountDown?.cancel()
+            hideInfoSeekControllerCountdown?.cancel()
         }
     }
 
@@ -165,9 +165,14 @@ fun VideoPlayerController(
     }
 
     fun handleKeyEvent(event: KeyEvent): Boolean {
-        if (event.type == KeyEventType.KeyUp) {
-            return false
+        // 中键需要区分短按和长按
+        val isConfirmKey =
+            event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.Spacebar
+
+        if (event.type == KeyEventType.KeyUp && !isConfirmKey) {
+            return true
         }
+
         logger.info { "[${event.key} press]" }
 
         when (event.key) {
@@ -196,9 +201,6 @@ fun VideoPlayerController(
                 showMenuController = true
                 return true
             }
-        }
-
-        when (event.key) {
             Key.MediaPlayPause -> {
                 onPlayPause()
                 return true
@@ -218,18 +220,20 @@ fun VideoPlayerController(
         } else {
             when (event.key) {
                 Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
-                    if (uiState.showBackToStart) {
-                        onBackToStart()
+                    if (event.type == KeyEventType.KeyDown) {
+                        if (event.nativeKeyEvent.isLongPress) {
+                            showMenuController = true
+                        }
+                        return true
+                    } else {
+                        if (uiState.showBackToStart) {
+                            onBackToStart()
+                        } else {
+                            onPlayPause()
+                        }
                         return true
                     }
-                    if (event.nativeKeyEvent.isLongPress) {
-                        showMenuController = true
-                    } else {
-                        onPlayPause()
-                    }
-                    return true
                 }
-
                 Key.DirectionUp -> {
                     showListController = true
                     return true
@@ -262,8 +266,8 @@ fun VideoPlayerController(
             .onPreviewKeyEvent { event ->
                 // 重置 info 控制器的隐藏倒计时 (只要有按键活动就重置)
                 if (showInfoSeekController) {
-                    hideInfoSeekControllerCountDown?.cancel()
-                    hideInfoSeekControllerCountDown = scope.launch {
+                    hideInfoSeekControllerCountdown?.cancel()
+                    hideInfoSeekControllerCountdown = scope.launch {
                         delay(5000)
                         showInfoSeekController = false
                     }
