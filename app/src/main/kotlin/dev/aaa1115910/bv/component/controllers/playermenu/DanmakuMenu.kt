@@ -26,7 +26,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import dev.aaa1115910.bv.entity.LocalVideoPlayerControllerData
 import dev.aaa1115910.bv.component.controllers.DanmakuType
 import dev.aaa1115910.bv.component.controllers.LocalMenuFocusStateData
 import dev.aaa1115910.bv.component.controllers.MenuFocusState
@@ -42,6 +41,12 @@ import java.text.NumberFormat
 @Composable
 fun DanmakuMenuList(
     modifier: Modifier = Modifier,
+    currentEnabledTypes: List<DanmakuType>,
+    currentScale: Float,
+    currentOpacity: Float,
+    currentSpeedFactor: Float,
+    currentArea: Float,
+    currentMaskEnabled: Boolean,
     onDanmakuSwitchChange: (List<DanmakuType>) -> Unit,
     onDanmakuSizeChange: (Float) -> Unit,
     onDanmakuOpacityChange: (Float) -> Unit,
@@ -51,7 +56,6 @@ fun DanmakuMenuList(
     onFocusStateChange: (MenuFocusState) -> Unit
 ) {
     val context = LocalContext.current
-    val data = LocalVideoPlayerControllerData.current
     val focusState = LocalMenuFocusStateData.current
     val restorerFocusRequester = remember { FocusRequester() }
 
@@ -70,40 +74,59 @@ fun DanmakuMenuList(
                 VideoPlayerDanmakuMenuItem.Switch -> CheckBoxMenuList(
                     modifier = menuItemsModifier,
                     items = DanmakuType.entries.map { it.getDisplayName(context) },
-                    selected = data.currentDanmakuEnabledList.map { it.ordinal },
-                    onSelectedChanged = {
-                        val newEnabledDanmakuList = it
+                    selected = currentEnabledTypes.map { it.ordinal },
+                    onSelectedChanged = { indices ->
+                        val newSelection = indices
                             .map { index -> DanmakuType.entries[index] }
                             .toMutableList()
 
-                        if (
-                            newEnabledDanmakuList.contains(DanmakuType.All) &&
-                            !data.currentDanmakuEnabledList.contains(DanmakuType.All)
-                        ) {
-                            // 勾选了全部
-                            onDanmakuSwitchChange(DanmakuType.entries)
-                        } else if (
-                            data.currentDanmakuEnabledList.contains(DanmakuType.All) &&
-                            !newEnabledDanmakuList.contains(DanmakuType.All)
-                        ) {
-                            // 取消了全部
-                            onDanmakuSwitchChange(listOf())
-                        } else if (
-                            data.currentDanmakuEnabledList.contains(DanmakuType.All) &&
-                            newEnabledDanmakuList.contains(DanmakuType.All) &&
-                            data.currentDanmakuEnabledList.size != newEnabledDanmakuList.size
-                        ) {
-                            // 在勾选全部时，取消某一项
-                            newEnabledDanmakuList.remove(DanmakuType.All)
-                            onDanmakuSwitchChange(newEnabledDanmakuList)
-                        } else if (
-                            !data.currentDanmakuEnabledList.contains(DanmakuType.All) &&
-                            newEnabledDanmakuList.size == DanmakuType.entries.size - 1
-                        ) {
-                            // 在勾选了全部之外的所有项时，勾选全部项
-                            onDanmakuSwitchChange(DanmakuType.entries)
-                        } else {
-                            onDanmakuSwitchChange(newEnabledDanmakuList)
+                        val allType = DanmakuType.All
+                        val allEntries = DanmakuType.entries
+
+                        val isAllInOld = currentEnabledTypes.contains(allType)
+                        val isAllInNew = newSelection.contains(allType)
+
+                        val realItemsCount = allEntries.size - 1
+
+                        when {
+                            // ---------------------------------------------------------
+                            // 场景 1: 用户直接点击了 [全选] 框
+                            // ---------------------------------------------------------
+
+                            // 1.1 从无到有：点击全选 -> 选中所有
+                            !isAllInOld && isAllInNew -> {
+                                onDanmakuSwitchChange(allEntries)
+                            }
+
+                            // 1.2 从有到无：取消全选 -> 清空所有
+                            isAllInOld && !isAllInNew -> {
+                                onDanmakuSwitchChange(emptyList())
+                            }
+
+                            // ---------------------------------------------------------
+                            // 场景 2: 用户点击了 [子选项] (触发联动)
+                            // ---------------------------------------------------------
+
+                            else -> {
+                                // 先计算当前选中了多少个“真实子项”(排除 All)
+                                val currentRealItemsCount = newSelection.count { it != allType }
+
+                                if (currentRealItemsCount == realItemsCount) {
+                                    // 触发自动 All：
+                                    // 如果所有子项都齐了，但列表中没有 All，手动加上 All
+                                    if (!newSelection.contains(allType)) {
+                                        newSelection.add(allType)
+                                    }
+                                    onDanmakuSwitchChange(newSelection)
+                                } else {
+                                    // 触发自动移除 All：
+                                    // 如果子项不齐（用户取消了某一项），但列表里还有 All，必须移除 All
+                                    if (newSelection.contains(allType)) {
+                                        newSelection.remove(allType)
+                                    }
+                                    onDanmakuSwitchChange(newSelection)
+                                }
+                            }
                         }
                     },
                     onFocusBackToParent = {
@@ -114,24 +137,24 @@ fun DanmakuMenuList(
 
                 VideoPlayerDanmakuMenuItem.Size -> StepLessMenuItem(
                     modifier = menuItemsModifier,
-                    value = data.currentDanmakuScale,
+                    value = currentScale,
                     step = 0.01f,
                     range = 0.5f..4f,
                     text = NumberFormat.getPercentInstance()
                         .apply { maximumFractionDigits = 0 }
-                        .format(data.currentDanmakuScale),
+                        .format(currentScale),
                     onValueChange = onDanmakuSizeChange,
                     onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
                 )
 
                 VideoPlayerDanmakuMenuItem.Opacity -> StepLessMenuItem(
                     modifier = menuItemsModifier,
-                    value = data.currentDanmakuOpacity,
+                    value = currentOpacity,
                     step = 0.01f,
                     range = 0f..1f,
                     text = NumberFormat.getPercentInstance()
                         .apply { maximumFractionDigits = 0 }
-                        .format(data.currentDanmakuOpacity),
+                        .format(currentOpacity),
                     onValueChange = onDanmakuOpacityChange,
                     onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
                 )
@@ -139,8 +162,9 @@ fun DanmakuMenuList(
                 VideoPlayerDanmakuMenuItem.SpeedFactor -> RadioMenuList(
                     modifier = menuItemsModifier,
                     items = DanmakuSpeedFactor.entries.map { it.getDisplayName(context) },
-                    selected = DanmakuSpeedFactor.getIndexByFactor(data.currentDanmakuSpeedFactor),
-                    onSelectedChanged = { onDanmakuSpeedFactorChange(DanmakuSpeedFactor.entries[it].factor) },
+                    selected = DanmakuSpeedFactor.getIndexByFactor(currentSpeedFactor),
+                    onSelectedChanged = {
+                        onDanmakuSpeedFactorChange(DanmakuSpeedFactor.entries[it].factor) },
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)
                         focusRequester.requestFocus()
@@ -149,12 +173,12 @@ fun DanmakuMenuList(
 
                 VideoPlayerDanmakuMenuItem.Area -> StepLessMenuItem(
                     modifier = menuItemsModifier,
-                    value = data.currentDanmakuArea,
+                    value = currentArea,
                     step = 0.01f,
                     range = 0f..1f,
                     text = NumberFormat.getPercentInstance()
                         .apply { maximumFractionDigits = 0 }
-                        .format(data.currentDanmakuArea),
+                        .format(currentArea),
                     onValueChange = onDanmakuAreaChange,
                     onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
                 )
@@ -162,7 +186,7 @@ fun DanmakuMenuList(
                 VideoPlayerDanmakuMenuItem.Mask -> RadioMenuList(
                     modifier = menuItemsModifier,
                     items = listOf("关闭", "开启"),
-                    selected = if (data.currentDanmakuMask) 1 else 0,
+                    selected = if (currentMaskEnabled) 1 else 0,
                     onSelectedChanged = { onDanmakuMaskChange(it == 1) },
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)
