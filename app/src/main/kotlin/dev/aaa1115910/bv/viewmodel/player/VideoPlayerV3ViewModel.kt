@@ -69,6 +69,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.koin.android.annotation.KoinViewModel
 import java.net.URI
@@ -247,6 +248,7 @@ class VideoPlayerV3ViewModel(
     }
 
     fun dettachPlayer() {
+        videoPlayer?.release()
         videoPlayer = null
         _uiState.update { PlayerUiState() }
     }
@@ -512,7 +514,7 @@ class VideoPlayerV3ViewModel(
     }
 
     fun trySendHeartbeat() {
-        if (Prefs.incognitoMode || _uiState.value.playerState == PlayerState.Paused) return
+        if (Prefs.incognitoMode) return
         val player = videoPlayer ?: return
 
         heartbeatJob?.cancel()
@@ -1204,6 +1206,29 @@ class VideoPlayerV3ViewModel(
             override val title: String = video.title
         }
     }
+
+    override fun onCleared() {
+        super.onCleared()
+
+        // 最后一次心跳，此时viewModelScope已失效
+        if (Prefs.incognitoMode) return
+        val player = videoPlayer ?: return
+
+        val currentTimeSeconds =
+            (player.currentPosition.coerceAtLeast(0) / 1000).toInt()
+        val totalTimeSeconds =
+            (player.duration.coerceAtLeast(0) / 1000).toInt()
+
+        val reportTime =
+            if (currentTimeSeconds >= totalTimeSeconds) -1 else currentTimeSeconds
+
+        runBlocking {
+            withContext(Dispatchers.IO) {
+                uploadHistory(reportTime)
+            }
+        }
+    }
+
 }
 
 sealed interface DanmakuSettingAction {
