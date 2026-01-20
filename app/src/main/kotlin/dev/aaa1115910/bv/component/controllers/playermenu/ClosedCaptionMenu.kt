@@ -31,7 +31,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.aaa1115910.biliapi.entity.video.Subtitle
 import dev.aaa1115910.biliapi.entity.video.SubtitleType
-import dev.aaa1115910.bv.entity.LocalVideoPlayerControllerData
 import dev.aaa1115910.bv.component.controllers.LocalMenuFocusStateData
 import dev.aaa1115910.bv.component.controllers.MenuFocusState
 import dev.aaa1115910.bv.component.controllers.VideoPlayerClosedCaptionMenuItem
@@ -44,6 +43,11 @@ import java.text.NumberFormat
 @Composable
 fun ClosedCaptionMenuList(
     modifier: Modifier = Modifier,
+    currentSubtitleId: Long,
+    availableSubtitleTracks: List<Subtitle>,
+    currentFontSize: TextUnit,
+    currentOpacity: Float,
+    currentPadding: Dp,
     onSubtitleChange: (Subtitle) -> Unit,
     onSubtitleSizeChange: (TextUnit) -> Unit,
     onSubtitleBackgroundOpacityChange: (Float) -> Unit,
@@ -51,7 +55,6 @@ fun ClosedCaptionMenuList(
     onFocusStateChange: (MenuFocusState) -> Unit
 ) {
     val context = LocalContext.current
-    val data = LocalVideoPlayerControllerData.current
     val focusState = LocalMenuFocusStateData.current
     val restorerFocusRequester = remember { FocusRequester() }
 
@@ -69,14 +72,14 @@ fun ClosedCaptionMenuList(
             when (selectedClosedCaptionMenuItem) {
                 VideoPlayerClosedCaptionMenuItem.Switch -> RadioMenuList(
                     modifier = menuItemsModifier,
-                    items = data.availableSubtitleTracks.map {
+                    items = availableSubtitleTracks.map {
                         it.langDoc
                             .replace("（自动生成）", "")
                             .replace("（自动翻译）", "")
                             .trim() + if (it.type == SubtitleType.AI) "(AI)" else ""
                     },
-                    selected = data.availableSubtitleTracks.indexOfFirst { it.id == data.currentSubtitleId },
-                    onSelectedChanged = { onSubtitleChange(data.availableSubtitleTracks[it]) },
+                    selected = availableSubtitleTracks.indexOfFirst { it.id == currentSubtitleId },
+                    onSelectedChanged = { onSubtitleChange(availableSubtitleTracks[it]) },
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)
                         focusRequester.requestFocus()
@@ -85,32 +88,32 @@ fun ClosedCaptionMenuList(
 
                 VideoPlayerClosedCaptionMenuItem.Size -> StepLessMenuItem(
                     modifier = menuItemsModifier,
-                    value = data.currentSubtitleFontSize.value.toInt(),
+                    value = currentFontSize.value.toInt(),
                     step = 1,
                     range = 12..48,
-                    text = "${data.currentSubtitleFontSize.value.toInt()} SP",
+                    text = "${currentFontSize.value.toInt()} SP",
                     onValueChange = { onSubtitleSizeChange(it.sp) },
                     onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
                 )
 
                 VideoPlayerClosedCaptionMenuItem.Opacity -> StepLessMenuItem(
                     modifier = menuItemsModifier,
-                    value = data.currentSubtitleBackgroundOpacity,
+                    value = currentOpacity,
                     step = 0.01f,
                     range = 0f..1f,
                     text = NumberFormat.getPercentInstance()
                         .apply { maximumFractionDigits = 0 }
-                        .format(data.currentSubtitleBackgroundOpacity),
+                        .format(currentOpacity),
                     onValueChange = onSubtitleBackgroundOpacityChange,
                     onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
                 )
 
                 VideoPlayerClosedCaptionMenuItem.Padding -> StepLessMenuItem(
                     modifier = menuItemsModifier,
-                    value = data.currentSubtitleBottomPadding.value.toInt(),
+                    value = currentPadding.value.toInt(),
                     step = 1,
                     range = 0..48,
-                    text = "${data.currentSubtitleBottomPadding.value.toInt()} DP",
+                    text = "${currentPadding.value.toInt()} DP",
                     onValueChange = { onSubtitleBottomPadding(it.dp) },
                     onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
                 )

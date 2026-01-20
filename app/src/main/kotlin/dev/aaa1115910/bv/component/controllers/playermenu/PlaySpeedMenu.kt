@@ -23,7 +23,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.entity.LocalVideoPlayerControllerData
 import dev.aaa1115910.bv.component.controllers.MenuFocusState
 import dev.aaa1115910.bv.component.controllers.playermenu.component.MenuListItem
 import dev.aaa1115910.bv.component.ifElse
@@ -31,12 +30,11 @@ import dev.aaa1115910.bv.component.ifElse
 @Composable
 fun PlaySpeedMenuList(
     modifier: Modifier = Modifier,
-    onSelectedPlaySpeedItemChange: (PlaySpeedItem) -> Unit,
+    currentSelectedPlaySpeedItem: PlaySpeedItem,
     onPlaySpeedChange: (Float) -> Unit,
     onFocusStateChange: (MenuFocusState) -> Unit
 ) {
     val context = LocalContext.current
-    val data = LocalVideoPlayerControllerData.current
     val focusRequester = remember { FocusRequester() }
 
     Row(
@@ -66,14 +64,13 @@ fun PlaySpeedMenuList(
                 MenuListItem(
                     modifier = Modifier
                         .ifElse(
-                            index == data.currentSelectedPlaySpeedItem.ordinal,
+                            index == currentSelectedPlaySpeedItem.ordinal,
                             Modifier.focusRequester(focusRequester)
                         ),
                     text = item.getDisplayName(context),
-                    selected = data.currentSelectedPlaySpeedItem == item,
+                    selected = currentSelectedPlaySpeedItem == item,
                     onClick = {
                         onPlaySpeedChange(item.speed)
-                        onSelectedPlaySpeedItemChange(item)
                     },
                 )
             }
@@ -93,6 +90,10 @@ enum class PlaySpeedItem(val code: Int, private val strRes: Int, val speed: Floa
     companion object {
         fun fromCode(code: Int): PlaySpeedItem {
             return entries.find { it.code == code } ?: x1
+        }
+
+        fun fromSpeed(speed: Float): PlaySpeedItem {
+            return entries.find { it.speed == speed } ?: x1
         }
     }
 
