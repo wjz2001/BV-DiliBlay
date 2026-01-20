@@ -62,8 +62,6 @@ fun VideoPlayerV3Screen(
                 }
 
                 PlayerUiEffect.PlayEnded -> {
-                    playerViewModel.trySendHeartbeat()
-
                     if (isLooping) {
                         playerViewModel.backToStart()
                         return@collect
@@ -79,7 +77,7 @@ fun VideoPlayerV3Screen(
     LaunchedEffect(Unit) {
         delay(5000)
         while (isActive) {
-            playerViewModel.trySendHeartbeat()
+            if (uiState.playerState == PlayerState.Playing) playerViewModel.trySendHeartbeat()
             // 周期延迟
             delay(15000)
         }
@@ -122,14 +120,6 @@ fun VideoPlayerV3Screen(
             }
 
             delay(delayTime)
-        }
-    }
-
-    //退出播放后清理资源，发送心跳
-    DisposableEffect(Unit) {
-        onDispose {
-            playerViewModel.trySendHeartbeat()
-            videoPlayer.release()
         }
     }
 
