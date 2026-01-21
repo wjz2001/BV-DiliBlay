@@ -284,7 +284,7 @@ fun ControllerVideoInfoBottom(
                         }
 
                         Key.DirectionDown -> {
-                            if (it.type == KeyEventType.KeyDown) return@onKeyEvent true
+                            if (it.type == KeyEventType.KeyUp) return@onKeyEvent true
                             buttonsFocusRequester.requestFocus()
                             return@onKeyEvent true
                         }
@@ -321,7 +321,7 @@ fun ControllerVideoInfoBottom(
                 .focusRequester(buttonsFocusRequester)
                 .onKeyEvent {
                     if (it.key == Key.DirectionUp) {
-                        if (it.type == KeyEventType.KeyDown) return@onKeyEvent true
+                        if (it.type == KeyEventType.KeyUp) return@onKeyEvent true
                         seekFocusRequester.requestFocus()
                         return@onKeyEvent true
                     }
