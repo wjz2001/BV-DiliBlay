@@ -97,7 +97,7 @@ fun VideoPlayerController(
     var lastSeekChangeTime by remember { mutableLongStateOf(0L) }
 
     var seekCountdown: Job? by remember { mutableStateOf(null) }
-    var hideInfoSeekControllerCountDown: Job? by remember { mutableStateOf(null) }
+    var hideInfoSeekControllerCountdown: Job? by remember { mutableStateOf(null) }
 
     fun calCoefficient(): Int {
         return if (System.currentTimeMillis() - lastSeekChangeTime < 200) {
@@ -136,7 +136,7 @@ fun VideoPlayerController(
 
             isSeeking = false
             showInfoSeekController = false
-            hideInfoSeekControllerCountDown?.cancel()
+            hideInfoSeekControllerCountdown?.cancel()
         }
     }
 
@@ -170,7 +170,7 @@ fun VideoPlayerController(
             event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.Spacebar
 
         if (event.type == KeyEventType.KeyUp && !isConfirmKey) {
-            return false
+            return true
         }
 
         logger.info { "[${event.key} press]" }
@@ -266,8 +266,8 @@ fun VideoPlayerController(
             .onPreviewKeyEvent { event ->
                 // 重置 info 控制器的隐藏倒计时 (只要有按键活动就重置)
                 if (showInfoSeekController) {
-                    hideInfoSeekControllerCountDown?.cancel()
-                    hideInfoSeekControllerCountDown = scope.launch {
+                    hideInfoSeekControllerCountdown?.cancel()
+                    hideInfoSeekControllerCountdown = scope.launch {
                         delay(5000)
                         showInfoSeekController = false
                     }
