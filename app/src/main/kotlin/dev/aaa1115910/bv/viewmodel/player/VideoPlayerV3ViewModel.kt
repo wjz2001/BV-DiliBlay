@@ -255,6 +255,7 @@ class VideoPlayerV3ViewModel(
 
     fun initDanmakuPlayer() {
         danmakuPlayer = DanmakuPlayer(SimpleRenderer())
+        initDanmakuConfig()
     }
 
     fun releaseDanmakuPlayer() {
@@ -307,8 +308,7 @@ class VideoPlayerV3ViewModel(
 
         _uiState.update { it.copy(playSpeed = targetSpeed) }
         videoPlayer?.speed = targetSpeed
-
-        syncDanmakuSpeed()
+        danmakuPlayer?.updatePlaySpeed(targetSpeed)
     }
 
     fun updateVideoAspectRatio(aspectRatio: VideoAspectRatio) {
@@ -555,7 +555,6 @@ class VideoPlayerV3ViewModel(
                 proxyArea = _uiState.value.proxyArea
             )
 
-            initDanmakuConfig()
             loadDanmaku(cid)
             updateDanmakuMask()
             updateSubtitle()
@@ -988,16 +987,10 @@ class VideoPlayerV3ViewModel(
         }
     }
 
-    private fun syncDanmakuSpeed() {
-        val state = _uiState.value
-
-        val finalSpeed = state.playSpeed * state.danmakuState.speedFactor
-        danmakuPlayer?.updatePlaySpeed(finalSpeed)
-    }
-
     private fun initDanmakuConfig() {
         val danmakuTypes = Prefs.defaultDanmakuTypes
         val scale = Prefs.defaultDanmakuScale
+        val factor = Prefs.defaultDanmakuSpeedFactor
 
         if (!danmakuTypes.contains(DanmakuType.All)) {
             val types = DanmakuType.entries.toMutableList()
@@ -1016,7 +1009,8 @@ class VideoPlayerV3ViewModel(
         danmakuConfig = danmakuConfig.copy(
             retainerPolicy = RETAINER_BILIBILI,
             textSizeScale = scale,
-            dataFilter = listOf(typeFilter)
+            dataFilter = listOf(typeFilter),
+            rollingSpeedFactor = factor
         )
         danmakuConfig.updateFilter()
         logger.info { "Init danmaku config: $danmakuConfig" }
@@ -1049,16 +1043,19 @@ class VideoPlayerV3ViewModel(
         logger.info { "Update danmaku config: $danmakuConfig" }
 
         danmakuConfig = danmakuConfig.copy(
-            retainerPolicy = RETAINER_BILIBILI,
             textSizeScale = scale,
         )
         danmakuPlayer?.updateConfig(danmakuConfig)
+
+        // 更新弹幕库之后updateConfig会导致滚动速度被重置，所以这里需要重新设置
+        danmakuPlayer?.setDanmakuRollingSpeed(_uiState.value.danmakuState.speedFactor)
     }
 
     private fun updateDanmakuSpeedFactor(factor: Float) {
+        logger.info { "Update danmaku rolling speed factor: $factor" }
         _uiState.update { it.copy(danmakuState = it.danmakuState.copy(speedFactor = factor)) }
 
-        syncDanmakuSpeed()
+        danmakuPlayer?.setDanmakuRollingSpeed(factor)
     }
 
     private fun startNextEpisodeCountdown(target: NextPlayTarget) {
