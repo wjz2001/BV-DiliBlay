@@ -28,10 +28,9 @@ import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.toIntSize
 import com.caverock.androidsvg.SVG
-import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMask
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskFrame
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMobMaskFrame
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuWebMaskFrame
@@ -84,15 +83,20 @@ fun Modifier.focusedScale(
 }
 
 fun Modifier.bitmapMask(
-    bitmap: Bitmap
+    bitmap: Bitmap,
+    areaRatio: Float
 ): Modifier = composed {
     drawWithContent {
         drawIntoCanvas { canvas ->
             canvas.saveLayer(Rect(Offset.Zero, size), Paint())
             drawContent()
+
+            val safeArea = if (areaRatio <= 0f) 1f else areaRatio
+            val fullHeight = size.height / safeArea
+
             drawImage(
                 image = bitmap.asImageBitmap(),
-                dstSize = size.toIntSize(),
+                dstSize = IntSize(size.width.toInt(), fullHeight.toInt()),
                 blendMode = BlendMode.DstIn
             )
             canvas.restore()
@@ -101,7 +105,8 @@ fun Modifier.bitmapMask(
 }
 
 fun Modifier.danmakuWebMask(
-    frame: DanmakuWebMaskFrame
+    frame: DanmakuWebMaskFrame,
+    areaRatio: Float
 ): Modifier = composed {
     val svgObj = runCatching {
         SVG.getFromString(frame.svg)
@@ -114,11 +119,12 @@ fun Modifier.danmakuWebMask(
     val canvas = Canvas(bitmap)
     svgObj.renderToCanvas(canvas)
 
-    bitmapMask(bitmap)
+    bitmapMask(bitmap, areaRatio)
 }
 
 fun Modifier.danmakuMobMask(
-    frame: DanmakuMobMaskFrame
+    frame: DanmakuMobMaskFrame,
+    areaRatio: Float
 ): Modifier = composed {
     val binaryBitmap= Bitmap.createBitmap(40, 180, Bitmap.Config.ARGB_8888)
     frame.image.forEachIndexed { index, byte ->
@@ -127,16 +133,17 @@ fun Modifier.danmakuMobMask(
         binaryBitmap.setPixel(x, y, if (byte.toInt() == 0) android.graphics.Color.BLACK else android.graphics.Color.TRANSPARENT)
     }
 
-    bitmapMask(binaryBitmap)
+    bitmapMask(binaryBitmap, areaRatio)
 }
 
 fun Modifier.danmakuMask(
-    frame: DanmakuMaskFrame?
+    frame: DanmakuMaskFrame?,
+    areaRatio: Float
 ): Modifier = composed {
     if (frame == null) return@composed this
 
     when(frame){
-        is DanmakuWebMaskFrame -> danmakuWebMask(frame)
-        is DanmakuMobMaskFrame -> danmakuMobMask(frame)
+        is DanmakuWebMaskFrame -> danmakuWebMask(frame, areaRatio)
+        is DanmakuMobMaskFrame -> danmakuMobMask(frame, areaRatio)
     }
 }
