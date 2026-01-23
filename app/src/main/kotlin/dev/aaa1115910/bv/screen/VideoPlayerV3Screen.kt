@@ -30,27 +30,30 @@ import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.player.BvVideoPlayer
 import dev.aaa1115910.bv.ui.effect.PlayerUiEffect
 import dev.aaa1115910.bv.ui.state.PlayerState
+import dev.aaa1115910.bv.util.DanmakuMaskFinder
 import dev.aaa1115910.bv.util.Prefs
+import dev.aaa1115910.bv.util.calculateMaskDelay
 import dev.aaa1115910.bv.util.danmakuMask
 import dev.aaa1115910.bv.viewmodel.player.VideoPlayerV3ViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import org.koin.androidx.compose.koinViewModel
+import kotlin.math.absoluteValue
 
 @Composable
 fun VideoPlayerV3Screen(
     modifier: Modifier = Modifier,
     playerViewModel: VideoPlayerV3ViewModel = koinViewModel()
 ) {
+    val logger = KotlinLogging.logger { }
     val context = LocalContext.current
     val videoPlayer = playerViewModel.videoPlayer!!
-    val logger = KotlinLogging.logger { }
 
-    var isLooping by remember { mutableStateOf(false) }
-
+    val maskFinder = remember { DanmakuMaskFinder() }
     var currentDanmakuMaskFrame: DanmakuMaskFrame? by remember { mutableStateOf(null) }
 
+    var isLooping by remember { mutableStateOf(false) }
     val uiState by playerViewModel.uiState.collectAsState()
     val seekerState = playerViewModel.seekerState.collectAsState()
 
@@ -84,42 +87,44 @@ fun VideoPlayerV3Screen(
     }
 
     // 弹幕防遮挡蒙版更新
-    LaunchedEffect(uiState.danmakuState.maskEnabled) {
-        if (!uiState.danmakuState.maskEnabled) {
+    LaunchedEffect(uiState.danmakuState.maskEnabled, uiState.danmakuMasks) {
+        if (!uiState.danmakuState.maskEnabled || uiState.danmakuMasks.isEmpty()) {
             currentDanmakuMaskFrame = null
             return@LaunchedEffect
         }
 
+        // 当 mask 列表变化（如切集）或开关变化时，重置查找器缓存
+        maskFinder.reset()
+
+        val masks = uiState.danmakuMasks
+        var lastCheckTime = -1L
+
         while (isActive) {
-            val masks = uiState.danmakuMasks
             val currentTime = seekerState.value.currentTime
             val isPlaying = uiState.playerState == PlayerState.Playing
 
-            val newMaskFrame = if (masks.isNotEmpty()) {
-                masks.firstOrNull { group ->
-                    currentTime in group.range
-                }?.frames?.firstOrNull { frame ->
-                    currentTime in frame.range
+            // 判断是否发生了 Seek (时间突变 > 200ms)
+            val isTimeJumping = (currentTime - lastCheckTime).absoluteValue > 200
+
+            // 2. 只有在播放中或刚刚发生 Seek 时才进行计算，否则低频休眠
+            if (isPlaying || isTimeJumping) {
+                // 使用工具类查找 Frame
+                val foundFrame = maskFinder.findFrame(masks, currentTime)
+
+                // 状态去重更新
+                if (currentDanmakuMaskFrame != foundFrame) {
+                    currentDanmakuMaskFrame = foundFrame
                 }
+
+                lastCheckTime = currentTime
+
+                // 3. 计算休眠时间
+                val delayTime = calculateMaskDelay(foundFrame, currentTime, isPlaying)
+                delay(delayTime)
             } else {
-                null
+                // 暂停且未拖动进度条，降低 CPU 占用
+                delay(500L)
             }
-
-            if (currentDanmakuMaskFrame != newMaskFrame) {
-                currentDanmakuMaskFrame = newMaskFrame
-            }
-
-            val delayTime = when {
-                masks.isEmpty() || !isPlaying -> 2000L
-
-                newMaskFrame != null -> {
-                    (newMaskFrame.range.last - currentTime + 3).coerceAtLeast(20L)
-                }
-
-                else -> 2000L
-            }
-
-            delay(delayTime)
         }
     }
 
@@ -213,17 +218,18 @@ fun VideoPlayerV3Screen(
                 videoPlayer = videoPlayer,
             )
 
+            val areaRatio = uiState.danmakuState.area
             DanmakuPlayerCompose(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .fillMaxHeight(uiState.danmakuState.area)
+                    .fillMaxHeight(areaRatio)
                     // 在之前版本中，设置 DanmakuConfig 透明度后，更改其它弹幕设置后，可能会导致弹幕透明度
                     // 突然变成完全不透明一瞬间，因此这次新版选择直接在此处设置透明度
                     .alpha(uiState.danmakuState.opacity)
                     .ifElse(
                         { Prefs.defaultDanmakuMask },
-                        Modifier.danmakuMask(currentDanmakuMaskFrame)
+                        Modifier.danmakuMask(currentDanmakuMaskFrame, areaRatio)
                     ),
                 danmakuPlayer = playerViewModel.danmakuPlayer
             )
