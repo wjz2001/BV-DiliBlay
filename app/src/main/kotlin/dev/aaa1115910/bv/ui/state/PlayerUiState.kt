@@ -29,7 +29,6 @@ data class PlayerUiState(
     val partTitle: String = "",
     val videoHeight: Int = 0,
     val videoWidth: Int = 0,
-    val isVertical: Boolean = false,
     val needPay: Boolean = false,
     val lastPlayed: Int = 0,
     val fromSeason: Boolean = false,

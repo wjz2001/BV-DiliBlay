@@ -136,6 +136,7 @@ import dev.aaa1115910.bv.viewmodel.video.VideoDetailViewModel
 import dev.aaa1115910.bv.viewmodel.video.VideoInfoState
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
@@ -354,7 +355,6 @@ fun VideoInfoScreen(
                 lastPlayedTime * 1000
             } else 0,
             fromSeason = fromSeason,
-            isVerticalVideo = containsVerticalScreenVideo,
             author = videoDetail.author
         )
     }
@@ -550,7 +550,11 @@ fun VideoInfoScreen(
                 paused = true
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 // 如果 pause==true 那可能是从播放页返回回来的，此时更新历史记录
-                if (paused) updateHistory()
+                scope.launch {
+                    // 延迟一秒避免进度还未更新
+                    delay(1000)
+                    if (paused) updateHistory()
+                }
             }
         }
 
@@ -734,7 +738,6 @@ fun VideoInfoScreen(
                                             partTitle = episodeTitle,
                                             played = if (cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
                                             fromSeason = false,
-                                            isVerticalVideo = containsVerticalScreenVideo,
                                             author = videoDetail.author
                                         )
                                     }

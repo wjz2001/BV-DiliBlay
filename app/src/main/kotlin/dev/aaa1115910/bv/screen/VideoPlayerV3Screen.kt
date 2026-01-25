@@ -197,28 +197,27 @@ fun VideoPlayerV3Screen(
                 videoPlayer.setOptions()
             }
 
+            val aspectRatio = when (uiState.aspectRatio) {
+                VideoAspectRatio.Default -> {
+                    if (uiState.videoHeight > 0 && uiState.videoWidth > 0) {
+                        uiState.videoWidth / uiState.videoHeight.toFloat()
+                    } else {
+                        16 / 9f
+                    }
+                }
+
+                VideoAspectRatio.FourToThree -> 4 / 3f
+                VideoAspectRatio.SixteenToNine -> 16 / 9f
+            }
+            val areaRatio = uiState.danmakuState.area
+
             BvVideoPlayer(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .aspectRatio(
-                        when (uiState.aspectRatio) {
-                            VideoAspectRatio.Default -> {
-                                if (uiState.videoHeight > 0 && uiState.videoWidth > 0) {
-                                    uiState.videoWidth / uiState.videoHeight.toFloat()
-                                } else {
-                                    16 / 9f
-                                }
-                            }
-
-                            VideoAspectRatio.FourToThree -> 4 / 3f
-                            VideoAspectRatio.SixteenToNine -> 16 / 9f
-                        }
-                    )
+                    .aspectRatio(aspectRatio)
                     .align(Alignment.Center),
                 videoPlayer = videoPlayer,
             )
-
-            val areaRatio = uiState.danmakuState.area
             DanmakuPlayerCompose(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -229,7 +228,7 @@ fun VideoPlayerV3Screen(
                     .alpha(uiState.danmakuState.opacity)
                     .ifElse(
                         { Prefs.defaultDanmakuMask },
-                        Modifier.danmakuMask(currentDanmakuMaskFrame, areaRatio)
+                        Modifier.danmakuMask(currentDanmakuMaskFrame, aspectRatio, areaRatio)
                     ),
                 danmakuPlayer = playerViewModel.danmakuPlayer
             )
