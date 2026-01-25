@@ -39,7 +39,6 @@ class VideoPlayerV3Activity : ComponentActivity() {
             subType: Int? = null,
             epid: Int? = null,
             seasonId: Int? = null,
-            isVerticalVideo: Boolean = false,
             proxyArea: ProxyArea = ProxyArea.MainLand,
             author: Author? = null
         ) {
@@ -55,7 +54,6 @@ class VideoPlayerV3Activity : ComponentActivity() {
                     putExtra("subType", subType)
                     putExtra("epid", epid)
                     putExtra("seasonId", seasonId)
-                    putExtra("isVerticalVideo", isVerticalVideo)
                     putExtra("proxy_area", proxyArea.ordinal)
                     putExtra("author_mid", author?.mid)
                     putExtra("author_name", author?.name)
@@ -152,7 +150,6 @@ class VideoPlayerV3Activity : ComponentActivity() {
             val subType = intent.getIntExtra("subType", 0)
             val epid = intent.getIntExtra("epid", 0)
             val seasonId = intent.getIntExtra("seasonId", 0)
-            val isVerticalVideo = intent.getBooleanExtra("isVerticalVideo", false)
             val proxyArea = ProxyArea.entries[intent.getIntExtra("proxy_area", 0)]
             val author_mid = intent.getLongExtra("author_mid", 0)
             val author_name = intent.getStringExtra("author_name")
@@ -167,7 +164,6 @@ class VideoPlayerV3Activity : ComponentActivity() {
                 fromSeason = fromSeason,
                 subType = subType,
                 seasonId = seasonId,
-                isVerticalVideo = isVerticalVideo,
                 proxyArea = proxyArea,
                 authorMid = author_mid,
                 authorName = author_name ?: ""

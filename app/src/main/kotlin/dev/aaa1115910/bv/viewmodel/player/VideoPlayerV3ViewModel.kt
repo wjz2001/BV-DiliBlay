@@ -213,7 +213,6 @@ class VideoPlayerV3ViewModel(
                 subType = subType,
                 epid = epid,
                 seasonId = seasonId,
-                isVertical = isVerticalVideo,
                 proxyArea = proxyArea,
                 authorMid = authorMid,
                 authorName = authorName,
