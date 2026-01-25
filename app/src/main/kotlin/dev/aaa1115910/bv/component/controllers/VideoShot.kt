@@ -1,15 +1,13 @@
 package dev.aaa1115910.bv.component.controllers
 
-import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,8 +19,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
@@ -33,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.bv.util.SpriteFrame
+import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.getSpriteFrame
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
@@ -46,37 +44,42 @@ fun VideoShot(
     coercedOffset: Dp = 0.dp
 ) {
     val view = LocalView.current
-    val density = LocalDensity.current
-
+    val cache = remember(videoShot) { VideoShotImageCache() }
     var spriteFrame by remember { mutableStateOf<SpriteFrame?>(null) }
-    var imageWidth by remember { mutableStateOf(0.dp) }
 
-    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
-        val screenWidth = maxWidth
-
-        // 计算偏移量：仅在数值真正变化时触发重组
-        val coercedImageOffset by remember(position, imageWidth, screenWidth, duration) {
-            derivedStateOf {
-                if (duration <= 0L || imageWidth <= 0.dp) return@derivedStateOf 0.dp
-                val progress = position.toFloat() / duration.toFloat()
-                val imageOffset = (-imageWidth / 2) + (screenWidth * progress)
-                imageOffset.coerceIn(coercedOffset, screenWidth - imageWidth - coercedOffset)
-            }
-        }
-
-        // 异步获取帧数据：带轻微防抖，防止瞬间滑动产生过多任务
+    Box(modifier = modifier.fillMaxWidth()) {
         LaunchedEffect(position) {
             if (view.isInEditMode) return@LaunchedEffect
-            delay(16) // 约 60fps 的刷新间隔
-            spriteFrame = videoShot.getSpriteFrame(position.toInt() / 1000)
+            delay(16)
+            spriteFrame = videoShot.getSpriteFrame(position.toInt() / 1000, cache)
         }
 
         spriteFrame?.let { frame ->
             VideoShotImage(
                 modifier = Modifier
-                    .offset(x = coercedImageOffset)
-                    .onSizeChanged {
-                        imageWidth = with(density) { it.width.toDp() }
+                    .layout { measurable, constraints ->
+                        val placeable = measurable.measure(constraints)
+
+                        val containerWidthPx = constraints.maxWidth
+                        val imageWidthPx = placeable.width
+                        val coercedOffsetPx = coercedOffset.roundToPx()
+
+                        val xPosition = if (duration <= 0L) {
+                            0
+                        } else {
+                            val progress = position.toDouble() / duration.toDouble()
+                            val rawOffset = (-imageWidthPx / 2.0) + (containerWidthPx * progress)
+
+                            val minOffset = coercedOffsetPx.toDouble()
+                            val maxOffset =
+                                (containerWidthPx - imageWidthPx - coercedOffsetPx).toDouble()
+
+                            rawOffset.coerceIn(minOffset, maxOffset).toInt()
+                        }
+
+                        layout(placeable.width, placeable.height) {
+                            placeable.placeRelative(x = xPosition, y = 0)
+                        }
                     },
                 spriteFrame = frame
             )
@@ -112,7 +115,12 @@ fun VideoShotImage(
                     )
 
                     if (view.isInEditMode) {
-                        drawLine(Color.White, Offset(center.x, 0f), Offset(center.y, size.height), 2f)
+                        drawLine(
+                            Color.White,
+                            Offset(center.x, 0f),
+                            Offset(center.y, size.height),
+                            2f
+                        )
                     }
                 }
             }

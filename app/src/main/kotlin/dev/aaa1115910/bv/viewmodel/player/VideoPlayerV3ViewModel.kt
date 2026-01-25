@@ -188,12 +188,10 @@ class VideoPlayerV3ViewModel(
         cid: Long,
         epid: Int?,
         title: String,
-        partTitle: String,
         lastPlayed: Int,
         fromSeason: Boolean,
         subType: Int,
         seasonId: Int,
-        isVerticalVideo: Boolean = false,
         proxyArea: ProxyArea = ProxyArea.MainLand,
         authorMid: Long = 0,
         authorName: String
@@ -207,7 +205,6 @@ class VideoPlayerV3ViewModel(
         _uiState.update {
             it.copy(
                 title = title,
-                partTitle = partTitle,
                 lastPlayed = lastPlayed,
                 fromSeason = fromSeason,
                 subType = subType,
