@@ -13,14 +13,14 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import java.util.concurrent.ConcurrentHashMap
 
-suspend fun VideoShot.getSpriteFrame(time: Int): SpriteFrame {
+suspend fun VideoShot.getSpriteFrame(time: Int, cache: VideoShotImageCache): SpriteFrame {
     val index = findClosestValueIndex(times, time.toUShort())
     val singleImgCount = imageCountX * imageCountY
     val imagesIndex = index / singleImgCount
     val imageIndex = index % singleImgCount
 
-    // 获取大图引用
-    val spriteSheet = VideoShotImageCache.getOrDecodeImage(
+    // 使用传入的 cache 实例，而不是全局单例
+    val spriteSheet = cache.getOrDecodeImage(
         imagesIndex,
         images[imagesIndex]!!
     ).asImageBitmap()
@@ -52,12 +52,15 @@ private fun findClosestValueIndex(array: List<UShort>, target: UShort): Int {
     return left
 }
 
-private object VideoShotImageCache {
+class VideoShotImageCache {
     private val memoryCache = LruCache<Int, Bitmap>(3) // 缓存3张大图
     private val activeTasks = ConcurrentHashMap<Int, Deferred<Bitmap>>()
-    val bitmapOptions = BitmapFactory.Options().apply {
-        inPreferredConfig = Bitmap.Config.RGB_565
-        inScaled = false
+
+    companion object {
+        val bitmapOptions = BitmapFactory.Options().apply {
+            inPreferredConfig = Bitmap.Config.RGB_565
+            inScaled = false
+        }
     }
 
     suspend fun getOrDecodeImage(imagesIndex: Int, imageData: ByteArray): Bitmap = coroutineScope {
