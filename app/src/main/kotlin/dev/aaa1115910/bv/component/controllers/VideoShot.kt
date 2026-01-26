@@ -39,19 +39,19 @@ import kotlin.math.roundToInt
 fun VideoShot(
     modifier: Modifier = Modifier,
     videoShot: VideoShot,
+    imageCache: VideoShotImageCache,
     position: Long,
     duration: Long,
     coercedOffset: Dp = 0.dp
 ) {
     val view = LocalView.current
-    val cache = remember(videoShot) { VideoShotImageCache() }
     var spriteFrame by remember { mutableStateOf<SpriteFrame?>(null) }
 
     Box(modifier = modifier.fillMaxWidth()) {
         LaunchedEffect(position) {
             if (view.isInEditMode) return@LaunchedEffect
             delay(16)
-            spriteFrame = videoShot.getSpriteFrame(position.toInt() / 1000, cache)
+            spriteFrame = videoShot.getSpriteFrame(position.toInt() / 1000, imageCache)
         }
 
         spriteFrame?.let { frame ->
@@ -141,6 +141,7 @@ private fun VideoShotPreview(@PreviewParameter(VideoShotProgressProvider::class)
                     imageHeight = 0,
                     images = emptyList()
                 ),
+                imageCache = VideoShotImageCache(),
                 position = data.second,
                 duration = data.first
             )

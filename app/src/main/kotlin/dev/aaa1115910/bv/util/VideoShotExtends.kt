@@ -79,6 +79,11 @@ class VideoShotImageCache {
             activeTasks.remove(imagesIndex)
         }
     }
+
+    fun clear() {
+        memoryCache.evictAll()
+        activeTasks.clear()
+    }
 }
 
 // 包装了大图（精灵图）和小图对应的矩形区域

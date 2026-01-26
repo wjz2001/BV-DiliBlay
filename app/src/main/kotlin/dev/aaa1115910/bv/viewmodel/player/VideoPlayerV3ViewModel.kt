@@ -57,7 +57,9 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -71,6 +73,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.koin.android.annotation.KoinViewModel
 import java.net.URI
 import java.util.Calendar
@@ -244,9 +247,27 @@ class VideoPlayerV3ViewModel(
     }
 
     fun dettachPlayer() {
+        val player = videoPlayer
+        // 最后一次发送心跳
+        if (player != null && !Prefs.incognitoMode) {
+            val currentTime = (player.currentPosition.coerceAtLeast(0) / 1000).toInt()
+            val totalTime = (player.duration.coerceAtLeast(0) / 1000).toInt()
+            val reportTime = if (currentTime >= totalTime) -1 else currentTime
+
+            @OptIn(DelicateCoroutinesApi::class)
+            GlobalScope.launch(Dispatchers.IO) { // 使用GlobalScope，避免ViewModel销毁导致协程域取消
+                try {
+                    withTimeout(3000L) { // 3秒超时
+                        uploadHistory(reportTime)
+                    }
+                } catch (e: Exception) {
+                    logger.warn { "Failed to upload history on detach: $e" }
+                }
+            }
+        }
+
         videoPlayer?.release()
         videoPlayer = null
-        _uiState.update { PlayerUiState() }
     }
 
     fun initDanmakuPlayer() {
@@ -465,7 +486,6 @@ class VideoPlayerV3ViewModel(
         _uiState.update { it.copy(showBackToStart = false) }
 
         videoPlayer?.seekTo(0)
-        videoPlayer?.start()
         danmakuPlayer?.seekTo(0)
         // akdanmaku 会在跳转后立即播放，如果需要缓冲则会导致弹幕不同步
         danmakuPlayer?.pause()
@@ -496,6 +516,11 @@ class VideoPlayerV3ViewModel(
 
     fun playNewVideo(video: VideoListItem) {
         videoPlayer?.pause()
+
+        // 重置弹幕
+        danmakuPlayer?.pause()
+        danmakuPlayer?.clear()
+        danmakuPlayer?.seekTo(0)
         _uiState.update {
             it.copy(title = video.title)
         }
@@ -504,9 +529,7 @@ class VideoPlayerV3ViewModel(
             cid = video.cid,
             epid = video.epid,
             seasonId = video.seasonId,
-            continuePlayNext = true
         )
-        videoPlayer?.start()
     }
 
     fun trySendHeartbeat() {
@@ -531,7 +554,6 @@ class VideoPlayerV3ViewModel(
         cid: Long,
         epid: Int? = null,
         seasonId: Int? = null,
-        continuePlayNext: Boolean = false
     ) {
         _uiState.update {
             it.copy(
@@ -556,14 +578,13 @@ class VideoPlayerV3ViewModel(
             updateSubtitle()
             updateVideoShot()
             updateVideoPages()
+            clearVideoShotCache()
 
             //如果是继续播放下一集，且之前开启了字幕，就会自动加载第一条字幕，主要用于观看番剧时自动加载字幕
             val lastPlayEnabledSubtitle = _uiState.value.subtitleId != -1L
-            if (continuePlayNext) {
-                if (lastPlayEnabledSubtitle) {
-                    logger.info { "Subtitle is enabled, next video will enable subtitle automatic" }
-                    enableFirstSubtitle()
-                }
+            if (lastPlayEnabledSubtitle) {
+                logger.info { "Subtitle is enabled, next video will enable subtitle automatic" }
+                enableFirstSubtitle()
             }
         }
     }
@@ -686,6 +707,7 @@ class VideoPlayerV3ViewModel(
                     codec = targetCodec,
                     audio = targetAudio,
                 )
+                videoPlayer?.start()
             }
         }.onFailure { throwable ->
             _uiState.update {
@@ -849,12 +871,11 @@ class VideoPlayerV3ViewModel(
                     textColor = Color(it.color).toArgb()
                 )
             }
-            _uiState.update { it.copy(danmakuData = danmakuItemDataList) }
             danmakuPlayer?.updateData(danmakuItemDataList)
         }.onFailure {
             logger.fWarn { "Load danmaku filed: ${it.stackTraceToString()}" }
         }.onSuccess {
-            logger.fInfo { "Load danmaku success, size=${_uiState.value.danmakuData.size}" }
+            logger.fInfo { "Load danmaku success" }
         }
     }
 
@@ -910,7 +931,7 @@ class VideoPlayerV3ViewModel(
         }
     }
 
-    private suspend fun uploadHistory(time: Int) = withContext(Dispatchers.IO) {
+    private suspend fun uploadHistory(time: Int) {
         val state = _uiState.value
 
         try {
@@ -981,6 +1002,10 @@ class VideoPlayerV3ViewModel(
         }.onFailure { err ->
             logger.fWarn { "Load video shot failed: ${err.stackTraceToString()}" }
         }
+    }
+
+    private fun clearVideoShotCache(){
+        _uiState.value.videoShotCache.clear()
     }
 
     private fun initDanmakuConfig() {
@@ -1065,37 +1090,31 @@ class VideoPlayerV3ViewModel(
             }
             delay(5000)
 
-            playTarget(target)
+            playNextTarget(target)
             _uiState.update { it.copy(showSkipToNextEp = false) }
         }
     }
 
-    private fun playTarget(target: NextPlayTarget) {
+    private fun playNextTarget(target: NextPlayTarget) {
         when (target) {
             is NextPlayTarget.UgcPage -> {
                 logger.info { "Play next UGC page: ${target.page.title}" }
-                loadPlayUrl(
-                    avid = target.parentVideo.aid,
+                playNewVideo(VideoListItem(
+                    aid = target.parentVideo.aid,
                     cid = target.page.cid,
-                    epid = null,
-                    seasonId = null,
-                    continuePlayNext = true
-                )
+                    title = target.title))
             }
 
             is NextPlayTarget.VideoItem -> {
                 logger.info { "Play next video item: ${target.video.title}" }
-                loadPlayUrl(
-                    avid = target.video.aid,
+                playNewVideo(VideoListItem(
+                    aid = target.video.aid,
                     cid = target.video.cid,
+                    title = target.title,
                     epid = target.video.epid,
-                    seasonId = target.video.seasonId,
-                    continuePlayNext = true
-                )
+                    seasonId = target.video.seasonId,))
             }
         }
-        _uiState.update { it.copy(title = target.title) }
-
     }
 
     private fun seekToLastPlayed() {

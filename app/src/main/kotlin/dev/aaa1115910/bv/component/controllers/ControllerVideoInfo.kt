@@ -56,6 +56,7 @@ import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.ui.state.SeekerState
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.formatHourMinSec
 import kotlinx.coroutines.delay
 
@@ -69,6 +70,7 @@ fun ControllerVideoInfo(
     title: String,
     clock: Pair<Int, Int>,
     videoShot: VideoShot?,
+    videoShotCache: VideoShotImageCache,
     fromSeason: Boolean,
     danmakuEnabled: Boolean,
     isLooping: Boolean,
@@ -113,6 +115,7 @@ fun ControllerVideoInfo(
                 goTime = goTime,
                 seekerState = seekerState,
                 videoShot = videoShot,
+                videoShotCache = videoShotCache,
                 fromSeason = fromSeason,
                 danmakuEnabled = danmakuEnabled,
                 isLooping = isLooping,
@@ -191,6 +194,7 @@ fun ControllerVideoInfoBottom(
     goTime: Long,
     seekerState: SeekerState,
     videoShot: VideoShot?,
+    videoShotCache: VideoShotImageCache,
     fromSeason: Boolean,
     danmakuEnabled: Boolean,
     isLooping: Boolean,
@@ -232,6 +236,7 @@ fun ControllerVideoInfoBottom(
                 modifier = Modifier
                     .padding(horizontal = 48.dp),
                 videoShot = videoShot,
+                imageCache = videoShotCache,
                 position = goTime,
                 duration = seekerState.totalDuration,
                 coercedOffset = (-24).dp
@@ -408,6 +413,7 @@ private fun ControllerVideoInfoPreview() {
             title = "【A320】民航史上最佳逆袭！A320的前世今生！民航史上最佳逆袭！A320的前世今生！",
             clock = Pair(12, 30),
             videoShot = null,
+            videoShotCache = VideoShotImageCache(),
             fromSeason = false,
             danmakuEnabled = false,
             isLooping = false,
