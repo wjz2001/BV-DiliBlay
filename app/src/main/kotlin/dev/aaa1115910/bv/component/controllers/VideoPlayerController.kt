@@ -327,6 +327,7 @@ fun VideoPlayerController(
             title = uiState.title,
             clock = uiState.clock,
             videoShot = uiState.videoShot,
+            videoShotCache = uiState.videoShotCache,
             fromSeason = fromSeason,
             danmakuEnabled = uiState.danmakuState.enabledTypes.isNotEmpty(),
             isLooping = isLooping,

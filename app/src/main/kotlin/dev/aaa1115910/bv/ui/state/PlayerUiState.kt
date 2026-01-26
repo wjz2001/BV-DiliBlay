@@ -15,6 +15,7 @@ import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+import dev.aaa1115910.bv.util.VideoShotImageCache
 
 // 1. 核心 UI 状态 (低频更新)
 data class PlayerUiState(
@@ -37,8 +38,9 @@ data class PlayerUiState(
     // 播放状态
     val playerState: PlayerState = PlayerState.Ready,
     val isBuffering: Boolean = false, // 缓冲和暂停会同时出现，单独列出
-    // 进度条缩略图
+    // 进度条缩略图及其缓存
     val videoShot: VideoShot? = null,
+    val videoShotCache: VideoShotImageCache = VideoShotImageCache(),
     // 播放器时钟
     val clock: Pair<Int, Int> = Pair(0, 0),
 
@@ -64,13 +66,20 @@ data class PlayerUiState(
 
     // 弹幕状态
     val danmakuState: DanmakuState = DanmakuState(),
-    val danmakuData: List<DanmakuItemData> = emptyList(),
     val danmakuMasks: List<DanmakuMaskSegment> = emptyList(),
 
     // 字幕状态
     val subtitleState: SubtitleState = SubtitleState(),
     val subtitleId: Long = -1L,
     val subtitleData: List<SubtitleItem> = emptyList(),
+)
+
+// 2. 播放器进度条状态 (高频更新)
+data class SeekerState(
+    val totalDuration: Long = 0,
+    val currentTime: Long = 0,
+    val bufferedPercentage: Int = 0,
+    val debugInfo: String = ""
 )
 
 data class DanmakuState(
@@ -101,11 +110,3 @@ sealed class PlayerState {
     data object Ended: PlayerState()
     data class Error(val message: String): PlayerState()
 }
-
-// 2. 播放器进度条状态 (高频更新)
-data class SeekerState(
-    val totalDuration: Long = 0,
-    val currentTime: Long = 0,
-    val bufferedPercentage: Int = 0,
-    val debugInfo: String = ""
-)
