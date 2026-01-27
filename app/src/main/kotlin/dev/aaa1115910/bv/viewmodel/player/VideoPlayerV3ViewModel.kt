@@ -436,7 +436,10 @@ class VideoPlayerV3ViewModel(
                 }
                 return
             }
-            ActionAfterPlayItems.PlayNext -> { /* 继续执行 */ }
+
+            ActionAfterPlayItems.PlayNext -> {
+                /* 继续执行 */
+            }
         }
 
         val currentState = _uiState.value
@@ -518,9 +521,8 @@ class VideoPlayerV3ViewModel(
         videoPlayer?.pause()
 
         // 重置弹幕
-        danmakuPlayer?.pause()
-        danmakuPlayer?.clear()
-        danmakuPlayer?.seekTo(0)
+        releaseDanmakuPlayer()
+        initDanmakuPlayer()
         _uiState.update {
             it.copy(title = video.title)
         }
@@ -543,7 +545,7 @@ class VideoPlayerV3ViewModel(
 
             val reportTime = if (currentTimeSeconds >= totalTimeSeconds) -1 else currentTimeSeconds
 
-            withContext(Dispatchers.IO){
+            withContext(Dispatchers.IO) {
                 uploadHistory(reportTime)
             }
         }
@@ -606,7 +608,7 @@ class VideoPlayerV3ViewModel(
                     epid = epid,
                     preferCodec = Prefs.defaultVideoCodec.toBiliApiCodeType(),
                     preferApiType = Prefs.apiType,
-                    enableProxy = proxyArea != ProxyArea.MainLand,
+                    enableProxy = Prefs.enableProxy,
                     proxyArea = when (proxyArea) {
                         ProxyArea.MainLand -> ""
                         ProxyArea.HongKong -> "hk"
@@ -857,7 +859,7 @@ class VideoPlayerV3ViewModel(
         runCatching {
             val danmakuXmlData = BiliHttpApi.getDanmakuXml(cid = cid, sessData = Prefs.sessData)
 
-            val danmakuItemDataList = danmakuXmlData.data.map {
+            danmakuXmlData.data.map {
                 DanmakuItemData(
                     danmakuId = it.dmid,
                     position = (it.time * 1000).toLong(),
@@ -871,11 +873,11 @@ class VideoPlayerV3ViewModel(
                     textColor = Color(it.color).toArgb()
                 )
             }
-            danmakuPlayer?.updateData(danmakuItemDataList)
-        }.onFailure {
-            logger.fWarn { "Load danmaku filed: ${it.stackTraceToString()}" }
-        }.onSuccess {
-            logger.fInfo { "Load danmaku success" }
+        }.onSuccess { list ->
+            danmakuPlayer?.updateData(list)
+            logger.fInfo { "Load danmaku success, size: ${list.size}" }
+        }.onFailure { error ->
+            logger.fWarn { "Load danmaku failed: ${error.stackTraceToString()}" }
         }
     }
 
@@ -1004,7 +1006,7 @@ class VideoPlayerV3ViewModel(
         }
     }
 
-    private fun clearVideoShotCache(){
+    private fun clearVideoShotCache() {
         _uiState.value.videoShotCache.clear()
     }
 
@@ -1099,20 +1101,26 @@ class VideoPlayerV3ViewModel(
         when (target) {
             is NextPlayTarget.UgcPage -> {
                 logger.info { "Play next UGC page: ${target.page.title}" }
-                playNewVideo(VideoListItem(
-                    aid = target.parentVideo.aid,
-                    cid = target.page.cid,
-                    title = target.title))
+                playNewVideo(
+                    VideoListItem(
+                        aid = target.parentVideo.aid,
+                        cid = target.page.cid,
+                        title = target.title
+                    )
+                )
             }
 
             is NextPlayTarget.VideoItem -> {
                 logger.info { "Play next video item: ${target.video.title}" }
-                playNewVideo(VideoListItem(
-                    aid = target.video.aid,
-                    cid = target.video.cid,
-                    title = target.title,
-                    epid = target.video.epid,
-                    seasonId = target.video.seasonId,))
+                playNewVideo(
+                    VideoListItem(
+                        aid = target.video.aid,
+                        cid = target.video.cid,
+                        title = target.title,
+                        epid = target.video.epid,
+                        seasonId = target.video.seasonId,
+                    )
+                )
             }
         }
     }
