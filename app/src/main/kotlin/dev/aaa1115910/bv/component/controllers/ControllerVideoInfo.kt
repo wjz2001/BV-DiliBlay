@@ -108,8 +108,11 @@ fun ControllerVideoInfo(
                 modifier = Modifier.align(Alignment.TopCenter),
                 title = title,
                 clock = clock,
-                currentTime = infoData.currentTime,
-                totalDuration = infoData.totalDuration,
+                currentTime = seekerState.currentTime,
+                totalDuration = seekerState.totalDuration,
+                isSeeking = isSeeking,
+                goTime = goTime,
+                seekerState = seekerState,
                 currentPlaySpeed = currentPlaySpeed
             )
         }
@@ -127,6 +130,7 @@ fun ControllerVideoInfo(
                 isSeeking = isSeeking,
                 goTime = goTime,
                 seekerState = seekerState,
+                subtitle = subtitle,
                 videoShot = videoShot,
                 videoShotCache = videoShotCache,
                 fromSeason = fromSeason,
@@ -150,6 +154,9 @@ fun ControllerVideoInfo(
 fun ControllerVideoInfoTop(
     modifier: Modifier = Modifier,
     title: String,
+    isSeeking: Boolean,
+    goTime: Long,
+    seekerState: SeekerState,
     clock: Pair<Int, Int>,
     currentTime: Long = 0,
     totalDuration: Long = 0,
@@ -203,9 +210,10 @@ fun ControllerVideoInfoTop(
             Clock(
                 hour = clock.first,
                 minute = clock.second,
-                second = clock.third,
+                second = 0,
                 // 4. 将计算所需的所有数据都传给 Clock 组件
-                currentTime = currentTime,
+                // currentTime = currentTime,
+                currentTime = if (isSeeking) goTime else seekerState.currentTime,//结束时间随着进度条拖动变化
                 totalDuration = totalDuration,
                 currentPlaySpeed = currentPlaySpeed
             )
@@ -284,7 +292,7 @@ fun ControllerVideoInfoBottom(
             Text(
                 modifier = Modifier
                     .padding(horizontal = 24.dp),
-                text = "${if (isSeeking) goTime.formatHourMinSec() else infoData.currentTime.formatHourMinSec()} / ${infoData.totalDuration.formatHourMinSec()}",
+                text = "${if (isSeeking) goTime.formatHourMinSec() else seekerState.currentTime.formatHourMinSec()} / ${seekerState.totalDuration.formatHourMinSec()}",
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 style = TextStyle(
@@ -307,7 +315,7 @@ fun ControllerVideoInfoBottom(
             Text(
                 modifier = Modifier
                     .padding(horizontal = 24.dp),
-                text = "${if (isSeeking) goTime.formatHourMinSec() else infoData.currentTime.formatHourMinSec()} / ${infoData.totalDuration.formatHourMinSec()}",
+                text = "${if (isSeeking) goTime.formatHourMinSec() else seekerState.currentTime.formatHourMinSec()} / ${seekerState.totalDuration.formatHourMinSec()}",
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 style = TextStyle(
