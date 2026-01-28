@@ -28,8 +28,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -199,23 +197,28 @@ fun VideoPlayerController(
                 }
                 return true
             }
+
             Key.Menu -> {
                 showInfoSeekController = false
                 showMenuController = !showMenuController
                 return true
             }
+
             Key(763) -> {
                 showMenuController = true
                 return true
             }
+
             Key.MediaPlayPause -> {
                 onPlayPause()
                 return true
             }
+
             Key.MediaPlay -> {
                 if (!videoPlayer.isPlaying) onPlay()
                 return true
             }
+
             Key.MediaPause -> {
                 if (videoPlayer.isPlaying) onPause()
                 return true
@@ -232,23 +235,23 @@ fun VideoPlayerController(
                             showMenuController = true
                         }
                         return true
-                    } else {
-                        onPlayPause()
                     }
-                        /*
+                    onPlayPause()
+                    /*
                         if (uiState.showBackToStart) {
                             onBackToStart()
                         } else {
                             onPlayPause()
                         }
                          */
-                        return true
-                    }
+                    return true
                 }
+
                 Key.DirectionUp -> {
                     showListController = true
                     return true
                 }
+
                 Key.DirectionDown -> {
                     showInfoSeekController = true
                     if (event.nativeKeyEvent.isLongPress) {
@@ -256,12 +259,14 @@ fun VideoPlayerController(
                     }
                     return true
                 }
+
                 Key.MediaRewind, Key.DirectionLeft -> {
                     if (uiState.showSkipToNextEp) onCancelSkipToNextEp()
                     showInfoSeekController = true
                     onDirectionLeft()
                     return true
                 }
+
                 Key.MediaFastForward, Key.DirectionRight -> {
                     showInfoSeekController = true
                     onDirectionRight()
@@ -305,141 +310,144 @@ fun VideoPlayerController(
                 )
             }
         }
-        if (uiState.subtitleId != -1L) {
-            val currentTime = seekerState.value.currentTime
-
             CompositionLocalProvider(
                 LocalDensity provides Density(
                     density = LocalDensity.current.density * 1.5f,
                     fontScale = LocalDensity.current.fontScale * 1.5f
                 )
             ) {
-            BottomSubtitle(
-                subtitleData = uiState.subtitleData,
-                currentTime = currentTime,
-                fontSize = uiState.subtitleState.fontSize,
-                opacity = uiState.subtitleState.opacity,
-                padding = uiState.subtitleState.bottomPadding,
-            )
-        }
+                if (uiState.subtitleId != -1L) {
+                    val currentTime = seekerState.value.currentTime
 
-        SkipTips(
-            historyTime = uiState.lastPlayed.toLong(),
-            showBackToStart = uiState.showBackToStart,
-            showSkipToNextEp = uiState.showSkipToNextEp,
-        )
-
-        PlayStateTips(
-            isPlaying = uiState.playerState == PlayerState.Playing,
-            isBuffering = uiState.isBuffering,
-            isError = uiState.playerState is PlayerState.Error,
-            errorMessage = (uiState.playerState as? PlayerState.Error)?.message,
-            needPay = uiState.needPay,
-            epid = uiState.epid ?: 0,
-        )
-
-        ControllerVideoInfo(
-            modifier = Modifier.focusable(),
-            show = showInfoSeekController,
-            isSeeking = isSeeking,
-            goTime = goTime,
-            seekerState = seekerState.value,
-            title = uiState.title,
-            subtitle = data.secondTitle,
-            clock = uiState.clock,
-            // 新增这一行，将播放速度传递下去
-            currentPlaySpeed = data.currentVideoSpeed,
-            videoShot = uiState.videoShot,
-            videoShotCache = uiState.videoShotCache,
-            fromSeason = fromSeason,
-            danmakuEnabled = uiState.danmakuState.enabledTypes.isNotEmpty(),
-            isLooping = isLooping,
-            onDirectionLeft = { onDirectionLeft() },
-            onDirectionRight = { onDirectionRight() },
-            onSeekGoTime = { onSeekGoTime() },
-            onPlayPause = { onPlayPause() },
-            onDanmakuSwitchChange = {
-                if (uiState.danmakuState.enabledTypes.isEmpty()) {
-                    onDanmakuSettingChange(DanmakuSettingAction.SetEnabledTypes(DanmakuType.entries))
-                } else {
-                    onDanmakuSettingChange(DanmakuSettingAction.SetEnabledTypes(emptyList()))
+                    BottomSubtitle(
+                        subtitleData = uiState.subtitleData,
+                        currentTime = currentTime,
+                        fontSize = uiState.subtitleState.fontSize,
+                        opacity = uiState.subtitleState.opacity,
+                        padding = uiState.subtitleState.bottomPadding,
+                    )
                 }
-            },
-            onShowSettings = {
-                showInfoSeekController = false
-                showMenuController = true
-            },
-            onGoToVideoInfo = {
-                VideoInfoActivity.actionStart(
-                    context = context,
-                    aid = aid,
+
+                SkipTips(
+                    historyTime = uiState.lastPlayed.toLong(),
+                    showBackToStart = uiState.showBackToStart,
+                    showSkipToNextEp = uiState.showSkipToNextEp,
+                )
+
+                PlayStateTips(
+                    isPlaying = uiState.playerState == PlayerState.Playing,
+                    isBuffering = uiState.isBuffering,
+                    isError = uiState.playerState is PlayerState.Error,
+                    errorMessage = (uiState.playerState as? PlayerState.Error)?.message,
+                    needPay = uiState.needPay,
+                    epid = uiState.epid ?: 0,
+                )
+
+                val secondTitle =
+                    uiState.availableVideoList.firstOrNull { it.cid == uiState.cid }?.title.orEmpty()
+
+                ControllerVideoInfo(
+                    modifier = Modifier.focusable(),
+                    show = showInfoSeekController,
+                    isSeeking = isSeeking,
+                    goTime = goTime,
+                    seekerState = seekerState.value,
+                    title = uiState.title,
+                    subtitle = secondTitle,
+                    clock = uiState.clock,
+                    currentPlaySpeed = uiState.playSpeed,
+                    videoShot = uiState.videoShot,
+                    videoShotCache = uiState.videoShotCache,
                     fromSeason = fromSeason,
-                    fromController = true,
-                    proxyArea = proxyArea
+                    danmakuEnabled = uiState.danmakuState.enabledTypes.isNotEmpty(),
+                    isLooping = isLooping,
+                    onDirectionLeft = { onDirectionLeft() },
+                    onDirectionRight = { onDirectionRight() },
+                    onSeekGoTime = { onSeekGoTime() },
+                    onPlayPause = { onPlayPause() },
+                    onDanmakuSwitchChange = {
+                        if (uiState.danmakuState.enabledTypes.isEmpty()) {
+                            onDanmakuSettingChange(DanmakuSettingAction.SetEnabledTypes(DanmakuType.entries))
+                        } else {
+                            onDanmakuSettingChange(DanmakuSettingAction.SetEnabledTypes(emptyList()))
+                        }
+                    },
+                    onShowSettings = {
+                        showInfoSeekController = false
+                        showMenuController = true
+                    },
+                    onGoToVideoInfo = {
+                        VideoInfoActivity.actionStart(
+                            context = context,
+                            aid = aid,
+                            fromSeason = fromSeason,
+                            fromController = true,
+                            proxyArea = proxyArea
+                        )
+                    },
+                    onToggleLoop = onToggleLoop,
+                    onGoToUpPage = onGoToUpPage,
                 )
-            },
-            onToggleLoop = onToggleLoop,
-            onGoToUpPage = onGoToUpPage
-        )
 
-        VideoListController(
-            show = showListController,
-            currentCid = uiState.cid,
-            videoList = uiState.availableVideoList,
-            onPlayNewVideo = onPlayNewVideo
-        )
+                VideoListController(
+                    show = showListController,
+                    currentCid = uiState.cid,
+                    videoList = uiState.availableVideoList,
+                    onPlayNewVideo = onPlayNewVideo
+                )
 
-        MenuController(
-            show = showMenuController,
-            uiState = uiState,
-            onResolutionChange = { qualityId ->
-                onMediaProfileSettingChange(
-                    MediaProfileSettingAction.SetQuality(qualityId)
+                MenuController(
+                    show = showMenuController,
+                    uiState = uiState,
+                    onResolutionChange = { qualityId ->
+                        onMediaProfileSettingChange(
+                            MediaProfileSettingAction.SetQuality(qualityId)
+                        )
+                    },
+                    onCodecChange = { codec ->
+                        onMediaProfileSettingChange(
+                            MediaProfileSettingAction.SetVideoCodec(codec)
+                        )
+                    },
+                    onAudioChange = { audio ->
+                        onMediaProfileSettingChange(
+                            MediaProfileSettingAction.SetAudio(audio)
+                        )
+                    },
+                    onAspectRatioChange = onAspectRatioChange,
+                    onPlaySpeedChange = onPlaySpeedChange,
+                    onDanmakuSwitchChange = { danmakuTypes ->
+                        onDanmakuSettingChange(DanmakuSettingAction.SetEnabledTypes(danmakuTypes))
+                    },
+                    onDanmakuSizeChange = { scale ->
+                        onDanmakuSettingChange(DanmakuSettingAction.SetScale(scale))
+                    },
+                    onDanmakuOpacityChange = { opacity ->
+                        onDanmakuSettingChange(DanmakuSettingAction.SetOpacity(opacity))
+                    },
+                    onDanmakuSpeedFactorChange = { factor ->
+                        onDanmakuSettingChange(DanmakuSettingAction.SetSpeedFactor(factor))
+                    },
+                    onDanmakuAreaChange = { area ->
+                        onDanmakuSettingChange(DanmakuSettingAction.SetArea(area))
+                    },
+                    onDanmakuMaskChange = { enabled ->
+                        onDanmakuSettingChange(DanmakuSettingAction.SetMaskEnabled(enabled))
+                    },
+                    onSubtitleChange = onSubtitleChange,
+                    onSubtitleSizeChange = { size ->
+                        onSubtitleSettingChange(SubtitleSettingAction.SetFontSize(size))
+                    },
+                    onSubtitleBackgroundOpacityChange = { opacity ->
+                        onSubtitleSettingChange(SubtitleSettingAction.SetOpacity(opacity))
+                    },
+                    onSubtitleBottomPadding = { padding ->
+                        onSubtitleSettingChange(SubtitleSettingAction.SetBottomPadding(padding))
+                    }
                 )
-            },
-            onCodecChange = { codec ->
-                onMediaProfileSettingChange(
-                    MediaProfileSettingAction.SetVideoCodec(codec)
-                )
-            },
-            onAudioChange = { audio ->
-                onMediaProfileSettingChange(
-                    MediaProfileSettingAction.SetAudio(audio)
-                )
-            },
-            onAspectRatioChange = onAspectRatioChange,
-            onPlaySpeedChange = onPlaySpeedChange,
-            onDanmakuSwitchChange = { danmakuTypes ->
-                onDanmakuSettingChange(DanmakuSettingAction.SetEnabledTypes(danmakuTypes))
-            },
-            onDanmakuSizeChange = { scale ->
-                onDanmakuSettingChange(DanmakuSettingAction.SetScale(scale))
-            },
-            onDanmakuOpacityChange = { opacity ->
-                onDanmakuSettingChange(DanmakuSettingAction.SetOpacity(opacity))
-            },
-            onDanmakuSpeedFactorChange = { factor ->
-                onDanmakuSettingChange(DanmakuSettingAction.SetSpeedFactor(factor))
-            },
-            onDanmakuAreaChange = { area ->
-                onDanmakuSettingChange(DanmakuSettingAction.SetArea(area))
-            },
-            onDanmakuMaskChange = { enabled ->
-                onDanmakuSettingChange(DanmakuSettingAction.SetMaskEnabled(enabled))
-            },
-            onSubtitleChange = onSubtitleChange,
-            onSubtitleSizeChange = { size ->
-                onSubtitleSettingChange(SubtitleSettingAction.SetFontSize(size))
-            },
-            onSubtitleBackgroundOpacityChange = { opacity ->
-                onSubtitleSettingChange(SubtitleSettingAction.SetOpacity(opacity))
-            },
-            onSubtitleBottomPadding = { padding ->
-                onSubtitleSettingChange(SubtitleSettingAction.SetBottomPadding(padding))
             }
-        )
-            }
+        }
     }
-}
+
 
 

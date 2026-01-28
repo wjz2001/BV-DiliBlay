@@ -1677,7 +1677,7 @@ fun VideoInfoScreen(
                             }
 
                             // ✅ 视频列表网格
-                            LazyVerticalGrid(
+                            TvLazyVerticalGrid(
                                 state = listState,
                                 modifier = Modifier.fillMaxSize(),  // ✅ 填充剩余空间
                                 columns = GridCells.Fixed(5),  // ✅ 从2列增加到5列
@@ -1909,7 +1909,7 @@ fun VideoInfoScreen(
                             }
 
                             // 视频列表
-                            LazyVerticalGrid(
+                            TvLazyVerticalGrid(
                                 state = listState,
                                 modifier = Modifier.fillMaxSize(),
                                 columns = GridCells.Fixed(5),

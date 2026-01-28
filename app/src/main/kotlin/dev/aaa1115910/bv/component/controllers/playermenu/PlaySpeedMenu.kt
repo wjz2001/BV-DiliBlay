@@ -50,15 +50,19 @@ fun PlaySpeedMenuList(
             modifier = Modifier
                 .width(216.dp)
                 .padding(horizontal = 8.dp),
-            value = data.currentVideoSpeed,
+            value = currentSelectedPlaySpeedItem.speed,
             step = 0.25f,
             range = 0.25f..5f,
-            text = "${(data.currentVideoSpeed * 100).roundToInt() / 100f}倍",
+            text = "${(currentSelectedPlaySpeedItem.speed * 100).roundToInt() / 100f}倍",
             onValueChange = { speed ->
                 onPlaySpeedChange(speed)
+                val speedItem = PlaySpeedItem.fromSpeedNearest(speed)
+                onPlaySpeedChange(speedItem.speed)
+                /*
                 val speedItem = PlaySpeedItem.fromSpeed(speed)
                 onSelectedPlaySpeedItemChange(speedItem)
                 Prefs.defaultPlaySpeed = speedItem
+                 */
             },
             onFocusBackToParent = { onFocusStateChange(MenuFocusState.MenuNav) }
         )
@@ -131,6 +135,10 @@ enum class PlaySpeedItem(val code: Int, private val strRes: Int, val speed: Floa
 
         fun fromSpeed(speed: Float): PlaySpeedItem {
             return entries.find { it.speed == speed } ?: x1
+        }
+
+        fun fromSpeedNearest(speed: Float): PlaySpeedItem {
+            return entries.minBy { kotlin.math.abs(it.speed - speed) }
         }
     }
 
