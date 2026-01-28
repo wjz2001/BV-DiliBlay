@@ -14,7 +14,7 @@ import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.repository.UserRepository
-import dev.aaa1115910.bv.ui.common.UiEvent
+import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.addWithMainContext
 import dev.aaa1115910.bv.util.fInfo
@@ -35,8 +35,8 @@ class ToViewViewModel(
     private val userRepository: UserRepository,
     private val ToViewRepository: ToViewRepository
 ) : ViewModel() {
-    private val _uiEvent = MutableSharedFlow<UiEvent>()
-    val uiEvent = _uiEvent.asSharedFlow()
+    private val _uiEffect = MutableSharedFlow<UiEffect>()
+    val uiEvent = _uiEffect.asSharedFlow()
 
     companion object {
         private val logger = KotlinLogging.logger { }
@@ -61,10 +61,10 @@ class ToViewViewModel(
             runCatching {
                 ToViewRepository.addToView(aid = aid, bvid = bvid)
             }.onSuccess {
-                _uiEvent.emit(UiEvent.ShowToast("添加到稍后再看"))
+                _uiEffect.emit(UiEffect.ShowToast("添加到稍后再看"))
             }.onFailure {
                 logger.fWarn { "Add toview failed: ${it.stackTraceToString()}" }
-                _uiEvent.emit(UiEvent.ShowToast("添加到稍后再看失败"))
+                _uiEffect.emit(UiEffect.ShowToast("添加到稍后再看失败"))
             }
         }
     }
@@ -74,10 +74,10 @@ class ToViewViewModel(
                 ToViewRepository.delToView(viewed = viewed, aid = aid)
             }.onSuccess {
                 histories.removeAll { it.avid == aid }
-                _uiEvent.emit(UiEvent.ShowToast("删除稍后再看"))
+                _uiEffect.emit(UiEffect.ShowToast("删除稍后再看"))
             }.onFailure {
                 logger.fWarn { "Delete toview failed: ${it.stackTraceToString()}" }
-                _uiEvent.emit(UiEvent.ShowToast("删除稍后再看失败"))
+                _uiEffect.emit(UiEffect.ShowToast("删除稍后再看失败"))
             }
         }
     }

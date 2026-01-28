@@ -20,7 +20,7 @@ import dev.aaa1115910.bv.screen.VideoPlayerV3Screen
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
-import dev.aaa1115910.bv.viewmodel.VideoPlayerV3ViewModel
+import dev.aaa1115910.bv.viewmodel.player.VideoPlayerV3ViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
@@ -39,7 +39,6 @@ class VideoPlayerV3Activity : ComponentActivity() {
             subType: Int? = null,
             epid: Int? = null,
             seasonId: Int? = null,
-            isVerticalVideo: Boolean = false,
             proxyArea: ProxyArea = ProxyArea.MainLand,
             author: Author? = null
         ) {
@@ -55,7 +54,6 @@ class VideoPlayerV3Activity : ComponentActivity() {
                     putExtra("subType", subType)
                     putExtra("epid", epid)
                     putExtra("seasonId", seasonId)
-                    putExtra("isVerticalVideo", isVerticalVideo)
                     putExtra("proxy_area", proxyArea.ordinal)
                     putExtra("author_mid", author?.mid)
                     putExtra("author_name", author?.name)
@@ -99,9 +97,8 @@ class VideoPlayerV3Activity : ComponentActivity() {
         }
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (isFinishing) {
-            playerViewModel.videoPlayer = null
-            playerViewModel.danmakuPlayer = null
-            playerViewModel.currentSubtitleData.clear()
+            playerViewModel.dettachPlayer()
+            playerViewModel.releaseDanmakuPlayer()
         }
     }
 
@@ -131,9 +128,10 @@ class VideoPlayerV3Activity : ComponentActivity() {
             enableSoftwareVideoDecoder = Prefs.enableSoftwareVideoDecoder
         )
         val videoPlayer = when (Prefs.playerType) {
-            PlayerType.Media3 -> ExoPlayerFactory().create(this, options)
+            PlayerType.Media3 -> ExoPlayerFactory().create(this.applicationContext, options)
         }
-        playerViewModel.videoPlayer = videoPlayer
+        playerViewModel.attachPlayer(videoPlayer)
+        playerViewModel.initDanmakuPlayer()
     }
 
     /*private fun initDanmakuPlayer() {
@@ -146,36 +144,28 @@ class VideoPlayerV3Activity : ComponentActivity() {
             val aid = intent.getLongExtra("avid", 170001)
             val cid = intent.getLongExtra("cid", 170001)
             val title = intent.getStringExtra("title") ?: "Unknown Title"
-            val partTitle = intent.getStringExtra("partTitle") ?: "Unknown Part Title"
             val played = intent.getIntExtra("played", 0)
             val fromSeason = intent.getBooleanExtra("fromSeason", false)
             val subType = intent.getIntExtra("subType", 0)
             val epid = intent.getIntExtra("epid", 0)
             val seasonId = intent.getIntExtra("seasonId", 0)
-            val isVerticalVideo = intent.getBooleanExtra("isVerticalVideo", false)
             val proxyArea = ProxyArea.entries[intent.getIntExtra("proxy_area", 0)]
             val author_mid = intent.getLongExtra("author_mid", 0)
             val author_name = intent.getStringExtra("author_name")
             logger.fInfo { "Launch parameter: [aid=$aid, cid=$cid]" }
-            playerViewModel.apply {
-                loadPlayUrl(
-                    avid = aid,
-                    cid = cid,
-                    epid = epid.takeIf { it != 0 }
-                )
-                updateVideoPages()
-                this.title = title
-                this.partTitle = partTitle
-                this.lastPlayed = played
-                this.fromSeason = fromSeason
-                this.subType = subType
-                this.epid = epid
-                this.seasonId = seasonId
-                this.isVerticalVideo = isVerticalVideo
-                this.proxyArea = proxyArea
-                this.author_mid = author_mid
-                this.author_name = author_name?: ""
-            }
+            playerViewModel.init(
+                aid = aid,
+                cid = cid,
+                epid = epid.takeIf { it != 0 },
+                title = title,
+                lastPlayed = played,
+                fromSeason = fromSeason,
+                subType = subType,
+                seasonId = seasonId,
+                proxyArea = proxyArea,
+                authorMid = author_mid,
+                authorName = author_name ?: ""
+            )
         } else {
             logger.fInfo { "Null launch parameter" }
         }

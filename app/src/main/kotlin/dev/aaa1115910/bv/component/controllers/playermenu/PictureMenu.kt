@@ -26,7 +26,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import dev.aaa1115910.bv.entity.LocalVideoPlayerControllerData
 import dev.aaa1115910.bv.component.controllers.LocalMenuFocusStateData
 import dev.aaa1115910.bv.component.controllers.MenuFocusState
 import dev.aaa1115910.bv.component.controllers.VideoPlayerPictureMenuItem
@@ -41,28 +40,31 @@ import dev.aaa1115910.bv.entity.VideoCodec
 @Composable
 fun PictureMenuList(
     modifier: Modifier = Modifier,
+    availableQualityIds: List<Int>,
+    availableAudio: List<Audio>,
+    availableVideoCodec: List<VideoCodec>,
+    currentResolution: Int?,
+    currentVideoCodec: VideoCodec,
+    currentVideoAspectRatio: VideoAspectRatio,
+    currentAudio: Audio,
     onResolutionChange: (Int) -> Unit,
     onCodecChange: (VideoCodec) -> Unit,
     onAspectRatioChange: (VideoAspectRatio) -> Unit,
-    onPlaySpeedChange: (Float) -> Unit,
     onAudioChange: (Audio) -> Unit,
     onFocusStateChange: (MenuFocusState) -> Unit
 ) {
     val context = LocalContext.current
     val focusState = LocalMenuFocusStateData.current
-    val data = LocalVideoPlayerControllerData.current
     val restorerFocusRequester = remember { FocusRequester() }
 
     val focusRequester = remember { FocusRequester() }
     var selectedPictureMenuItem by remember { mutableStateOf(VideoPlayerPictureMenuItem.Resolution) }
-    val resolutionMap = remember(data.resolutionMap) {
-        data.resolutionMap
-            .toList()
-            .sortedByDescending { (key, _) -> key }
-            .toMap()
+    val qualityIdList = remember(availableQualityIds) {
+        availableQualityIds
+            .sortedByDescending {it}
     }
-    val audioList = remember(data.availableAudio) {
-        data.availableAudio.sortedBy { it.ordinal }
+    val audioList = remember(availableAudio) {
+        availableAudio.sortedBy { it.ordinal }
     }
 
     Row(
@@ -76,14 +78,14 @@ fun PictureMenuList(
             when (selectedPictureMenuItem) {
                 VideoPlayerPictureMenuItem.Resolution -> RadioMenuList(
                     modifier = menuItemsModifier,
-                    items = resolutionMap.keys.toList().map { resolutionCode ->
+                    items = qualityIdList.map { resolutionCode ->
                         runCatching {
                             Resolution.entries.find { it.code == resolutionCode }!!
                                 .getShortDisplayName(context)
                         }.getOrDefault("unknown: $resolutionCode")
                     },
-                    selected = resolutionMap.keys.indexOf(data.currentResolution),
-                    onSelectedChanged = { onResolutionChange(resolutionMap.keys.toList()[it]) },
+                    selected = qualityIdList.indexOf(currentResolution),
+                    onSelectedChanged = { onResolutionChange(qualityIdList[it]) },
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)
                         focusRequester.requestFocus()
@@ -92,9 +94,9 @@ fun PictureMenuList(
 
                 VideoPlayerPictureMenuItem.Codec -> RadioMenuList(
                     modifier = menuItemsModifier,
-                    items = data.availableVideoCodec.map { it.getDisplayName(context) },
-                    selected = data.availableVideoCodec.indexOf(data.currentVideoCodec),
-                    onSelectedChanged = { onCodecChange(data.availableVideoCodec[it]) },
+                    items = availableVideoCodec.map { it.getDisplayName(context) },
+                    selected = availableVideoCodec.indexOf(currentVideoCodec),
+                    onSelectedChanged = { onCodecChange(availableVideoCodec[it]) },
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)
                         focusRequester.requestFocus()
@@ -104,7 +106,7 @@ fun PictureMenuList(
                 VideoPlayerPictureMenuItem.AspectRatio -> RadioMenuList(
                     modifier = menuItemsModifier,
                     items = VideoAspectRatio.entries.map { it.getDisplayName(context) },
-                    selected = VideoAspectRatio.entries.indexOf(data.currentVideoAspectRatio),
+                    selected = VideoAspectRatio.entries.indexOf(currentVideoAspectRatio),
                     onSelectedChanged = { onAspectRatioChange(VideoAspectRatio.entries[it]) },
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)
@@ -115,7 +117,7 @@ fun PictureMenuList(
                 VideoPlayerPictureMenuItem.Audio -> RadioMenuList(
                     modifier = menuItemsModifier,
                     items = audioList.map { audio -> audio.getDisplayName(context) },
-                    selected = audioList.indexOf(data.currentAudio),
+                    selected = audioList.indexOf(currentAudio),
                     onSelectedChanged = { onAudioChange(audioList[it]) },
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)

@@ -49,7 +49,7 @@ fun PlayStateTips(
     isError: Boolean,
     needPay: Boolean,
     epid: Int = 0,
-    exception: Exception? = null
+    errorMessage: String? = null
 ) {
     Box(
         modifier = modifier.fillMaxSize()
@@ -71,7 +71,7 @@ fun PlayStateTips(
         if (isError) {
             PlayErrorTip(
                 modifier = Modifier.align(Alignment.Center),
-                exception = exception!!
+                errorMessage = errorMessage
             )
         }
         if (needPay) {
@@ -140,7 +140,7 @@ fun BufferingTip(
 @Composable
 fun PlayErrorTip(
     modifier: Modifier = Modifier,
-    exception: Exception
+    errorMessage: String?
 ) {
     Surface(
         modifier = modifier,
@@ -159,7 +159,7 @@ fun PlayErrorTip(
             )
             Text(text = " _(:з」∠)_")
             Spacer(modifier = Modifier.height(12.dp))
-            Text(text = "错误信息：${exception.message}")
+            Text(text = "错误信息：${errorMessage ?: "未知错误"}")
         }
     }
 }
@@ -235,7 +235,7 @@ private fun BufferingTipPreview() {
 @Composable
 private fun PlayErrorTipPreview() {
     BVTheme {
-        PlayErrorTip(exception = Exception("This is a test exception."))
+        PlayErrorTip(errorMessage = "This is a test error.")
     }
 }
 

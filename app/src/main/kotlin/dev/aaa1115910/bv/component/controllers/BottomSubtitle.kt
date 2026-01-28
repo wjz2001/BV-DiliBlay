@@ -15,30 +15,33 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import dev.aaa1115910.bilisubtitle.entity.SubtitleItem
 import dev.aaa1115910.bv.BuildConfig
-import dev.aaa1115910.bv.entity.LocalVideoPlayerControllerData
 
 @Composable
 fun BottomSubtitle(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    subtitleData: List<SubtitleItem>,
+    currentTime: Long,
+    fontSize: TextUnit,
+    opacity: Float,
+    padding: Dp,
 ) {
-    val data = LocalVideoPlayerControllerData.current
-    val subtitleData = data.currentSubtitleData
-    val time = data.currentPosition
-
     var currentText by remember { mutableStateOf("") }
 
     val updateCurrentText: () -> Unit = {
         runCatching {
-            currentText = subtitleData.find { it.isShowing(time) }?.content
+            currentText = subtitleData.find { it.isShowing(currentTime) }?.content
                 ?: if (BuildConfig.DEBUG) "【DEBUG】无内容" else ""
         }
     }
 
-    LaunchedEffect(subtitleData.size, time) {
+    LaunchedEffect(subtitleData, currentTime) {
         updateCurrentText()
     }
 
@@ -49,12 +52,12 @@ fun BottomSubtitle(
             Text(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = data.currentSubtitleBottomPadding)
+                    .padding(bottom = padding)
                     .clip(MaterialTheme.shapes.small)
-                    .background(Color.Black.copy(alpha = data.currentSubtitleBackgroundOpacity))
+                    .background(Color.Black.copy(alpha = opacity))
                     .padding(vertical = 4.dp, horizontal = 12.dp),
                 text = currentText,
-                fontSize = data.currentSubtitleFontSize,
+                fontSize = fontSize,
                 textAlign = TextAlign.Center
             )
         }

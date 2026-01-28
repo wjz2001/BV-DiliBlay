@@ -24,7 +24,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.entity.LocalVideoPlayerControllerData
 import dev.aaa1115910.bv.component.controllers.MenuFocusState
 import dev.aaa1115910.bv.component.controllers.playermenu.component.MenuListItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.StepLessMenuItem
@@ -35,12 +34,11 @@ import kotlin.math.roundToInt
 @Composable
 fun PlaySpeedMenuList(
     modifier: Modifier = Modifier,
-    onSelectedPlaySpeedItemChange: (PlaySpeedItem) -> Unit,
+    currentSelectedPlaySpeedItem: PlaySpeedItem,
     onPlaySpeedChange: (Float) -> Unit,
     onFocusStateChange: (MenuFocusState) -> Unit
 ) {
     // val context = LocalContext.current
-    val data = LocalVideoPlayerControllerData.current
     // val focusRequester = remember { FocusRequester() }
 
     Row(
@@ -87,14 +85,13 @@ fun PlaySpeedMenuList(
                 MenuListItem(
                     modifier = Modifier
                         .ifElse(
-                            index == data.currentSelectedPlaySpeedItem.ordinal,
+                            index == currentSelectedPlaySpeedItem.ordinal,
                             Modifier.focusRequester(focusRequester)
                         ),
                     text = item.getDisplayName(context),
-                    selected = data.currentSelectedPlaySpeedItem == item,
+                    selected = currentSelectedPlaySpeedItem == item,
                     onClick = {
                         onPlaySpeedChange(item.speed)
-                        onSelectedPlaySpeedItemChange(item)
                     },
                 )
             }
@@ -133,9 +130,6 @@ enum class PlaySpeedItem(val code: Int, private val strRes: Int, val speed: Floa
         }
 
         fun fromSpeed(speed: Float): PlaySpeedItem {
-            // 因为 step 是 0.25f，所以这里的值理论上总能找到精确匹配。
-            // find 会返回第一个满足条件的元素。
-            // 使用 ?: x1 作为安全兜底，以防万一出现意外情况。
             return entries.find { it.speed == speed } ?: x1
         }
     }
