@@ -20,13 +20,8 @@ import dev.aaa1115910.bv.player.impl.exo.ExoMediaPlayer
 fun BvVideoPlayer(
     modifier: Modifier = Modifier,
     videoPlayer: AbstractVideoPlayer,
-    playerListener: VideoPlayerListener,
-    // LibVLC 要用，误删
-    isVerticalVideo: Boolean = false
 ) {
     DisposableEffect(Unit) {
-        videoPlayer.setPlayerEventListener(playerListener)
-
         onDispose {
             videoPlayer.release()
         }

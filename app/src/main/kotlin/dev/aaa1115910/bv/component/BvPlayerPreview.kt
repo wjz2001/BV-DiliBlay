@@ -87,6 +87,5 @@ fun BvVideoPlayerPreview(
     BvVideoPlayer(
         modifier = Modifier.fillMaxSize(),
         videoPlayer = player,
-        playerListener = videoPlayerListener
     )
 }

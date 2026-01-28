@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Scaffold
@@ -30,7 +29,7 @@ import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
-import dev.aaa1115910.bv.ui.common.UiEvent
+import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import dev.aaa1115910.bv.viewmodel.user.UpInfoViewModel
@@ -63,7 +62,7 @@ fun UpSpaceScreen(
     LaunchedEffect(Unit) {
         toViewViewModel.uiEvent.collect { event ->
             when (event) {
-                is UiEvent.ShowToast -> {
+                is UiEffect.ShowToast -> {
                     event.message.toast(context)
                 }
             }

@@ -19,7 +19,7 @@ import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
-import dev.aaa1115910.bv.ui.common.UiEvent
+import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.HistoryViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
@@ -51,7 +51,7 @@ fun HistoryScreen(
     LaunchedEffect(Unit) {
         toViewViewModel.uiEvent.collect { event ->
             when (event) {
-                is UiEvent.ShowToast -> {
+                is UiEffect.ShowToast -> {
                     event.message.toast(context)
                 }
             }

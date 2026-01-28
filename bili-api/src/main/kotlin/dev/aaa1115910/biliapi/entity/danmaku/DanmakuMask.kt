@@ -1,10 +1,9 @@
 package dev.aaa1115910.biliapi.entity.danmaku
 
-import io.ktor.util.decodeBase64String
-import okio.ByteString.Companion.readByteString
-import java.io.ByteArrayInputStream
-import java.io.DataInputStream
-import java.util.zip.GZIPInputStream
+import okio.Buffer
+import okio.ByteString.Companion.decodeBase64
+import okio.GzipSource
+import okio.buffer
 
 data class DanmakuMaskSegment(
     val range: LongRange,
@@ -55,73 +54,86 @@ data class DanmakuMask(
 ) {
     companion object {
         fun fromBinary(binary: ByteArray, type: DanmakuMaskType): DanmakuMask {
-            val times = mutableListOf<Long>()
-            val offsets = mutableListOf<Long>()
-            val danmakuMaskSegments = mutableListOf<DanmakuMaskSegment>()
+            val source = Buffer().write(binary)
 
-            val inputStream = DataInputStream(ByteArrayInputStream(binary))
-            val mask = inputStream.readByteString(4)
-            require(mask.string(Charsets.UTF_8) == "MASK") { "Not a mask file" }
-            val version = inputStream.readInt()
-            val unused = inputStream.readByteString(4)
-            val size = inputStream.readInt()
+            val mask = source.readByteString(4)
+            require(mask.utf8() == "MASK") { "Not a mask file" }
+
+            val version = source.readInt()
+            source.skip(4) // unused
+            val size = source.readInt()
+
+            val times = LongArray(size)
+            val offsets = LongArray(size)
 
             for (i in 0 until size) {
-                times.add(inputStream.readLong())
-                offsets.add(inputStream.readLong())
+                times[i] = source.readLong()
+                offsets[i] = source.readLong()
             }
 
+            val danmakuMaskSegments = ArrayList<DanmakuMaskSegment>(size)
             var lastTime = 0L
             var segLastTime = 0L
 
             for (i in 0 until size) {
-                val frameList = mutableListOf<DanmakuMaskFrame>()
-
-                val bytes = if (i == size - 1) {
-                    inputStream.readBytes()
+                val compressedSize = if (i == size - 1) {
+                    source.size
                 } else {
-                    val offDiff = (offsets[i + 1] - offsets[i]).toInt()
-                    val byteArray = ByteArray(offDiff)
-                    inputStream.read(byteArray)
-                    byteArray
+                    offsets[i + 1] - offsets[i]
                 }
 
-                val stream =
-                    DataInputStream(ByteArrayInputStream(GZIPInputStream(bytes.inputStream()).readBytes()))
-                while (stream.available() != 0) {
-                    when (type) {
-                        DanmakuMaskType.WebMask -> {
-                            val svgLength = stream.readInt()
-                            val time = stream.readLong()
-                            val svg = stream.readByteString(svgLength).string(Charsets.UTF_8)
 
-                            val decodedSvg = svg.split(",")[1]
-                                .replace("\n", "")
-                                .decodeBase64String()
-                            frameList.add(
-                                DanmakuWebMaskFrame(
-                                    range = lastTime..<time,
-                                    svg = decodedSvg
-                                )
-                            )
-                            lastTime = time
-                        }
+                val compressedBuffer = Buffer()
+                source.read(compressedBuffer, compressedSize)
 
-                        DanmakuMaskType.MobMask -> {
-                            val width = stream.readShort().toInt()
-                            val height = stream.readShort().toInt()
-                            val time = stream.readLong()
-                            val imageBinary = ByteArray(7200)
-                            stream.read(imageBinary)
-                            frameList.add(
-                                DanmakuMobMaskFrame(
-                                    range = lastTime..<time,
-                                    width = width,
-                                    height = height,
-                                    image = imageBinary
+                val frameList = mutableListOf<DanmakuMaskFrame>()
+
+                GzipSource(compressedBuffer).buffer().use { gzipStream ->
+                    while (!gzipStream.exhausted()) {
+                        when (type) {
+                            DanmakuMaskType.WebMask -> {
+                                val svgLength = gzipStream.readInt().toLong()
+                                val time = gzipStream.readLong()
+
+                                val fullSvgString = gzipStream.readUtf8(svgLength)
+
+                                val commaIndex = fullSvgString.indexOf(',')
+                                val base64Part = if (commaIndex != -1) {
+                                    fullSvgString.substring(commaIndex + 1)
+                                } else {
+                                    fullSvgString
+                                }
+
+                                val cleanBase64 = base64Part.replace("\n", "")
+
+                                val decodedSvg = cleanBase64.decodeBase64()?.utf8() ?: ""
+
+                                frameList.add(
+                                    DanmakuWebMaskFrame(
+                                        range = lastTime until time,
+                                        svg = decodedSvg
+                                    )
                                 )
-                            )
-                            lastTime = time
+                                lastTime = time
+                            }
+
+                            DanmakuMaskType.MobMask -> {
+                                val width = gzipStream.readShort().toInt()
+                                val height = gzipStream.readShort().toInt()
+                                val time = gzipStream.readLong()
+
+                                val imageBinary = gzipStream.readByteArray(7200)
+
+                                frameList.add(
+                                    DanmakuMobMaskFrame(
+                                        range = lastTime until time,
+                                        width = width,
+                                        height = height,
+                                        image = imageBinary
+                                    )
+                                )
+                                lastTime = time
+                            }
                         }
                     }
                 }
@@ -129,7 +141,7 @@ data class DanmakuMask(
                 val startTime = segLastTime
                 val endTime = if (i == size - 1) Long.MAX_VALUE else times[i + 1]
                 danmakuMaskSegments.add(
-                    DanmakuMaskSegment(range = startTime..<endTime, frames = frameList)
+                    DanmakuMaskSegment(range = startTime until endTime, frames = frameList)
                 )
                 segLastTime = endTime
             }

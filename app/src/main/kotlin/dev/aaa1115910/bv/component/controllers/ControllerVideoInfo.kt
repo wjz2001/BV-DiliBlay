@@ -1,6 +1,5 @@
 package dev.aaa1115910.bv.component.controllers
 
-import android.os.CountDownTimer
 import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -39,7 +38,6 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -63,9 +61,9 @@ import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.entity.VideoPlayerInfoData
+import dev.aaa1115910.bv.ui.state.SeekerState
 import dev.aaa1115910.bv.ui.theme.BVTheme
-import dev.aaa1115910.bv.util.countDownTimer
+import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.formatHourMinSec
 import kotlinx.coroutines.delay
 import java.util.Calendar
@@ -76,16 +74,16 @@ fun ControllerVideoInfo(
     show: Boolean,
     isSeeking: Boolean,
     goTime: Long,
-    infoData: VideoPlayerInfoData,
+    seekerState: SeekerState,
     title: String,
     subtitle: String,
-    clock: Triple<Int, Int, Int>,
+    clock: Pair<Int, Int>,
     currentPlaySpeed: Float,
     videoShot: VideoShot?,
+    videoShotCache: VideoShotImageCache,
     fromSeason: Boolean,
     danmakuEnabled: Boolean,
     isLooping: Boolean,
-    onHideInfo: () -> Unit,
     onDirectionLeft: () -> Unit,
     onDirectionRight: () -> Unit,
     onSeekGoTime: () -> Unit,
@@ -96,84 +94,63 @@ fun ControllerVideoInfo(
     onToggleLoop: () -> Unit,
     onGoToUpPage: () -> Unit
 ) {
-    var hideVideoInfoTimer: CountDownTimer? by remember { mutableStateOf(null) }
-    val setHideVideoInfoTimer = {
-        hideVideoInfoTimer?.cancel()
-        hideVideoInfoTimer = countDownTimer(5000, 1000, "hideVideoInfoTimer") {
-            onHideInfo()
-        }
-    }
-    LaunchedEffect(show) {
-        if (show) {
-            setHideVideoInfoTimer()
-        } else {
-            hideVideoInfoTimer?.cancel()
-            hideVideoInfoTimer = null
-        }
-    }
-
-        Box(
-            modifier = modifier.fillMaxSize()
+    Box(
+        modifier = modifier.fillMaxSize()
+    ) {
+        AnimatedVisibility(
+            modifier = Modifier.align(Alignment.TopCenter),
+            visible = show,
+            enter = expandVertically(),
+            exit = shrinkVertically(),
+            label = "ControllerTopVideoInfo"
         ) {
-            AnimatedVisibility(
+            ControllerVideoInfoTop(
                 modifier = Modifier.align(Alignment.TopCenter),
-                visible = show,
-                enter = expandVertically(),
-                exit = shrinkVertically(),
-                label = "ControllerTopVideoInfo"
-            ) {
-                ControllerVideoInfoTop(
-                    modifier = Modifier.align(Alignment.TopCenter),
-                    title = title,
-                    clock = clock,
-                    currentTime = infoData.currentTime,
-                    totalDuration = infoData.totalDuration,
-                    currentPlaySpeed = currentPlaySpeed
-                )
-            }
-            AnimatedVisibility(
-                modifier = Modifier.align(Alignment.BottomCenter),
-                visible = show,
-                enter = expandVertically(),
-                exit = shrinkVertically(),
-                label = "ControllerBottomVideoInfo"
-            ) {
-                ControllerVideoInfoBottom(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .onPreviewKeyEvent {
-                            hideVideoInfoTimer?.cancel()
-                            setHideVideoInfoTimer()
-                            return@onPreviewKeyEvent false
-                        },
-                    subtitle = subtitle,
-                    show = show,
-                    isSeeking = isSeeking,
-                    goTime = goTime,
-                    infoData = infoData,
-                    videoShot = videoShot,
-                    fromSeason = fromSeason,
-                    danmakuEnabled = danmakuEnabled,
-                    isLooping = isLooping,
-                    onDirectionLeft = onDirectionLeft,
-                    onDirectionRight = onDirectionRight,
-                    onSeekGoTime = onSeekGoTime,
-                    onPlayPause = onPlayPause,
-                    onDanmakuSwitchChange = onDanmakuSwitchChange,
-                    onShowSettings = onShowSettings,
-                    onGoToVideoInfo = onGoToVideoInfo,
-                    onToggleLoop = onToggleLoop,
-                    onGoToUpPage = onGoToUpPage
-                )
-            }
+                title = title,
+                clock = clock,
+                currentTime = infoData.currentTime,
+                totalDuration = infoData.totalDuration,
+                currentPlaySpeed = currentPlaySpeed
+            )
         }
+        AnimatedVisibility(
+            modifier = Modifier.align(Alignment.BottomCenter),
+            visible = show,
+            enter = expandVertically(),
+            exit = shrinkVertically(),
+            label = "ControllerBottomVideoInfo"
+        ) {
+            ControllerVideoInfoBottom(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter),
+                show = show,
+                isSeeking = isSeeking,
+                goTime = goTime,
+                seekerState = seekerState,
+                videoShot = videoShot,
+                videoShotCache = videoShotCache,
+                fromSeason = fromSeason,
+                danmakuEnabled = danmakuEnabled,
+                isLooping = isLooping,
+                onDirectionLeft = onDirectionLeft,
+                onDirectionRight = onDirectionRight,
+                onSeekGoTime = onSeekGoTime,
+                onPlayPause = onPlayPause,
+                onDanmakuSwitchChange = onDanmakuSwitchChange,
+                onShowSettings = onShowSettings,
+                onGoToVideoInfo = onGoToVideoInfo,
+                onToggleLoop = onToggleLoop,
+                onGoToUpPage = onGoToUpPage
+            )
+        }
+    }
 }
 
 @Composable
 fun ControllerVideoInfoTop(
     modifier: Modifier = Modifier,
     title: String,
-    clock: Triple<Int, Int, Int>,
+    clock: Pair<Int, Int>,
     currentTime: Long = 0,
     totalDuration: Long = 0,
     // 3. 接收播放速度
@@ -243,8 +220,9 @@ fun ControllerVideoInfoBottom(
     show: Boolean,
     isSeeking: Boolean,
     goTime: Long,
-    infoData: VideoPlayerInfoData,
+    seekerState: SeekerState,
     videoShot: VideoShot?,
+    videoShotCache: VideoShotImageCache,
     fromSeason: Boolean,
     danmakuEnabled: Boolean,
     isLooping: Boolean,
@@ -291,8 +269,9 @@ fun ControllerVideoInfoBottom(
                 modifier = Modifier
                     .padding(horizontal = 48.dp),
                 videoShot = videoShot,
+                imageCache = videoShotCache,
                 position = goTime,
-                duration = infoData.totalDuration,
+                duration = seekerState.totalDuration,
                 coercedOffset = (-24).dp
             )
         }
@@ -342,7 +321,7 @@ fun ControllerVideoInfoBottom(
         ) {
             Text(
                 modifier = Modifier.padding(bottom = 2.dp, start = 24.dp),
-                text = "${if (isSeeking) goTime.formatHourMinSec() else infoData.currentTime.formatHourMinSec()} / ${infoData.totalDuration.formatHourMinSec()}",
+                text = "${if (isSeeking) goTime.formatHourMinSec() else seekerState.currentTime.formatHourMinSec()} / ${seekerState.totalDuration.formatHourMinSec()}",
                 color = Color.White,
                 style = TextStyle(
                     shadow = Shadow(color = Color.Black, blurRadius = 1f),
@@ -387,7 +366,7 @@ fun ControllerVideoInfoBottom(
                         }
 
                         Key.DirectionDown -> {
-                            if (it.type == KeyEventType.KeyDown) return@onKeyEvent true
+                            if (it.type == KeyEventType.KeyUp) return@onKeyEvent true
                             buttonsFocusRequester.requestFocus()
                             return@onKeyEvent true
                         }
@@ -402,9 +381,9 @@ fun ControllerVideoInfoBottom(
                 modifier = Modifier
                     .focusable()
                     .fillMaxWidth(),
-                duration = infoData.totalDuration,
-                position = if (isSeeking) goTime else infoData.currentTime,
-                bufferedPercentage = infoData.bufferedPercentage,
+                duration = seekerState.totalDuration,
+                position = if (isSeeking) goTime else seekerState.currentTime,
+                bufferedPercentage = seekerState.bufferedPercentage,
                 isPersistentSeek = false
             )
         }
@@ -424,7 +403,7 @@ fun ControllerVideoInfoBottom(
                 .focusRequester(buttonsFocusRequester)
                 .onKeyEvent {
                     if (it.key == Key.DirectionUp) {
-                        if (it.type == KeyEventType.KeyDown) return@onKeyEvent true
+                        if (it.type == KeyEventType.KeyUp) return@onKeyEvent true
                         seekFocusRequester.requestFocus()
                         return@onKeyEvent true
                     }
@@ -588,23 +567,16 @@ private fun ControllerVideoInfoPreview() {
             show = show,
             isSeeking = false,
             goTime = 0,
-            infoData = VideoPlayerInfoData(
-                totalDuration = 1000 * 60 * 45, // 45分钟
-                currentTime = 1000 * 60 * 10,   // 10分钟
-                bufferedPercentage = 66,
-                resolutionWidth = 0,
-                resolutionHeight = 0,
-                codec = ""
-            ),
+            seekerState = SeekerState(0, 0, 0, ""),
             title = "【A320】民航史上最佳逆袭！A320的前世今生！民航史上最佳逆袭！A320的前世今生！",
             subtitle = "哈哈哈",
-            clock = Triple(12, 30, 30),
+            clock = Pair(12, 30),
             currentPlaySpeed = 1.0f,
             videoShot = null,
+            videoShotCache = VideoShotImageCache(),
             fromSeason = false,
             danmakuEnabled = false,
             isLooping = false,
-            onHideInfo = {},
             onDirectionRight = {},
             onDirectionLeft = {},
             onSeekGoTime = {},
