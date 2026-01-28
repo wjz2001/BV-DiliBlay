@@ -53,8 +53,6 @@ fun VideoPlayerV3Screen(
 
     val maskFinder = remember { DanmakuMaskFinder() }
     var currentDanmakuMaskFrame: DanmakuMaskFrame? by remember { mutableStateOf(null) }
-    var currentPlaySpeed by remember { mutableFloatStateOf(Prefs.defaultPlaySpeed.speed) }
-    var currentSelectedPlaySpeedItem by remember { mutableStateOf(Prefs.defaultPlaySpeed) }
     var isLooping by remember { mutableStateOf(false) }
     val uiState by playerViewModel.uiState.collectAsState()
     val seekerState = playerViewModel.seekerState.collectAsState()
