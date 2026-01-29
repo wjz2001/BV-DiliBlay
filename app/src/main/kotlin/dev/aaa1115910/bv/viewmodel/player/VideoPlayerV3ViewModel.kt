@@ -30,6 +30,7 @@ import dev.aaa1115910.biliapi.repositories.VideoPlayRepository
 import dev.aaa1115910.bilisubtitle.SubtitleParser
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.component.controllers.DanmakuType
+import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoAspectRatio
@@ -326,6 +327,11 @@ class VideoPlayerV3ViewModel(
         _uiState.update { it.copy(playSpeed = targetSpeed) }
         videoPlayer?.speed = targetSpeed
         danmakuPlayer?.updatePlaySpeed(targetSpeed)
+
+        // 只有用户在播放器里主动调速时才写回默认倍速（落盘由 Prefs 内部做 1s 防抖）
+        if (speed != null) {
+            Prefs.defaultPlaySpeed = PlaySpeedItem.fromSpeedNearest(targetSpeed)
+        }
     }
 
     fun updateVideoAspectRatio(aspectRatio: VideoAspectRatio) {
