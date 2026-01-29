@@ -1,6 +1,7 @@
 package dev.aaa1115910.bv.repository
 
 import dev.aaa1115910.biliapi.entity.ApiType
+import dev.aaa1115910.biliapi.entity.video.VideoDetail.History
 import dev.aaa1115910.biliapi.repositories.VideoDetailRepository
 import dev.aaa1115910.bv.entity.VideoListItem
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,7 +13,8 @@ import org.koin.core.annotation.Single
 class VideoInfoRepository(private val videoDetailRepository: VideoDetailRepository) {
     private val _videoList = MutableStateFlow<List<VideoListItem>>(emptyList())
     val videoList = _videoList.asStateFlow()
-
+    private val _history = MutableStateFlow(History(progress = 0, lastPlayedCid = 0))
+    val history = _history.asStateFlow()
     suspend fun updateUgcPages(preferApiType: ApiType = ApiType.Web) {
         _videoList.update { oldList ->
             oldList.map { item ->
@@ -29,14 +31,11 @@ class VideoInfoRepository(private val videoDetailRepository: VideoDetailReposito
         }
     }
 
-    fun clearVideoList() {
-        _videoList.value = emptyList()
+    fun updateVideoList(videoListItem: List<VideoListItem>) {
+        _videoList.update { videoListItem }
     }
 
-    fun addToVideoList(videoListItem: List<VideoListItem>) {
-        _videoList.update { oldList ->
-            oldList + videoListItem
-        }
+    fun updateHistory(progress: Int, lastPlayedCid: Long) {
+        _history.update { History(progress = progress, lastPlayedCid = lastPlayedCid) }
     }
-
 }
