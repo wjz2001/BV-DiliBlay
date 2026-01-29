@@ -29,6 +29,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import java.util.Date
 import java.util.UUID
@@ -271,6 +273,12 @@ class PrefDelegate<T, P>(
         map[key] = _flow
     }
 
+    //防抖写盘
+    private companion object {
+        private val persistScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        private val debounceJobs = ConcurrentHashMap<Preferences.Key<*>, Job>()
+    }
+
     override fun getValue(thisRef: Any?, property: KProperty<*>): T {
         // 从 StateFlow 读取当前的最新的原始值 (P)，然后还原为对象 (T)
         val rawValue = _flow.value as? P
@@ -284,6 +292,16 @@ class PrefDelegate<T, P>(
         _flow.value = persistValue
 
         // 2. 异步持久化
+        // playSpeed 做 1s 防抖，避免滚动时频繁落盘
+        if (key == PrefKeys.prefDefaultPlaySpeedKey) {
+            debounceJobs.remove(key)?.cancel()
+            debounceJobs[key] = persistScope.launch {
+                delay(1000)
+                BVApp.dataStoreManager.editPreference(key, persistValue)
+            }
+            return
+        }
+
         BVApp.dataStoreManager.run {
             kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
                 editPreference(key, persistValue)
