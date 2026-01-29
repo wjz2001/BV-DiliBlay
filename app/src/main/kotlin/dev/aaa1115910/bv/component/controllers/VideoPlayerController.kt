@@ -81,6 +81,8 @@ fun VideoPlayerController(
     onSubtitleChange: (Subtitle) -> Unit,
     onSubtitleSettingChange: (SubtitleSettingAction) -> Unit,
 
+    onEnsureUgcPagesLoaded: (aid: Long) -> Unit,
+
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
@@ -170,9 +172,9 @@ fun VideoPlayerController(
     }
 
     fun handleKeyEvent(event: KeyEvent): Boolean {
-        // 中键需要区分短按和长按
+        // 中键和下键需要区分短按和长按
         val isConfirmKey =
-            event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.Spacebar
+            event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.Spacebar || event.key == Key.DirectionDown
 
         if (event.type == KeyEventType.KeyUp && !isConfirmKey) {
             return true
@@ -260,6 +262,7 @@ fun VideoPlayerController(
                         return true
                     }
                     showInfoSeekController = true
+                    return true
                 }
 
                 Key.MediaRewind, Key.DirectionLeft -> {
@@ -395,6 +398,7 @@ fun VideoPlayerController(
                     show = showListController,
                     currentCid = uiState.cid,
                     videoList = uiState.availableVideoList,
+                    onEnsureUgcPagesLoaded = onEnsureUgcPagesLoaded,
                     onPlayNewVideo = onPlayNewVideo
                 )
 
