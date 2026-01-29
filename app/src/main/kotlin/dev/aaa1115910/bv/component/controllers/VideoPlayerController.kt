@@ -253,11 +253,13 @@ fun VideoPlayerController(
                 }
 
                 Key.DirectionDown -> {
-                    showInfoSeekController = true
-                    if (event.nativeKeyEvent.isLongPress) {
-                        onBackToStart()
+                    if (event.type == KeyEventType.KeyDown) {
+                        if (event.nativeKeyEvent.isLongPress) {
+                            onBackToStart()
+                        }
+                        return true
                     }
-                    return true
+                    showInfoSeekController = true
                 }
 
                 Key.MediaRewind, Key.DirectionLeft -> {
