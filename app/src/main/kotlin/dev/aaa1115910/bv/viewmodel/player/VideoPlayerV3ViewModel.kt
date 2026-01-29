@@ -248,12 +248,15 @@ class VideoPlayerV3ViewModel(
 
     fun dettachPlayer() {
         val player = videoPlayer
-        // 最后一次发送心跳
         if (player != null && !Prefs.incognitoMode) {
             val currentTime = (player.currentPosition.coerceAtLeast(0) / 1000).toInt()
             val totalTime = (player.duration.coerceAtLeast(0) / 1000).toInt()
             val reportTime = if (currentTime >= totalTime) -1 else currentTime
 
+            // 用于更新详情页播放进度
+            videoInfoRepository.updateHistory(progress = reportTime, lastPlayedCid = _uiState.value.cid)
+
+            // 最后一次发送心跳
             @OptIn(DelicateCoroutinesApi::class)
             GlobalScope.launch(Dispatchers.IO) { // 使用GlobalScope，避免ViewModel销毁导致协程域取消
                 try {

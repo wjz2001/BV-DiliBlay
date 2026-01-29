@@ -1,5 +1,5 @@
 [versions]
-akdanmaku = "1.0.1"
+akdanmaku = "1.0.2"
 androidsvg = "1.4"
 coil = "2.7.0"
 firebase-bom = "33.14.0"
