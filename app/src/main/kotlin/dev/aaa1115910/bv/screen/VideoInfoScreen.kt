@@ -373,7 +373,7 @@ fun VideoInfoScreen(
                         VideoListItem(
                             aid = episode.aid,
                             cid = episode.cid,
-                            epid = episode.id,
+                            //epid = episode.id,
                             seasonId = videoDetail.ugcSeason!!.id,
                             title = episode.title
                             // ugcPages 将由播放器内部的 Repository 自动获取
