@@ -188,6 +188,7 @@ class VideoPlayerV3ViewModel(
         }
     }
 
+    /*
     init {
         videoInfoRepository.videoList
             .onEach { newList ->
@@ -200,12 +201,40 @@ class VideoPlayerV3ViewModel(
             }
             .launchIn(viewModelScope)
     }
+    */
+    init {
+        videoInfoRepository.videoList
+            .onEach { newList ->
+                _uiState.update { currentState ->
+                    val updated = currentState.copy(availableVideoList = newList)
+
+                    // PGC 不加载子项，也不需要维护分P标题
+                    if (updated.epid != null) return@update updated
+
+                    val currentItem = newList.firstOrNull { it.aid == updated.aid }
+                    val pageTitle = currentItem
+                        ?.ugcPages
+                        ?.firstOrNull { it.cid == updated.cid }
+                        ?.title
+                        .orEmpty()
+
+                    if (pageTitle.isNotBlank() && pageTitle != updated.partTitle) {
+                        updated.copy(partTitle = pageTitle)
+                    } else {
+                        updated
+                    }
+                }
+                logger.fInfo { "Sync video list from repo, size: ${newList.size}" }
+            }
+            .launchIn(viewModelScope)
+    }
 
     fun init(
         aid: Long,
         cid: Long,
         epid: Int?,
         title: String,
+        partTitle: String,
         lastPlayed: Int,
         fromSeason: Boolean,
         subType: Int,
@@ -223,6 +252,7 @@ class VideoPlayerV3ViewModel(
         _uiState.update {
             it.copy(
                 title = title,
+                partTitle = partTitle,
                 lastPlayed = lastPlayed,
                 fromSeason = fromSeason,
                 subType = subType,
@@ -543,9 +573,33 @@ class VideoPlayerV3ViewModel(
         // 重置弹幕
         releaseDanmakuPlayer()
         initDanmakuPlayer()
+        /*
         _uiState.update {
             it.copy(title = video.title)
         }
+        */
+        _uiState.update { state ->
+            // PGC：不维护分P标题
+            if (video.epid != null) {
+                state.copy(
+                    title = video.title,
+                    partTitle = ""
+                )
+            } else {
+                val currentItem = state.availableVideoList.firstOrNull { it.aid == video.aid }
+                val inferredPartTitle = currentItem
+                    ?.ugcPages
+                    ?.firstOrNull { it.cid == video.cid }
+                    ?.title
+                    .orEmpty()
+
+                state.copy(
+                    title = video.title,
+                    partTitle = inferredPartTitle
+                )
+            }
+        }
+
         loadPlayUrl(
             avid = video.aid,
             cid = video.cid,
@@ -1249,10 +1303,15 @@ class VideoPlayerV3ViewModel(
         when (target) {
             is NextPlayTarget.UgcPage -> {
                 logger.info { "Play next UGC page: ${target.page.title}" }
+
+                // 立即更新分P标题（不依赖 pages）
+                _uiState.update { it.copy(partTitle = target.page.title) }
+
                 playNewVideo(
                     VideoListItem(
                         aid = target.parentVideo.aid,
                         cid = target.page.cid,
+                        // title 表示父项标题，subtitle（partTitle）显示分P标题
                         title = target.title
                     )
                 )
@@ -1367,7 +1426,9 @@ class VideoPlayerV3ViewModel(
         val title: String
 
         data class UgcPage(val parentVideo: VideoListItem, val page: VideoPage) : NextPlayTarget {
-            override val title: String = page.title
+            //override val title: String = page.title
+            // title 表示“父项视频标题”（分P标题走 page.title / partTitle）
+            override val title: String = parentVideo.title
         }
 
         data class VideoItem(val video: VideoListItem) : NextPlayTarget {

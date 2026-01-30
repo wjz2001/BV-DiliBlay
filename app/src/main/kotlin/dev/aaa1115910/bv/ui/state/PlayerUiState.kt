@@ -27,6 +27,7 @@ data class PlayerUiState(
     val authorMid: Long = 0,
     val authorName: String = "",
     val title: String = "",
+    val partTitle: String = "",
     val videoHeight: Int = 0,
     val videoWidth: Int = 0,
     val needPay: Boolean = false,

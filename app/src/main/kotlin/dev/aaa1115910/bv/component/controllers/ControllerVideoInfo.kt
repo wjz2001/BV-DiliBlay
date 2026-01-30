@@ -76,7 +76,7 @@ fun ControllerVideoInfo(
     goTime: Long,
     seekerState: SeekerState,
     title: String,
-    subtitle: String,
+    secondTitle: String,
     clock: Pair<Int, Int>,
     currentPlaySpeed: Float,
     videoShot: VideoShot?,
@@ -130,7 +130,7 @@ fun ControllerVideoInfo(
                 isSeeking = isSeeking,
                 goTime = goTime,
                 seekerState = seekerState,
-                subtitle = subtitle,
+                secondTitle = secondTitle,
                 videoShot = videoShot,
                 videoShotCache = videoShotCache,
                 fromSeason = fromSeason,
@@ -224,7 +224,7 @@ fun ControllerVideoInfoTop(
 @Composable
 fun ControllerVideoInfoBottom(
     modifier: Modifier = Modifier,
-    subtitle: String,
+    secondTitle: String,
     show: Boolean,
     isSeeking: Boolean,
     goTime: Long,
@@ -303,7 +303,7 @@ fun ControllerVideoInfoBottom(
                 modifier = Modifier
                     .weight(1f),
                 textAlign = TextAlign.Center,
-                text = subtitle,
+                text = secondTitle,
                 color = Color.White,
                 style = TextStyle(
                     shadow = Shadow(color = Color.Black, blurRadius = 1f),
@@ -577,7 +577,7 @@ private fun ControllerVideoInfoPreview() {
             goTime = 0,
             seekerState = SeekerState(0, 0, 0, ""),
             title = "【A320】民航史上最佳逆袭！A320的前世今生！民航史上最佳逆袭！A320的前世今生！",
-            subtitle = "哈哈哈",
+            secondTitle = "哈哈哈",
             clock = Pair(12, 30),
             currentPlaySpeed = 1.0f,
             videoShot = null,
