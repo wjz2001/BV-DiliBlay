@@ -348,8 +348,10 @@ fun VideoPlayerController(
                     epid = uiState.epid ?: 0,
                 )
 
-                val secondTitle =
+                //val secondTitle = uiState.availableVideoList.firstOrNull { it.cid == uiState.cid }?.title.orEmpty()
+                val secondTitle = uiState.partTitle.ifBlank {
                     uiState.availableVideoList.firstOrNull { it.cid == uiState.cid }?.title.orEmpty()
+                }
 
                 ControllerVideoInfo(
                     modifier = Modifier.focusable(),
@@ -358,7 +360,7 @@ fun VideoPlayerController(
                     goTime = goTime,
                     seekerState = seekerState.value,
                     title = uiState.title,
-                    subtitle = secondTitle,
+                    secondTitle = secondTitle,
                     clock = uiState.clock,
                     currentPlaySpeed = uiState.playSpeed,
                     videoShot = uiState.videoShot,
