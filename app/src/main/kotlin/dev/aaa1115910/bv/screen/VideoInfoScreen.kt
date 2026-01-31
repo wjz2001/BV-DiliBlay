@@ -990,12 +990,14 @@ fun VideoInfoScreen(
                                 Text(text = "播放量 ${(videoDetail.stat.view).toWanString()}")
                                 Text(text = "·")
                                 Text(text = "弹幕 ${(videoDetail.stat.danmaku).toWanString()}")
+                                /*
                                 Text(text = "·")
                                 Text(text = "点赞 ${videoDetail.stat.like.toWanString()}")
                                 Text(text = "·")
                                 Text(text = "投币 ${videoDetail.stat.coin.toWanString()}")
                                 Text(text = "·")
                                 Text(text = "收藏 ${videoDetail.stat.favorite.toWanString()}")
+                                 */
                             }
                         }
                     }
@@ -1024,6 +1026,7 @@ fun VideoInfoScreen(
                 ) {
                     FavoriteButton(
                         isFavorite = isFavorite,
+                        countText = videoDetail.stat.favorite.toWanString(),
                         userFavoriteFolders = userFavoriteFolders,
                         favoriteFolderIds = favoriteFolderIds,
                         onAddToDefaultFavoriteFolder = onAddToDefaultFavoriteFolder,
@@ -1032,11 +1035,13 @@ fun VideoInfoScreen(
                     Spacer(modifier = Modifier.width(5.dp))
                     LikeButton(
                         isLiked = isLiked,
+                        countText = videoDetail.stat.like.toWanString(),
                         onClick = { onUpdateLiked(!isLiked) },
                         onLongClick = { onSendVideoOneClickTripleAction() })
                     Spacer(modifier = Modifier.width(5.dp))
                     CoinButton(
                         isCoined = isCoined,
+                        countText = videoDetail.stat.coin.toWanString(),
                         onClick = onSendVideoCoin,
                     )
                     LazyRow(
@@ -1107,19 +1112,17 @@ fun VideoInfoScreen(
                             contentDescription = null,
                             tint = Color.White
                         )
-                        /*
                     Text(
                         text = stringResource(R.string.video_info_followed),
                         color = Color.White
                     )
-                     */
                     } else {
                         Icon(
                             imageVector = Icons.Rounded.Add,
                             contentDescription = null,
                             tint = Color.White
                         )
-                        // Text(text = stringResource(R.string.video_info_follow), color = Color.White)
+                        Text(text = stringResource(R.string.video_info_follow), color = Color.White)
                     }
                 }
             }
