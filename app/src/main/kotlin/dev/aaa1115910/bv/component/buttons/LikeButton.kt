@@ -6,6 +6,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material.icons.rounded.ThumbUp
@@ -17,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -38,6 +40,7 @@ import kotlinx.coroutines.launch
 fun LikeButton(
     modifier: Modifier = Modifier,
     isLiked: Boolean,
+    countText: String = "",
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -55,8 +58,13 @@ fun LikeButton(
             easing = FastOutSlowInEasing
         )
     )
+
+    val pillShape = RoundedCornerShape(percent = 50)
+
     Button(
-        modifier = modifier.onPreviewKeyEvent {
+        modifier = modifier
+            .clip(pillShape)
+            .onPreviewKeyEvent {
             when (it.key) {
                 Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
                     if (it.type == KeyEventType.KeyDown) {
@@ -85,9 +93,20 @@ fun LikeButton(
         colors = ButtonDefaults.colors(pressedContainerColor = animatedColor.value),
         onClick = {}
     ) {
+        /*
         Icon(
             imageVector = if (isLiked) Icons.Rounded.ThumbUp else Icons.Outlined.ThumbUp,
             contentDescription = null,
+        )
+         */
+        CapsuleStatButtonContent(
+            icon = {
+                Icon(
+                    imageVector = if (isLiked) Icons.Rounded.ThumbUp else Icons.Outlined.ThumbUp,
+                    contentDescription = null
+                )
+            },
+            text = countText
         )
     }
 }
@@ -97,7 +116,8 @@ fun LikeButton(
 fun LikeButtonEnablePreview() {
     LikeButton(
         isLiked = false,
+        countText = "6666666",
         onClick = {},
-        onLongClick = {}
+        onLongClick = {},
     )
 }

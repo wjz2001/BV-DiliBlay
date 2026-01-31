@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Done
@@ -44,12 +45,15 @@ import dev.aaa1115910.bv.util.swapList
 fun FavoriteButton(
     modifier: Modifier = Modifier,
     isFavorite: Boolean,
+    countText: String = "",
     userFavoriteFolders: List<FavoriteFolderMetadata> = emptyList(),
     favoriteFolderIds: List<Long> = emptyList(),
     onAddToDefaultFavoriteFolder: () -> Unit,
     onUpdateFavoriteFolders: (List<Long>) -> Unit
 ) {
     var showFavoriteDialog by remember { mutableStateOf(false) }
+
+    val pillShape = RoundedCornerShape(percent = 50)
 
     Button(
         modifier = modifier,
@@ -60,9 +64,20 @@ fun FavoriteButton(
             // } else onAddToDefaultFavoriteFolder()
         }
     ) {
+        /*
         Icon(
             imageVector = if (isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
             contentDescription = null
+        )
+         */
+        CapsuleStatButtonContent(
+            icon = {
+                Icon(
+                    imageVector = if (isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                    contentDescription = null
+                )
+            },
+            text = countText
         )
     }
 
