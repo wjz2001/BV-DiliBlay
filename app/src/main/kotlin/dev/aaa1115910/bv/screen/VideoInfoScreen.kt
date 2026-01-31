@@ -1059,6 +1059,9 @@ fun VideoInfoScreen(
                     }
                 }
                 VideoDescription(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
                     description = videoDetail.description ?: ""
                 )
             }
@@ -1156,17 +1159,18 @@ fun VideoInfoScreen(
                 Box(
                     modifier = Modifier
                         .padding(top = 15.dp)
+                        .fillMaxWidth()
+                        .weight(1f)
                         .onFocusChanged { hasFocus = it.hasFocus }
                         .clip(MaterialTheme.shapes.medium)
                         .focusedBorder(MaterialTheme.shapes.medium)
                         .padding(8.dp)
-                        .clickable {
-                            showDescriptionDialog = true
-                        }
+                        .clickable { showDescriptionDialog = true }
                 ) {
                     Text(
-                        text = description,
-                        maxLines = 3,
+                        modifier = Modifier.fillMaxSize(),
+                        text = description.ifBlank { " " },
+                        maxLines = 5,
                         fontSize = 22.sp,
                         overflow = TextOverflow.Ellipsis,
                         color = Color.White
