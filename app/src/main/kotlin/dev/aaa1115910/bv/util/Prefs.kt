@@ -213,7 +213,7 @@ object Prefs {
     )
 
     /**
-     * [必须调用] 在 Application onCreate 中调用此方法。
+     * 必须调用 在 Application onCreate 中调用此方法。
      * 作用：首先阻塞读取硬盘内DataStore到内存，用于其他模块初始化；
      * 再启动一个长连接监听 DataStore 变化，并自动同步到内存缓存。
      */
