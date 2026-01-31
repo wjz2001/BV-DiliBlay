@@ -77,7 +77,8 @@ fun FavoriteButton(
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalTvMaterial3Api::class)
 @Composable
-private fun FavoriteDialog(
+internal fun FavoriteDialog(
+//private fun FavoriteDialog(
     modifier: Modifier = Modifier,
     show: Boolean,
     onHideDialog: () -> Unit,
