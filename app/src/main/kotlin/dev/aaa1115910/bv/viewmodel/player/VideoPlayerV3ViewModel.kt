@@ -94,6 +94,13 @@ class VideoPlayerV3ViewModel(
         private set
 
     private var playData: PlayData? = null
+
+    // 是否允许在“进入播放/切到下一集”时自动启用字幕。
+    // 默认 true：首次进入播放器也会尝试自动启用合规中文字幕。
+    // 用户手动选择“关闭”后会变为 false，此后不再自动开启，直到用户再次手动开启字幕。
+    @Volatile
+    private var subtitleAutoEnableEnabled: Boolean = true
+
     private val typeFilter = TypeFilter()
     private var danmakuConfig = DanmakuConfig()
 
@@ -326,6 +333,9 @@ class VideoPlayerV3ViewModel(
     }
 
     fun loadSubtitle(id: Long) {
+        // 用户显式关闭字幕后，后续不再自动启用；用户再次手动开启后再恢复自动启用。
+        subtitleAutoEnableEnabled = id != -1L
+
         viewModelScope.launch(Dispatchers.IO) {
             if (id == -1L) {
                 _uiState.update {
@@ -772,10 +782,18 @@ class VideoPlayerV3ViewModel(
             updateVideoPages()
             clearVideoShotCache()
 
+
+            /*
             //如果是继续播放下一集，且之前开启了字幕，就会自动加载第一条字幕，主要用于观看番剧时自动加载字幕
             val lastPlayEnabledSubtitle = _uiState.value.subtitleId != -1L
             if (lastPlayEnabledSubtitle) {
                 logger.info { "Subtitle is enabled, next video will enable subtitle automatic" }
+                enableFirstSubtitle()
+            }
+            */
+            // 进入播放即尝试自动启用合规中文字幕；用户手动关闭后会禁止自动启用，直到再次手动开启。
+            if (subtitleAutoEnableEnabled) {
+                logger.info { "Auto enable subtitle is enabled, try enable eligible Chinese subtitle" }
                 enableFirstSubtitle()
             }
         }
@@ -1121,6 +1139,27 @@ class VideoPlayerV3ViewModel(
         }
     }
 
+    private fun Subtitle.isEligibleChineseForAutoEnable(): Boolean {
+        // 只允许中文
+        if (!langDoc.contains("中文")) return false
+
+        // 排除：AI / 自动生成 / 自动翻译
+        if (type == SubtitleType.AI) return false
+        if (langDoc.contains("（自动生成）") || langDoc.contains("（自动翻译）")) return false
+
+        // 排除：包含 ai（忽略大小写），双兜底
+        if (langDoc.contains("ai", ignoreCase = true)) return false
+        if (lang.contains("ai", ignoreCase = true)) return false
+
+        return true
+    }
+
+    private fun pickFirstEligibleChineseSubtitle(): Subtitle? {
+        val list = _uiState.value.availableSubtitles
+        return list.firstOrNull { it.id != -1L && it.isEligibleChineseForAutoEnable() }
+    }
+
+    /*
     private fun enableFirstSubtitle() {
         runCatching {
             logger.info { "Load first subtitle" }
@@ -1132,6 +1171,20 @@ class VideoPlayerV3ViewModel(
             )
         }.onFailure {
             logger.error { "Load first subtitle failed: ${it.stackTraceToString()}" }
+        }
+    }
+     */
+    private fun enableFirstSubtitle() {
+        runCatching {
+            val target = pickFirstEligibleChineseSubtitle()
+            if (target == null) {
+                logger.info { "No eligible Chinese subtitle for auto enable, skip" }
+                return@runCatching
+            }
+            logger.info { "Auto enable Chinese subtitle: ${target.langDoc} (id=${target.id})" }
+            loadSubtitle(target.id)
+        }.onFailure {
+            logger.error { "Auto enable subtitle failed: ${it.stackTraceToString()}" }
         }
     }
 
