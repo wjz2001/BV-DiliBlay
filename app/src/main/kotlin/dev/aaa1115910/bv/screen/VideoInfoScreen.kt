@@ -1165,6 +1165,7 @@ fun VideoInfoScreen(
                         .clip(MaterialTheme.shapes.medium)
                         .focusedBorder(MaterialTheme.shapes.medium)
                         .padding(8.dp)
+                        .padding(8.dp)
                         .clickable { showDescriptionDialog = true }
                 ) {
                     Text(
