@@ -6,6 +6,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ThumbUp
@@ -27,6 +28,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Icon
@@ -63,7 +65,7 @@ fun LikeButton(
 
     Button(
         modifier = modifier
-            .clip(pillShape)
+            .height(60.dp)
             .onPreviewKeyEvent {
             when (it.key) {
                 Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
@@ -90,6 +92,13 @@ fun LikeButton(
             }
             false
         },
+        shape = ButtonDefaults.shape(
+            shape = pillShape,
+            focusedShape = pillShape,
+            pressedShape = pillShape,
+            disabledShape = pillShape,
+            focusedDisabledShape = pillShape
+        ),
         colors = ButtonDefaults.colors(pressedContainerColor = animatedColor.value),
         onClick = {}
     ) {

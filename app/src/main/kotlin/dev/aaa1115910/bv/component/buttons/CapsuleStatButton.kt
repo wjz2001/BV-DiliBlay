@@ -49,41 +49,11 @@ internal fun CapsuleStatButtonContent(
             contentAlignment = Alignment.Center,
             modifier = Modifier.padding(start = 14.dp, end = 14.dp)
         ) {
-            // 【支架】隐形的 18.sp 文字
-            // 它的作用是告诉 Row："我的高度应该是这么大"
             Text(
                 text = text,
-                fontSize = 18.sp, // 这里写死你觉得合适的高度基准
-                color = androidx.compose.ui.graphics.Color.Transparent, // 设为透明
+                fontSize = 24.sp,
                 style = MaterialTheme.typography.labelLarge,
                 maxLines = 1,
-                // 注意：这里不需要 TextOverflow，让它完整撑开宽度
-            )
-
-            // 【实体】真正想显示的大字号文字
-            Text(
-                text = text,
-                fontSize = 24.sp, // 不会撑大按钮高度
-                style = MaterialTheme.typography.labelLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    // 自定义 Layout 测量逻辑
-                    // 作用：测量真实大小，但在向父容器汇报时，撒谎说自己高度为 0。
-                    // 结果：Box 计算大小时会忽略它，只看上面那个 18.sp 的隐形文字。
-                    .layout { measurable, constraints ->
-                        val placeable = measurable.measure(constraints)
-                        val visualCorrection = (-3).dp.roundToPx()
-                        // 汇报宽度照旧（保证横向不重叠），汇报高度为 0
-                        layout(placeable.width, 0) {
-                            // 因为汇报高度为 0，对齐中心点变成了 0 的位置。
-                            // 为了让文字垂直居中，向上偏移文字真实高度的一半。
-                            placeable.placeRelative(
-                                x = 0,
-                                y = -placeable.height / 2 + visualCorrection
-                            )
-                        }
-                    }
             )
         }
 
