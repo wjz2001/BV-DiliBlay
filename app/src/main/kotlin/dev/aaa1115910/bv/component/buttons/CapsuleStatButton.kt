@@ -33,7 +33,7 @@ internal fun CapsuleStatButtonContent(
     modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = modifier.height(IntrinsicSize.Min),//高度由内容决定，不依赖父布局
+        modifier = modifier.fillMaxHeight(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -47,7 +47,8 @@ internal fun CapsuleStatButtonContent(
 
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.padding(start = 14.dp, end = 14.dp)
+            modifier = Modifier
+                .padding(end = 14.dp)
         ) {
             Text(
                 text = text,
