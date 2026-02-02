@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,6 +33,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Button
+import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.FilterChip
 import androidx.tv.material3.Icon
@@ -56,7 +58,14 @@ fun FavoriteButton(
     val pillShape = RoundedCornerShape(percent = 50)
 
     Button(
-        modifier = modifier,
+        modifier = modifier.height(60.dp),
+        shape = ButtonDefaults.shape(
+            shape = pillShape,
+            focusedShape = pillShape,
+            pressedShape = pillShape,
+            disabledShape = pillShape,
+            focusedDisabledShape = pillShape
+        ),
         onClick = {
             if (showFavoriteDialog) return@Button
             // if (isFavorite) {
