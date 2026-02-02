@@ -6,6 +6,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -65,7 +66,7 @@ fun LikeButton(
 
     Button(
         modifier = modifier
-            .height(60.dp)
+            .height(52.dp)
             .onPreviewKeyEvent {
             when (it.key) {
                 Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
@@ -92,6 +93,11 @@ fun LikeButton(
             }
             false
         },
+        contentPadding = PaddingValues(0.dp),
+        scale = ButtonDefaults.scale(
+            focusedScale = 1f,
+            pressedScale = 1f
+        ),
         shape = ButtonDefaults.shape(
             shape = pillShape,
             focusedShape = pillShape,

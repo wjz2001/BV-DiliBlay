@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -58,7 +59,12 @@ fun FavoriteButton(
     val pillShape = RoundedCornerShape(percent = 50)
 
     Button(
-        modifier = modifier.height(60.dp),
+        modifier = modifier.height(52.dp),
+        contentPadding = PaddingValues(0.dp),
+        scale = ButtonDefaults.scale(
+            focusedScale = 1f,
+            pressedScale = 1f
+        ),
         shape = ButtonDefaults.shape(
             shape = pillShape,
             focusedShape = pillShape,
