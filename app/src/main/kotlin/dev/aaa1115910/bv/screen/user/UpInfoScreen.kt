@@ -262,7 +262,7 @@ fun UpSpaceScreen(
         Column(
             modifier = Modifier.padding(innerPadding)
         ) {
-            Spacer(modifier = Modifier.height(12.dp))
+            //Spacer(modifier = Modifier.height(12.dp))
 
             TvLazyVerticalGrid(
                 modifier = Modifier.padding(innerPadding),

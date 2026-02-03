@@ -58,7 +58,13 @@ fun SettingsScreen(
 ) {
     var currentMenu by remember { mutableStateOf(SettingsMenuNavItem.AudioVideo) }
     var focusInNav by remember { mutableStateOf(false) }
-    
+
+    CompositionLocalProvider(
+        LocalDensity provides Density(
+            density = LocalDensity.current.density * 1.5f,
+            fontScale = LocalDensity.current.fontScale * 1.5f
+        )
+    ) {
         Scaffold(
             modifier = modifier,
             topBar = {
@@ -108,6 +114,7 @@ fun SettingsScreen(
                 )
             }
         }
+    }
 
 }
 
