@@ -118,7 +118,13 @@ class VideoDetailViewModel(
                 epId = it.epid,
             )
         } ?: emptyList()
-        relatedVideos.swapListWithMainContext(relateVideoCardDataList)
+        val filtered = dev.aaa1115910.bv.block.BlockManager.filterList(
+            page = dev.aaa1115910.bv.block.BlockPage.Related,
+            list = relateVideoCardDataList
+        ) { it.upMid }
+
+        relatedVideos.swapListWithMainContext(filtered)
+        //relatedVideos.swapListWithMainContext(relateVideoCardDataList)
         logger.fInfo { "Update ${relateVideoCardDataList.size} relate videos" }
     }
 }
