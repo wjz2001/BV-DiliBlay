@@ -99,7 +99,6 @@ object Prefs {
         restore = { Audio.fromCode(it) }
     )
 
-    var defaultDanmakuEnabled by pref(PrefKeys.prefDefaultDanmakuEnabledKey, true)
     var defaultDanmakuScale by pref(PrefKeys.prefDefaultDanmakuScaleKey, 1.75f)
     var defaultDanmakuOpacity by pref(PrefKeys.prefDefaultDanmakuOpacityKey, 0.7f)
     var defaultDanmakuSpeedFactor by pref(PrefKeys.prefDefaultDanmakuSpeedFactorKey, 1f)
@@ -130,7 +129,6 @@ object Prefs {
         restore = { VideoCodec.fromCode(it) }
     )
 
-    var enableFirebaseCollection by pref(PrefKeys.prefEnabledFirebaseCollectionKey, false)
     var incognitoMode by pref(PrefKeys.prefIncognitoModeKey, false)
 
     // DP/SP 类型映射
@@ -197,7 +195,6 @@ object Prefs {
     var enableProxy by pref(PrefKeys.prefEnableProxyKey, false)
     var proxyHttpServer by pref(PrefKeys.prefProxyHttpServerKey, "")
     var proxyGRPCServer by pref(PrefKeys.prefProxyGRPCServerKey, "")
-    var lastVersionCode by pref(PrefKeys.prefLastVersionCodeKey, 0)
     var preferOfficialCdn by pref(PrefKeys.prefPreferOfficialCdn, false)
     var defaultDanmakuMask by pref(PrefKeys.prefDefaultDanmakuMask, false)
     var enableFfmpegAudioRenderer by pref(PrefKeys.prefEnableFfmpegAudioRenderer, false)
@@ -306,11 +303,9 @@ private object PrefKeys {
     val prefDefaultDanmakuScaleKey = floatPreferencesKey("dds2")
     val prefDefaultDanmakuOpacityKey = floatPreferencesKey("ddo")
     val prefDefaultDanmakuSpeedFactorKey = floatPreferencesKey("ddsf")
-    val prefDefaultDanmakuEnabledKey = booleanPreferencesKey("dde")
     val prefDefaultDanmakuTypesKey = stringPreferencesKey("ddts")
     val prefDefaultDanmakuAreaKey = floatPreferencesKey("dda")
     val prefDefaultVideoCodecKey = intPreferencesKey("dvc")
-    val prefEnabledFirebaseCollectionKey = booleanPreferencesKey("efc")
     val prefIncognitoModeKey = booleanPreferencesKey("im")
     val prefDefaultSubtitleFontSizeKey = intPreferencesKey("dsfs")
     val prefDefaultSubtitleBackgroundOpacityKey = floatPreferencesKey("dsbo")
@@ -330,7 +325,6 @@ private object PrefKeys {
     val prefEnableProxyKey = booleanPreferencesKey("enable_proxy")
     val prefProxyHttpServerKey = stringPreferencesKey("proxy_http_server")
     val prefProxyGRPCServerKey = stringPreferencesKey("proxy_grpc_server")
-    val prefLastVersionCodeKey = intPreferencesKey("last_version_code")
     val prefPreferOfficialCdn = booleanPreferencesKey("prefer_official_cdn")
     val prefDefaultDanmakuMask = booleanPreferencesKey("prefer_enable_webmark")
     val prefEnableFfmpegAudioRenderer = booleanPreferencesKey("enable_ffmpeg_audio_renderer")
