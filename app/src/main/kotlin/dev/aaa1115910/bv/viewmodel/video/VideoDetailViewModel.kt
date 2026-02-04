@@ -50,6 +50,9 @@ class VideoDetailViewModel(
     val uiEvent = _uiEffect.asSharedFlow()
 
     init {
+        // 加载设置
+        _uiState.update { it.copy(showVideoInfo = Prefs.showVideoInfo) }
+
         videoInfoRepository.history
             .onEach { newHistory ->
                 _uiState.update { currentState ->
@@ -82,75 +85,6 @@ class VideoDetailViewModel(
         }
     }
 
-    private suspend fun loadVideoDetail(aid: Long, fromSeason: Boolean, fromController: Boolean) {
-        loadDetail(aid)
-
-        _uiState.update {
-            it.copy(fromSeason = fromSeason, fromController = fromController)
-        }
-
-        if (Prefs.isLogin) {
-            fetchFavoriteData(aid)
-        }
-
-        // 自动播放判断
-        if (!fromController && (fromSeason || !Prefs.showVideoInfo)) {
-            val cid = _uiState.value.lastPlayedCid.takeIf { it != 0L }
-            _uiEffect.emit(VideoDetailUiEffect.DirectlyPlay(cid))
-        }
-    }
-
-    private suspend fun handleLoadFailure(e: Throwable, aid: Long) {
-        val errorMessage = e.localizedMessage ?: "未知错误"
-        logger.fInfo { "Get video info failed: ${e.stackTraceToString()}" }
-
-        // 判断是否为资源不存在或无权限错误
-        val isVideoNotFound = when (Prefs.apiType) {
-            ApiType.Web -> errorMessage == "啥都木有"
-            ApiType.App -> errorMessage == "访问权限不足"
-            else -> false
-        }
-
-        // 如果不是特定错误，或者没开代理，直接报错结束
-        if (!isVideoNotFound || !Prefs.enableProxy) {
-            _uiState.update { it.copy(tip = errorMessage, loadingState = VideoInfoState.Error) }
-            return
-        }
-
-        // 尝试代理回退机制
-        logger.fInfo { "Trying get video info through proxy server" }
-        val fallbackSuccess = tryRedirectToSeason(aid, ProxyArea.HongKong)
-
-        if (!fallbackSuccess) {
-            _uiState.update {
-                it.copy(tip = "视频不存在", loadingState = VideoInfoState.Error)
-            }
-        }
-    }
-
-    private suspend fun tryRedirectToSeason(aid: Long, area: ProxyArea): Boolean {
-        return runCatching {
-            val seasonId = BiliPlusHttpApi.getSeasonIdByAvid(aid)
-            logger.info { "Get season id from biliplus: $seasonId ($area)" }
-
-            if (seasonId != null) {
-                logger.fInfo { "Redirect to season $seasonId" }
-                _uiEffect.emit(
-                    VideoDetailUiEffect.LaunchSeasonInfoActivity(
-                        seasonId = seasonId,
-                        proxyArea = area
-                    )
-                )
-                true
-            } else {
-                false
-            }
-        }.getOrElse { e ->
-            logger.fWarn { "Redirect failed: ${e.stackTraceToString()}" }
-            false
-        }
-    }
-
     fun updateVideoList(sectionIndex: Int) {
         val videoDetail = _uiState.value.videoDetail
         val partVideoList =
@@ -166,47 +100,6 @@ class VideoDetailViewModel(
 
     fun updateVideoList(videoListItem: List<VideoListItem>) {
         videoInfoRepository.updateVideoList(videoListItem)
-    }
-
-    private suspend fun loadDetail(aid: Long) {
-        logger.fInfo { "Load detail: [avid=$aid, preferApiType=${Prefs.apiType.name}]" }
-        runCatching {
-            videoDetailRepository.getVideoDetail(
-                aid = aid,
-                preferApiType = Prefs.apiType
-            )
-        }.onSuccess { videoDetail ->
-            _uiState.update {
-                it.copy(
-                    videoDetail = videoDetail,
-                    lastPlayedCid = videoDetail.history.lastPlayedCid,
-                    lastPlayedTime = videoDetail.history.progress,
-                    isLiked = videoDetail.userActions.like,
-                    isCoined = videoDetail.userActions.coin,
-                    isFavorite = videoDetail.userActions.favorite,
-                    loadingState = VideoInfoState.Success
-                )
-            }
-            updateFollowingState()
-            updateRelatedVideos()
-            logger.fInfo { "Load video av$aid success" }
-        }.onFailure {
-            _uiState.update { it.copy(loadingState = VideoInfoState.Error) }
-            logger.fInfo { "Load video av$aid failed: ${it.stackTraceToString()}" }
-        }
-    }
-
-    private fun updateFollowingState() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val userMid = _uiState.value.videoDetail?.author?.mid ?: -1
-            logger.fInfo { "Checking is following user $userMid" }
-            val isFollowing = userRepository.checkIsFollowing(
-                mid = userMid,
-                preferApiType = Prefs.apiType
-            )
-            logger.fInfo { "Following user result: $isFollowing" }
-            _uiState.update { it.copy(isFollowingUp = isFollowing ?: false) }
-        }
     }
 
     fun setFollow(follow: Boolean) {
@@ -233,26 +126,6 @@ class VideoDetailViewModel(
         }
     }
 
-
-    private fun fetchFavoriteData(avid: Long) {
-        viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
-                favoriteRepository.getAllFavoriteFolderMetadataList(
-                    mid = Prefs.uid,
-                    rid = avid,
-                    preferApiType = Prefs.apiType
-                )
-            }.onSuccess { result ->
-                _uiState.update { it.copy(favoriteFolders = result) }
-                logger.fDebug { "Update favoriteFolders size: ${result.size}" }
-                val videoInFavoriteFolderIdsResult = result
-                    .filter { it.videoInThisFav }.map { it.id }
-                _uiState.update { it.copy(videoFavoriteFolderIds = videoInFavoriteFolderIdsResult) }
-//                    videoInFavoriteFolderIds.swapListWithMainContext(videoInFavoriteFolderIdsResult.map { it.id })
-            }
-        }
-    }
-
     fun updateVideoFavoriteData(folderIds: List<Long>) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
@@ -275,7 +148,7 @@ class VideoDetailViewModel(
                 _uiState.update {
                     it.copy(
                         isFavorite = folderIds.isNotEmpty(),
-                        videoFavoriteFolderIds = folderIds
+                        videoFavoriteFolderIds = folderIds.toSet()
                     )
                 }
             }
@@ -283,11 +156,13 @@ class VideoDetailViewModel(
     }
 
     fun addVideoToDefaultFavoriteFolder() {
-        val defaultFavoriteFolder =
-            _uiState.value.favoriteFolders.firstOrNull { it.title == "默认收藏夹" } ?: return
-        updateVideoFavoriteData(listOf(defaultFavoriteFolder.id))
-    }
+        val videoFavoriteFolderIds = _uiState.value.videoFavoriteFolderIds
+        val defaultFavoriteFolderId = getDefaultFavoriteFolderId()
 
+        updateVideoFavoriteData(
+            (videoFavoriteFolderIds + listOfNotNull(defaultFavoriteFolderId)).toList()
+        )
+    }
 
     fun updateVideoLiked(like: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -355,24 +230,166 @@ class VideoDetailViewModel(
                 logger.fInfo { "Send video one click triple action success" }
                 if (data != null) {
                     _uiState.update { currentState ->
+                        val defaultFolderId = getDefaultFavoriteFolderId()
+
                         currentState.copy(
                             isLiked = data.like,
                             isCoined = data.coin,
-                            isFavorite = data.fav
+                            isFavorite = data.fav,
+                            videoFavoriteFolderIds = defaultFolderId?.let {
+                                currentState.videoFavoriteFolderIds + it
+                            } ?: currentState.videoFavoriteFolderIds
                         )
                     }
                     _uiEffect.emit(VideoDetailUiEffect.ShowToast("一键三连"))
-                    // 2. 处理副作用
-                    // 修正逻辑：使用 data.fav 来判断是否需要添加到收藏夹
-//                    if (data.fav) {
-//                        // 因为我们在 launch 协程中，如果这个函数是 suspend 的，可以直接调用
-//                        addVideoToDefaultFavoriteFolder()
-//                    }
                 }
             }.onFailure { throwable ->
                 logger.fInfo { "Send video one click triple action failed: ${throwable.message}" }
                 _uiEffect.emit(VideoDetailUiEffect.ShowToast("一键三连失败:${throwable.message ?: "unknown error"}"))
             }
+        }
+    }
+
+    private suspend fun loadVideoDetail(aid: Long, fromSeason: Boolean, fromController: Boolean) {
+        val shouldDirectlyPlay = !fromController && (fromSeason || !_uiState.value.showVideoInfo)
+
+        _uiState.update { it.copy(fromSeason = fromSeason, fromController = fromController) }
+
+        logger.fInfo { "Load detail: [avid=$aid, preferApiType=${Prefs.apiType.name}, autoPlay=$shouldDirectlyPlay]" }
+
+        val videoDetail = videoDetailRepository.getVideoDetail(
+            aid = aid,
+            preferApiType = Prefs.apiType
+        )
+
+        _uiState.update {
+            it.copy(
+                videoDetail = videoDetail,
+                lastPlayedCid = videoDetail.history.lastPlayedCid,
+                lastPlayedTime = videoDetail.history.progress,
+                isLiked = videoDetail.userActions.like,
+                isCoined = videoDetail.userActions.coin,
+                isFavorite = videoDetail.userActions.favorite,
+                loadingState = if (shouldDirectlyPlay) VideoInfoState.Loading else VideoInfoState.Success
+            )
+        }
+
+        logger.fInfo { "Load video av$aid success" }
+
+        if (shouldDirectlyPlay) {
+            val targetCid = videoDetail.history.lastPlayedCid.takeIf { it != 0L }
+                ?: videoDetail.pages.firstOrNull()?.cid
+
+            if (targetCid != null) {
+                logger.fInfo { "Directly play video: [av:$aid, cid:$targetCid]" }
+                _uiEffect.emit(VideoDetailUiEffect.DirectlyPlay(targetCid))
+                return
+            } else {
+                logger.fWarn { "Auto play failed: CID not found." }
+                _uiState.update {
+                    it.copy(
+                        loadingState = VideoInfoState.Error,
+                        errorTip = "视频不存在"
+                    )
+                }
+                return
+            }
+        }
+
+        updateFollowingState()
+        updateRelatedVideos()
+        if (Prefs.isLogin) {
+            fetchFavoriteData(aid)
+        }
+    }
+
+    private suspend fun handleLoadFailure(e: Throwable, aid: Long) {
+        val errorMessage = e.localizedMessage ?: "未知错误"
+        logger.fInfo { "Get video info failed: ${e.stackTraceToString()}" }
+
+        val isVideoNotFound = when (Prefs.apiType) {
+            ApiType.Web -> errorMessage == "啥都木有"
+            ApiType.App -> errorMessage == "访问权限不足"
+            else -> false
+        }
+
+        if (!isVideoNotFound || !Prefs.enableProxy) {
+            _uiState.update {
+                it.copy(
+                    errorTip = errorMessage,
+                    loadingState = VideoInfoState.Error
+                )
+            }
+            return
+        }
+
+        logger.fInfo { "Trying get video info through proxy server" }
+        val fallbackSuccess = tryRedirectToSeason(aid, ProxyArea.HongKong)
+
+        if (!fallbackSuccess) {
+            _uiState.update {
+                it.copy(errorTip = "视频不存在", loadingState = VideoInfoState.Error)
+            }
+        }
+    }
+
+    private suspend fun tryRedirectToSeason(aid: Long, area: ProxyArea): Boolean {
+        return runCatching {
+            val seasonId = BiliPlusHttpApi.getSeasonIdByAvid(aid)
+            logger.info { "Get season id from biliplus: $seasonId ($area)" }
+
+            if (seasonId != null) {
+                logger.fInfo { "Redirect to season $seasonId" }
+                _uiEffect.emit(
+                    VideoDetailUiEffect.LaunchSeasonInfoActivity(
+                        seasonId = seasonId,
+                        proxyArea = area
+                    )
+                )
+                true
+            } else {
+                false
+            }
+        }.getOrElse { e ->
+            logger.fWarn { "Redirect failed: ${e.stackTraceToString()}" }
+            false
+        }
+    }
+
+    private fun fetchFavoriteData(avid: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                favoriteRepository.getAllFavoriteFolderMetadataList(
+                    mid = Prefs.uid,
+                    rid = avid,
+                    preferApiType = Prefs.apiType
+                )
+            }.onSuccess { result ->
+                _uiState.update { it.copy(favoriteFolders = result) }
+                logger.fDebug { "Update favoriteFolders size: ${result.size}" }
+                val videoInFavoriteFolderIdsResult = result
+                    .filter { it.videoInThisFav }.map { it.id }
+                _uiState.update { it.copy(videoFavoriteFolderIds = videoInFavoriteFolderIdsResult.toSet()) }
+            }
+        }
+    }
+
+    private fun getDefaultFavoriteFolderId(): Long? {
+        val defaultFavoriteFolder =
+            _uiState.value.favoriteFolders.firstOrNull { it.title == "默认收藏夹" }
+        return defaultFavoriteFolder?.id
+    }
+
+    private fun updateFollowingState() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val userMid = _uiState.value.videoDetail?.author?.mid ?: -1
+            logger.fInfo { "Checking is following user $userMid" }
+            val isFollowing = userRepository.checkIsFollowing(
+                mid = userMid,
+                preferApiType = Prefs.apiType
+            )
+            logger.fInfo { "Following user result: $isFollowing" }
+            _uiState.update { it.copy(isFollowingUp = isFollowing ?: false) }
         }
     }
 
