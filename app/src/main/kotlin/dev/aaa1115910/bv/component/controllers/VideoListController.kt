@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,6 +55,7 @@ fun VideoListController(
 
     var didInitialPosition by remember { mutableStateOf(false) }
     var pendingFocusCid by remember { mutableStateOf<Long?>(null) }
+    var pendingPrefetchAid by remember { mutableStateOf<Long?>(null) }
 
     // 仅在“打开时”标记一次“待聚焦 cid”：
     // 列表打开后不再因为 currentCid 的变化抢焦点
@@ -62,6 +64,7 @@ fun VideoListController(
             pendingFocusCid = currentCid
         } else {
             pendingFocusCid = null
+            pendingPrefetchAid = null
             didInitialPosition = false
         }
     }
@@ -97,6 +100,18 @@ fun VideoListController(
         }
 
         didInitialPosition = true
+    }
+
+    LaunchedEffect(show, pendingPrefetchAid) {
+        if (!show) return@LaunchedEffect
+        val aid = pendingPrefetchAid ?: return@LaunchedEffect
+
+        // 200ms 内焦点若继续快速移动，会触发该 effect 取消并重启，避免请求风暴
+        kotlinx.coroutines.delay(200)
+
+        if (pendingPrefetchAid == aid) {
+            onEnsureUgcPagesLoaded(aid)
+        }
     }
 
     val parentFocusRequester = remember { FocusRequester() }
@@ -179,14 +194,26 @@ fun VideoListController(
                         val pagesLoaded = pages != null
                         val hasSubPages = pages?.isNotEmpty() == true
 
+                        val isCurrentParent = video.aid == currentAid
                         val isChildSelected = enableChildrenUi && (pages?.any { it.cid == currentCid } == true)
                         val isPinned = pinnedParent?.aid == video.aid || isChildSelected || isParentSelected
 
                         var expanded by remember(video.cid) { mutableStateOf(false) }
 
-                        // pinnedParent：永远展开（命中父项或子项都成立）
-                        LaunchedEffect(isPinned) {
-                            if (isPinned) expanded = true
+                        var didAutoExpand by remember(video.cid) { mutableStateOf(false) }
+
+                        // pinnedParent：只自动展开一次（用于初次定位/初次进入当前组），之后可以手动收起
+                        LaunchedEffect(show, isPinned) {
+                            if (!show) return@LaunchedEffect
+                            if (isPinned && !didAutoExpand) {
+                                expanded = true
+                                didAutoExpand = true
+                            }
+                        }
+
+                        LaunchedEffect(pagesLoaded, hasSubPages) {
+                            // 确认单P：不需要展开
+                            if (pagesLoaded && !hasSubPages) expanded = false
                         }
 
                         // 组焦点跟踪：父项或子项任意获得焦点 => 认为组聚焦
@@ -231,9 +258,10 @@ fun VideoListController(
                                     .onFocusChanged { state ->
                                         if (state.hasFocus) {
                                             groupHasFocus = true
-                                            if (enableChildrenUi) onEnsureUgcPagesLoaded(video.aid) // 预取但不展开
+                                            pendingPrefetchAid = if (enableChildrenUi) video.aid else null
                                         } else {
                                             groupHasFocus = false
+                                            if (pendingPrefetchAid == video.aid) pendingPrefetchAid = null
                                             scheduleCollapseIfNeeded()
                                         }
                                     }
@@ -249,21 +277,35 @@ fun VideoListController(
                                 },
                                  */
                                 onClick = {
-                                    // 1) UGC 子项未加载：先触发加载，并允许展开（展示“加载中”占位）
-                                    // 2) 已加载且多P：切换展开/折叠（pinned 不允许折叠）
-                                    // 3) 已加载但单P：走原有播放逻辑
-                                    if (enableChildrenUi && !pagesLoaded) {
-                                        onEnsureUgcPagesLoaded(video.aid)
-                                        // 让用户看到“展开动作”生效；pinned 会被强制展开也没问题
-                                        if (!isPinned) expanded = true
+                                    // PGC：没有子项 UI；非当前播放，当前不处理
+                                    if (!enableChildrenUi) {
+                                        if (!isCurrentParent) onPlayNewVideo(video)
                                         return@DenseListItem
                                     }
 
-                                    if (hasSubPages) {
-                                        if (!isPinned) expanded = !expanded
-                                    } else if (!isParentSelected) {
-                                        onPlayNewVideo(video)
+                                    // 已确认单P：非当前播放；当前不处理
+                                    if (pagesLoaded && !hasSubPages) {
+                                        if (!isCurrentParent) onPlayNewVideo(video)
+                                        return@DenseListItem
                                     }
+
+                                    // 子项未加载（箭头也不会显示）：
+                                    // - 非当前：点击直接播放（“箭头出来前直接播放”）
+                                    // - 当前：点击只做展开/收起；仅展开时触发加载 + 显示占位
+                                    if (!pagesLoaded) {
+                                        if (!isCurrentParent) {
+                                            onPlayNewVideo(video)
+                                        } else {
+                                            expanded = !expanded
+                                            if (expanded) {
+                                                onEnsureUgcPagesLoaded(video.aid)
+                                            }
+                                        }
+                                        return@DenseListItem
+                                    }
+
+                                    // 已加载且确认多P（箭头已出现）：点击触发展开/收起（当前/非当前一致）
+                                        expanded = !expanded
                                 },
                                 headlineContent = {
                                     Text(
@@ -286,6 +328,25 @@ fun VideoListController(
                                     }
                                 }
                             )
+
+                            // 子项未加载：仅在“当前父项 + expanded=true”时展示“加载中...”占位（不可聚焦/不可点击）
+                            if (expanded && enableChildrenUi && !pagesLoaded && isCurrentParent) {
+                                Column(
+                                    modifier = Modifier
+                                        .padding(start = 16.dp, top = 4.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    MenuListItem(
+                                        modifier = Modifier
+                                            .padding(horizontal = 16.dp)
+                                            .focusProperties { canFocus = false },
+                                        text = "加载中……",
+                                        selected = false,
+                                        textAlign = TextAlign.Start,
+                                        onClick = {}
+                                    )
+                                }
+                            }
 
                             // 分P子项（仅展开时显示）
                             if (expanded && hasSubPages) {
