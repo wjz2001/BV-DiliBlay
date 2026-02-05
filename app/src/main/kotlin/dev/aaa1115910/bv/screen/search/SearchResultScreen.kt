@@ -64,8 +64,10 @@ import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.focusedScale
+import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.removeHtmlTags
 import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.search.SearchResultViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
@@ -334,10 +336,10 @@ private fun SearchResultListItem(
                     avid = searchResult.aid,
                     title = searchResult.title.removeHtmlTags(),
                     cover = searchResult.cover,
-                    play = with(searchResult.play) { if (this == -1) null else this },
-                    danmaku = with(searchResult.danmaku) { if (this == -1) null else this },
+                    playString = searchResult.play.takeIf { it != -1 }.toWanString(),
+                    danmakuString = searchResult.danmaku.takeIf { it != -1 }.toWanString(),
+                    timeString = (searchResult.duration * 1000L).formatHourMinSec(),
                     upName = searchResult.author,
-                    time = searchResult.duration * 1000L,
                     pubTime = searchResult.pubTime
                 ),
                 onClick = onClick,

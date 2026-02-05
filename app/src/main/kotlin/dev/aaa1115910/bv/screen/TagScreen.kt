@@ -35,6 +35,8 @@ import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.ui.effect.UiEffect
+import dev.aaa1115910.bv.util.formatHourMinSec
+import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.TagViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
@@ -143,9 +145,9 @@ fun TagScreen(
                             title = video.title,
                             cover = video.pic,
                             upName = video.owner.name,
-                            play = video.stat.view,
-                            danmaku = video.stat.danmaku,
-                            time = video.duration * 1000L,
+                            playString = video.stat.view.toWanString(),
+                            danmakuString = video.stat.danmaku.toWanString(),
+                            timeString = (video.duration * 1000L).formatHourMinSec(),
                             pubTime = video.pubdate.smartDate
                         ),
                         onClick = { VideoInfoActivity.actionStart(context, video.aid) },

@@ -5,6 +5,7 @@ import dev.aaa1115910.biliapi.entity.user.Author
 
 data class RelatedVideo(
     val aid: Long,
+    val cid: Long,
     val cover: String,
     val title: String,
     val duration: Int,
@@ -17,6 +18,7 @@ data class RelatedVideo(
     companion object {
         fun fromRelate(relate: bilibili.app.view.v1.Relate) = RelatedVideo(
             aid = relate.aid,
+            cid = relate.cid,
             cover = relate.pic,
             title = relate.title,
             duration = relate.duration.toInt(),
@@ -32,6 +34,7 @@ data class RelatedVideo(
         fun fromRelate(relate: dev.aaa1115910.biliapi.http.entity.video.RelatedVideoInfo) =
             RelatedVideo(
                 aid = relate.aid,
+                cid = relate.cid,
                 cover = relate.pic,
                 title = relate.title,
                 duration = relate.duration,

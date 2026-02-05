@@ -128,24 +128,6 @@ fun LargeVideoCard(
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.titleLarge
                 )
-                Box(
-                    modifier = Modifier
-                        .padding(start = 4.dp)
-                        .border(
-                            width = (1.5).dp,
-                            color = if (data.reason.isNotEmpty()) reasonColor else Color.Transparent,
-                            shape = RoundedCornerShape(6.dp)
-                        )
-                ) {
-                    Text(
-                        modifier = Modifier.padding(6.dp, 2.dp),
-                        text = data.reason,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = reasonColor,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -171,13 +153,13 @@ fun LargeVideoCard(
 fun LargeVideoCardPreview() {
     val data = VideoCardData(
         avid = 0,
+        cid = 0,
         title = "震惊！太震惊了！真的是太震惊了！我的天呐！真TMD震惊！",
         cover = "http://i2.hdslb.com/bfs/archive/af17fc07b8f735e822563cc45b7b5607a491dfff.jpg",
-        reason = "本周必看",
         upName = "bishi",
-        play = 2333,
-        danmaku = 666,
-        time = 2333 * 1000
+        playString = "2333",
+        danmakuString = "666",
+        timeString = "2333"
     )
     BVTheme {
         Surface {

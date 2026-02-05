@@ -184,6 +184,15 @@ class VideoPlayerV3ViewModel(
                 logger.fInfo { "Sync video list from repo, size: ${newList.size}" }
             }
             .launchIn(viewModelScope)
+
+        videoInfoRepository.relatedVideos
+            .onEach { newList ->
+                _uiState.update { currentState ->
+                    currentState.copy(relatedVideos = newList)
+                }
+                logger.fInfo { "Sync related videos from repo, size: ${newList.size}" }
+            }
+            .launchIn(viewModelScope)
     }
 
     fun init(

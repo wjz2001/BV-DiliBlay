@@ -14,6 +14,7 @@ import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.addWithMainContext
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.fWarn
+import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.swapList
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
@@ -114,7 +115,7 @@ class FavoriteViewModel(
                             cover = favoriteItem.cover,
                             upName = favoriteItem.upper.name,
                             upMid = favoriteItem.upper.mid,
-                            time = favoriteItem.duration * 1000L
+                            timeString = (favoriteItem.duration * 1000L).formatHourMinSec()
                         )
                     )
                 }

@@ -299,12 +299,13 @@ fun CardInfo(
 fun SmallVideoCardWithoutFocusPreview() {
     val data = VideoCardData(
         avid = 0,
+        cid = 0,
         title = "震惊！太震惊了！真的是太震惊了！我的天呐！真TMD震惊！",
         cover = "http://i2.hdslb.com/bfs/archive/af17fc07b8f735e822563cc45b7b5607a491dfff.jpg",
         upName = "bishi",
-        play = 2333,
-        danmaku = 666,
-        time = 2333 * 1000,
+        playString = "2333",
+        danmakuString = "666",
+        timeString = "2333",
         pubTime = "1小时前"
     )
     BVTheme {
@@ -325,12 +326,13 @@ fun SmallVideoCardWithoutFocusPreview() {
 fun SmallVideoCardWithFocusPreview() {
     val data = VideoCardData(
         avid = 0,
+        cid = 0,
         title = "震惊！太震惊了！真的是太震惊了！我的天呐！真TMD震惊！",
         cover = "http://i2.hdslb.com/bfs/archive/af17fc07b8f735e822563cc45b7b5607a491dfff.jpg",
         upName = "bishi",
-        play = 2333,
-        danmaku = 666,
-        time = 2333 * 1000,
+        playString = "2333",
+        danmakuString = "666",
+        timeString = "2333",
         pubTime = "1小时前"
     )
     BVTheme {
@@ -351,13 +353,14 @@ fun SmallVideoCardWithFocusPreview() {
 fun SmallVideoCardsPreview() {
     val data = VideoCardData(
         avid = 0,
+        cid = 0,
         title = "震惊！太震惊了！真的是太震惊了！我的天呐！真TMD震惊！",
         //cover = "http://i2.hdslb.com/bfs/archive/af17fc07b8f735e822563cc45b7b5607a491dfff.jpg",
         cover = "",
         upName = "bishi",
-        play = 2333,
-        danmaku = 666,
-        time = 2333 * 1000,
+        playString = "2333",
+        danmakuString = "666",
+        timeString = "2333",
         pubTime = "1小时前"
     )
     BVTheme {
