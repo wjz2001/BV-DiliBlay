@@ -14,6 +14,7 @@ import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.entity.VideoListItem
+import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.util.VideoShotImageCache
 
@@ -54,6 +55,9 @@ data class PlayerUiState(
     val availableAudio: List<Audio> = emptyList(),
     val availableSubtitles: List<Subtitle> = emptyList(),
     val availableVideoList: List<VideoListItem> = emptyList(),
+
+    // 相关视频
+    val relatedVideos: List<VideoCardData> = emptyList(),
 
     // ==== 当前选中状态 ====
 

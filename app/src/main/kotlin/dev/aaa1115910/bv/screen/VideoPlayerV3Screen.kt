@@ -26,6 +26,7 @@ import dev.aaa1115910.bv.component.controllers.VideoPlayerController
 import dev.aaa1115910.bv.component.controllers.VideoProgressSeek
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.VideoAspectRatio
+import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.player.BvVideoPlayer
 import dev.aaa1115910.bv.ui.effect.PlayerUiEffect
@@ -187,7 +188,16 @@ fun VideoPlayerV3Screen(
         onSubtitleSettingChange = { action ->
             logger.info { "On subtitle config change" }
             playerViewModel.updateSubtitleState(action)
-        }
+        },
+        onRelatedVideoClicked = { video ->
+            video.cid?.let{
+                playerViewModel.playNewVideo(VideoListItem(
+                    aid = video.avid,
+                    cid = video.cid,
+                    title = video.title,
+                ))
+            }
+        },
     ) {
         Box(
             modifier = Modifier.background(Color.Black),

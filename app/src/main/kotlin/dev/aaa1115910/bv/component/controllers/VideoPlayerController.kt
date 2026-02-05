@@ -34,6 +34,7 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoListItem
+import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.player.AbstractVideoPlayer
 import dev.aaa1115910.bv.ui.state.PlayerState
@@ -77,6 +78,7 @@ fun VideoPlayerController(
     onDanmakuSettingChange: (DanmakuSettingAction) -> Unit,
     onSubtitleChange: (Subtitle) -> Unit,
     onSubtitleSettingChange: (SubtitleSettingAction) -> Unit,
+    onRelatedVideoClicked: (VideoCardData) -> Unit,
 
     content: @Composable () -> Unit
 ) {
@@ -87,7 +89,8 @@ fun VideoPlayerController(
     var showListController by remember { mutableStateOf(false) }
     var showMenuController by remember { mutableStateOf(false) }
     var showInfoSeekController by remember { mutableStateOf(false) }
-    val showClickableControllers by remember { derivedStateOf { showListController || showMenuController || showInfoSeekController } }
+    var showRelatedVideosController by remember { mutableStateOf(false) }
+    val showClickableControllers by remember { derivedStateOf { showListController || showMenuController || showInfoSeekController || showRelatedVideosController } }
 
     var lastPressBack by remember { mutableLongStateOf(0L) }
     var goTime by remember { mutableLongStateOf(0L) }
@@ -181,6 +184,7 @@ fun VideoPlayerController(
                     showMenuController = false
                     showListController = false
                     showInfoSeekController = false
+                    showRelatedVideosController = false
                 } else {
                     val currentTime = System.currentTimeMillis()
                     if (currentTime - lastPressBack < 3000) {
@@ -192,23 +196,28 @@ fun VideoPlayerController(
                 }
                 return true
             }
+
             Key.Menu -> {
                 showInfoSeekController = false
                 showMenuController = !showMenuController
                 return true
             }
+
             Key(763) -> {
                 showMenuController = true
                 return true
             }
+
             Key.MediaPlayPause -> {
                 onPlayPause()
                 return true
             }
+
             Key.MediaPlay -> {
                 if (!videoPlayer.isPlaying) onPlay()
                 return true
             }
+
             Key.MediaPause -> {
                 if (videoPlayer.isPlaying) onPause()
                 return true
@@ -234,20 +243,24 @@ fun VideoPlayerController(
                         return true
                     }
                 }
+
                 Key.DirectionUp -> {
                     showListController = true
                     return true
                 }
+
                 Key.DirectionDown -> {
                     showInfoSeekController = true
                     return true
                 }
+
                 Key.MediaRewind, Key.DirectionLeft -> {
                     if (uiState.showSkipToNextEp) onCancelSkipToNextEp()
                     showInfoSeekController = true
                     onDirectionLeft()
                     return true
                 }
+
                 Key.MediaFastForward, Key.DirectionRight -> {
                     showInfoSeekController = true
                     onDirectionRight()
@@ -318,6 +331,12 @@ fun VideoPlayerController(
             epid = uiState.epid ?: 0,
         )
 
+        RelatedVideosController(
+            show = showRelatedVideosController,
+            relatedVideos = uiState.relatedVideos,
+            onVideoClicked = onRelatedVideoClicked
+        )
+
         ControllerVideoInfo(
             modifier = Modifier.focusable(),
             show = showInfoSeekController,
@@ -345,6 +364,10 @@ fun VideoPlayerController(
             onShowSettings = {
                 showInfoSeekController = false
                 showMenuController = true
+            },
+            onShowRelatedVideos = {
+                showInfoSeekController = false
+                showRelatedVideosController = true
             },
             onGoToVideoInfo = {
                 VideoInfoActivity.actionStart(

@@ -29,6 +29,8 @@ import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.ui.effect.UiEffect
+import dev.aaa1115910.bv.util.formatHourMinSec
+import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.home.RecommendViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
@@ -94,10 +96,10 @@ fun RecommendScreen(
                         avid = item.aid,
                         title = item.title,
                         cover = item.cover,
-                        play = item.play.takeIf { it != -1 },
-                        danmaku = item.danmaku.takeIf { it != -1 },
+                        playString = item.play.takeIf { it != -1 }.toWanString(),
+                        danmakuString = item.danmaku.takeIf { it != -1 }.toWanString(),
+                        timeString = (item.duration * 1000L).formatHourMinSec(),
                         upName = item.author,
-                        time = item.duration * 1000L,
                         pubTime = item.pubTime
                     )
                 },

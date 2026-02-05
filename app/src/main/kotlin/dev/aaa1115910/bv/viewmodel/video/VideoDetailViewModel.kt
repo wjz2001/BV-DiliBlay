@@ -19,6 +19,8 @@ import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fDebug
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.fWarn
+import dev.aaa1115910.bv.util.formatHourMinSec
+import dev.aaa1115910.bv.util.toWanString
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -399,18 +401,22 @@ class VideoDetailViewModel(
         val relateVideoCardDataList = videoDetail?.relatedVideos?.map {
             VideoCardData(
                 avid = it.aid,
+                cid = it.cid,
                 title = it.title,
                 cover = it.cover,
                 upName = it.author?.name ?: "",
                 upMid = it.author?.mid,
-                time = it.duration * 1000L,
-                play = it.view,
-                danmaku = it.danmaku,
+                timeString = (it.duration * 1000L).formatHourMinSec(),
+                playString = it.view.toWanString(),
+                danmakuString = it.danmaku.toWanString(),
                 jumpToSeason = it.jumpToSeason,
                 epId = it.epid,
             )
         } ?: emptyList()
+
         _uiState.update { it.copy(relatedVideos = relateVideoCardDataList) }
+        videoInfoRepository.updateRelatedVideos(relateVideoCardDataList)
+
         logger.fInfo { "Update ${relateVideoCardDataList.size} relate videos" }
     }
 }

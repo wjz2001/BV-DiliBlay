@@ -13,6 +13,8 @@ import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.addWithMainContext
 import dev.aaa1115910.bv.util.fInfo
+import dev.aaa1115910.bv.util.formatHourMinSec
+import dev.aaa1115910.bv.util.toWanString
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -58,9 +60,9 @@ class UpInfoViewModel(
                         //TODO 这里在改造 app 端接口时，没找到在空间内显示为合集样式封面的UP,没法进一步测试接口
                         cover = spaceVideoItem.cover,
                         upName = spaceVideoItem.author,
-                        play = with(spaceVideoItem.play) { if (this == -1) null else this },
-                        danmaku = with(spaceVideoItem.danmaku) { if (this == -1) null else this },
-                        time = spaceVideoItem.duration * 1000L,
+                        playString = spaceVideoItem.play.takeIf { it != -1 }.toWanString(),
+                        danmakuString = spaceVideoItem.danmaku.takeIf { it != -1 }.toWanString(),
+                        timeString = (spaceVideoItem.duration * 1000L).formatHourMinSec(),
                         pubTime = spaceVideoItem.pubTime
                     )
                 )

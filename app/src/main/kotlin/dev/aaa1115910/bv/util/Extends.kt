@@ -119,18 +119,27 @@ fun Date.formatPubTimeString(): String {
 }
 
 fun Long.formatHourMinSec(): String {
-    return if (this < 0L) {
-        "..."
-    } else {
-        val hours = TimeUnit.MILLISECONDS.toHours(this)
-        val minutes = TimeUnit.MILLISECONDS.toMinutes(this) % 60
-        val seconds = TimeUnit.MILLISECONDS.toSeconds(this) % 60
-        if (hours > 0) {
-            String.format("%02d:%02d:%02d", hours, minutes, seconds)
-        } else {
-            String.format("%02d:%02d", minutes, seconds)
-        }
+    if (this < 0L) return "..."
+
+    val s = this / 1000
+    val h = s / 3600
+    val m = (s % 3600) / 60
+    val sec = s % 60
+
+    val sb = StringBuilder(8)
+
+    if (h > 0) {
+        if (h < 10) sb.append('0')
+        sb.append(h).append(':')
     }
+
+    if (m < 10) sb.append('0')
+    sb.append(m).append(':')
+
+    if (sec < 10) sb.append('0')
+    sb.append(sec)
+
+    return sb.toString()
 }
 
 fun Long.toMBString(): String = String.format("%.2f MB", this / 1024f / 1024f)
@@ -163,10 +172,8 @@ fun KeyEvent.isDpadRight(): Boolean = key == Key.DirectionRight
 
 fun Int.stringRes(context: Context): String = context.getString(this)
 
-fun Int.toWanString(): String {
-    return if (this >= 10_000) {
-        String.format(Locale.CHINA, "%.1f万", this / 10_000f)
-    } else {
-        this.toString()
-    }
-}
+fun Int?.toWanString(): String =
+    this?.let {
+        if (it < 10_000) it.toString()
+        else "${(it / 1000) / 10f}万"
+    }.orEmpty()

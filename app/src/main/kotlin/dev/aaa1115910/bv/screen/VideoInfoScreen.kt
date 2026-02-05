@@ -104,6 +104,7 @@ import dev.aaa1115910.bv.component.buttons.LikeButton
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.videocard.VideosRow
 import dev.aaa1115910.bv.entity.VideoListItem
+import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.effect.VideoDetailUiEffect
 import dev.aaa1115910.bv.ui.theme.BVTheme
@@ -388,7 +389,20 @@ fun VideoInfoScreen(
                                     VideosRow(
                                         header = stringResource(R.string.video_info_related_video_title),
                                         videos = relatedVideos,
-                                        showMore = {},
+                                        onVideoClicked = { videoData ->
+                                            if (videoData.jumpToSeason) {
+                                                SeasonInfoActivity.actionStart(
+                                                    context = context,
+                                                    epId = videoData.epId!!,
+                                                    proxyArea = ProxyArea.checkProxyArea(videoData.title)
+                                                )
+                                            } else {
+                                                VideoInfoActivity.actionStart(
+                                                    context,
+                                                    videoData.avid
+                                                )
+                                            }
+                                        },
                                         onAddWatchLater = { aid ->
                                             toViewViewModel.addToView(aid)
                                         },
