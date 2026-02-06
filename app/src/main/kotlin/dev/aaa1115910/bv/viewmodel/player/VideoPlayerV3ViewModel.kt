@@ -541,9 +541,11 @@ class VideoPlayerV3ViewModel(
         releaseDanmakuPlayer()
         initDanmakuPlayer()
 
-        // 加载新detail
-        viewModelScope.launch(Dispatchers.IO) {
-            videoInfoRepository.loadVideoDetail(video.aid, Prefs.apiType)
+        // 切换视频时加载新detail
+        if (video.aid != _uiState.value.aid) {
+            viewModelScope.launch(Dispatchers.IO) {
+                videoInfoRepository.loadVideoDetail(video.aid, Prefs.apiType)
+            }
         }
 
         // 加载新播放url
