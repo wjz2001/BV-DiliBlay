@@ -11,7 +11,6 @@ data class VideoCardData(
     val playString: String =  "",
     val danmakuString: String =  "",
     val timeString: String =  "",
-    val watched: Boolean = false,
     val jumpToSeason: Boolean = false,
     val pubTime: String? = null
 )
