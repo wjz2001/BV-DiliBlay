@@ -185,12 +185,14 @@ class VideoPlayerV3ViewModel(
             }
             .launchIn(viewModelScope)
 
-        videoInfoRepository.relatedVideos
-            .onEach { newList ->
+        videoInfoRepository.videoDetailState
+            .onEach { newDetail ->
+                if (newDetail == null) return@onEach
+
                 _uiState.update { currentState ->
-                    currentState.copy(relatedVideos = newList)
+                    currentState.copy(relatedVideos = newDetail.relatedVideos)
                 }
-                logger.fInfo { "Sync related videos from repo, size: ${newList.size}" }
+                logger.fInfo { "Sync related videos from repo" }
             }
             .launchIn(viewModelScope)
     }
@@ -211,12 +213,12 @@ class VideoPlayerV3ViewModel(
         loadPlayUrl(
             avid = aid,
             cid = cid,
-            epid = epid.takeIf { it != 0 }
+            epid = epid.takeIf { it != 0 },
+            title = title
         )
 
         _uiState.update {
             it.copy(
-                title = title,
                 lastPlayed = lastPlayed,
                 fromSeason = fromSeason,
                 subType = subType,
@@ -263,7 +265,10 @@ class VideoPlayerV3ViewModel(
             val reportTime = if (currentTime >= totalTime) -1 else currentTime
 
             // 用于更新详情页播放进度
-            videoInfoRepository.updateHistory(progress = reportTime, lastPlayedCid = _uiState.value.cid)
+            videoInfoRepository.updateHistory(
+                progress = reportTime,
+                lastPlayedCid = _uiState.value.cid
+            )
 
             // 最后一次发送心跳
             @OptIn(DelicateCoroutinesApi::class)
@@ -535,14 +540,19 @@ class VideoPlayerV3ViewModel(
         // 重置弹幕
         releaseDanmakuPlayer()
         initDanmakuPlayer()
-        _uiState.update {
-            it.copy(title = video.title)
+
+        // 加载新detail
+        viewModelScope.launch(Dispatchers.IO) {
+            videoInfoRepository.loadVideoDetail(video.aid, Prefs.apiType)
         }
+
+        // 加载新播放url
         loadPlayUrl(
             avid = video.aid,
             cid = video.cid,
             epid = video.epid,
             seasonId = video.seasonId,
+            title = video.title
         )
     }
 
@@ -568,6 +578,7 @@ class VideoPlayerV3ViewModel(
         cid: Long,
         epid: Int? = null,
         seasonId: Int? = null,
+        title: String,
     ) {
         _uiState.update {
             it.copy(
@@ -575,6 +586,7 @@ class VideoPlayerV3ViewModel(
                 cid = cid,
                 epid = epid ?: 0,
                 seasonId = seasonId ?: 0,
+                title = title
             )
         }
 
