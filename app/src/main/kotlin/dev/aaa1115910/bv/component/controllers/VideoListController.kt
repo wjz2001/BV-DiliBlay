@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -21,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -40,6 +42,8 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.entity.VideoListItem
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun VideoListController(
@@ -78,7 +82,14 @@ fun VideoListController(
             ?: videoList.firstOrNull { it.ugcPages?.any { p -> p.cid == currentCid } == true }
     }
 
-    // 打开时：预取 pinnedParent 的子项数据（番剧集跳过）+ 初次定位到当前播放项
+    /**
+     * 打开时：
+     * - 预取 pinnedParent 的子项数据（番剧集跳过）
+     * - 初次定位到当前播放项
+     *
+     * 关键修复：两段式定位 + offset
+     * 因为你这里父项可能三行、且展开/收起会改变高度；只滚一次很容易“滚到旧布局位置”。
+     */
     LaunchedEffect(show, videoList.size) {
         if (!show) return@LaunchedEffect
         if (didInitialPosition) return@LaunchedEffect
@@ -92,57 +103,38 @@ fun VideoListController(
         }
 
         val targetIndex = videoList.indexOfFirst { v ->
-            v.aid == currentAid || v.cid == currentCid || (v.ugcPages?.any { p -> p.cid == currentCid } == true)
+            v.aid == currentAid ||
+                    v.cid == currentCid ||
+                    (v.ugcPages?.any { p -> p.cid == currentCid } == true)
         }
         if (targetIndex != -1) {
-            // 大列表避免长动画：先瞬移
+            // 第一段：瞬移到 item（避免大列表长动画）
             listState.scrollToItem(targetIndex)
+
+            // 等一帧，让首轮布局稳定（特别是三行标题 / animateContentSize 带来的变化）
+            kotlinx.coroutines.android.awaitFrame()
+
+            // 第二段：带 offset 再定位一次，让目标尽量不要贴边（尾部尤其需要）
+            // offset 取值你可以按实际屏幕再调：-80 / -120 等
+            listState.scrollToItem(targetIndex, scrollOffset = -80)
         }
 
         didInitialPosition = true
     }
 
+    /**
+     * 焦点移动时的“延迟预取”：避免焦点快速上下移动导致请求风暴
+     */
     LaunchedEffect(show, pendingPrefetchAid) {
         if (!show) return@LaunchedEffect
         val aid = pendingPrefetchAid ?: return@LaunchedEffect
 
-        // 200ms 内焦点若继续快速移动，会触发该 effect 取消并重启，避免请求风暴
-        kotlinx.coroutines.delay(200)
+        delay(200)
 
         if (pendingPrefetchAid == aid) {
             onEnsureUgcPagesLoaded(aid)
         }
     }
-
-    val parentFocusRequester = remember { FocusRequester() }
-    val childFocusRequester = remember { FocusRequester() }
-
-    // 自动定位到当前分P
-    /*
-    LaunchedEffect(show) {
-        if (show) {
-            val currentIndex = videoList.indexOfFirst { video ->
-                video.cid == currentCid ||
-                        video.ugcPages?.any { it.cid == currentCid } == true
-            }
-
-            if (currentIndex != -1) {
-                listState.animateScrollToItem(currentIndex)
-
-                val isChild = videoList
-                    .getOrNull(currentIndex)
-                    ?.ugcPages
-                    ?.any { it.cid == currentCid } == true
-
-                if (isChild) {
-                    childFocusRequester.requestFocus()
-                } else {
-                    parentFocusRequester.requestFocus()
-                }
-            }
-        }
-    }
-    */
 
     AnimatedVisibility(
         visible = show,
@@ -171,21 +163,7 @@ fun VideoListController(
                         key = { it.cid }
                     ) { video ->
 
-
                         val isParentSelected = video.cid == currentCid
-                        /*
-                        val hasSubPages = !video.ugcPages.isNullOrEmpty()
-                        val isChildSelected = video.ugcPages?.any { it.cid == currentCid } == true
-
-                        var expanded by remember(video.cid) {
-                            mutableStateOf(isChildSelected)
-                        }
-
-                        // 如果当前正在播放的是子项，则自动展开父项
-                        LaunchedEffect(isChildSelected) {
-                            if (isChildSelected) expanded = true
-                        }
-                        */
                         val isSeasonEpisode = video.epid != null
                         val enableChildrenUi = !isSeasonEpisode
 
@@ -199,7 +177,6 @@ fun VideoListController(
                         val isPinned = pinnedParent?.aid == video.aid || isChildSelected || isParentSelected
 
                         var expanded by remember(video.cid) { mutableStateOf(false) }
-
                         var didAutoExpand by remember(video.cid) { mutableStateOf(false) }
 
                         // pinnedParent：只自动展开一次（用于初次定位/初次进入当前组），之后可以手动收起
@@ -216,45 +193,101 @@ fun VideoListController(
                             if (pagesLoaded && !hasSubPages) expanded = false
                         }
 
-                        // 组焦点跟踪：父项或子项任意获得焦点 => 认为组聚焦
+                        // 组焦点跟踪（保留你原来的折叠策略）
                         var groupHasFocus by remember(video.cid) { mutableStateOf(false) }
-                        var collapseToken by remember(video.cid) { mutableStateOf(0) }
+                        var collapseToken by remember(video.cid) { mutableIntStateOf(0) }
 
-                        // 负责更新 Token（数字加 1）
                         fun scheduleCollapseIfNeeded() {
                             if (isPinned) return
                             collapseToken++
                         }
 
-                        // 监听 Token 变化并执行逻辑
                         LaunchedEffect(collapseToken) {
-                            // 只有当 token 变化且不为 0 时才执行
                             if (collapseToken > 0) {
-                                kotlinx.coroutines.android.awaitFrame() // 等待一帧
+                                kotlinx.coroutines.android.awaitFrame()
                                 if (!groupHasFocus && !isPinned) expanded = false
                             }
                         }
 
+                        // 每个父项独立 requester（不要复用）
+                        val parentFocusRequester = remember(video.cid) { FocusRequester() }
+                        val parentBringIntoViewRequester = remember(video.cid) { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+
                         Column(
                             modifier = Modifier.animateContentSize()
                         ) {
-                            // 视频父项
-                            val parentModifier =
-                                if (isParentSelected)
-                                    Modifier.focusRequester(parentFocusRequester)
-                                else Modifier
+                            /**
+                             * 关键改动：
+                             * bringIntoView 不再跟随 onFocusChanged，而是只在“pendingFocusCid 消耗那次”触发。
+                             *
+                             * 同时做强硬兜底：
+                             * 1) 先把对应父项滚到可见位置（按 index）
+                             * 2) 再 requestFocus
+                             * 3) 再 bringIntoView
+                             */
+                            LaunchedEffect(show, pendingFocusCid) {
+                                if (!show) return@LaunchedEffect
 
-                            // 如果当前 cid 匹配父项，且不是因为子项匹配导致的（即纯粹是父项被选中），则请求焦点
-                            LaunchedEffect(show, isParentSelected, pendingFocusCid) {
-                                if (show && isParentSelected && pendingFocusCid == currentCid && !isChildSelected) {
-                                    parentFocusRequester.requestFocus()
-                                    pendingFocusCid = null // 消耗掉，防止重复请求
+                                val wantCid = pendingFocusCid ?: return@LaunchedEffect
+
+                                // 只有当“当前要聚焦的 cid”确实属于这个父项（父项自身 cid 或者它的子项 cid）才处理
+                                val shouldHandleThisGroup =
+                                    (video.cid == wantCid) || (enableChildrenUi && (video.ugcPages?.any { it.cid == wantCid } == true))
+
+                                if (!shouldHandleThisGroup) return@LaunchedEffect
+
+                                // 如果想聚焦的是子项，但子项 UI 还没展开/还没加载，这里尽力让它出现
+                                val wantChild = enableChildrenUi && (video.ugcPages?.any { it.cid == wantCid } == true)
+
+                                if (wantChild) {
+                                    // 子项要存在：先展开
+                                    expanded = true
                                 }
+
+                                // 先滚父项到可见（即使最终焦点是子项，也先把父项滚进来，保证后续布局/测量稳定）
+                                val parentIndex = videoList.indexOfFirst { it.cid == video.cid }
+                                if (parentIndex != -1) {
+                                    listState.scrollToItem(parentIndex, scrollOffset = -80)
+                                    kotlinx.coroutines.android.awaitFrame()
+                                }
+
+                                // 如果 pendingFocusCid 指向父项自身：聚焦父项
+                                if (video.cid == wantCid) {
+                                    parentFocusRequester.requestFocus()
+                                    kotlinx.coroutines.android.awaitFrame()
+                                    // bring into view 再兜底一次（只在这次消耗触发）
+                                    kotlinx.coroutines.coroutineScope {
+                                        launch { parentBringIntoViewRequester.bringIntoView() }
+                                    }
+                                    pendingFocusCid = null
+                                    return@LaunchedEffect
+                                }
+
+                                // 走到这里表示想聚焦子项
+                                // 但注意：如果 ugcPages 还没加载出来（pagesLoaded=false），此时子项节点不存在，无法 requestFocus
+                                // 这里策略：触发加载 + 先聚焦父项（保证焦点可见），等加载完成后你 currentCid 仍会对应子项，再由下面子项逻辑消费
+                                if (!pagesLoaded) {
+                                    if (enableChildrenUi) onEnsureUgcPagesLoaded(video.aid)
+
+                                    // 先给父项焦点，至少不要“焦点在屏幕外”
+                                    parentFocusRequester.requestFocus()
+                                    kotlinx.coroutines.android.awaitFrame()
+                                    kotlinx.coroutines.coroutineScope {
+                                        launch { parentBringIntoViewRequester.bringIntoView() }
+                                    }
+                                    // 注意：这里不清 pendingFocusCid，让它等 pagesLoaded 后由子项消耗
+                                    return@LaunchedEffect
+                                }
+
+                                // pagesLoaded=true 才能真正对子项 requestFocus（见下方子项 LaunchedEffect）
+                                // 这里不做任何事，让子项那边消费 pendingFocusCid
                             }
 
                             DenseListItem(
                                 modifier = Modifier
                                     .padding(horizontal = 16.dp)
+                                    .focusRequester(parentFocusRequester)
+                                    .bringIntoViewRequester(parentBringIntoViewRequester)
                                     .onFocusChanged { state ->
                                         if (state.hasFocus) {
                                             groupHasFocus = true
@@ -264,53 +297,34 @@ fun VideoListController(
                                             if (pendingPrefetchAid == video.aid) pendingPrefetchAid = null
                                             scheduleCollapseIfNeeded()
                                         }
-                                    }
-                                    .then(parentModifier),
+                                    },
                                 selected = isParentSelected && !isChildSelected,
-                                /*
                                 onClick = {
-                                    if (hasSubPages) {
-                                        expanded = !expanded
-                                    } else if (!isParentSelected) {
-                                        onPlayNewVideo(video)
-                                    }
-                                },
-                                 */
-                                onClick = {
-                                    // PGC：没有子项 UI；非当前播放，当前不处理
                                     if (!enableChildrenUi) {
                                         if (!isCurrentParent) onPlayNewVideo(video)
                                         return@DenseListItem
                                     }
 
-                                    // 已确认单P：非当前播放；当前不处理
                                     if (pagesLoaded && !hasSubPages) {
                                         if (!isCurrentParent) onPlayNewVideo(video)
                                         return@DenseListItem
                                     }
 
-                                    // 子项未加载（箭头也不会显示）：
-                                    // - 非当前：点击直接播放（“箭头出来前直接播放”）
-                                    // - 当前：点击只做展开/收起；仅展开时触发加载 + 显示占位
                                     if (!pagesLoaded) {
                                         if (!isCurrentParent) {
                                             onPlayNewVideo(video)
                                         } else {
                                             expanded = !expanded
-                                            if (expanded) {
-                                                onEnsureUgcPagesLoaded(video.aid)
-                                            }
+                                            if (expanded) onEnsureUgcPagesLoaded(video.aid)
                                         }
                                         return@DenseListItem
                                     }
 
-                                    // 已加载且确认多P（箭头已出现）：点击触发展开/收起（当前/非当前一致）
-                                        expanded = !expanded
+                                    expanded = !expanded
                                 },
                                 headlineContent = {
                                     Text(
                                         text = video.title,
-                                        // maxLines = 1,
                                         maxLines = 3,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -356,27 +370,49 @@ fun VideoListController(
                                     verticalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     video.ugcPages?.forEach { page ->
-
                                         key(page.cid) {
                                             val isPageSelected = page.cid == currentCid
 
-                                            val childModifier =
-                                                if (isPageSelected)
-                                                    Modifier.focusRequester(childFocusRequester)
-                                                else Modifier
+                                            val childFocusRequester = remember(page.cid) { FocusRequester() }
+                                            val childBringIntoViewRequester = remember(page.cid) { androidx.compose.foundation.relocation.BringIntoViewRequester() }
 
-                                            // 子项请求焦点逻辑
-                                            LaunchedEffect(show, isPageSelected, pendingFocusCid) {
-                                                if (show && isPageSelected && pendingFocusCid == currentCid) {
-                                                    childFocusRequester.requestFocus()
-                                                    pendingFocusCid = null
+                                            /**
+                                             * 子项：只在 pendingFocusCid 指向它时请求焦点 + bringIntoView（并消耗 pendingFocusCid）
+                                             * 这样 bringIntoView 只发生一次，不会在上下移动焦点时干扰滚动。
+                                             */
+                                            LaunchedEffect(show, pendingFocusCid, expanded, pagesLoaded) {
+                                                if (!show) return@LaunchedEffect
+                                                if (!expanded) return@LaunchedEffect
+                                                if (!pagesLoaded) return@LaunchedEffect
+
+                                                val wantCid = pendingFocusCid ?: return@LaunchedEffect
+                                                if (wantCid != page.cid) return@LaunchedEffect
+
+                                                // 强硬顺序：先把父项滚进来（上面父项 effect 已做过；这里再兜底一次也行）
+                                                val parentIndex = videoList.indexOfFirst { it.cid == video.cid }
+                                                if (parentIndex != -1) {
+                                                    listState.scrollToItem(parentIndex, scrollOffset = -80)
+                                                    kotlinx.coroutines.android.awaitFrame()
                                                 }
+
+                                                // 请求焦点到子项
+                                                childFocusRequester.requestFocus()
+                                                kotlinx.coroutines.android.awaitFrame()
+
+                                                // bring into view 兜底（仅这一次）
+                                                kotlinx.coroutines.coroutineScope {
+                                                    launch { childBringIntoViewRequester.bringIntoView() }
+                                                }
+
+                                                // 消耗掉 pendingFocusCid，防止后续 currentCid 变化抢焦点/重复滚动
+                                                pendingFocusCid = null
                                             }
 
                                             MenuListItem(
                                                 modifier = Modifier
                                                     .padding(horizontal = 16.dp)
-                                                    .then(childModifier),
+                                                    .focusRequester(childFocusRequester)
+                                                    .bringIntoViewRequester(childBringIntoViewRequester),
                                                 text = page.title,
                                                 selected = isPageSelected,
                                                 textAlign = TextAlign.Start,
@@ -401,11 +437,12 @@ fun VideoListController(
                             }
                         }
                     }
+                    }
                 }
             }
         }
     }
-}
+
 @Composable
 fun MenuListItem(
     modifier: Modifier = Modifier,
