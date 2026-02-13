@@ -55,6 +55,8 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ManageHistory
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
@@ -93,7 +95,8 @@ fun ControllerVideoInfo(
     onShowRelatedVideos: () -> Unit,
     onGoToVideoInfo: () -> Unit,
     onToggleLoop: () -> Unit,
-    onGoToUpPage: () -> Unit
+    onGoToUpPage: () -> Unit,
+    onShowTimeJump: () -> Unit
 ) {
     Box(
         modifier = modifier.fillMaxSize()
@@ -146,7 +149,8 @@ fun ControllerVideoInfo(
                 onShowRelatedVideos = onShowRelatedVideos,
                 onGoToVideoInfo = onGoToVideoInfo,
                 onToggleLoop = onToggleLoop,
-                onGoToUpPage = onGoToUpPage
+                onGoToUpPage = onGoToUpPage,
+                onShowTimeJump = onShowTimeJump
             )
         }
     }
@@ -245,7 +249,8 @@ fun ControllerVideoInfoBottom(
     onShowRelatedVideos: () -> Unit,
     onGoToVideoInfo: () -> Unit,
     onToggleLoop: () -> Unit,
-    onGoToUpPage: () -> Unit
+    onGoToUpPage: () -> Unit,
+    onShowTimeJump: () -> Unit
 ) {
     val seekFocusRequester = remember { FocusRequester() }
     val buttonsFocusRequester = remember { FocusRequester() }
@@ -402,6 +407,7 @@ fun ControllerVideoInfoBottom(
         val icons = listOfNotNull(
             // (R.drawable.play_pause_24px to "播放/暂停") to onPlayPause,
             ((if (danmakuEnabled) (R.drawable.danmaku_on_24px) else (R.drawable.danmaku_off_24px)) to "弹幕开关") to onDanmakuSwitchChange,
+            ((-1 to "时间跳转") to onShowTimeJump),
             // (R.drawable.settings_24px to "打开设置") to onShowSettings,
             // if (!fromSeason) (R.drawable.info_24px to "视频信息") to onGoToVideoInfo else null,
             if (!fromSeason) (R.drawable.contact_page_24px to "up主页") to onGoToUpPage else null,
@@ -424,18 +430,26 @@ fun ControllerVideoInfoBottom(
                 .padding(horizontal = 24.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start)
         ) {
-            icons.forEach { (icon, function) ->
+            icons.forEachIndexed { index, (icon, function) ->
                 Surface(
                     onClick = function,
                     shape = ClickableSurfaceDefaults.shape(
                         shape = MaterialTheme.shapes.small,
                     ),
                 ) {
-                    Icon(
-                        painter = painterResource(id = icon.first),
-                        contentDescription = icon.second,
-                        modifier = Modifier.padding(5.dp)
-                    )
+                    if (icon.first == -1) {
+                        Icon(
+                            imageVector = Icons.Rounded.ManageHistory,
+                            contentDescription = icon.second,
+                            modifier = Modifier.padding(5.dp)
+                        )
+                    } else {
+                        Icon(
+                            painter = painterResource(id = icon.first),
+                            contentDescription = icon.second,
+                            modifier = Modifier.padding(5.dp)
+                        )
+                    }
                 }
             }
         }
@@ -599,6 +613,7 @@ private fun ControllerVideoInfoPreview() {
             onGoToVideoInfo = {},
             onToggleLoop = {},
             onGoToUpPage = {},
+            onShowTimeJump = {},
         )
     }
 }
