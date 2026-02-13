@@ -17,7 +17,6 @@ import dev.aaa1115910.biliapi.repositories.BiliApiModule
 import dev.aaa1115910.biliapi.repositories.ChannelRepository
 import dev.aaa1115910.bv.dao.AppDatabase
 import dev.aaa1115910.bv.network.HttpServer
-import dev.aaa1115910.bv.util.FirebaseUtil
 import dev.aaa1115910.bv.util.LogCatcherUtil
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.block.BlockManager
@@ -70,7 +69,6 @@ class BVApp : Application(), KoinComponent {
     private fun initCoreLibraries() {
         HandroidLoggerAdapter.DEBUG = BuildConfig.DEBUG
         LogCatcherUtil.installLogCatcher()
-        FirebaseUtil.init(this)
 
         dataStoreManager = DataStoreManager(applicationContext.dataStore)
 

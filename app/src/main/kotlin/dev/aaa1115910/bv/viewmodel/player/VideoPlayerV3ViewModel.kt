@@ -234,6 +234,17 @@ class VideoPlayerV3ViewModel(
                 logger.fInfo { "Sync video list from repo, size: ${newList.size}" }
             }
             .launchIn(viewModelScope)
+
+        videoInfoRepository.videoDetailState
+            .onEach { newDetail ->
+                if (newDetail == null) return@onEach
+
+                _uiState.update { currentState ->
+                    currentState.copy(relatedVideos = newDetail.relatedVideos)
+                }
+                logger.fInfo { "Sync related videos from repo" }
+            }
+            .launchIn(viewModelScope)
     }
 
     fun init(
@@ -253,7 +264,8 @@ class VideoPlayerV3ViewModel(
         loadPlayUrl(
             avid = aid,
             cid = cid,
-            epid = epid.takeIf { it != 0 }
+            epid = epid.takeIf { it != 0 },
+            title = title
         )
 
         _uiState.update {
@@ -300,12 +312,18 @@ class VideoPlayerV3ViewModel(
 
     fun dettachPlayer() {
         val player = videoPlayer
-        // 最后一次发送心跳
         if (player != null && !Prefs.incognitoMode) {
             val currentTime = (player.currentPosition.coerceAtLeast(0) / 1000).toInt()
             val totalTime = (player.duration.coerceAtLeast(0) / 1000).toInt()
             val reportTime = if (currentTime >= totalTime) -1 else currentTime
 
+            // 用于更新详情页播放进度
+            videoInfoRepository.updateHistory(
+                progress = reportTime,
+                lastPlayedCid = _uiState.value.cid
+            )
+
+            // 最后一次发送心跳
             @OptIn(DelicateCoroutinesApi::class)
             GlobalScope.launch(Dispatchers.IO) { // 使用GlobalScope，避免ViewModel销毁导致协程域取消
                 try {
@@ -583,38 +601,21 @@ class VideoPlayerV3ViewModel(
         // 重置弹幕
         releaseDanmakuPlayer()
         initDanmakuPlayer()
-        /*
-        _uiState.update {
-            it.copy(title = video.title)
-        }
-        */
-        _uiState.update { state ->
-            // PGC：不维护分P标题
-            if (video.epid != null) {
-                state.copy(
-                    title = video.title,
-                    partTitle = ""
-                )
-            } else {
-                val currentItem = state.availableVideoList.firstOrNull { it.aid == video.aid }
-                val inferredPartTitle = currentItem
-                    ?.ugcPages
-                    ?.firstOrNull { it.cid == video.cid }
-                    ?.title
-                    .orEmpty()
 
-                state.copy(
-                    title = video.title,
-                    partTitle = inferredPartTitle
-                )
+        // 切换视频时加载新detail
+        if (video.aid != _uiState.value.aid) {
+            viewModelScope.launch(Dispatchers.IO) {
+                videoInfoRepository.loadVideoDetail(video.aid, Prefs.apiType)
             }
         }
 
+        // 加载新播放url
         loadPlayUrl(
             avid = video.aid,
             cid = video.cid,
             epid = video.epid,
             seasonId = video.seasonId,
+            title = video.title
         )
     }
 
@@ -716,6 +717,7 @@ class VideoPlayerV3ViewModel(
         cid: Long,
         epid: Int? = null,
         seasonId: Int? = null,
+        title: String,
     ) {
         _uiState.update {
             it.copy(
@@ -723,6 +725,7 @@ class VideoPlayerV3ViewModel(
                 cid = cid,
                 epid = epid ?: 0,
                 seasonId = seasonId ?: 0,
+                title = title
             )
         }
 
@@ -747,6 +750,7 @@ class VideoPlayerV3ViewModel(
         cid: Long,
         epid: Int? = null,
         seasonId: Int? = null,
+        title: String,
     ) {
         // 在 UI State 中保持 epid 的真实语义：
         // - UGC：null
@@ -758,8 +762,9 @@ class VideoPlayerV3ViewModel(
             it.copy(
                 aid = avid,
                 cid = cid,
-                epid = normalizedEpid,
+                epid = epid ?: 0,
                 seasonId = seasonId ?: 0,
+                title = title
             )
         }
 

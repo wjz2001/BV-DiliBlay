@@ -149,11 +149,16 @@ fun SeasonInfoScreen(
     val onClickVideo: (avid: Long, cid: Long, epid: Int, episodeTitle: String, startTime: Int) -> Unit =
         { avid, cid, epid, episodeTitle, startTime ->
             logger.debug { "onClickVideo: [avid=$avid, cid=$cid, epid=$epid, episodeTitle=$episodeTitle, startTime=$startTime]" }
-            if (cid != 0L) {
+            scope.launch {
+                var contentId = cid
+                if (contentId == 0L) {
+                    val videoDetail = videoDetailRepository.getVideoDetail(aid = avid)
+                    contentId = videoDetail.cid
+                }
                 launchPlayerActivity(
                     context = context,
                     avid = avid,
-                    cid = cid,
+                    cid = contentId,
                     title = seasonData!!.title,
                     partTitle = episodeTitle,
                     played = startTime * 1000,
@@ -162,13 +167,6 @@ fun SeasonInfoScreen(
                     epid = epid,
                     seasonId = seasonData?.seasonId,
                     proxyArea = proxyArea,
-                )
-            } else {
-                //如果 cid==0，就需要跳转回 VideoInfoActivity 去获取 cid 再跳转播放器
-                VideoInfoActivity.actionStart(
-                    context = context,
-                    aid = avid,
-                    fromSeason = true
                 )
             }
         }
@@ -358,8 +356,7 @@ fun SeasonInfoScreen(
                                         }.getOrDefault(episode.title) + " " + episode.longTitle
                                     )
                                 }
-                                videoInfoRepository.clearVideoList()
-                                videoInfoRepository.addToVideoList(partVideoList)
+                                videoInfoRepository.updateVideoList(partVideoList)
                             }
                         },
                         onClickFollow = {
@@ -428,8 +425,7 @@ fun SeasonInfoScreen(
                                             }.getOrDefault(episode.title) + " " + episode.longTitle
                                         )
                                     } ?: emptyList()
-                                videoInfoRepository.clearVideoList()
-                                videoInfoRepository.addToVideoList(partVideoList)
+                                videoInfoRepository.updateVideoList(partVideoList)
                             }
                         )
                     }
@@ -455,8 +451,7 @@ fun SeasonInfoScreen(
                                         }.getOrDefault(episode.title) + " " + episode.longTitle
                                     )
                                 }
-                                videoInfoRepository.clearVideoList()
-                                videoInfoRepository.addToVideoList(partVideoList)
+                                videoInfoRepository.updateVideoList(partVideoList)
                             }
                         )
                     }

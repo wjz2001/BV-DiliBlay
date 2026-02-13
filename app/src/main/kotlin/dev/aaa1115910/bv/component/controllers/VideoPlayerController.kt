@@ -37,6 +37,7 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoListItem
+import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.player.AbstractVideoPlayer
 import dev.aaa1115910.bv.ui.state.PlayerState
@@ -80,6 +81,7 @@ fun VideoPlayerController(
     onDanmakuSettingChange: (DanmakuSettingAction) -> Unit,
     onSubtitleChange: (Subtitle) -> Unit,
     onSubtitleSettingChange: (SubtitleSettingAction) -> Unit,
+    onRelatedVideoClicked: (VideoCardData) -> Unit,
 
     onEnsureUgcPagesLoaded: (aid: Long) -> Unit,
 
@@ -92,7 +94,8 @@ fun VideoPlayerController(
     var showListController by remember { mutableStateOf(false) }
     var showMenuController by remember { mutableStateOf(false) }
     var showInfoSeekController by remember { mutableStateOf(false) }
-    val showClickableControllers by remember { derivedStateOf { showListController || showMenuController || showInfoSeekController } }
+    var showRelatedVideosController by remember { mutableStateOf(false) }
+    val showClickableControllers by remember { derivedStateOf { showListController || showMenuController || showInfoSeekController || showRelatedVideosController } }
 
     var lastPressBack by remember { mutableLongStateOf(0L) }
     var goTime by remember { mutableLongStateOf(0L) }
@@ -188,6 +191,7 @@ fun VideoPlayerController(
                     showMenuController = false
                     showListController = false
                     showInfoSeekController = false
+                    showRelatedVideosController = false
                 } else {
                     val currentTime = System.currentTimeMillis()
                     if (currentTime - lastPressBack < 3000) {
@@ -348,6 +352,12 @@ fun VideoPlayerController(
                     epid = uiState.epid ?: 0,
                 )
 
+        RelatedVideosController(
+            show = showRelatedVideosController,
+            relatedVideos = uiState.relatedVideos,
+            onVideoClicked = onRelatedVideoClicked
+        )
+
                 //val secondTitle = uiState.availableVideoList.firstOrNull { it.cid == uiState.cid }?.title.orEmpty()
                 val secondTitle = uiState.partTitle.ifBlank {
                     uiState.availableVideoList.firstOrNull { it.cid == uiState.cid }?.title.orEmpty()
@@ -382,6 +392,10 @@ fun VideoPlayerController(
                     onShowSettings = {
                         showInfoSeekController = false
                         showMenuController = true
+                    },
+                    onShowRelatedVideos = {
+                        showInfoSeekController = false
+                        showRelatedVideosController = true
                     },
                     onGoToVideoInfo = {
                         VideoInfoActivity.actionStart(
