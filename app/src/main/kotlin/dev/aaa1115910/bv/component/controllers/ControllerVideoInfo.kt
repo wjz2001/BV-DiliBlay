@@ -90,6 +90,7 @@ fun ControllerVideoInfo(
     onPlayPause: () -> Unit,
     onDanmakuSwitchChange: () -> Unit,
     onShowSettings: () -> Unit,
+    onShowRelatedVideos: () -> Unit,
     onGoToVideoInfo: () -> Unit,
     onToggleLoop: () -> Unit,
     onGoToUpPage: () -> Unit
@@ -142,6 +143,7 @@ fun ControllerVideoInfo(
                 onPlayPause = onPlayPause,
                 onDanmakuSwitchChange = onDanmakuSwitchChange,
                 onShowSettings = onShowSettings,
+                onShowRelatedVideos = onShowRelatedVideos,
                 onGoToVideoInfo = onGoToVideoInfo,
                 onToggleLoop = onToggleLoop,
                 onGoToUpPage = onGoToUpPage
@@ -240,6 +242,7 @@ fun ControllerVideoInfoBottom(
     onPlayPause: () -> Unit,
     onDanmakuSwitchChange: () -> Unit,
     onShowSettings: () -> Unit,
+    onShowRelatedVideos: () -> Unit,
     onGoToVideoInfo: () -> Unit,
     onToggleLoop: () -> Unit,
     onGoToUpPage: () -> Unit
@@ -402,6 +405,7 @@ fun ControllerVideoInfoBottom(
             // (R.drawable.settings_24px to "打开设置") to onShowSettings,
             // if (!fromSeason) (R.drawable.info_24px to "视频信息") to onGoToVideoInfo else null,
             if (!fromSeason) (R.drawable.contact_page_24px to "up主页") to onGoToUpPage else null,
+            if (!fromSeason)(R.drawable.related_videos_24px to "相关视频") to onShowRelatedVideos else null,
             ((if (isLooping) (R.drawable.repeat_one_on_24px) else (R.drawable.repeat_one_24px)) to "循环播放") to onToggleLoop,
         )
 
@@ -591,6 +595,7 @@ private fun ControllerVideoInfoPreview() {
             onPlayPause = {},
             onDanmakuSwitchChange = {},
             onShowSettings = {},
+            onShowRelatedVideos = {},
             onGoToVideoInfo = {},
             onToggleLoop = {},
             onGoToUpPage = {},

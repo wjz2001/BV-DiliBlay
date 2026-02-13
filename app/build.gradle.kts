@@ -1,14 +1,12 @@
 @file:Suppress("UnstableApiUsage")
 
 import com.android.build.gradle.internal.api.ApkVariantOutputImpl
-import com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension
 import java.io.FileInputStream
 import java.util.Properties
 
 plugins {
     alias(gradleLibs.plugins.android.application)
     alias(gradleLibs.plugins.compose.compiler)
-    alias(gradleLibs.plugins.firebase.crashlytics)
     alias(gradleLibs.plugins.google.ksp)
     alias(gradleLibs.plugins.google.services) apply false
     alias(gradleLibs.plugins.kotlin.android)
@@ -77,9 +75,6 @@ android {
             )
             // signingConfig = signingConfigs.getByName("release")
             if (signingProp.exists()) signingConfig = signingConfigs.getByName("release")
-            configure<CrashlyticsExtension> {
-                mappingFileUploadEnabled = AppConfiguration.googleServicesAvailable
-            }
         }
         debug {
             isMinifyEnabled = false
@@ -90,9 +85,6 @@ android {
             applicationIdSuffix = ".debug"
             // signingConfig = signingConfigs.getByName("debug")
             if (signingProp.exists()) signingConfig = signingConfigs.getByName("debug")
-            configure<CrashlyticsExtension> {
-                mappingFileUploadEnabled = false
-            }
         }
         create("r8Test") {
             isMinifyEnabled = true
@@ -102,9 +94,6 @@ android {
             )
             applicationIdSuffix = ".r8test"
             if (signingProp.exists()) signingConfig = signingConfigs.getByName("release")
-            configure<CrashlyticsExtension> {
-                mappingFileUploadEnabled = false
-            }
         }
         create("alpha") {
             isMinifyEnabled = true
@@ -113,9 +102,6 @@ android {
                 "proguard-rules.pro"
             )
             if (signingProp.exists()) signingConfig = signingConfigs.getByName("release")
-            configure<CrashlyticsExtension> {
-                mappingFileUploadEnabled = AppConfiguration.googleServicesAvailable
-            }
         }
     }
     // https://issuetracker.google.com/issues/260059413
@@ -221,8 +207,6 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.gif)
     implementation(libs.coil.svg)
-    implementation(libs.firebase.analytics.ktx)
-    implementation(libs.firebase.crashlytics.ktx)
     implementation(libs.geetest.sensebot)
     implementation(libs.koin.android)
     implementation(libs.koin.annotations)
