@@ -95,7 +95,11 @@ fun VideoPlayerController(
     var showMenuController by remember { mutableStateOf(false) }
     var showInfoSeekController by remember { mutableStateOf(false) }
     var showRelatedVideosController by remember { mutableStateOf(false) }
-    val showClickableControllers by remember { derivedStateOf { showListController || showMenuController || showInfoSeekController || showRelatedVideosController } }
+    var directionDownLongPressGuard by remember { mutableStateOf(false) }
+    val showClickableControllers by remember {
+        derivedStateOf { showListController || showMenuController || showInfoSeekController || showRelatedVideosController ||
+            directionDownLongPressGuard }
+    }
 
     var lastPressBack by remember { mutableLongStateOf(0L) }
     var goTime by remember { mutableLongStateOf(0L) }
@@ -186,6 +190,13 @@ fun VideoPlayerController(
             return true
         }
 
+        if (event.key == Key.DirectionDown && directionDownLongPressGuard) {
+            if (event.type == KeyEventType.KeyUp) {
+                directionDownLongPressGuard = false
+            }
+            return true
+        }
+
         logger.info { "[${event.key} press]" }
 
         when (event.key) {
@@ -263,11 +274,22 @@ fun VideoPlayerController(
 
                 Key.DirectionDown -> {
                     if (event.type == KeyEventType.KeyDown) {
-                        if (event.nativeKeyEvent.isLongPress) {
-                            onBackToStart()
+                        // 新的一次按下确保 guard 关闭；长按触发时再打开
+                        if (event.nativeKeyEvent.repeatCount == 0 && !event.nativeKeyEvent.isLongPress) {
+                            directionDownLongPressGuard = false
+                            return true
                         }
+
+                        if (event.nativeKeyEvent.isLongPress) {
+                            // 打开 guard，让后续事件（包括 KeyUp）被上面的 guard 分支吞掉
+                            directionDownLongPressGuard = true
+                            onBackToStart()
+                            return true
+                        }
+
                         return true
                     }
+
                     focusInfoButtonsOnShow = true
                     showInfoSeekController = true
                     return true
