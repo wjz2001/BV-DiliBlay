@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
@@ -175,7 +176,9 @@ fun UpPanelController(
                                 )
 
                                 CollectionListController(
-                                    modifier = Modifier.fillMaxHeight(),
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .widthIn(min = 300.dp) ,
                                     show = show,
                                     active = contentActive,
                                     parents = built.parents,
