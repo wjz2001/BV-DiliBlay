@@ -49,6 +49,7 @@ import kotlinx.coroutines.launch
 fun VideoListController(
     modifier: Modifier = Modifier,
     show: Boolean,
+    active: Boolean = show,
     currentAid: Long,
     currentCid: Long,
     videoList: List<VideoListItem>,
@@ -63,13 +64,15 @@ fun VideoListController(
 
     // 仅在“打开时”标记一次“待聚焦 cid”：
     // 列表打开后不再因为 currentCid 的变化抢焦点
-    LaunchedEffect(show) {
-        if (show) {
+    LaunchedEffect(show, active) {
+        if (show && active) {
             pendingFocusCid = currentCid
         } else {
             pendingFocusCid = null
-            pendingPrefetchAid = null
-            didInitialPosition = false
+            if (!show) {
+                pendingPrefetchAid = null
+                didInitialPosition = false
+            }
         }
     }
 
@@ -91,6 +94,7 @@ fun VideoListController(
      * 因为你这里父项可能三行、且展开/收起会改变高度；只滚一次很容易“滚到旧布局位置”。
      */
     LaunchedEffect(show, videoList.size) {
+        if (!active) return@LaunchedEffect
         if (!show) return@LaunchedEffect
         if (didInitialPosition) return@LaunchedEffect
         if (videoList.isEmpty()) return@LaunchedEffect
@@ -126,6 +130,7 @@ fun VideoListController(
      * 焦点移动时的“延迟预取”：避免焦点快速上下移动导致请求风暴
      */
     LaunchedEffect(show, pendingPrefetchAid) {
+        if (!active) return@LaunchedEffect
         if (!show) return@LaunchedEffect
         val aid = pendingPrefetchAid ?: return@LaunchedEffect
 
@@ -181,6 +186,7 @@ fun VideoListController(
 
                         // pinnedParent：只自动展开一次（用于初次定位/初次进入当前组），之后可以手动收起
                         LaunchedEffect(show, isPinned) {
+                            if (!active) return@LaunchedEffect
                             if (!show) return@LaunchedEffect
                             if (isPinned && !didAutoExpand) {
                                 expanded = true
@@ -226,6 +232,7 @@ fun VideoListController(
                              * 3) 再 bringIntoView
                              */
                             LaunchedEffect(show, pendingFocusCid) {
+                                if (!active) return@LaunchedEffect
                                 if (!show) return@LaunchedEffect
 
                                 val wantCid = pendingFocusCid ?: return@LaunchedEffect
@@ -381,6 +388,7 @@ fun VideoListController(
                                              * 这样 bringIntoView 只发生一次，不会在上下移动焦点时干扰滚动。
                                              */
                                             LaunchedEffect(show, pendingFocusCid, expanded, pagesLoaded) {
+                                                if (!active) return@LaunchedEffect
                                                 if (!show) return@LaunchedEffect
                                                 if (!expanded) return@LaunchedEffect
                                                 if (!pagesLoaded) return@LaunchedEffect
