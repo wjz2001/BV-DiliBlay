@@ -47,6 +47,7 @@ import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.player.DanmakuSettingAction
 import dev.aaa1115910.bv.viewmodel.player.MediaProfileSettingAction
 import dev.aaa1115910.bv.viewmodel.player.SubtitleSettingAction
+import dev.aaa1115910.bv.component.comments.VideoCommentsDialog
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -113,6 +114,7 @@ fun VideoPlayerController(
     var hideInfoSeekControllerCountdown: Job? by remember { mutableStateOf(null) }
 
     var showTimeJumpDialog by remember { mutableStateOf(false) }
+    var showCommentsDialog by remember { mutableStateOf(false) }
     var focusInfoButtonsOnShow by remember { mutableStateOf(false) }
 
     fun calCoefficient(): Int {
@@ -445,6 +447,12 @@ fun VideoPlayerController(
                         showInfoSeekController = false
                         showTimeJumpDialog = true
                     },
+                    onShowComments = {
+                        // 立刻暂停 + 打开评论
+                        onPause()
+                        showInfoSeekController = false
+                        showCommentsDialog = true
+                    },
                 )
 
                 TimeJumpDialog(
@@ -454,6 +462,16 @@ fun VideoPlayerController(
                     onGoTime = { targetMs ->
                         onGoTime(targetMs)
                         if (!videoPlayer.isPlaying) onPlay()
+                    }
+                )
+
+                VideoCommentsDialog(
+                    show = showCommentsDialog,
+                    aid = aid,
+                    onDismissRequest = {
+                        showCommentsDialog = false
+                        // 退出评论组件立刻播放
+                        onPlay()
                     }
                 )
 
