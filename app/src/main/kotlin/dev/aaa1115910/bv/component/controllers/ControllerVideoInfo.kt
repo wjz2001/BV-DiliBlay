@@ -56,6 +56,7 @@ import androidx.tv.material3.Button
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Comment
 import androidx.compose.material.icons.rounded.ManageHistory
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
@@ -97,6 +98,7 @@ fun ControllerVideoInfo(
     onToggleLoop: () -> Unit,
     onGoToUpPage: () -> Unit,
     onShowTimeJump: () -> Unit,
+    onShowComments: () -> Unit,
     focusButtonsOnShow: Boolean = false,
     onConsumeFocusButtonsOnShow: () -> Unit = {}
 ) {
@@ -153,6 +155,7 @@ fun ControllerVideoInfo(
                 onToggleLoop = onToggleLoop,
                 onGoToUpPage = onGoToUpPage,
                 onShowTimeJump = onShowTimeJump,
+                onShowComments = onShowComments,
                 focusButtonsOnShow = focusButtonsOnShow,
                 onConsumeFocusButtonsOnShow = onConsumeFocusButtonsOnShow
             )
@@ -255,6 +258,7 @@ fun ControllerVideoInfoBottom(
     onToggleLoop: () -> Unit,
     onGoToUpPage: () -> Unit,
     onShowTimeJump: () -> Unit,
+    onShowComments: () -> Unit,
     focusButtonsOnShow: Boolean = false,
     onConsumeFocusButtonsOnShow: () -> Unit = {}
 ) {
@@ -421,6 +425,7 @@ fun ControllerVideoInfoBottom(
         val icons = listOfNotNull(
             // (R.drawable.play_pause_24px to "播放/暂停") to onPlayPause,
             ((if (danmakuEnabled) (R.drawable.danmaku_on_24px) else (R.drawable.danmaku_off_24px)) to "弹幕开关") to onDanmakuSwitchChange,
+            ((-2 to "评论") to onShowComments),
             ((-1 to "时间跳转") to onShowTimeJump),
             // (R.drawable.settings_24px to "打开设置") to onShowSettings,
             // if (!fromSeason) (R.drawable.info_24px to "视频信息") to onGoToVideoInfo else null,
@@ -455,6 +460,12 @@ fun ControllerVideoInfoBottom(
                     if (icon.first == -1) {
                         Icon(
                             imageVector = Icons.Rounded.ManageHistory,
+                            contentDescription = icon.second,
+                            modifier = Modifier.padding(5.dp)
+                        )
+                    } else if (icon.first == -2) {
+                        Icon(
+                            imageVector = Icons.Rounded.Comment,
                             contentDescription = icon.second,
                             modifier = Modifier.padding(5.dp)
                         )
@@ -629,6 +640,7 @@ private fun ControllerVideoInfoPreview() {
             onToggleLoop = {},
             onGoToUpPage = {},
             onShowTimeJump = {},
+            onShowComments = {},
         )
     }
 }

@@ -112,6 +112,8 @@ import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.component.buttons.CoinButton
 import dev.aaa1115910.bv.component.buttons.FavoriteButton
 import dev.aaa1115910.bv.component.buttons.LikeButton
+import dev.aaa1115910.bv.component.buttons.CommentButton
+import dev.aaa1115910.bv.component.comments.VideoCommentsDialog
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.videocard.VideosRow
 import dev.aaa1115910.bv.entity.VideoListItem
@@ -567,6 +569,8 @@ private fun FullScreenMessage(message: String) {
         val localDensity = LocalDensity.current
         var heightIs by remember { mutableStateOf(0.dp) }
 
+        var showCommentsDialog by remember { mutableStateOf(false) }
+
         Row(
             modifier = modifier
                 .padding(horizontal = 50.dp, vertical = 16.dp),
@@ -694,17 +698,23 @@ private fun FullScreenMessage(message: String) {
                         onUpdateFavoriteFolders = onUpdateFavoriteFolders
                     )
                     Spacer(modifier = Modifier.width(5.dp))
+                    CommentButton(
+                        countText = videoDetail.stat.reply.toWanString(),
+                        onClick = { showCommentsDialog = true }
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
                     LikeButton(
                         isLiked = isLiked,
                         countText = videoDetail.stat.like.toWanString(),
                         onClick = { onUpdateLiked(!isLiked) },
                         onLongClick = { onSendVideoOneClickTripleAction() })
-                    Spacer(modifier = Modifier.width(5.dp))
+                    /*
                     CoinButton(
                         isCoined = isCoined,
                         countText = videoDetail.stat.coin.toWanString(),
                         onClick = onSendVideoCoin,
                     )
+                     */
                     LazyRow(
                         modifier = Modifier.weight(1f),
                         contentPadding = PaddingValues(horizontal = 5.dp),
@@ -724,6 +734,12 @@ private fun FullScreenMessage(message: String) {
                         .fillMaxWidth()
                         .weight(1f),
                     description = videoDetail.description
+                )
+
+                VideoCommentsDialog(
+                    show = showCommentsDialog,
+                    aid = videoDetail.aid,
+                    onDismissRequest = { showCommentsDialog = false }
                 )
             }
         }
