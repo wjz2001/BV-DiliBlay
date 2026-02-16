@@ -166,7 +166,7 @@ class FavoriteViewModel(
                 if (ok) {
                     backoffMs = 0L
                     // 保守节流 + 抖动
-                    delay(Random.nextLong(1000L, 3000L))
+                    delay(Random.nextLong(500L, 2000L))
                 } else {
                     // 失败退避：5s 起步，指数增长，上限 60s
                     backoffMs = if (backoffMs == 0L) 5_000L else (backoffMs * 2).coerceAtMost(60_000L)
