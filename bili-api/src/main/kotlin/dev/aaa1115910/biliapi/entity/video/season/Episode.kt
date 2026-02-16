@@ -51,7 +51,9 @@ data class Episode(
                 title = episode.title,
                 longTitle = episode.title,
                 cover = episode.arc.pic,
-                duration = episode.arc.duration,
+                // UGC 合集：episode.pages 通常包含该稿件所有分 P；总时长=多 P 时长求和。
+                // 若 pages 为空则退回单个 page（维持旧行为）。
+                duration = (episode.pages.ifEmpty { listOf(episode.page) }).sumOf { it.duration },
                 dimension = Dimension.fromDimension(episode.page.dimension)
             )
 

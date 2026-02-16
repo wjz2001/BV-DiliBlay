@@ -5,6 +5,7 @@ import bilibili.app.view.v1.viewReq
 import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.entity.video.VideoDetail
 import dev.aaa1115910.biliapi.entity.video.VideoPage
+import dev.aaa1115910.biliapi.entity.video.season.UgcSeason
 import dev.aaa1115910.biliapi.entity.video.season.SeasonDetail
 import dev.aaa1115910.biliapi.grpc.utils.handleGrpcException
 import dev.aaa1115910.biliapi.http.BiliHttpApi
@@ -111,10 +112,38 @@ class VideoDetailRepository(
             ApiType.App -> {
                 val viewReply = runCatching {
                     viewStub?.view(viewReq {
-                        this.aid = aid.toLong()
+                        this.aid = aid
                     }) ?: throw IllegalStateException("Player stub is not initialized")
                 }.onFailure { handleGrpcException(it) }.getOrThrow()
-                VideoDetail.fromViewReply(viewReply)
+
+                val appDetail = VideoDetail.fromViewReply(viewReply)
+
+                // 仅当存在 ugcSeason 时，补一发 Web view/detail 获取 pages 并求和。
+                val appUgcSeason = appDetail.ugcSeason
+                if (appUgcSeason == null) {
+                    appDetail
+                } else {
+                    try {
+                        val httpVideoDetail = BiliHttpApi.getVideoDetail(
+                            av = aid,
+                            sessData = authRepository.sessionData ?: ""
+                        ).getResponseData()
+                        val webDetail = VideoDetail.fromVideoDetail(httpVideoDetail)
+                        val webUgcSeason = webDetail.ugcSeason
+                        if (webUgcSeason != null) {
+                            // 仅覆盖 duration：失败/对不上则保持 appDetail 原值（你要求的“仍显示当前 episode.duration”）。
+                            appDetail.copy(
+                                ugcSeason = appUgcSeason.mergeEpisodeDurationFrom(webUgcSeason)
+                            )
+                        } else {
+                            appDetail
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Throwable) {
+                        appDetail
+                    }
+                }
             }
         }
     }
@@ -194,4 +223,23 @@ class VideoDetailRepository(
             }
         }
     }
+
+    private fun UgcSeason.mergeEpisodeDurationFrom(web: UgcSeason): UgcSeason {
+        val durationByAid: Map<Long, Int> = web.sections
+            .asSequence()
+            .flatMap { it.episodes.asSequence() }
+            .associate { it.aid to it.duration }
+
+        val mergedSections = sections.map { section ->
+            section.copy(
+                episodes = section.episodes.map { ep ->
+                    val duration = durationByAid[ep.aid] ?: return@map ep
+                    ep.copy(duration = duration)
+                }
+            )
+        }
+
+        return copy(sections = mergedSections)
+    }
 }
+
