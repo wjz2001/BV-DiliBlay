@@ -596,6 +596,7 @@ private fun LightCommentItem(
                     text = buildMessageAnnotated(comment.message),
                     color = CommentsText,
                     fontSize = 24.sp,
+                    lineHeight = 28.sp,
                     maxLines = 6,
                     overflow = TextOverflow.Ellipsis
                 )
