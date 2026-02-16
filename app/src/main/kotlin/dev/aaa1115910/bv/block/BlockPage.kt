@@ -17,4 +17,5 @@ enum class BlockPage(val code: String, val displayName: String) {
     SearchVideo("SearchVideo", "搜索结果(视频)"),
     Favorite("Favorite", "收藏"),
     Related("Related", "相关推荐"),
+    Tag("Tag", "标签页"),
 }
