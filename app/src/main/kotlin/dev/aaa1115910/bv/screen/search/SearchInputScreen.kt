@@ -53,6 +53,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Icon
@@ -213,6 +216,20 @@ private fun SearchInput(
     enableProxy: Boolean,
     onEnableProxyChange: (Boolean) -> Unit
 ) {
+    // 只在“从外部进入焦点”的那一刻，把光标挪到末尾
+    var textFieldHasFocus by remember { mutableStateOf(false) }
+
+    // 用 TextFieldValue 承载光标位置（selection）
+    var fieldValue by remember { mutableStateOf(TextFieldValue(searchKeyword)) }
+
+    // 外部（SoftKeyboard）修改了 searchKeyword 时，同步回输入框文本
+    // 只在未聚焦时同步，避免覆盖用户在输入框内移动的光标
+    LaunchedEffect(searchKeyword) {
+        if (!textFieldHasFocus && fieldValue.text != searchKeyword) {
+            fieldValue = fieldValue.copy(text = searchKeyword)
+        }
+    }
+
     Box(
         modifier = modifier
             .width(280.dp)
@@ -225,9 +242,25 @@ private fun SearchInput(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             OutlinedTextField(
-                modifier = Modifier.width(258.dp),
-                value = searchKeyword,
-                onValueChange = onSearchKeywordChange,
+                modifier = Modifier
+                    .width(258.dp)
+                    .onFocusChanged { focusState ->
+                        val nowFocused = focusState.isFocused || focusState.hasFocus
+
+                        // 只在“未聚焦 -> 聚焦”的瞬间把光标设置到末尾
+                        if (!textFieldHasFocus && nowFocused) {
+                            fieldValue = fieldValue.copy(
+                                selection = TextRange(fieldValue.text.length)
+                            )
+                        }
+
+                        textFieldHasFocus = nowFocused
+                    },
+                value = fieldValue,
+                onValueChange = {
+                    fieldValue = it
+                    onSearchKeywordChange(it.text)
+                },
                 maxLines = 1,
                 shape = MaterialTheme.shapes.large,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
