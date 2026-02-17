@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -37,6 +38,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Done
+import androidx.compose.material.icons.rounded.Group
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.ViewModule
 import androidx.compose.material.icons.rounded.Warning
@@ -71,6 +73,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -83,6 +86,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.platform.LocalContext
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
@@ -116,6 +120,8 @@ import dev.aaa1115910.bv.component.buttons.CommentButton
 import dev.aaa1115910.bv.component.comments.VideoCommentsDialog
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.videocard.VideosRow
+import dev.aaa1115910.bv.component.CoAuthorsDialogHost
+import dev.aaa1115910.bv.component.rememberCoAuthorsDialogState
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.ui.effect.UiEffect
@@ -567,6 +573,8 @@ private fun FullScreenMessage(message: String) {
         onSendVideoOneClickTripleAction: () -> Unit
     ) {
         val localDensity = LocalDensity.current
+        val context = LocalContext.current
+        val coAuthorsDialogState = rememberCoAuthorsDialogState()
         var heightIs by remember { mutableStateOf(0.dp) }
 
         var showCommentsDialog by remember { mutableStateOf(false) }
@@ -632,13 +640,60 @@ private fun FullScreenMessage(message: String) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        UpButton(
-                            name = videoDetail.author.name,
-                            followed = isFollowing,
-                            onClickUp = onClickUp,
-                            onAddFollow = onAddFollow,
-                            onDelFollow = onDelFollow
-                        )
+                        Row(
+                            modifier = Modifier.height(IntrinsicSize.Min),
+                            verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            val coAuthorCount = remember(videoDetail.coAuthors) {
+                                videoDetail.coAuthors.distinctBy { it.mid }.size
+                            }
+                            var upButtonHeightPx by remember { mutableIntStateOf(0) }
+                            val density = LocalDensity.current
+                            val fallbackSize = 6.dp
+                            val squareSize = remember(upButtonHeightPx, density) {
+                                if (upButtonHeightPx > 0) with(density) { upButtonHeightPx.toDp() } else fallbackSize
+                            }
+                            if (coAuthorCount > 1) {
+                                Surface(
+                                    modifier = Modifier.size(squareSize)
+                                        .aspectRatio(1f),
+                                    onClick = { coAuthorsDialogState.open(videoDetail.coAuthors) },
+                                    shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.small),
+                                    colors = ClickableSurfaceDefaults.colors(
+                                        containerColor = Color.White.copy(alpha = 0.2f),
+                                        focusedContainerColor = Color.White.copy(alpha = 0.2f),
+                                        pressedContainerColor = Color.White.copy(alpha = 0.2f)
+                                    ),
+                                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+                                    border = ClickableSurfaceDefaults.border(
+                                        focusedBorder = Border(
+                                            border = BorderStroke(width = 3.dp, color = Color.White),
+                                            shape = MaterialTheme.shapes.small
+                                        )
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Group,
+                                        contentDescription = "联合投稿",
+                                        tint = Color.White,
+                                        modifier = Modifier.padding(3.dp)
+                                    )
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier.onSizeChanged { upButtonHeightPx = it.height }
+                            ) {
+                                UpButton(
+                                    name = videoDetail.author.name,
+                                    followed = isFollowing,
+                                    onClickUp = onClickUp,
+                                    onAddFollow = onAddFollow,
+                                    onDelFollow = onDelFollow
+                                )
+                            }
+                        }
                         Row(
                             modifier = Modifier
                                 .padding(start = 4.dp)
@@ -656,11 +711,11 @@ private fun FullScreenMessage(message: String) {
                                 Text(text = "播放量 ${(videoDetail.stat.view).toWanString()}")
                                 Text(text = "·")
                                 Text(text = "弹幕 ${(videoDetail.stat.danmaku).toWanString()}")
+                                Text(text = "·")
+                                Text(text = "投币 ${videoDetail.stat.coin.toWanString()}")
                                 /*
                                 Text(text = "·")
                                 Text(text = "点赞 ${videoDetail.stat.like.toWanString()}")
-                                Text(text = "·")
-                                Text(text = "投币 ${videoDetail.stat.coin.toWanString()}")
                                 Text(text = "·")
                                 Text(text = "收藏 ${videoDetail.stat.favorite.toWanString()}")
                                  */
@@ -740,6 +795,13 @@ private fun FullScreenMessage(message: String) {
                     show = showCommentsDialog,
                     aid = videoDetail.aid,
                     onDismissRequest = { showCommentsDialog = false }
+                )
+
+                CoAuthorsDialogHost(
+                    state = coAuthorsDialogState,
+                    onClickAuthor = { mid, name ->
+                        UpInfoActivity.actionStart(context, mid = mid, name = name)
+                    }
                 )
             }
         }

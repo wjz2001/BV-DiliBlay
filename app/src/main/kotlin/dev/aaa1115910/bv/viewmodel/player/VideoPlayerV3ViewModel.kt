@@ -250,7 +250,8 @@ class VideoPlayerV3ViewModel(
                 _uiState.update { currentState ->
                     currentState.copy(
                         relatedVideos = newDetail.relatedVideos,
-                        ugcSeason = newDetail.ugcSeason
+                        ugcSeason = newDetail.ugcSeason,
+                        coAuthors = newDetail.coAuthors
                     )
                 }
                 logger.fInfo { "Sync related videos from repo" }
