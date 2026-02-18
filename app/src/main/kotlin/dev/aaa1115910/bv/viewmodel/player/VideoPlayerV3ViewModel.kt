@@ -133,6 +133,14 @@ class VideoPlayerV3ViewModel(
     @Volatile
     private var needRecreateOnStart: Boolean = false
 
+    // 快恢复开关：true=切后台只 pause，不 release；false=保持“每次 onStop 都 release 重建”
+    @Volatile
+    private var fastResumeEnabled: Boolean = true
+
+    // 一旦命中 surface/codec 输出相关异常，就认为当前 ExoPlayer 出问题，下次回场必须重建
+    @Volatile
+    private var surfaceBugDetected: Boolean = false
+
     // 用于断点续播（毫秒）
     private var pendingResumePositionMs: Long = 0L
 
@@ -175,7 +183,7 @@ class VideoPlayerV3ViewModel(
 
     private val videoPlayerListener = object : VideoPlayerListener {
         override fun onError(error: Exception) {
-            // 抑制期：stop/surfaceDestroyed 相关错误不进 UI，避免“进/退页面闪抽风”
+            // 抑制期：stop/surfaceDestroyed/回场 attach 阶段的 surface 类错误不进 UI，避免“进/退页面闪抽风”
             if (suppressPlayerErrors) {
                 val isDetachTimeoutByType = hasDetachSurfaceTimeout(error)
 
@@ -191,7 +199,11 @@ class VideoPlayerV3ViewModel(
                             st.contains("setOutputSurface", ignoreCase = true)
 
                 if (isSurfaceDetachError) {
-                    Log.w("BugDebug", "ViewModel onError suppressed: ${error.message}")
+                    // 命中该类错误，就认为当前 ExoPlayer 可能已出问题，下次回场必须重建
+                    surfaceBugDetected = true
+                    needRecreateOnStart = true
+
+                    Log.e("BugDebug", "ViewModel onError suppressed (surface bug): ${error.message}", error)
                     return
                 }
             }
@@ -577,6 +589,59 @@ class VideoPlayerV3ViewModel(
         } finally {
             recreateInProgress.set(false)
         }
+    }
+
+    /**
+     * Host(Activity) stop 时调用（快路径）：
+     * - 默认只 pause，不 release（秒回）
+     * - 如果检测到 surfaceBugDetected，则回退到“release + 下次重建”
+     */
+    fun onHostStopFastResume() {
+        val player = videoPlayer ?: return
+
+        // 记录断点（ms）；用于兜底重建时 seek
+        pendingResumePositionMs = player.currentPosition.coerceAtLeast(0L)
+        val resumeSec = (pendingResumePositionMs / 1000L).toInt().coerceAtLeast(0)
+        _uiState.update { it.copy(lastPlayed = resumeSec) }
+
+        Log.i(
+            "BugDebug",
+            "ViewModel onHostStopFastResume: fast=$fastResumeEnabled surfaceBugDetected=$surfaceBugDetected posMs=$pendingResumePositionMs"
+        )
+
+        // 无论快慢策略，先暂停，避免后台继续播放
+        runCatching { player.pause() }
+
+        // 慢但稳：（每次 stop 都 release）
+        if (!fastResumeEnabled) {
+            onHostStopReleaseForRecreate()
+            return
+        }
+
+        // 快但可能翻车：只有检测到 surface/codec 输出 bug 时才回退到 release+重建
+        if (surfaceBugDetected) {
+            onHostStopReleaseForRecreate()
+        }
+    }
+
+    /**
+     * Host(Activity) start 时调用：
+     * - 若 needRecreateOnStart=true：“重建 + playQuality/prepare + 自动续播”
+     * - 否则：直接 start（秒回，不重建，不重新 prepare）
+     */
+    fun onHostStartFastResumeOrRecreate() {
+        if (needRecreateOnStart) {
+            Log.i("BugDebug", "ViewModel onHostStartFastResumeOrRecreate: recreate")
+            // 重建成功后把 surfaceBugDetected 清掉（否则会一直走慢路径）
+            onHostStartRecreateAndAutoPlayIfNeeded()
+            surfaceBugDetected = false
+            return
+        }
+
+        if (!fastResumeEnabled) return
+
+        Log.i("BugDebug", "ViewModel onHostStartFastResumeOrRecreate: fast resume")
+        runCatching { videoPlayer?.start() }
     }
 
     fun initDanmakuPlayer() {

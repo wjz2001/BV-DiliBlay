@@ -10,6 +10,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import android.util.Log
+import androidx.lifecycle.lifecycleScope
 import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.entity.user.Author
 import dev.aaa1115910.bv.R
@@ -23,6 +24,8 @@ import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.viewmodel.player.VideoPlayerV3ViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class VideoPlayerV3Activity : ComponentActivity() {
@@ -82,10 +85,22 @@ class VideoPlayerV3Activity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
 
-        // 回到前台：先关闭错误抑制，然后如果需要就重建并自动续播
-        playerViewModel.setSuppressPlayerErrors(false)
-        Log.i("BugDebug", "VideoPlayerV3Activity onStart: suppressPlayerErrors=false")
-        playerViewModel.onHostStartRecreateAndAutoPlayIfNeeded()
+        // 回到前台：先进入抑制期，避免 attach surface 阶段闪抽风
+        playerViewModel.setSuppressPlayerErrors(true)
+        Log.i("BugDebug", "VideoPlayerV3Activity onStart: suppressPlayerErrors=true (resuming)")
+
+        // 快恢复（不重建）或按需重建
+        playerViewModel.onHostStartFastResumeOrRecreate()
+        
+        lifecycleScope.launch {
+            delay(500)
+            // 只有当页面还在前台时才恢复
+            if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
+                // 退出抑制期
+                playerViewModel.setSuppressPlayerErrors(false)
+                Log.i("BugDebug", "VideoPlayerV3Activity onStart: suppressPlayerErrors=false")
+            }
+        }
     }
 
     override fun onResume() {
@@ -132,7 +147,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
         Log.i("BugDebug", "VideoPlayerV3Activity onStop: isFinishing=$isFinishing")
 
         if (!isFinishing) {
-            playerViewModel.onHostStopReleaseForRecreate()
+            playerViewModel.onHostStopFastResume()
         } else {
             // 退出 Activity 时也抑制错误，避免“退出前闪抽风”
             playerViewModel.setSuppressPlayerErrors(true)
