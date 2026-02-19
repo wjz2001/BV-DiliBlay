@@ -124,6 +124,8 @@ import dev.aaa1115910.bv.component.CoAuthorsDialogHost
 import dev.aaa1115910.bv.component.rememberCoAuthorsDialogState
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+import dev.aaa1115910.bv.screen.settings.content.BlockGroupSelectDialog
+import dev.aaa1115910.bv.screen.settings.content.BlockTagItem
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.effect.VideoDetailUiEffect
 import dev.aaa1115910.bv.ui.theme.BVTheme
@@ -160,6 +162,65 @@ fun VideoInfoScreen(
     val scrollState = rememberScrollState()
 
     val uiState by videoDetailViewModel.uiState.collectAsState()
+
+    val scope = rememberCoroutineScope()
+
+    var showFollowGroupDialog by remember { mutableStateOf(false) }
+    var followGroupDialogWasFollowing by remember { mutableStateOf(false) }
+    var followGroupDialogInitialSelectedTagIds by remember { mutableStateOf<List<Int>>(emptyList()) }
+
+    fun normalizeTagIds(ids: List<Int>): List<Int> {
+        val dedup = ids.distinct().sorted()
+        return if (dedup.contains(0) && dedup.size > 1) listOf(0) else dedup
+    }
+
+    fun openFollowGroupDialog() {
+        val upMid = uiState.videoDetailState?.author?.mid ?: return
+        if (showFollowGroupDialog) return
+
+        scope.launch {
+            // 先确保关注分组列表已加载，否则 tags=[] 会导致初始选中无法映射到 UI，退出仍然变空
+            val tagsOk = runCatching { videoDetailViewModel.loadFollowTagsIfNeeded() }
+                .getOrDefault(false)
+            if (!tagsOk) {
+                "未获取到关注分组列表，已取消打开以避免误操作".toast(context)
+                return@launch
+            }
+
+            //  composable 里捕获的 uiState在协程内不会自动刷新
+            val tagsSnapshot = videoDetailViewModel.uiState.value.followTags
+
+            // 再读取“我是否关注 + 该 UP 当前所在分组”作为初始选中
+            val (wasFollowing, initialSelected) = runCatching {
+                videoDetailViewModel.getUpFollowStateAndTagIds(upMid)
+            }.getOrElse {
+                // 失败兜底：尽量避免打开即退=取关
+                val fallbackFollowing = uiState.isFollowingUp
+                val fallbackSelected = if (fallbackFollowing) listOf(0) else emptyList()
+                fallbackFollowing to fallbackSelected
+            }
+
+            // 把初始 tagIds 过滤到“当前真实 tags 列表”中，避免因为列表缺失导致初始选中被吞掉 -> 退出变空 -> 误取关
+            val presentIds = tagsSnapshot.map { it.tagid }.toSet()
+            val normalizedInitial = normalizeTagIds(initialSelected)
+            val filteredInitial = normalizedInitial.filter { presentIds.contains(it) }
+
+            // 已关注但 filtered 为空：优先 fallback 到默认分组 0（若存在），否则直接不打开，避免误操作
+            val safeInitial = when {
+                wasFollowing && filteredInitial.isEmpty() && presentIds.contains(0) -> listOf(0)
+                else -> filteredInitial
+            }
+            if (wasFollowing && safeInitial.isEmpty()) {
+                "未能解析当前关注分组，已取消打开以避免误操作".toast(context)
+                return@launch
+            }
+
+            followGroupDialogWasFollowing = wasFollowing
+            followGroupDialogInitialSelectedTagIds = safeInitial
+            showFollowGroupDialog = true
+        }
+    }
+
     val containsVerticalScreenVideo by remember(uiState.videoDetailState) {
         derivedStateOf {
             uiState.videoDetailState?.run {
@@ -369,12 +430,8 @@ fun VideoInfoScreen(
                                         name = videoDetailState.author.name
                                     )
                                 },
-                                onAddFollow = {
-                                    videoDetailViewModel.setFollow(true)
-                                },
-                                onDelFollow = {
-                                    videoDetailViewModel.setFollow(false)
-                                },
+                                onAddFollow = { openFollowGroupDialog() },
+                                onDelFollow = { openFollowGroupDialog() },
                                 onClickTip = { tag ->
                                     TagActivity.actionStart(
                                         context = context,
@@ -400,6 +457,27 @@ fun VideoInfoScreen(
                             )
                         }
 
+                        BlockGroupSelectDialog(
+                            show = showFollowGroupDialog,
+                            title = "选择关注分组",
+                            tags = uiState.followTags.map { BlockTagItem(it.tagid, it.name, it.count) },
+                            lightMode = true,
+                            initialSelectedTagIds = followGroupDialogInitialSelectedTagIds,
+                            initialMembersCache = emptyMap(),
+                            onHideDialog = { showFollowGroupDialog = false },
+                            onSubmit = { selectedTagIds, _ ->
+                                val finalSelected = normalizeTagIds(selectedTagIds)
+                                val initialSelected = normalizeTagIds(followGroupDialogInitialSelectedTagIds)
+
+                                // 打开即退/未改动：不做任何事
+                                if (finalSelected == initialSelected && followGroupDialogWasFollowing) return@BlockGroupSelectDialog
+
+                                videoDetailViewModel.submitFollowGroupSelection(
+                                    wasFollowing = followGroupDialogWasFollowing,
+                                    selectedTagIds = finalSelected
+                                )
+                            }
+                        )
 
                             // 视频分P
                             VideoPartRow(
@@ -1321,6 +1399,11 @@ private fun FullScreenMessage(message: String) {
         // val tabCount by remember { mutableIntStateOf(ceil(pages.size / 20.0).toInt()) }
         val tabCount by remember { mutableIntStateOf(ceil(pages.size / 35.0).toInt()) }
         val selectedVideoPart = remember { mutableStateListOf<VideoPage>() }
+
+        fun normalizeTagIds(ids: List<Int>): List<Int> {
+            val dedup = ids.distinct().sorted()
+            return if (dedup.contains(0) && dedup.size > 1) listOf(0) else dedup
+        }
 
         val tabRowFocusRequester = remember { FocusRequester() }
         val videoListFocusRequester = remember { FocusRequester() }

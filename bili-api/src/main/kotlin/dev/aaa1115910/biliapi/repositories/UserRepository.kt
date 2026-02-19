@@ -14,6 +14,9 @@ import dev.aaa1115910.biliapi.http.BiliHttpApi
 import dev.aaa1115910.biliapi.http.entity.user.FollowAction
 import dev.aaa1115910.biliapi.http.entity.user.FollowActionSource
 import dev.aaa1115910.biliapi.http.entity.user.RelationType
+import dev.aaa1115910.biliapi.http.entity.relation.RelationTag
+import dev.aaa1115910.biliapi.http.entity.user.Relation
+import dev.aaa1115910.biliapi.http.entity.user.RelationData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -69,6 +72,54 @@ class UserRepository(
         preferApiType: ApiType = ApiType.Web
     ): Boolean = modifyFollow(mid, FollowAction.DelFollow, preferApiType)
 
+    suspend fun getFollowTags(
+        preferApiType: ApiType = ApiType.Web
+    ): List<RelationTag> {
+        if (authRepository.sessionData == null && authRepository.accessToken == null) return emptyList()
+        return runCatching {
+            when (preferApiType) {
+                ApiType.Web -> BiliHttpApi.getRelationTags(
+                    sessData = authRepository.sessionData
+                ).getResponseData()
+
+                ApiType.App -> BiliHttpApi.getRelationTags(
+                    accessKey = authRepository.accessToken
+                ).getResponseData()
+            }
+        }.onFailure {
+            it.printStackTrace()
+        }.getOrDefault(emptyList())
+    }
+
+    suspend fun addUserToFollowTags(
+        mid: Long,
+        tagIds: List<Int>,
+        preferApiType: ApiType = ApiType.Web
+    ): Boolean {
+        if (authRepository.sessionData == null && authRepository.accessToken == null) return false
+        if (tagIds.isEmpty()) return true
+
+        val response = when (preferApiType) {
+            ApiType.Web -> {
+                BiliHttpApi.addUsersToRelationTags(
+                    fids = listOf(mid),
+                    tagIds = tagIds,
+                    csrf = authRepository.biliJct,
+                    sessData = authRepository.sessionData
+                )
+            }
+
+            ApiType.App -> {
+                BiliHttpApi.addUsersToRelationTags(
+                    fids = listOf(mid),
+                    tagIds = tagIds,
+                    accessKey = authRepository.accessToken
+                )
+            }
+        }
+        return response.code == 0
+    }
+
     suspend fun checkIsFollowing(
         mid: Long,
         preferApiType: ApiType = ApiType.Web
@@ -100,6 +151,72 @@ class UserRepository(
         }.onFailure {
             it.printStackTrace()
         }.getOrNull()
+    }
+
+    /**
+     * 获取“我是否关注了该用户 + 该用户所在关注分组 tagIds”。
+     *
+     * 规则：
+     * - 未关注：返回 (false, emptyList())
+     * - 已关注但无分组（默认/未分组）：接口通常返回 tag=null 或空数组，这里统一转为 listOf(0)
+     * - 保证 tagid==0 与其它分组互斥：若同时出现，只保留 0
+     */
+    suspend fun getUpFollowStateAndTagIds(
+        mid: Long,
+        preferApiType: ApiType = ApiType.Web
+    ): Pair<Boolean, List<Int>> {
+        if (authRepository.sessionData == null && authRepository.accessToken == null) {
+            return false to emptyList()
+        }
+
+        val data: RelationData = runCatching {
+            when (preferApiType) {
+                ApiType.Web -> {
+                    BiliHttpApi.getRelations(
+                        mid = mid,
+                        sessData = authRepository.sessionData
+                    )
+                }
+
+                ApiType.App -> {
+                    BiliHttpApi.getRelations(
+                        mid = mid,
+                        sessData = authRepository.sessionData
+                    )
+                }
+            }.getResponseData()
+        }.getOrElse {
+            it.printStackTrace()
+            return false to emptyList()
+        }
+
+        fun isFollowing(r: Relation): Boolean {
+            return listOf(
+                RelationType.Followed,
+                RelationType.FollowedQuietly,
+                RelationType.BothFollowed
+            ).contains(r.attribute)
+        }
+
+        // 兼容接口字段语义差异：哪个 Relation 显示“我已关注”，就用哪个的 tag
+        val followedRel: Relation? = when {
+            isFollowing(data.relation) -> data.relation
+            isFollowing(data.beRelation) -> data.beRelation
+            else -> null
+        }
+
+        val isFollowed = followedRel != null
+        if (!isFollowed) return false to emptyList()
+
+        val raw = followedRel!!.tag ?: emptyList()
+        val normalized = (if (raw.isEmpty()) listOf(0) else raw)
+            .distinct()
+            .sorted()
+            .let { ids ->
+                if (ids.contains(0) && ids.size > 1) listOf(0) else ids
+            }
+
+        return true to normalized
     }
 
     //TODO 改成返回 关注数，粉丝数，黑名单数

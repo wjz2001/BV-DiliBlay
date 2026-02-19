@@ -6,6 +6,7 @@ import dev.aaa1115910.biliapi.entity.video.Tag
 import dev.aaa1115910.biliapi.entity.video.VideoDetail.Stat
 import dev.aaa1115910.biliapi.entity.video.VideoPage
 import dev.aaa1115910.biliapi.entity.video.season.UgcSeason
+import dev.aaa1115910.biliapi.http.entity.relation.RelationTag
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import java.util.Date
 
@@ -14,6 +15,7 @@ data class VideoDetailUiState(
     val loadingState: VideoInfoState = VideoInfoState.Loading,
     val errorTip: String = "",
     val isFollowingUp: Boolean = false,
+    val followTags: List<RelationTag> = emptyList(),
     val showVideoInfo: Boolean = true,
     val fromSeason: Boolean = false,
     val fromController: Boolean = false,

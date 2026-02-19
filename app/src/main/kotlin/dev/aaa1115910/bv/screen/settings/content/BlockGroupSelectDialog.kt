@@ -28,15 +28,15 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.FilterChip
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
-import androidx.compose.ui.platform.LocalContext
-import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.biliapi.http.BiliHttpApi
 import dev.aaa1115910.bv.util.Prefs
+import dev.aaa1115910.bv.util.toast
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -55,6 +55,12 @@ import kotlinx.coroutines.launch
  *
  * 额外规则（防止等同全量分组）：
  * - 当 tags.size >= 2 且 已选数 == 总数 - 1 时，剩余未选分组禁止获得焦点（无法被选中）
+ *
+ * lightMode（用于“关注分组选择”的轻量模式）：
+ * - chip 只做选中/取消选中
+ * - 不触发成员拉取、不跑队列、不读写 initialMembersCache/fetchedCache
+ * - 不执行“禁止全选关注分组”限制
+ * - dismiss 提交顺序：先 onHideDialog() 再 onSubmit(...)，保证外部提交发生在面板关闭后
  */
 @OptIn(ExperimentalLayoutApi::class, ExperimentalTvMaterial3Api::class)
 @Composable
@@ -63,6 +69,7 @@ fun BlockGroupSelectDialog(
     show: Boolean,
     title: String,
     tags: List<BlockTagItem>,
+    lightMode: Boolean = false,
     // 进入 dialog 时的已选分组（来自 Prefs.blockSelectedTagIds）
     initialSelectedTagIds: List<Int>,
     // 进入 dialog 时的本地缓存快照：tagid -> (count, mids)
@@ -85,10 +92,11 @@ fun BlockGroupSelectDialog(
     val desired = remember { mutableStateMapOf<Int, Boolean>() } // 用户意图：true 表示希望选中（含 queued/loading）
 
     // 当已选数达到“总数-1”时提示用户不得全选（最后一个会被禁止聚焦/禁止选中）
-    LaunchedEffect(userInteracted, selected.size, tags.size) {
+    LaunchedEffect(lightMode, userInteracted, selected.size, tags.size) {
+        if (lightMode) return@LaunchedEffect
         if (!userInteracted) return@LaunchedEffect
         if (tags.size >= 2 && selected.size == tags.size - 1) {
-            "为避免等同全量分组，禁止全选关注分组".toast(context)
+            "禁止全选关注分组".toast(context)
         }
     }
 
@@ -108,7 +116,7 @@ fun BlockGroupSelectDialog(
     var focusedTagId by remember { mutableStateOf<Int?>(null) }
 
     fun shouldBlockLastUnselectedFocus(): Boolean =
-        tags.size >= 2 && selected.size == tags.size - 1
+        !lightMode && tags.size >= 2 && selected.size == tags.size - 1
 
     fun remainingUnselectedTagId(): Int? {
         if (!shouldBlockLastUnselectedFocus()) return null
@@ -123,7 +131,7 @@ fun BlockGroupSelectDialog(
     }
 
     // 初始化：已选分组必须保留；缓存新旧只影响 Selected/SelectedStale
-    LaunchedEffect(show) {
+    LaunchedEffect(show, lightMode) {
         selected.clear()
         desired.clear()
         uiState.clear()
@@ -133,7 +141,25 @@ fun BlockGroupSelectDialog(
 
         tags.forEach { tag ->
             val tagId = tag.tagid
-            val isInitiallySelected = initialSelectedTagIds.contains(tagId)
+            val isInitiallySelected = if (lightMode) {
+                // lightMode 下保证 0 与其它互斥：若 initialSelectedTagIds 同时含 0 和其它，只保留 0
+                if (initialSelectedTagIds.contains(0)) tagId == 0 else initialSelectedTagIds.contains(tagId)
+            } else {
+                initialSelectedTagIds.contains(tagId)
+            }
+
+            if (lightMode) {
+                if (isInitiallySelected) {
+                    selected.add(tagId)
+                    desired[tagId] = true
+                    uiState[tagId] = TagUiState.Selected
+                } else {
+                    desired[tagId] = false
+                    uiState[tagId] = TagUiState.Idle
+                }
+                return@forEach
+            }
+
             val cached = initialMembersCache[tagId]
             val cacheUsable = cached != null && cached.mids.isNotEmpty()
             val cacheFresh = cacheUsable && cached!!.count == tag.count
@@ -160,6 +186,7 @@ fun BlockGroupSelectDialog(
     }
 
     fun startWorkerIfNeeded() {
+        if (lightMode) return
         if (workerJob?.isActive == true) return
         workerJob = scope.launch {
             while (isActive && queue.isNotEmpty()) {
@@ -229,12 +256,21 @@ fun BlockGroupSelectDialog(
     }
 
     fun enqueue(tagId: Int) {
+        if (lightMode) return
         if (queue.contains(tagId)) return
         queue.addLast(tagId)
         startWorkerIfNeeded()
     }
 
     fun dismissAndSubmit() {
+        // 轻量模式：不跑队列/不碰缓存，并保证“先关闭面板，再执行外部提交”
+        if (lightMode) {
+            val finalSelected = selected.toList().sorted()
+            onHideDialog()
+            onSubmit(finalSelected, emptyMap())
+            return
+        }
+
         // 1) 立刻停止拉取
         workerJob?.cancel()
         workerJob = null
@@ -299,6 +335,27 @@ fun BlockGroupSelectDialog(
                         selected = isSelected,
                         onClick = {
                             userInteracted = true
+
+                            if (lightMode) {
+                                val id = tag.tagid
+                                if (selected.contains(id)) {
+                                    selected.remove(id)
+                                    desired[tag.tagid] = false
+                                    uiState[tag.tagid] = TagUiState.Idle
+                                } else {
+                                    // 0（默认/未分组）与其它互斥
+                                    if (id == 0) {
+                                        selected.clear()
+                                        selected.add(0)
+                                    } else {
+                                        selected.remove(0)
+                                        selected.add(id)
+                                    }
+                                    desired[id] = true
+                                    uiState[id] = TagUiState.Selected
+                                }
+                                return@FilterChip
+                            }
 
                             // 若已选数已经是“总数-1”，则禁止再选（否则等同全量分组），并 toast 提示
                             val isSelectedState =

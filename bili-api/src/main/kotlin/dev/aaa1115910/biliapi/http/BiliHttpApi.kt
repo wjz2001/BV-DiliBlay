@@ -1231,6 +1231,34 @@ object BiliHttpApi {
     }.body()
 
     /**
+     * 将用户加入关注分组
+     *
+     * POST https://api.bilibili.com/x/relation/tags/addUsers
+     * FormData：fids, tagids
+     * 认证：Cookie(SESSDATA)+csrf 或 access_key
+     */
+    suspend fun addUsersToRelationTags(
+        fids: List<Long>,
+        tagIds: List<Int>,
+        accessKey: String? = null,
+        csrf: String? = null,
+        sessData: String? = null
+    ): BiliResponseWithoutData = client.post("/x/relation/tags/addUsers") {
+        checkToken(accessKey, sessData)
+        setBody(
+            FormDataContent(
+                Parameters.build {
+                    append("fids", fids.joinToString(","))
+                    append("tagids", tagIds.joinToString(","))
+                    accessKey?.let { append("access_key", it) }
+                    csrf?.let { append("csrf", it) }
+                }
+            )
+        )
+        sessData?.let { header("Cookie", "SESSDATA=$it;") }
+    }.body()
+
+    /**
      * 获取用户[mid]的关系统计（关注数，粉丝数，黑名单数）
      */
     suspend fun getRelationStat(
