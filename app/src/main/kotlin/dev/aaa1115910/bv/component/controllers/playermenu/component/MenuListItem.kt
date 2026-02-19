@@ -83,7 +83,7 @@ fun MenuListItem(
                                 .fillMaxWidth()
                                 .height(32.dp),
                             text = text,
-                            style = MaterialTheme.typography.titleLarge,
+                            style = MaterialTheme.typography.titleMedium,
                             textAlign = textAlign,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
