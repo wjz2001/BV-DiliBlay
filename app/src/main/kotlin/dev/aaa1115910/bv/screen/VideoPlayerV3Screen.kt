@@ -206,6 +206,11 @@ fun VideoPlayerV3Screen(
             logger.info { "Set default play speed: $speed" }
             playerViewModel.updatePlaySpeed(speed)
         },
+        onTempPlaySpeedChange = { speed ->
+            // 临时倍速：同时影响视频与弹幕；不落盘、不改 uiState.playSpeed
+            videoPlayer.speed = speed
+            playerViewModel.danmakuPlayer?.updatePlaySpeed(speed)
+        },
         onDanmakuSettingChange = { action ->
             playerViewModel.updateDanmakuState(action)
             logger.info { "On danmaku state change" }
