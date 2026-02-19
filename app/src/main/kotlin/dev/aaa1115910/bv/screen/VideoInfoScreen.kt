@@ -945,7 +945,11 @@ private fun FullScreenMessage(message: String) {
                 text = {
                     LazyColumn {
                         item {
-                            Text(text = description)
+                            Text(
+                                text = description,
+                                fontSize = 28.sp,
+                                lineHeight = 34.sp,
+                            )
                         }
                     }
                 },
