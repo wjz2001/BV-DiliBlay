@@ -79,6 +79,7 @@ fun VideoPlayerController(
     onMediaProfileSettingChange: (MediaProfileSettingAction) -> Unit,
     onAspectRatioChange: (VideoAspectRatio) -> Unit,
     onPlaySpeedChange: (Float) -> Unit,
+    onTempPlaySpeedChange: (Float) -> Unit,
     onDanmakuSettingChange: (DanmakuSettingAction) -> Unit,
     onSubtitleChange: (Subtitle) -> Unit,
     onSubtitleSettingChange: (SubtitleSettingAction) -> Unit,
@@ -98,6 +99,8 @@ fun VideoPlayerController(
     var showInfoSeekController by remember { mutableStateOf(false) }
     var showRelatedVideosController by remember { mutableStateOf(false) }
     var directionDownLongPressGuard by remember { mutableStateOf(false) }
+    var confirmLongPressGuard by remember { mutableStateOf(false) }
+    var confirmLongPressOriginSpeed by remember { mutableStateOf<Float?>(null) }
     val showClickableControllers by remember {
         derivedStateOf { showUpPanelController || showMenuController || showInfoSeekController || showRelatedVideosController ||
             directionDownLongPressGuard }
@@ -200,6 +203,19 @@ fun VideoPlayerController(
             return true
         }
 
+        if (
+            (event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.Spacebar) &&
+            confirmLongPressGuard
+        ) {
+            if (event.type == KeyEventType.KeyUp) {
+                val originSpeed = confirmLongPressOriginSpeed ?: uiState.playSpeed
+                onTempPlaySpeedChange(originSpeed)
+                confirmLongPressOriginSpeed = null
+                confirmLongPressGuard = false
+            }
+            return true
+        }
+
         logger.info { "[${event.key} press]" }
 
         when (event.key) {
@@ -254,10 +270,30 @@ fun VideoPlayerController(
             when (event.key) {
                 Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
                     if (event.type == KeyEventType.KeyDown) {
-                        if (event.nativeKeyEvent.isLongPress) {
-                            showMenuController = true
+                        // 新的一次按下确保 guard 关闭；长按触发时再打开
+                        if (event.nativeKeyEvent.repeatCount == 0 && !event.nativeKeyEvent.isLongPress) {
+                            confirmLongPressGuard = false
+                            confirmLongPressOriginSpeed = null
+                            return true
                         }
-                        return true
+
+                        if (event.nativeKeyEvent.isLongPress) {
+                            //showMenuController = true
+                            // 触发长按：临时倍速 = 当前倍速 * 1.5
+                            if (!confirmLongPressGuard) {
+                                val originSpeed = videoPlayer.speed
+                                confirmLongPressOriginSpeed = originSpeed
+
+                                val boostedSpeed = (originSpeed * 1.5f).coerceAtMost(5f)
+                                // 只在临时倍速“生效时”提示一次
+                                "播放速度：${boostedSpeed}倍".toast(context)
+                                onTempPlaySpeedChange(boostedSpeed)
+
+                                // 打开 guard，让后续事件（包括 KeyUp）被上面的 guard 分支吞掉
+                                confirmLongPressGuard = true
+                            }
+                            return true
+                        }
                     }
                     onPlayPause()
                     /*
