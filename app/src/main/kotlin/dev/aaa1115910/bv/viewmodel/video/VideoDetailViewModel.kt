@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.koin.android.annotation.KoinViewModel
 
 @KoinViewModel
@@ -93,6 +94,7 @@ class VideoDetailViewModel(
 
                 if (Prefs.isLogin) {
                     updateFollowingState()
+                    ensureFollowTagsLoaded()
                     fetchFavoriteData(aid)
                 }
             }.launchIn(viewModelScope)
@@ -143,6 +145,92 @@ class VideoDetailViewModel(
             }
 
             logger.fInfo { "${if (follow) "Add" else "Del"} follow result: $result" }
+
+            updateFollowingState()
+        }
+    }
+
+    fun ensureFollowTagsLoaded() {
+        if (!Prefs.isLogin) return
+        if (_uiState.value.followTags.isNotEmpty()) return
+
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                userRepository.getFollowTags(preferApiType = Prefs.apiType)
+            }.onSuccess { tags ->
+                _uiState.update { it.copy(followTags = tags) }
+            }.onFailure { t ->
+                logger.fWarn { "Load follow tags failed: ${t.message}" }
+            }
+        }
+    }
+
+    /**
+     * 打开关注分组面板前调用：确保 uiState.followTags 已加载。
+     *
+     * @return true 表示已拿到非空 tags（可以安全打开面板）
+     */
+    suspend fun loadFollowTagsIfNeeded(): Boolean {
+        if (!Prefs.isLogin) return false
+        if (_uiState.value.followTags.isNotEmpty()) return true
+
+        val tags = withContext(Dispatchers.IO) {
+            userRepository.getFollowTags(preferApiType = Prefs.apiType)
+        }
+        _uiState.update { it.copy(followTags = tags) }
+        return tags.isNotEmpty()
+    }
+
+    suspend fun getUpFollowStateAndTagIds(upMid: Long): Pair<Boolean, List<Int>> {
+        return withContext(Dispatchers.IO) {
+            userRepository.getUpFollowStateAndTagIds(
+                mid = upMid,
+                preferApiType = Prefs.apiType
+            )
+        }
+    }
+
+    fun submitFollowGroupSelection(
+        wasFollowing: Boolean,
+        selectedTagIds: List<Int>
+    ) {
+        val upMid = _uiState.value.videoDetailState?.author?.mid ?: return
+        // 兜底保证：0（默认/未分组）与其它分组互斥
+        val dedup = selectedTagIds.distinct().sorted()
+        val finalSelected = if (dedup.contains(0) && dedup.size > 1) listOf(0) else dedup
+
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                when {
+                    finalSelected.isEmpty() -> {
+                        // 空选退出：仅当进入面板前已关注才取关；否则不做事
+                        if (wasFollowing) {
+                            userRepository.unfollowUser(
+                                mid = upMid,
+                                preferApiType = Prefs.apiType
+                            )
+                        }
+                    }
+
+                    else -> {
+                        // 非空：确保已关注，然后在面板关闭后再一次性提交分组
+                        if (!wasFollowing) {
+                            userRepository.followUser(
+                                mid = upMid,
+                                preferApiType = Prefs.apiType
+                            )
+                        }
+
+                        userRepository.addUserToFollowTags(
+                            mid = upMid,
+                            tagIds = finalSelected,
+                            preferApiType = Prefs.apiType
+                        )
+                    }
+                }
+            }.onFailure { t ->
+                logger.fWarn { "Submit follow group selection failed: ${t.message}" }
+            }
 
             updateFollowingState()
         }
