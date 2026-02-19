@@ -906,20 +906,29 @@ class VideoPlayerV3ViewModel(
         releaseDanmakuPlayer()
         initDanmakuPlayer()
 
-        // 切换视频时加载新detail
+        // 切换视频时加载新 detail（只在 aid 变化时拉取）
         if (video.aid != _uiState.value.aid) {
             viewModelScope.launch(Dispatchers.IO) {
                 videoInfoRepository.loadVideoDetail(video.aid, Prefs.apiType)
             }
         }
 
-        // 加载新播放url
+        // 切换瞬间：优先用已加载的分P标题（ugcPages），否则兜底用 video.title，不要让 UI 继续显示上一条 partTitle（残留）。
+        val immediatePartTitle = video.ugcPages
+            ?.firstOrNull { it.cid == video.cid }
+            ?.title
+            ?.trim()
+            .orEmpty()
+            .ifBlank { video.title }
+
+        // 加载新播放 url，同时原子写入 partTitle，避免中间态
         loadPlayUrl(
             avid = video.aid,
             cid = video.cid,
             epid = video.epid,
             seasonId = video.seasonId,
-            title = video.title
+            title = video.title,
+            partTitle = immediatePartTitle
         )
     }
 
@@ -1116,6 +1125,7 @@ class VideoPlayerV3ViewModel(
         epid: Int? = null,
         seasonId: Int? = null,
         title: String,
+        partTitle: String? = null,
     ) {
         // 在 UI State 中保持 epid 的真实语义：
         // - UGC：null
@@ -1123,13 +1133,25 @@ class VideoPlayerV3ViewModel(
         // 同时兼容外部偶发传入 0 的情况（0 视作无 epid）
         val normalizedEpid = epid?.takeIf { it != 0 }
 
+        // 如果调用方没传 partTitle：
+        // - 切换到新视频/新 cid 时，至少用 title 覆盖掉旧 partTitle，避免残留
+        // - 非切换（例如同一条视频重拉 url）则保留原 partTitle
+        val isSwitching =
+            avid != _uiState.value.aid || cid != _uiState.value.cid || normalizedEpid != _uiState.value.epid
+        val resolvedPartTitle = when {
+            partTitle != null -> partTitle
+            isSwitching -> title
+            else -> _uiState.value.partTitle
+        }
+
         _uiState.update {
             it.copy(
                 aid = avid,
                 cid = cid,
-                epid = epid ?: 0,
+                epid = normalizedEpid,
                 seasonId = seasonId ?: 0,
-                title = title
+                title = title,
+                partTitle = resolvedPartTitle
             )
         }
 
