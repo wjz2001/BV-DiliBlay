@@ -1621,7 +1621,7 @@ class VideoPlayerV3ViewModel(
         orderedLangKeys.forEach { langKey ->
             val entry = byLang[langKey] ?: return@forEach
 
-            // 同语言：CC 优先于 AI（按你的要求）
+            // 同语言：CC 优先于 AI
             if (entry.cc != null && ruleTokens.contains("CC|$langKey")) {
                 return entry.cc
             }

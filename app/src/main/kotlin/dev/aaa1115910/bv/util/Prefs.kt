@@ -221,11 +221,8 @@ object Prefs {
         }
     )
 
-    /**
-     * 连播下一集是否自动开启字幕（继承上一集选择）
-     *
-     * 默认 false：保持“删掉 95ff 后不自动开字幕”的直觉，避免惊喜行为。
-     */
+    //连播下一集是否自动开启字幕（继承上一集选择）
+
     var continuePlayAutoSubtitleEnabled by pref(
         PrefKeys.prefContinuePlayAutoSubtitleEnabledKey,
         false
