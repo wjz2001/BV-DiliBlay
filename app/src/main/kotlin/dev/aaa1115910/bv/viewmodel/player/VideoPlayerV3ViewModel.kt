@@ -121,11 +121,19 @@ class VideoPlayerV3ViewModel(
 
     private var playData: PlayData? = null
 
-    // 是否允许在“进入播放/切到下一集”时自动启用字幕。
-    // 默认 true：首次进入播放器也会尝试自动启用合规中文字幕。
-    // 用户手动选择“关闭”后会变为 false，此后不再自动开启，直到用户再次手动开启字幕。
+    private data class ContinueSelection(
+        val type: SubtitleType,
+        val langKey: String
+    )
+
+    private data class ContinuePlayPending(
+        val aid: Long,
+        val cid: Long,
+        val selection: ContinueSelection? // null 表示：连播时强制不自动开启字幕（本集字幕为“关闭”）
+    )
+
     @Volatile
-    private var subtitleAutoEnableEnabled: Boolean = true
+    private var continuePlayPending: ContinuePlayPending? = null
 
     @Volatile
     private var suppressPlayerErrors: Boolean = false
@@ -655,9 +663,6 @@ class VideoPlayerV3ViewModel(
     }
 
     fun loadSubtitle(id: Long) {
-        // 用户显式关闭字幕后，后续不再自动启用；用户再次手动开启后再恢复自动启用。
-        subtitleAutoEnableEnabled = id != -1L
-
         viewModelScope.launch(Dispatchers.IO) {
             if (id == -1L) {
                 _uiState.update {
@@ -1170,10 +1175,43 @@ class VideoPlayerV3ViewModel(
             loadDanmaku(cid)
             updateDanmakuMask()
             updateSubtitle()
+            // ===== 自动字幕：连播继承优先，其次普通自动开启 =====
+            val pending = continuePlayPending
+
+            // 只有当“本次 loadPlayUrl 的目标 aid/cid”与 pending 匹配，才认为这是连播触发的下一集
+            if (pending != null && pending.aid == avid && pending.cid == cid && Prefs.continuePlayAutoSubtitleEnabled) {
+                // 消费 pending（无论成功与否都清掉，避免污染后续普通进入）
+                continuePlayPending = null
+
+                val selection = pending.selection
+                if (selection != null) {
+                    val targetSubtitle = pickContinuePlaySubtitle(selection, _uiState.value.availableSubtitles)
+                    if (targetSubtitle != null) {
+                        logger.info { "Continue play auto subtitle: ${targetSubtitle.langDoc} (id=${targetSubtitle.id})" }
+                        loadSubtitle(targetSubtitle.id)
+                    } else {
+                        logger.info { "Continue play auto subtitle: no match for ${selection.type}|${selection.langKey}, skip" }
+                    }
+                } else {
+                    // 本集字幕为“关闭”：下一集也不自动开启字幕（且不跑普通自动开启）
+                    logger.info { "Continue play auto subtitle: last episode subtitle is OFF, keep OFF" }
+                }
+            } else {
+                // 清理可能的陈旧 pending（比如用户中途手动切了视频导致 aid/cid 不匹配）
+                // 以及：用户在倒计时/切换间隙把“连播自动字幕”关掉，此时也应清掉 pending，回到普通自动开启逻辑
+                if (pending != null && (pending.aid != avid || pending.cid != cid || !Prefs.continuePlayAutoSubtitleEnabled)) {
+                    continuePlayPending = null
+                }
+
+                val targetSubtitle = pickNormalAutoSubtitle(_uiState.value.availableSubtitles)
+                if (targetSubtitle != null) {
+                    logger.info { "Normal auto subtitle: ${targetSubtitle.langDoc} (id=${targetSubtitle.id})" }
+                    loadSubtitle(targetSubtitle.id)
+                }
+            }
             updateVideoShot()
             updateVideoPages()
             clearVideoShotCache()
-
 
             /*
             //如果是继续播放下一集，且之前开启了字幕，就会自动加载第一条字幕，主要用于观看番剧时自动加载字幕
@@ -1183,11 +1221,6 @@ class VideoPlayerV3ViewModel(
                 enableFirstSubtitle()
             }
             */
-            // 进入播放即尝试自动启用合规中文字幕；用户手动关闭后会禁止自动启用，直到再次手动开启。
-            if (subtitleAutoEnableEnabled) {
-                logger.info { "Auto enable subtitle is enabled, try enable eligible Chinese subtitle" }
-                enableFirstSubtitle()
-            }
         }
     }
 
@@ -1531,27 +1564,75 @@ class VideoPlayerV3ViewModel(
         }
     }
 
-    private fun Subtitle.isEligibleChineseForAutoEnable(): Boolean {
-        // 只允许中文
-        if (!langDoc.contains("中文")) return false
+    private fun Subtitle.normalizedLangKey(): String {
+        val raw = (lang.ifBlank { langDoc }).trim()
+        if (raw.isEmpty()) return ""
 
-        // 排除：AI / 自动生成 / 自动翻译
-        if (type == SubtitleType.AI) return false
-        if (langDoc.contains("（自动生成）") || langDoc.contains("（自动翻译）")) return false
-
-        // 排除：包含 ai（忽略大小写），双兜底
-        if (langDoc.contains("ai", ignoreCase = true)) return false
-        if (lang.contains("ai", ignoreCase = true)) return false
-
-        return true
+        val noAiPrefix = if (raw.startsWith("ai-", ignoreCase = true)) raw.substring(3) else raw
+        val primary = noAiPrefix.substringBefore("-")
+        return primary.lowercase()
     }
 
-    private fun pickFirstEligibleChineseSubtitle(): Subtitle? {
-        val list = _uiState.value.availableSubtitles
-        return list.firstOrNull { it.id != -1L && it.isEligibleChineseForAutoEnable() }
+    private fun pickContinuePlaySubtitle(
+        selection: ContinueSelection,
+        tracks: List<Subtitle>
+    ): Subtitle? {
+        val list = tracks.filter { it.id != -1L }
+        fun find(type: SubtitleType): Subtitle? =
+            list.firstOrNull { it.type == type && it.normalizedLangKey() == selection.langKey }
+
+        return if (selection.type == SubtitleType.AI) {
+            // AI 同语言优先，兜底 CC 同语言
+            find(SubtitleType.AI) ?: find(SubtitleType.CC)
+        } else {
+            // 非 AI：只能 CC 同语言，不兜底
+            find(SubtitleType.CC)
+        }
     }
 
-    /*
+    private data class LangTracks(
+        var cc: Subtitle? = null,
+        var ai: Subtitle? = null
+    )
+
+    private fun pickNormalAutoSubtitle(tracks: List<Subtitle>): Subtitle? {
+        val ruleTokens = Prefs.autoSubtitleRuleTokens.toSet()
+        if (ruleTokens.isEmpty()) return null
+
+        val byLang = linkedMapOf<String, LangTracks>()
+        tracks.filter { it.id != -1L }.forEach { t ->
+            val key = t.normalizedLangKey()
+            if (key.isBlank()) return@forEach
+
+            val entry = byLang.getOrPut(key) { LangTracks() }
+            when (t.type) {
+                SubtitleType.CC -> if (entry.cc == null) entry.cc = t
+                SubtitleType.AI -> if (entry.ai == null) entry.ai = t
+            }
+        }
+
+        fun langSortKey(langKey: String): Pair<Int, String> = when (langKey) {
+            "zh" -> 0 to ""
+            "en" -> 1 to ""
+            else -> 2 to langKey
+        }
+
+        val orderedLangKeys = byLang.keys.sortedWith(compareBy({ langSortKey(it).first }, { langSortKey(it).second }))
+        orderedLangKeys.forEach { langKey ->
+            val entry = byLang[langKey] ?: return@forEach
+
+            // 同语言：CC 优先于 AI（按你的要求）
+            if (entry.cc != null && ruleTokens.contains("CC|$langKey")) {
+                return entry.cc
+            }
+            if (entry.ai != null && ruleTokens.contains("AI|$langKey")) {
+                return entry.ai
+            }
+        }
+
+        return null
+    }
+
     private fun enableFirstSubtitle() {
         runCatching {
             logger.info { "Load first subtitle" }
@@ -1563,20 +1644,6 @@ class VideoPlayerV3ViewModel(
             )
         }.onFailure {
             logger.error { "Load first subtitle failed: ${it.stackTraceToString()}" }
-        }
-    }
-     */
-    private fun enableFirstSubtitle() {
-        runCatching {
-            val target = pickFirstEligibleChineseSubtitle()
-            if (target == null) {
-                logger.info { "No eligible Chinese subtitle for auto enable, skip" }
-                return@runCatching
-            }
-            logger.info { "Auto enable Chinese subtitle: ${target.langDoc} (id=${target.id})" }
-            loadSubtitle(target.id)
-        }.onFailure {
-            logger.error { "Auto enable subtitle failed: ${it.stackTraceToString()}" }
         }
     }
 
@@ -1745,12 +1812,47 @@ class VideoPlayerV3ViewModel(
     }
 
     private fun playNextTarget(target: NextPlayTarget) {
+        fun prepareContinuePending(nextAid: Long, nextCid: Long) {
+            if (!Prefs.continuePlayAutoSubtitleEnabled) {
+                continuePlayPending = null
+                return
+            }
+
+            val state = _uiState.value
+            val currentSubtitleId = state.subtitleId
+
+            val selection: ContinueSelection? = if (currentSubtitleId == -1L) {
+                // 本集字幕关闭：下一集也不自动开任何字幕（且不跑普通自动开启）
+                null
+            } else {
+                state.availableSubtitles
+                    .firstOrNull { it.id == currentSubtitleId }
+                    ?.let { track ->
+                        ContinueSelection(
+                            type = track.type,
+                            langKey = track.normalizedLangKey()
+                        )
+                    }
+            }
+
+            continuePlayPending = ContinuePlayPending(
+                aid = nextAid,
+                cid = nextCid,
+                selection = selection
+            )
+        }
+
         when (target) {
             is NextPlayTarget.UgcPage -> {
                 logger.info { "Play next UGC page: ${target.page.title}" }
 
                 // 立即更新分P标题（不依赖 pages）
                 _uiState.update { it.copy(partTitle = target.page.title) }
+
+                prepareContinuePending(
+                    nextAid = target.parentVideo.aid,
+                    nextCid = target.page.cid
+                )
 
                 playNewVideo(
                     VideoListItem(
@@ -1764,6 +1866,12 @@ class VideoPlayerV3ViewModel(
 
             is NextPlayTarget.VideoItem -> {
                 logger.info { "Play next video item: ${target.video.title}" }
+
+                prepareContinuePending(
+                    nextAid = target.video.aid,
+                    nextCid = target.video.cid
+                )
+
                 playNewVideo(
                     VideoListItem(
                         aid = target.video.aid,
