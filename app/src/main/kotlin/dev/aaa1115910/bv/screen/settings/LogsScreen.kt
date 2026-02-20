@@ -47,6 +47,9 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import androidx.compose.foundation.layout.Column
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.network.HttpServer
 import dev.aaa1115910.bv.ui.theme.BVTheme
@@ -75,16 +78,53 @@ fun LogsScreen(
     val logs = remember { mutableStateListOf<File>() }
     var currentSelectFile by remember { mutableStateOf<File?>(null) }
 
-    var qrImage by remember { mutableStateOf<ImageBitmap?>(null) }
+    var fileQrImage by remember { mutableStateOf<ImageBitmap?>(null) }
+    var serverQrImage by remember { mutableStateOf<ImageBitmap?>(null) }
+    var isCreateFocused by remember { mutableStateOf(true) }
+    var waitPortJob: Job? by remember { mutableStateOf(null) }
 
-    val generateQRCode = {
+    val generateFileQRCode = {
         scope.launch(Dispatchers.IO) {
-            qrImage = null
+            fileQrImage = null
             val output = ByteArrayOutputStream()
             val url = "http://$host:$port/api/logs/${currentSelectFile?.name}"
             QRCode(url).render().writeImage(output)
             val input = ByteArrayInputStream(output.toByteArray())
-            qrImage = BitmapFactory.decodeStream(input).asImageBitmap()
+            fileQrImage = BitmapFactory.decodeStream(input).asImageBitmap()
+        }
+    }
+
+    val startWaitPortJobAndGenerateServerQr = {
+        // 进入 Create 焦点时：先置空 serverQrImage，再轮询端口
+        serverQrImage = null
+        waitPortJob?.cancel()
+        waitPortJob = scope.launch(Dispatchers.IO) {
+            // 等待 LogsScreen 的 LaunchedEffect 把 host 更新成真实 IP（避免初始焦点太快导致还是 x.x.x.x）
+            var resolvedHost = host
+            var hostRetry = 0
+            while ((resolvedHost.isBlank() || resolvedHost == "x.x.x.x") && hostRetry < 50) { // 约 5 秒
+                delay(100)
+                resolvedHost = host
+                hostRetry++
+            }
+
+            var resolvedPort =
+                HttpServer.server?.engine?.resolvedConnectors()?.firstOrNull()?.port ?: 0
+            var retry = 0
+            while (resolvedPort == 0 && retry < 50) { // 约 5 秒
+                delay(100)
+                resolvedPort = HttpServer.server?.engine?.resolvedConnectors()?.firstOrNull()?.port ?: 0
+                retry++
+            }
+
+            if (resolvedPort != 0) {
+                port = resolvedPort
+                val output = ByteArrayOutputStream()
+                val url = "http://$resolvedHost:$resolvedPort/"
+                QRCode(url).render().writeImage(output)
+                val input = ByteArrayInputStream(output.toByteArray())
+                serverQrImage = BitmapFactory.decodeStream(input).asImageBitmap()
+            }
         }
     }
 
@@ -123,12 +163,21 @@ fun LogsScreen(
 
     LogsScreenContent(
         modifier = modifier,
-        qrImage = qrImage,
-        clearQrImage = { qrImage = null },
+        isCreateFocused = isCreateFocused,
+        serverAddress = "$host:$port",
+        serverQrImage = serverQrImage,
+        fileQrImage = fileQrImage,
         logs = logs,
+        onFocusCreate = {
+            isCreateFocused = true
+            fileQrImage = null
+            startWaitPortJobAndGenerateServerQr()
+        },
         onFocusLogFile = { file ->
+            isCreateFocused = false
+            waitPortJob?.cancel()
             currentSelectFile = file
-            generateQRCode()
+            generateFileQRCode()
         },
         onClickCreateLog = {
             LogCatcherUtil.logLogcat(manual = true)
@@ -141,9 +190,12 @@ fun LogsScreen(
 @Composable
 fun LogsScreenContent(
     modifier: Modifier = Modifier,
-    qrImage: ImageBitmap?,
-    clearQrImage: () -> Unit,
+    isCreateFocused: Boolean,
+    serverAddress: String,
+    serverQrImage: ImageBitmap?,
+    fileQrImage: ImageBitmap?,
     logs: List<File>,
+    onFocusCreate: () -> Unit,
     onFocusLogFile: (File) -> Unit,
     onClickCreateLog: () -> Unit
 ) {
@@ -190,7 +242,7 @@ fun LogsScreenContent(
                     item {
                         CreateLogItem(
                             modifier = Modifier.focusRequester(focusRequester),
-                            onFocus = clearQrImage,
+                            onFocus = onFocusCreate,
                             onClick = onClickCreateLog
                         )
                     }
@@ -221,22 +273,54 @@ fun LogsScreenContent(
                     .fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                if (qrImage != null) {
-                    Box(
-                        modifier = Modifier
-                            .size(240.dp)
-                            .clip(MaterialTheme.shapes.large)
-                            .background(Color.White),
-                        contentAlignment = Alignment.Center,
+                if (isCreateFocused) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Image(
-                            modifier = Modifier.size(200.dp),
-                            bitmap = qrImage,
-                            contentDescription = null
-                        )
+                        Text(text = serverAddress)
+                        Box(
+                            modifier = Modifier
+                                .size(240.dp)
+                                .clip(MaterialTheme.shapes.large)
+                                .background(Color.White),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (serverQrImage != null) {
+                                Image(
+                                    modifier = Modifier.size(200.dp),
+                                    bitmap = serverQrImage,
+                                    contentDescription = null
+                                )
+                            } else {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(text = "正在获取端口……")
+                                    CircularProgressIndicator()
+                                }
+                            }
+                        }
                     }
                 } else {
-                    CircularProgressIndicator()
+                    if (fileQrImage != null) {
+                        Box(
+                            modifier = Modifier
+                                .size(240.dp)
+                                .clip(MaterialTheme.shapes.large)
+                                .background(Color.White),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Image(
+                                modifier = Modifier.size(200.dp),
+                                bitmap = fileQrImage,
+                                contentDescription = null
+                            )
+                        }
+                    } else {
+                        CircularProgressIndicator()
+                    }
                 }
             }
         }
