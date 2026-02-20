@@ -493,7 +493,7 @@ private fun RootCommentHeader(comment: Comment) {
                 color = CommentsText,
                 fontSize = 24.sp,
                 lineHeight = 28.sp,
-                maxLines = 6,
+                //maxLines = 6,
                 overflow = TextOverflow.Ellipsis
             )
         }
@@ -597,7 +597,7 @@ private fun LightCommentItem(
                     color = CommentsText,
                     fontSize = 24.sp,
                     lineHeight = 28.sp,
-                    maxLines = 6,
+                    //maxLines = 6,
                     overflow = TextOverflow.Ellipsis
                 )
 
