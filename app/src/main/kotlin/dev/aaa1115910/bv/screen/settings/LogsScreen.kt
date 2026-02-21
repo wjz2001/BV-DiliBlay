@@ -6,6 +6,9 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.wifi.WifiManager
 import android.os.Build
+import android.os.FileObserver
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -48,6 +51,10 @@ import androidx.tv.material3.ListItem
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.LineBreak
+import androidx.compose.ui.text.style.TextAlign
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import dev.aaa1115910.bv.R
@@ -82,6 +89,7 @@ fun LogsScreen(
     var serverQrImage by remember { mutableStateOf<ImageBitmap?>(null) }
     var isCreateFocused by remember { mutableStateOf(true) }
     var waitPortJob: Job? by remember { mutableStateOf(null) }
+    var refreshLogsJob: Job? by remember { mutableStateOf(null) }
 
     val generateFileQRCode = {
         scope.launch(Dispatchers.IO) {
@@ -152,6 +160,48 @@ fun LogsScreen(
         val newLogs = (LogCatcherUtil.manualFiles + LogCatcherUtil.crashFiles)
             .sortedByDescending { it.lastModified() }
         logs.swapList(newLogs)
+    }
+
+    // 让 FileObserver 始终调用“最新的 updateLogs lambda”，避免重组后回调持有旧引用
+    val updateLogsLatest by rememberUpdatedState(newValue = updateLogs)
+
+     // 监听日志目录：当网页端/崩溃写入新文件后，TV 端列表立刻刷新
+    val logDir = remember(context) { File(context.filesDir, LogCatcherUtil.LOG_DIR) }
+
+    DisposableEffect(logDir.absolutePath) {
+        // 目录不存在时先创建；否则某些机型上 startWatching 可能无效
+        if (!logDir.exists()) {
+            logDir.mkdirs()
+        }
+
+        // 关注“写入完成/移动进来/创建/删除”等事件即可
+        val mask =
+            FileObserver.CLOSE_WRITE or
+                    FileObserver.MOVED_TO or
+                    FileObserver.CREATE or
+                    FileObserver.DELETE
+
+        @Suppress("DEPRECATION")
+        val observer = object : FileObserver(logDir.absolutePath, mask) {
+            override fun onEvent(event: Int, path: String?) {
+                // 回调线程不保证是主线程；切回 Compose scope（主线程）刷新
+                scope.launch {
+                    refreshLogsJob?.cancel()
+                    refreshLogsJob = launch {
+                        delay(150)
+                        updateLogsLatest()
+                    }
+                }
+            }
+        }
+
+        observer.startWatching()
+
+        onDispose {
+            observer.stopWatching()
+            refreshLogsJob?.cancel()
+            refreshLogsJob = null
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -278,7 +328,16 @@ fun LogsScreenContent(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(text = serverAddress)
+                        Text(
+                            modifier = Modifier
+                                .padding(horizontal = 40.dp, vertical = 40.dp)
+                                .background(Color.DarkGray.copy(alpha = 0.5f))
+                                .padding(16.dp),
+                            text = "输入 $serverAddress 或扫描二维码进入网页日志管理界面",
+                            fontSize = 22.sp,
+                            style = TextStyle(lineBreak = LineBreak.Paragraph),
+                            textAlign = TextAlign.Center
+                        )
                         Box(
                             modifier = Modifier
                                 .size(240.dp)
