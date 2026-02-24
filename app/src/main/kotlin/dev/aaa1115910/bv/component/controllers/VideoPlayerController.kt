@@ -477,6 +477,7 @@ fun VideoPlayerController(
                     },
                     onToggleLoop = onToggleLoop,
                     onGoToUpPage = onGoToUpPage,
+                    hasMultipleCoAuthors = uiState.coAuthors.distinctBy { it.mid }.size > 1,
                     onShowTimeJump = {
                         // 立刻暂停 + 打开对话框
                         onPause()
