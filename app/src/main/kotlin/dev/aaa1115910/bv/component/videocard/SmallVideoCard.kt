@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
+import androidx.compose.material.icons.rounded.Group
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -61,6 +62,9 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.component.buttons.FavoriteDialog
+import dev.aaa1115910.bv.component.CoAuthorsDialogHost
+import dev.aaa1115910.bv.component.handleUpHomeClick
+import dev.aaa1115910.bv.component.rememberCoAuthorsDialogState
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import androidx.compose.ui.platform.LocalContext
@@ -83,7 +87,8 @@ import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.biliapi.http.BiliHttpApi
 import dev.aaa1115910.biliapi.repositories.FavoriteRepository
 import dev.aaa1115910.biliapi.repositories.VideoDetailRepository
-
+import dev.aaa1115910.biliapi.entity.user.CoAuthor
+import dev.aaa1115910.bv.activities.video.UpInfoActivity
 
 @Composable
 fun SmallVideoCard(
@@ -123,6 +128,51 @@ fun SmallVideoCard(
 
     val favoriteRepository: FavoriteRepository = getKoin().get()
     val videoDetailRepository: VideoDetailRepository = getKoin().get()
+
+    // --- CoAuthorsDialog：状态由 SmallVideoCard 管理 ---
+    val coAuthorsDialogState = rememberCoAuthorsDialogState()
+    var coAuthors by remember(data.avid) { mutableStateOf<List<CoAuthor>>(emptyList()) }
+    var hasFetchedCoAuthors by remember(data.avid) { mutableStateOf(false) }
+    var fetchingCoAuthors by remember(data.avid) { mutableStateOf(false) }
+    val hasMultipleCoAuthors = remember(hasFetchedCoAuthors, coAuthors) {
+        hasFetchedCoAuthors && coAuthors.distinctBy { it.mid }.size > 1
+    }
+
+    fun navigateToUp(mid: Long, name: String) {
+        UpInfoActivity.actionStart(context, mid = mid, name = name)
+    }
+
+    fun navigateToUpFallback() {
+        // 优先沿用外部传入的原跳转逻辑（保持行为一致）
+        if (onGoToUpPage != null) {
+            onGoToUpPage.invoke()
+            return
+        }
+
+        // 外部未传时兜底：尽量使用卡片自带的 upMid/upName
+        val mid = data.upMid ?: return
+        navigateToUp(mid = mid, name = data.upName)
+    }
+
+    fun openCoAuthorsOrNavigateSingle(authors: List<CoAuthor>) {
+        if (authors.isEmpty()) {
+            navigateToUpFallback()
+            return
+        }
+
+        handleUpHomeClick(
+            authors = authors,
+            state = coAuthorsDialogState,
+            onNavigateSingle = { mid, name ->
+                // 单作者：优先走原 onGoToUpPage；没有就直接启动 UpInfoActivity
+                if (onGoToUpPage != null) {
+                    onGoToUpPage.invoke()
+                } else {
+                    navigateToUp(mid = mid, name = name)
+                }
+            }
+        )
+    }
 
     var showActions by remember { mutableStateOf(false) }
     // 解决长按卡片松开会导致一次按钮触发的问题
@@ -206,6 +256,33 @@ fun SmallVideoCard(
                     }
                 }
             }
+
+            // actions 显示时预拉取 coAuthors（只拉一次），用于决定“个人空间”图标是否显示 Group
+            if (canGoToUpPage && !hasFetchedCoAuthors && !fetchingCoAuthors) {
+                fetchingCoAuthors = true
+                scope.launch(Dispatchers.IO) {
+                    runCatching {
+                        videoDetailRepository.getVideoDetail(
+                            aid = data.avid,
+                            preferApiType = Prefs.apiType
+                        ).coAuthors
+                    }.onSuccess { authors ->
+                        withContext(Dispatchers.Main) {
+                            coAuthors = authors
+                            hasFetchedCoAuthors = true
+                            fetchingCoAuthors = false
+                        }
+                    }.onFailure { e ->
+                        logger.fWarn {
+                            "Prefetch coAuthors failed: aid=${data.avid}, apiType=${Prefs.apiType}, error=${e.stackTraceToString()}"
+                        }
+                        withContext(Dispatchers.Main) {
+                            fetchingCoAuthors = false
+                            // 预拉取失败不影响点击逻辑：点击时仍会走兜底跳转
+                        }
+                    }
+                }
+            }
         } else {
             releaseLongPress = false // 退出操作态时重置
         }
@@ -214,6 +291,13 @@ fun SmallVideoCard(
     // 关闭收藏弹窗后，如果仍处于 actions 状态，尽量把焦点拉回“历史记录”
     LaunchedEffect(showFavoriteDialog) {
         if (!showFavoriteDialog && showActions) {
+            historyButtonRequester.requestFocus(scope)
+        }
+    }
+
+    // 关闭联合投稿弹窗后，如果仍处于 actions 状态，尽量把焦点拉回“历史记录”
+    LaunchedEffect(coAuthorsDialogState.visible) {
+        if (!coAuthorsDialogState.visible && showActions) {
             historyButtonRequester.requestFocus(scope)
         }
     }
@@ -236,8 +320,8 @@ fun SmallVideoCard(
                     cardIsFocused = focusState.isFocused
 
                     // Card 及其子树完全失焦则退出 actions
-                    // 但当收藏弹窗打开时，焦点会离开 Card，此时不应把 actions 直接关掉（否则用户关闭弹窗回来时不在 actions 里）
-                    if (!focusState.hasFocus && !showFavoriteDialog) showActions = false
+                    // 但当收藏弹窗/联合投稿弹窗打开时，焦点会离开 Card，此时不应把 actions 直接关掉
+                    if (!focusState.hasFocus && !showFavoriteDialog && !coAuthorsDialogState.visible) showActions = false
                 },
             shape = CardDefaults.shape(MaterialTheme.shapes.large),
             border = CardDefaults.border(
@@ -429,19 +513,64 @@ fun SmallVideoCard(
                                             return@IconButton
                                         }
                                         if (!canGoToUpPage) return@IconButton
-                                        onGoToUpPage?.invoke()
+
+                                        // 已经拉过：直接决定弹窗 or 单作者跳转
+                                        if (hasFetchedCoAuthors) {
+                                            openCoAuthorsOrNavigateSingle(coAuthors)
+                                            return@IconButton
+                                        }
+
+                                        // 防止连点重复请求
+                                        if (fetchingCoAuthors) return@IconButton
+                                        fetchingCoAuthors = true
+
+                                        scope.launch(Dispatchers.IO) {
+                                            runCatching {
+                                                videoDetailRepository.getVideoDetail(
+                                                    aid = data.avid,
+                                                    preferApiType = Prefs.apiType
+                                                ).coAuthors
+                                            }.onSuccess { authors ->
+                                                withContext(Dispatchers.Main) {
+                                                    coAuthors = authors
+                                                    hasFetchedCoAuthors = true
+                                                    fetchingCoAuthors = false
+                                                    openCoAuthorsOrNavigateSingle(authors)
+                                                }
+                                            }.onFailure { e ->
+                                                logger.fWarn {
+                                                    "Fetch coAuthors failed: aid=${data.avid}, apiType=${Prefs.apiType}, error=${e.stackTraceToString()}"
+                                                }
+                                                withContext(Dispatchers.Main) {
+                                                    fetchingCoAuthors = false
+                                                    // 失败兜底：仍走原个人空间逻辑（优先 onGoToUpPage，否则使用 data.upMid）
+                                                    navigateToUpFallback()
+                                                }
+                                            }
+                                        }
                                     }
                                 ) {
-                                    Icon(
-                                        modifier = Modifier.size(40.dp),
-                                        painter = painterResource(id = R.drawable.contact_page_24px),
-                                        contentDescription = "Up Page",
-                                        tint = when {
-                                                   upFocused -> Color.Black
-                                                   canGoToUpPage -> Color.White
-                                                   else -> Color.White.copy(alpha = 0.4f)
-                                                  }
+                                    val upTint = when {
+                                        upFocused -> Color.Black
+                                        canGoToUpPage -> Color.White
+                                        else -> Color.White.copy(alpha = 0.4f)
+                                    }
+
+                                    if (hasMultipleCoAuthors) {
+                                        Icon(
+                                            modifier = Modifier.size(40.dp),
+                                            imageVector = Icons.Rounded.Group,
+                                            contentDescription = "CoAuthors",
+                                            tint = upTint
                                         )
+                                    } else {
+                                        Icon(
+                                            modifier = Modifier.size(40.dp),
+                                            painter = painterResource(id = R.drawable.contact_page_24px),
+                                            contentDescription = "Up Page",
+                                            tint = upTint
+                                        )
+                                    }
                                 }
                             }
 
@@ -608,6 +737,14 @@ fun SmallVideoCard(
                         logger.fInfo { "Update favorite folders success: aid=${data.avid}, folderIds=$folderIds" }
                     }
                 }
+            }
+        )
+
+        CoAuthorsDialogHost(
+            state = coAuthorsDialogState,
+            onClickAuthor = { mid, name ->
+                // 点谁进谁空间
+                navigateToUp(mid = mid, name = name)
             }
         )
     }
