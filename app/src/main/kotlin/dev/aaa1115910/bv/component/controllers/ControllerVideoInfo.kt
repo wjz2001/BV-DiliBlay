@@ -425,7 +425,7 @@ fun ControllerVideoInfoBottom(
         val icons = listOfNotNull(
             // (R.drawable.play_pause_24px to "播放/暂停") to onPlayPause,
             ((if (danmakuEnabled) (R.drawable.danmaku_on_24px) else (R.drawable.danmaku_off_24px)) to "弹幕开关") to onDanmakuSwitchChange,
-            ((-2 to "评论") to onShowComments),
+            (R.drawable.comment_24px to "评论") to onShowComments,
             ((-1 to "时间跳转") to onShowTimeJump),
             // (R.drawable.settings_24px to "打开设置") to onShowSettings,
             // if (!fromSeason) (R.drawable.info_24px to "视频信息") to onGoToVideoInfo else null,
@@ -463,13 +463,7 @@ fun ControllerVideoInfoBottom(
                             contentDescription = icon.second,
                             modifier = Modifier.padding(5.dp)
                         )
-                    } else if (icon.first == -2) {
-                        Icon(
-                            imageVector = Icons.Rounded.Comment,
-                            contentDescription = icon.second,
-                            modifier = Modifier.padding(5.dp)
-                        )
-                    } else {
+                    }  else {
                         Icon(
                             painter = painterResource(id = icon.first),
                             contentDescription = icon.second,
