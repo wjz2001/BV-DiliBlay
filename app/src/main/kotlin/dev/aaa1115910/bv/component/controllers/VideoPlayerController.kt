@@ -284,7 +284,7 @@ fun VideoPlayerController(
                                 val originSpeed = videoPlayer.speed
                                 confirmLongPressOriginSpeed = originSpeed
 
-                                val boostedSpeed = (originSpeed * 1.5f).coerceAtMost(5f)
+                                val boostedSpeed = (originSpeed * 2.0f).coerceAtMost(5f)
                                 // 只在临时倍速“生效时”提示一次
                                 "播放速度：${boostedSpeed}倍".toast(context)
                                 onTempPlaySpeedChange(boostedSpeed)
