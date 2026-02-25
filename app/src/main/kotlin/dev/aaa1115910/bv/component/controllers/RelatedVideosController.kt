@@ -33,6 +33,7 @@ fun RelatedVideosController(
 ) {
     val focusRequester = remember { FocusRequester() }
 
+/*
     val backgroundBrush = remember {
         Brush.verticalGradient(
             // 使用 Pair 来指定位置和颜色
@@ -42,6 +43,8 @@ fun RelatedVideosController(
             1.0f to Color.Transparent
         )
     }
+
+ */
 
     LaunchedEffect(show) {
         if(show){
@@ -64,7 +67,8 @@ fun RelatedVideosController(
                 modifier = Modifier
                     .fillMaxWidth()
                     // 应用我们新定义的中间黑、两边透明的渐变
-                    .background(backgroundBrush)
+                    //.background(backgroundBrush)
+                    .background(Color.Black.copy(alpha = 0.7f))
                     // 添加一点内边距，防止内容太靠近透明边缘
                     .padding(vertical = 12.dp)
             ) {
