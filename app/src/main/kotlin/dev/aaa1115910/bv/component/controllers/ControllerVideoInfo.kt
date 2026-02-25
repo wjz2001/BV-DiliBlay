@@ -319,7 +319,7 @@ fun ControllerVideoInfoBottom(
         ) {
             Text(
                 modifier = Modifier
-                    .padding(horizontal = 24.dp),
+                    .padding(horizontal = 32.dp),
                 text = "${if (isSeeking) goTime.formatHourMinSec() else seekerState.currentTime.formatHourMinSec()} / ${seekerState.totalDuration.formatHourMinSec()}",
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
@@ -329,7 +329,8 @@ fun ControllerVideoInfoBottom(
             )
             Text(
                 modifier = Modifier
-                    .weight(1f),
+                    .weight(1f)
+                    .padding(horizontal = 32.dp),
                 textAlign = TextAlign.Center,
                 text = secondTitle,
                 color = Color.White,
@@ -342,7 +343,7 @@ fun ControllerVideoInfoBottom(
             )
             Text(
                 modifier = Modifier
-                    .padding(horizontal = 24.dp),
+                    .padding(horizontal = 32.dp),
                 text = "${if (isSeeking) goTime.formatHourMinSec() else seekerState.currentTime.formatHourMinSec()} / ${seekerState.totalDuration.formatHourMinSec()}",
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
