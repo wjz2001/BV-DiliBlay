@@ -20,6 +20,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material.icons.Icons
@@ -34,6 +36,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +53,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
+import kotlin.math.floor
 import androidx.tv.material3.Border
 import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
@@ -593,7 +600,7 @@ fun SmallVideoCard(
                                             return@IconButton
                                         }
                                         if (!canWatchLater) return@IconButton
-                                        onAddWatchLater?.invoke()
+                                        onAddWatchLater.invoke()
                                     }
                                 ) {
                                     Icon(
@@ -801,64 +808,106 @@ fun CardCover(
             )
         ) {
             // 播放数、弹幕数、时间
-            Row(
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
                         Brush.verticalGradient(
-                            // 使用 colorStops 来精确控制渐变的位置和颜色
-                            // 0.0f 代表顶部, 1.0f 代表底部
                             colorStops = arrayOf(
                                 0.0f to Color.Transparent,
                                 0.15f to Color.Transparent,
                                 0.16f to Color.Black.copy(alpha = 0.7f),
                                 1.0f to Color.Black.copy(alpha = 0.7f)
                             )
-                            /*
-                            colors = listOf(
-                                Color.Transparent,
-                                Color.Black.copy(alpha = 0.8f) // 可以让底部颜色更深
-                            )
-                             */
                         )
                     )
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
-                if (play.isNotBlank()) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_play_count),
-                        contentDescription = null,
-                        tint = Color.White
-                    )
-                    Spacer(Modifier.width(2.dp))
-                    Text(
-                        text = play,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White
-                    )
-                    Spacer(Modifier.width(8.dp))
-                }
-                if (danmaku.isNotBlank()) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_danmaku_count),
-                        contentDescription = null,
-                        tint = Color.White
-                    )
-                    Spacer(Modifier.width(2.dp))
-                    Text(
-                        text = danmaku,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White
-                    )
-                }
-                Spacer(Modifier.weight(1f))
-                Text(
+                val style = MaterialTheme.typography.bodySmall
+                val textMeasurer = rememberTextMeasurer()
+
+                // 先量 time 的宽度，保证右侧永远有位置
+                val timeWidthPx = textMeasurer.measure(
                     text = time,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White,
-                    maxLines = 1
-                )
+                    style = style,
+                    maxLines = 1,
+                    softWrap = false
+                ).size.width
+
+                // 粗略估计 icon + 间距占用（尽量少动你原代码：不强行给 Icon 固定 size）
+                // 如果你愿意更精确：可以给 Icon 加 Modifier.size(16.dp/20.dp) 并同步这里的值
+                val density = LocalDensity.current
+                val iconWidthPx = with(density) { 24.dp.roundToPx() }   // Material Icon 常见默认 24dp
+                val gap2Px = with(density) { 2.dp.roundToPx() }
+                val gap8Px = with(density) { 8.dp.roundToPx() }
+
+                val leftMaxWidthPx = (constraints.maxWidth - timeWidthPx - gap8Px).coerceAtLeast(0)
+
+                val (playShow, danmakuShow) = remember(play, danmaku, time, leftMaxWidthPx) {
+                    pickCompactPairThatFits(
+                        playRaw = play,
+                        danmakuRaw = danmaku,
+                        leftMaxWidthPx = leftMaxWidthPx,
+                        textMeasurer = textMeasurer,
+                        style = style,
+                        iconWidthPx = iconWidthPx,
+                        gap2Px = gap2Px,
+                        gap8Px = gap8Px
+                    )
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 左侧统计区：只吃“剩余宽度”
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clipToBounds() // 防止极端情况下左侧内容绘制压到右边 time 上
+                            .offset(y = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (playShow.isNotBlank()) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_play_count),
+                                contentDescription = null,
+                                tint = Color.White
+                            )
+                            Spacer(Modifier.width(2.dp))
+                            Text(
+                                text = playShow,
+                                style = style,
+                                color = Color.White,
+                                maxLines = 1
+                            )
+                            Spacer(Modifier.width(8.dp))
+                        }
+
+                        if (danmakuShow.isNotBlank()) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_danmaku_count),
+                                contentDescription = null,
+                                tint = Color.White
+                            )
+                            Spacer(Modifier.width(2.dp))
+                            Text(
+                                text = danmakuShow,
+                                style = style,
+                                color = Color.White,
+                                maxLines = 1
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.width(8.dp))
+
+                    // 右侧 time：不加 weight，位置稳定
+                    Text(
+                        modifier = Modifier.offset(y = 3.dp),
+                        text = time,
+                        style = style,
+                        color = Color.White,
+                        maxLines = 1
+                    )
+                }
             }
         }
     }
@@ -913,6 +962,99 @@ fun CardInfo(
             }
         }
     }
+}
+
+private enum class CompactLevel { Normal, DropDecimalWanYi, Thousand, Hundred }
+
+private fun dropDecimalIfWanYi(src: String): String {
+    val s = src.trim()
+    // 12.3万 -> 12万； 1.0亿 -> 1亿
+    return s.replace(Regex("""^(\d+)\.\d+(万亿)$"""), "${'$'}1${'$'}2")
+}
+
+private fun compactToThousandOrHundredIfPureNumber(src: String, level: CompactLevel): String {
+    val s = src.trim()
+    if (s.isBlank()) return s
+
+    // 数据源已经是 万/亿：这里不改单位，只在 DropDecimalWanYi 时去小数
+    if (s.contains("万") || s.contains("亿")) {
+        return if (level == CompactLevel.DropDecimalWanYi) dropDecimalIfWanYi(s) else s
+    }
+
+    val n = s.toLongOrNull() ?: return s
+
+    return when (level) {
+        CompactLevel.Normal, CompactLevel.DropDecimalWanYi -> s
+
+        CompactLevel.Thousand -> {
+            if (n < 1000) s else "${n / 1000}千" // 9999 -> 9千（更短）
+        }
+
+        CompactLevel.Hundred -> {
+            if (n < 100) s else "${n / 100}百"
+        }
+    }
+}
+
+private fun measureLeftWidthPx(
+    playText: String,
+    danmakuText: String,
+    textMeasurer: TextMeasurer,
+    style: TextStyle,
+    iconWidthPx: Int,
+    gap2Px: Int,
+    gap8Px: Int
+): Int {
+    var w = 0
+    val hasPlay = playText.isNotBlank()
+    val hasDanmaku = danmakuText.isNotBlank()
+
+    if (hasPlay) {
+        val playW = textMeasurer.measure(playText, style = style, maxLines = 1, softWrap = false).size.width
+        w += iconWidthPx + gap2Px + playW + gap8Px
+    }
+    if (hasDanmaku) {
+        val danW = textMeasurer.measure(danmakuText, style = style, maxLines = 1, softWrap = false).size.width
+        w += iconWidthPx + gap2Px + danW
+    }
+    return w
+}
+
+private fun pickCompactPairThatFits(
+    playRaw: String,
+    danmakuRaw: String,
+    leftMaxWidthPx: Int,
+    textMeasurer: TextMeasurer,
+    style: TextStyle,
+    iconWidthPx: Int,
+    gap2Px: Int,
+    gap8Px: Int
+): Pair<String, String> {
+    val candidates = listOf(
+        CompactLevel.Normal,
+        CompactLevel.DropDecimalWanYi,
+        CompactLevel.Thousand,
+        CompactLevel.Hundred
+    ).map { level ->
+        val p = compactToThousandOrHundredIfPureNumber(playRaw, level)
+        val d = compactToThousandOrHundredIfPureNumber(danmakuRaw, level)
+        p to d
+    } + listOf(
+        // 兜底：仍放不下就只保留播放（确保 time 永远稳定）
+        compactToThousandOrHundredIfPureNumber(playRaw, CompactLevel.Hundred) to ""
+    )
+
+    return candidates.firstOrNull { (p, d) ->
+        measureLeftWidthPx(
+            playText = p,
+            danmakuText = d,
+            textMeasurer = textMeasurer,
+            style = style,
+            iconWidthPx = iconWidthPx,
+            gap2Px = gap2Px,
+            gap8Px = gap8Px
+        ) <= leftMaxWidthPx
+    } ?: (playRaw to danmakuRaw)
 }
 
 
