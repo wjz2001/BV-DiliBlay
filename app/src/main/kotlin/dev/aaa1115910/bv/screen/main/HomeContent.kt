@@ -138,8 +138,8 @@ fun HomeContent(
                         HomeTopNavItem.Popular -> {}
                         HomeTopNavItem.Dynamics -> {
                             /*
-                            if (!dynamicViewModel.loading && dynamicViewModel.isLogin && dynamicViewModel.dynamicList.isEmpty()) {
-                                scope.launch(Dispatchers.IO) { dynamicViewModel.loadMore() }
+                            scope.launch(Dispatchers.IO) {
+                                dynamicViewModel.loadMore(DynamicViewModel.LoadMode.RefreshNew)
                             }
                              */
                         }
@@ -179,8 +179,9 @@ fun HomeContent(
                         }
 
                         HomeTopNavItem.Dynamics -> {
-                            dynamicViewModel.clearData()
-                            scope.launch(Dispatchers.IO) { dynamicViewModel.loadMore() }
+                            scope.launch(Dispatchers.IO) {
+                                dynamicViewModel.loadMore(DynamicViewModel.LoadMode.RefreshNew, showNoUpdateToast = true)
+                            }
                         }
                         HomeTopNavItem.ToView -> {
                             toViewViewModel.clearData()
@@ -236,8 +237,9 @@ fun HomeContent(
                             }
 
                             HomeTopNavItem.Dynamics -> {
-                                dynamicViewModel.clearData()
-                                scope.launch(Dispatchers.IO) { dynamicViewModel.loadMore() }
+                                scope.launch(Dispatchers.IO) {
+                                    dynamicViewModel.loadMore(DynamicViewModel.LoadMode.RefreshNew, showNoUpdateToast = true)
+                                }
                             }
                             HomeTopNavItem.ToView -> {
                                 toViewViewModel.clearData()
