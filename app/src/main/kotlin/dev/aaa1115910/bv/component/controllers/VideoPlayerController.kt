@@ -334,7 +334,10 @@ fun VideoPlayerController(
         RelatedVideosController(
             show = showRelatedVideosController,
             relatedVideos = uiState.relatedVideos,
-            onVideoClicked = onRelatedVideoClicked
+            onVideoClicked = {
+                onRelatedVideoClicked(it)
+                showRelatedVideosController = false
+            }
         )
 
         ControllerVideoInfo(

@@ -400,7 +400,10 @@ fun VideoInfoScreen(
                                                 proxyArea = ProxyArea.checkProxyArea(videoData.title)
                                             )
                                         } else {
-                                            videoDetailViewModel.loadVideoDetail(videoData.avid)
+                                            VideoInfoActivity.actionStart(
+                                                context = context,
+                                                aid = videoData.avid
+                                            )
                                         }
                                     },
                                     onAddWatchLater = { aid ->
