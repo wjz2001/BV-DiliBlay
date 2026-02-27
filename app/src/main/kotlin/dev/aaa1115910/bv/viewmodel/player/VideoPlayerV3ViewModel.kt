@@ -66,6 +66,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
@@ -175,28 +176,6 @@ class VideoPlayerV3ViewModel(
         }
     }
 
-    init {
-        videoInfoRepository.videoList
-            .onEach { newList ->
-                _uiState.update { currentState ->
-                    currentState.copy(availableVideoList = newList)
-                }
-                logger.fInfo { "Sync video list from repo, size: ${newList.size}" }
-            }
-            .launchIn(viewModelScope)
-
-        videoInfoRepository.videoDetailState
-            .onEach { newDetail ->
-                if (newDetail == null) return@onEach
-
-                _uiState.update { currentState ->
-                    currentState.copy(relatedVideos = newDetail.relatedVideos)
-                }
-                logger.fInfo { "Sync related videos from repo" }
-            }
-            .launchIn(viewModelScope)
-    }
-
     fun init(
         aid: Long,
         cid: Long,
@@ -214,16 +193,18 @@ class VideoPlayerV3ViewModel(
             avid = aid,
             cid = cid,
             epid = epid.takeIf { it != 0 },
-            title = title
         )
 
         _uiState.update {
             it.copy(
+                aid = aid,
+                cid = cid,
+                epid = epid.takeIf { epid -> epid != 0 },
+                seasonId = seasonId,
+                title = title,
                 lastPlayed = lastPlayed,
                 fromSeason = fromSeason,
                 subType = subType,
-                epid = epid,
-                seasonId = seasonId,
                 proxyArea = proxyArea,
                 authorMid = authorMid,
                 authorName = authorName,
@@ -250,6 +231,31 @@ class VideoPlayerV3ViewModel(
         }
 
         startClockUpdater()
+
+        videoInfoRepository.videoList
+            .onEach { newList ->
+                // 过滤DetailViewModel销毁时repo重置
+                if (newList.isEmpty()) return@onEach
+
+                _uiState.update { currentState ->
+                    currentState.copy(availableVideoList = newList)
+                }
+                logger.fInfo { "Sync video list from repo, size: ${newList.size}" }
+            }
+            .launchIn(viewModelScope)
+
+        videoInfoRepository.videoDetailState
+            .filter { it?.aid == _uiState.value.aid }
+            .onEach { newDetail ->
+                // 过滤DetailViewModel销毁时repo重置
+                if (newDetail == null) return@onEach
+
+                _uiState.update { currentState ->
+                    currentState.copy(relatedVideos = newDetail.relatedVideos)
+                }
+                logger.fInfo { "Sync related videos from repo" }
+            }
+            .launchIn(viewModelScope)
     }
 
     fun attachPlayer(player: AbstractVideoPlayer) {
@@ -451,9 +457,23 @@ class VideoPlayerV3ViewModel(
                 viewModelScope.launch {
                     _uiEffect.emit(PlayerUiEffect.FinishActivity)
                 }
+
                 return
             }
+            ActionAfterPlayItems.PlayRelated -> {
+                val firstRelatedVideo = _uiState.value.relatedVideos.firstOrNull()
+                firstRelatedVideo?.cid?.let {
+                    val nextVideo = VideoListItem(
+                        aid = firstRelatedVideo.avid,
+                        cid = firstRelatedVideo.cid,
+                        title = firstRelatedVideo.title
+                    )
+                    playNewVideo(nextVideo)
 
+                    // 因为番剧无相关视频，需要继续播放，所以在这里return
+                    return
+                }
+            }
             ActionAfterPlayItems.PlayNext -> {
                 /* 继续执行 */
             }
@@ -537,15 +557,30 @@ class VideoPlayerV3ViewModel(
     fun playNewVideo(video: VideoListItem) {
         videoPlayer?.pause()
 
+        val oldAid = _uiState.value.aid
+        val newAid = video.aid
+
+        // 切换视频时更新detail和视频列表
+        if (oldAid != newAid){
+            viewModelScope.launch(Dispatchers.IO) {
+                videoInfoRepository.loadVideoDetail(video.aid, Prefs.apiType)
+            }
+            videoInfoRepository.updateVideoList(listOf(video))
+        }
+
         // 重置弹幕
         releaseDanmakuPlayer()
         initDanmakuPlayer()
 
-        // 切换视频时加载新detail
-        if (video.aid != _uiState.value.aid) {
-            viewModelScope.launch(Dispatchers.IO) {
-                videoInfoRepository.loadVideoDetail(video.aid, Prefs.apiType)
-            }
+        // 更新UiState
+        _uiState.update {
+            it.copy(
+                aid = video.aid,
+                cid = video.cid,
+                epid = video.epid,
+                seasonId = video.seasonId ?: 0,
+                title = video.title
+            )
         }
 
         // 加载新播放url
@@ -553,8 +588,6 @@ class VideoPlayerV3ViewModel(
             avid = video.aid,
             cid = video.cid,
             epid = video.epid,
-            seasonId = video.seasonId,
-            title = video.title
         )
     }
 
@@ -579,19 +612,7 @@ class VideoPlayerV3ViewModel(
         avid: Long,
         cid: Long,
         epid: Int? = null,
-        seasonId: Int? = null,
-        title: String,
     ) {
-        _uiState.update {
-            it.copy(
-                aid = avid,
-                cid = cid,
-                epid = epid ?: 0,
-                seasonId = seasonId ?: 0,
-                title = title
-            )
-        }
-
         viewModelScope.launch(Dispatchers.Default) {
             loadPlayUrlImpl(
                 avid,

@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
@@ -67,6 +68,7 @@ class VideoDetailViewModel(
 
         // 先监听detail流
         videoInfoRepository.videoDetailState
+            .filter { it?.aid == aid }
             .onEach { newState ->
                 if (newState == null) return@onEach
 
