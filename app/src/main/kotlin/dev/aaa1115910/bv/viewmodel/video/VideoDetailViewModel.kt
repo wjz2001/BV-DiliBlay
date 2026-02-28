@@ -72,6 +72,20 @@ class VideoDetailViewModel(
             .onEach { newState ->
                 if (newState == null) return@onEach
 
+                // 如果是PGC，则跳转至SeasonInfo
+                if (newState.redirectToEp) {
+                    logger.fInfo { "Redirect to season info" }
+
+                    _uiEffect.emit(
+                        VideoDetailUiEffect.LaunchSeasonInfoActivity(
+                            seasonId = null,
+                            epid = newState.epid,
+                            proxyArea = mProxyArea
+                        )
+                    )
+                    return@onEach
+                }
+
                 _uiState.update {
                     it.copy(
                         videoDetailState = newState,
@@ -328,6 +342,7 @@ class VideoDetailViewModel(
                 _uiEffect.emit(
                     VideoDetailUiEffect.LaunchSeasonInfoActivity(
                         seasonId = seasonId,
+                        epid = null,
                         proxyArea = area
                     )
                 )
