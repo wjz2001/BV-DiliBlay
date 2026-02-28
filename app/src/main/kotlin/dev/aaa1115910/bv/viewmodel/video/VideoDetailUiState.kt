@@ -31,6 +31,7 @@ data class VideoDetailState(
     val aid: Long = 0,
     val bvid: String? = null,
     val cid: Long,
+    val epid: Int? = null,
     val cover: String,
     val title: String,
     val publishDate: Date,

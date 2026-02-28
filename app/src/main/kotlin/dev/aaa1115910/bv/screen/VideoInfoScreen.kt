@@ -216,6 +216,7 @@ fun VideoInfoScreen(
                     SeasonInfoActivity.actionStart(
                         context = context,
                         seasonId = event.seasonId,
+                        epId = event.epid,
                         proxyArea = event.proxyArea
                     )
                     context.finish()
