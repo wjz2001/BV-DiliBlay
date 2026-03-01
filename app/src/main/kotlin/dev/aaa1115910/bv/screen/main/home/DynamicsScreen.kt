@@ -22,6 +22,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.user.DynamicVideo
+import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.LoadingTip
@@ -52,11 +53,23 @@ fun DynamicsScreen(
     val context = LocalContext.current
 
     val onClickVideo: (DynamicVideo) -> Unit = { dynamic ->
-        VideoInfoActivity.actionStart(
-            context = context,
-            aid = dynamic.aid,
-            proxyArea = ProxyArea.checkProxyArea(dynamic.title)
-        )
+        val proxyArea = ProxyArea.checkProxyArea(dynamic.title)
+        val hasSeasonHint = dynamic.seasonId != null || dynamic.epid != null
+
+        if (hasSeasonHint) {
+            SeasonInfoActivity.actionStart(
+                context = context,
+                epId = dynamic.epid,
+                seasonId = dynamic.seasonId,
+                proxyArea = proxyArea
+            )
+        } else {
+            VideoInfoActivity.actionStart(
+                context = context,
+                aid = dynamic.aid,
+                proxyArea = proxyArea
+            )
+        }
     }
 
     LaunchedEffect(Unit) {
