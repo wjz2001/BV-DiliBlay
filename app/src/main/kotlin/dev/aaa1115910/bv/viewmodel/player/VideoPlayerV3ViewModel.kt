@@ -394,6 +394,8 @@ class VideoPlayerV3ViewModel(
             avid = aid,
             cid = cid,
             epid = epid.takeIf { it != 0 },
+            title = title,
+            partTitle = partTitle,
         )
 
         _uiState.update {
@@ -968,6 +970,7 @@ class VideoPlayerV3ViewModel(
             viewModelScope.launch(Dispatchers.IO) {
                 videoInfoRepository.loadVideoDetail(video.aid, Prefs.apiType)
             }
+        }
 
         // 更新UiState
         _uiState.update {
