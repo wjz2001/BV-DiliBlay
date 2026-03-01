@@ -97,7 +97,6 @@ import dev.aaa1115910.biliapi.entity.video.season.SeasonDetail
 import dev.aaa1115910.biliapi.repositories.UserRepository
 import dev.aaa1115910.biliapi.repositories.VideoDetailRepository
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.buttons.SeasonInfoButtons
 import dev.aaa1115910.bv.component.ifElse
@@ -148,6 +147,10 @@ fun SeasonInfoScreen(
     var showSeasonSelector by remember { mutableStateOf(false) }
 
     val defaultFocusRequester = remember { FocusRequester() }
+
+    val seasonListState = rememberLazyListState()
+    var pendingAutoFocusEpisodeId by remember { mutableStateOf<Int?>(null) }
+    var pendingAutoFocusRowItemIndex by remember { mutableIntStateOf(-1) }
 
     val onClickVideo: (avid: Long, cid: Long, epid: Int, episodeTitle: String, startTime: Int) -> Unit =
         { avid, cid, epid, episodeTitle, startTime ->
@@ -220,6 +223,7 @@ fun SeasonInfoScreen(
         logger.fInfo { "Read extras from content: [epId=$epId1, seasonId=$seasonId1, proxyArea=$proxyArea1]" }
 
         epId = intent.getIntExtra("epid", 0).takeIf { it > 0 }
+        pendingAutoFocusEpisodeId = epId
         seasonId = intent.getIntExtra("seasonid", 0).takeIf { it > 0 }
         proxyArea = ProxyArea.entries[proxyArea1]
         logger.fInfo { "Read extras from content: [epId=$epId, seasonId=$seasonId, proxyArea=$proxyArea]" }
@@ -230,10 +234,25 @@ fun SeasonInfoScreen(
         }
     }
 
-    LaunchedEffect(seasonData) {
-        seasonData?.let {
-            lastPlayProgress = it.userStatus.progress
-            //请求默认焦点到剧集封面上
+    LaunchedEffect(seasonData, pendingAutoFocusEpisodeId) {
+        seasonData?.let { data ->
+            lastPlayProgress = data.userStatus.progress
+
+            val targetEpisodeId = pendingAutoFocusEpisodeId?.takeIf { it > 0 }
+                ?: data.userStatus.progress?.lastEpId?.takeIf { it > 0 }
+
+            if (targetEpisodeId != null) {
+                val targetRowItemIndex = data.findEpisodeRowItemIndex(targetEpisodeId)
+                if (targetRowItemIndex != null) {
+                    seasonListState.scrollToItem(targetRowItemIndex)
+                    pendingAutoFocusEpisodeId = targetEpisodeId
+                    pendingAutoFocusRowItemIndex = targetRowItemIndex
+                    return@let
+                }
+            }
+
+            pendingAutoFocusEpisodeId = null
+            pendingAutoFocusRowItemIndex = -1
             defaultFocusRequester.requestFocus(scope)
         }
     }
@@ -280,6 +299,7 @@ fun SeasonInfoScreen(
                     modifier = Modifier
                         .padding(innerPadding)
                         .fillMaxSize(),
+                    state = seasonListState,
                     contentPadding = PaddingValues(vertical = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -420,6 +440,11 @@ fun SeasonInfoScreen(
                                 episodes = seasonData?.episodes ?: emptyList(),
                                 lastPlayedId = lastPlayProgress?.lastEpId ?: 0,
                                 lastPlayedTime = lastPlayProgress?.lastTime ?: 0,
+                                targetEpisodeId = pendingAutoFocusEpisodeId,
+                                shouldAutoFocusTarget = pendingAutoFocusRowItemIndex == 1,
+                                onTargetAutoFocused = {
+                                    pendingAutoFocusRowItemIndex = -1
+                                },
                                 onClick = { avid, cid, epid, episodeTitle, startTime ->
                                     onClickVideo(avid, cid, epid, episodeTitle, startTime)
 
@@ -440,13 +465,22 @@ fun SeasonInfoScreen(
                             )
                         }
                     }
-                    seasonData?.sections?.forEach { section ->
+                    val hasFeatureEpisodes = seasonData?.episodes?.isNotEmpty() == true
+
+                    seasonData?.sections?.forEachIndexed { sectionIndex, section ->
                         item {
+                            val sectionRowItemIndex = 1 + (if (hasFeatureEpisodes) 1 else 0) + sectionIndex
+
                             SeasonEpisodeRow(
                                 title = section.title,
                                 episodes = section.episodes,
                                 lastPlayedId = lastPlayProgress?.lastEpId ?: 0,
                                 lastPlayedTime = lastPlayProgress?.lastTime ?: 0,
+                                targetEpisodeId = pendingAutoFocusEpisodeId,
+                                shouldAutoFocusTarget = pendingAutoFocusRowItemIndex == sectionRowItemIndex,
+                                onTargetAutoFocused = {
+                                    pendingAutoFocusRowItemIndex = -1
+                                },
                                 onClick = { avid, cid, epid, episodeTitle, startTime ->
                                     onClickVideo(avid, cid, epid, episodeTitle, startTime)
 
@@ -860,13 +894,64 @@ fun SeasonEpisodeRow(
     episodes: List<Episode>,
     lastPlayedId: Int = 0,
     lastPlayedTime: Int = 0,
+    targetEpisodeId: Int? = null,
+    shouldAutoFocusTarget: Boolean = false,
+    onTargetAutoFocused: () -> Unit = {},
     onClick: (avid: Long, cid: Long, epid: Int, episodeTitle: String, startTime: Int) -> Unit
 ) {
     val focusRequester = remember { FocusRequester() }
+    val targetEpisodeFocusRequester = remember { FocusRequester() }
+    val rowState = rememberLazyListState()
+
+    var targetFocusApplied by remember { mutableStateOf(false) }
+
+    val targetEpisodeIndex = remember(episodes, targetEpisodeId) {
+        episodes.indexOfFirst { episode ->
+            episode.id == targetEpisodeId ||
+                    episode.epid == targetEpisodeId ||
+                    episode.cid == targetEpisodeId?.toLong()
+        }
+    }
+
+    LaunchedEffect(shouldAutoFocusTarget, targetEpisodeIndex, episodes.size) {
+        if (!shouldAutoFocusTarget) {
+            targetFocusApplied = false
+            return@LaunchedEffect
+        }
+
+        targetFocusApplied = false
+
+        if (targetEpisodeIndex < 0) {
+            if (episodes.isNotEmpty()) {
+                rowState.scrollToItem(1)
+                delay(32)
+                runCatching { focusRequester.requestFocus() }
+            }
+            onTargetAutoFocused()
+            return@LaunchedEffect
+        }
+
+        val lazyRowTargetIndex = targetEpisodeIndex + 1
+        rowState.scrollToItem(lazyRowTargetIndex)
+
+        repeat(6) {
+            if (targetFocusApplied) return@LaunchedEffect
+            delay(32)
+            runCatching { targetEpisodeFocusRequester.requestFocus() }
+            delay(48)
+            if (targetFocusApplied) return@LaunchedEffect
+        }
+
+        if (!targetFocusApplied) {
+            // 兜底：目标焦点仍失败时，至少落到该行首个可聚焦项，避免停在封面
+            runCatching { focusRequester.requestFocus() }
+            onTargetAutoFocused()
+        }
+    }
+
     var hasFocus by remember { mutableStateOf(false) }
     val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
     val titleFontSize by animateFloatAsState(
-        // targetValue = if (hasFocus) 30f else 14f,
         targetValue = 14f,
         label = "title font size"
     )
@@ -889,6 +974,7 @@ fun SeasonEpisodeRow(
             modifier = Modifier
                 .padding(top = 15.dp)
                 .focusRestorer(focusRequester),
+            state = rowState,
             contentPadding = PaddingValues(horizontal = 50.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
         ) {
@@ -917,14 +1003,29 @@ fun SeasonEpisodeRow(
                     }
                 }
             }
+
             itemsIndexed(items = episodes) { index, episode ->
-                val episodeTitle by remember { mutableStateOf(if (episode.longTitle != "") episode.longTitle else episode.title) }
+                val episodeTitle by remember {
+                    mutableStateOf(if (episode.longTitle != "") episode.longTitle else episode.title)
+                }
+                val isTargetEpisode = index == targetEpisodeIndex && targetEpisodeIndex >= 0
+                val buttonModifier = when {
+                    isTargetEpisode -> Modifier
+                        .focusRequester(targetEpisodeFocusRequester)
+                        .onFocusChanged { focusState ->
+                            if (focusState.isFocused && shouldAutoFocusTarget && !targetFocusApplied) {
+                                targetFocusApplied = true
+                                onTargetAutoFocused()
+                            }
+                        }
+
+                    index == 0 -> Modifier.focusRequester(focusRequester)
+                    else -> Modifier
+                }
+
                 SeasonEpisodeButton(
-                    modifier = Modifier
-                        .ifElse(index == 0, Modifier.focusRequester(focusRequester)),
+                    modifier = buttonModifier,
                     partTitle = if (title == "正片") {
-                        //如果 title 是数字的话，就会返回 "第 x 集"
-                        //如果 title 不是数字的话（例如 SP），就会原样使用 title
                         runCatching {
                             "第 ${episode.title.toInt()} 集"
                         }.getOrDefault(episode.title)
@@ -1147,6 +1248,36 @@ private fun SeasonSelectorContent(
             }
         }
     }
+}
+
+private fun SeasonDetail.findEpisodeRowItemIndex(targetEpisodeId: Int): Int? {
+    var rowItemIndex = 1 // item(0) 是 SeasonInfoPart
+
+    if (episodes.isNotEmpty()) {
+        if (episodes.any { episode ->
+                episode.id == targetEpisodeId ||
+                        episode.epid == targetEpisodeId ||
+                        episode.cid == targetEpisodeId.toLong()
+            }
+        ) {
+            return rowItemIndex
+        }
+        rowItemIndex++
+    }
+
+    sections.forEach { section ->
+        if (section.episodes.any { episode ->
+                episode.id == targetEpisodeId ||
+                        episode.epid == targetEpisodeId ||
+                        episode.cid == targetEpisodeId.toLong()
+            }
+        ) {
+            return rowItemIndex
+        }
+        rowItemIndex++
+    }
+
+    return null
 }
 
 @Preview(device = "id:tv_1080p")
