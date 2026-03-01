@@ -113,6 +113,9 @@ android {
         compose = true
         buildConfig = true
     }
+
+    val isAssembleLite = gradle.startParameter.taskNames.any { it.startsWith("assembleLite") }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -120,11 +123,17 @@ android {
         }
 
         // if (gradle.startParameter.taskNames.find { it.startsWith("assembleLite") } != null) {
-        if (gradle.startParameter.taskNames.any { it.startsWith("assembleLite") }) {
+        if (isAssembleLite) {
             jniLibs {
                 val vlcLibs = listOf("libvlc", "libc++_shared", "libvlcjni")
                 val abis = listOf("x86_64", "x86", "arm64-v8a", "armeabi-v7a")
-                vlcLibs.forEach { vlcLibName -> abis.forEach { abi -> excludes.add("lib/$abi/$vlcLibName.so") } }
+
+                // 3. 将 forEach 替换为 Kotlin 规范的 for 循环，完美避开 IDE 误报
+                for (vlcLibName in vlcLibs) {
+                    for (abi in abis) {
+                        excludes.add("lib/$abi/$vlcLibName.so")
+                    }
+                }
             }
         }
     }
@@ -180,7 +189,7 @@ dependencies {
     annotationProcessor(androidx.room.compiler)
     ksp(androidx.room.compiler)
     ksp(libs.koin.ksp.compiler)
-    implementation(platform("${libs.firebase.bom.get()}"))
+    implementation(platform(libs.firebase.bom))
     implementation(androidx.activity.compose)
     implementation(androidx.core.ktx)
     implementation(androidx.core.splashscreen)
