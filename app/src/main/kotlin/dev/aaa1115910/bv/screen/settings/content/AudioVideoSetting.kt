@@ -180,6 +180,7 @@ fun AudioVideoSetting(
 enum class ActionAfterPlayItems (val code: Int, private val displayName: String){
     Pause(0, "暂停"),
     PlayNext(1, "播放下一集"),
+    PlayRelated(3, "播放首个相关视频"),
     Exit(2, "退出播放器");
 
 

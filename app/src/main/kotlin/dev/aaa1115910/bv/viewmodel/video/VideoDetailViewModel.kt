@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
@@ -68,8 +69,23 @@ class VideoDetailViewModel(
 
         // 先监听detail流
         videoInfoRepository.videoDetailState
+            .filter { it?.aid == aid }
             .onEach { newState ->
                 if (newState == null) return@onEach
+
+                // 如果是PGC，则跳转至SeasonInfo
+                if (newState.redirectToEp) {
+                    logger.fInfo { "Redirect to season info" }
+
+                    _uiEffect.emit(
+                        VideoDetailUiEffect.LaunchSeasonInfoActivity(
+                            seasonId = null,
+                            epid = newState.epid,
+                            proxyArea = mProxyArea
+                        )
+                    )
+                    return@onEach
+                }
 
                 _uiState.update {
                     it.copy(
@@ -419,6 +435,7 @@ class VideoDetailViewModel(
                 _uiEffect.emit(
                     VideoDetailUiEffect.LaunchSeasonInfoActivity(
                         seasonId = seasonId,
+                        epid = null,
                         proxyArea = area
                     )
                 )

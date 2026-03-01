@@ -106,7 +106,7 @@ class VideoInfoRepository(private val videoDetailRepository: VideoDetailReposito
             val videoDetailState = VideoDetailState(
                 aid = videoDetail.aid,
                 bvid = videoDetail.bvid,
-                title = videoDetail.title,
+                epid = videoDetail.epid,title = videoDetail.title,
                 lastPlayedCid = videoDetail.history.lastPlayedCid,
                 lastPlayedTime = videoDetail.history.progress,
                 isLiked = videoDetail.userActions.like,
