@@ -35,12 +35,12 @@ class VideoInfoActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        getParamsFromIntent()
         setContent {
             BVTheme {
                 VideoInfoScreen()
             }
         }
+        getParamsFromIntent()
     }
 
     private fun getParamsFromIntent() {
