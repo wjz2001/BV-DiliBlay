@@ -27,6 +27,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import dev.aaa1115910.bv.repository.UserRepository as BvUserRepository
 import org.koin.android.annotation.KoinViewModel
 
@@ -77,6 +80,13 @@ class DynamicViewModel(
 
     // 防止“焦点移到 TopNav”高频触发刷新造成请求抖动
     private var lastRefreshMs: Long = 0L
+
+    // 新增内容后通知 UI 瞬移到顶部（一次性事件）
+    private val _scrollToTopEvent = MutableSharedFlow<Unit>(
+        replay = 0,
+        extraBufferCapacity = 1
+    )
+    val scrollToTopEvent: SharedFlow<Unit> = _scrollToTopEvent.asSharedFlow()
 
     suspend fun loadMore(mode: LoadMode = LoadMode.More, showNoUpdateToast: Boolean = false) {
         if (!bvUserRepository.isLogin) return
@@ -194,12 +204,15 @@ class DynamicViewModel(
                         for (item in allNewItems) aidSet.add(item.aid)
                         dynamicList.addAll(0, allNewItems)
 
+                        // 只要刷新有新增，不区分是否主动刷新，都通知 UI 瞬移到顶部
+                        _scrollToTopEvent.tryEmit(Unit)
+
                         // 仅用户主动刷新（showNoUpdateToast=true）时提示更新条数；首次加载不提示
                         if (showNoUpdateToast && hadItemsBefore) {
                             "更新了 ${allNewItems.size} 条".toast(BVApp.context)
                         }
                     } else {
-                        // 用户主动刷新且确实没有新增：toast
+                        // 用户主动刷新且确实没有新增
                         if (showNoUpdateToast && hadItemsBefore) {
                             "没有更新的了".toast(BVApp.context)
                         }

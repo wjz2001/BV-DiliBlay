@@ -40,6 +40,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -81,6 +82,12 @@ fun DynamicsScreen(
                     event.message.toast(context)
                 }
             }
+        }
+    }
+
+    LaunchedEffect(dynamicViewModel, gridState) {
+        dynamicViewModel.scrollToTopEvent.collectLatest {
+            gridState.scrollToItem(0)
         }
     }
 
