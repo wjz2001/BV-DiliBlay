@@ -343,6 +343,7 @@ fun VideoInfoScreen(
                     SeasonInfoActivity.actionStart(
                         context = context,
                         seasonId = event.seasonId,
+                        epId = event.epid,
                         proxyArea = event.proxyArea
                     )
                     context.finish()
@@ -553,7 +554,9 @@ fun VideoInfoScreen(
                                                     proxyArea = ProxyArea.checkProxyArea(videoData.title)
                                                 )
                                             } else {
-                                                videoDetailViewModel.loadVideoDetail(videoData.avid)
+                                                VideoInfoActivity.actionStart(
+                                                context = context,
+                                                aid =videoData.avid)
                                             }
                                         },
                                         onAddWatchLater = { aid ->

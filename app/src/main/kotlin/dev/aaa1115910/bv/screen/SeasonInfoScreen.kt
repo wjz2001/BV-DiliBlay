@@ -142,7 +142,7 @@ fun SeasonInfoScreen(
     var seasonData: SeasonDetail? by remember { mutableStateOf(null) }
     var lastPlayProgress: SeasonDetail.UserStatus.Progress? by remember { mutableStateOf(null) }
     var isFollowing by remember { mutableStateOf(false) }
-    var tip by remember { mutableStateOf("Loading") }
+    var tip by remember { mutableStateOf("Loading...") }
     var paused by remember { mutableStateOf(false) }
 
     var showSeasonSelector by remember { mutableStateOf(false) }
