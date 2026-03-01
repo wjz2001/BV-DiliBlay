@@ -54,13 +54,15 @@ fun DynamicsScreen(
 
     val onClickVideo: (DynamicVideo) -> Unit = { dynamic ->
         val proxyArea = ProxyArea.checkProxyArea(dynamic.title)
-        val hasSeasonHint = dynamic.seasonId != null || dynamic.epid != null
+        val targetEpId = dynamic.epid?.takeIf { it > 0 }
+        val targetSeasonId = dynamic.seasonId?.takeIf { it > 0 }
+        val hasSeasonHint = targetSeasonId != null || targetEpId != null
 
         if (hasSeasonHint) {
             SeasonInfoActivity.actionStart(
                 context = context,
-                epId = dynamic.epid,
-                seasonId = dynamic.seasonId,
+                epId = targetEpId,
+                seasonId = targetSeasonId,
                 proxyArea = proxyArea
             )
         } else {
@@ -127,11 +129,25 @@ fun DynamicsScreen(
                         toViewViewModel.addToView(item.aid)
                     },
                     onGoToDetailPage = {
-                        VideoInfoActivity.actionStart(
-                            context = context,
-                            fromController = true,
-                            aid = item.aid
-                        )
+                        val proxyArea = ProxyArea.checkProxyArea(item.title)
+                        val targetEpId = item.epid?.takeIf { it > 0 }
+                        val targetSeasonId = item.seasonId?.takeIf { it > 0 }
+
+                        if (targetSeasonId != null || targetEpId != null) {
+                            SeasonInfoActivity.actionStart(
+                                context = context,
+                                epId = targetEpId,
+                                seasonId = targetSeasonId,
+                                proxyArea = proxyArea
+                            )
+                        } else {
+                            VideoInfoActivity.actionStart(
+                                context = context,
+                                fromController = true,
+                                aid = item.aid,
+                                proxyArea = proxyArea
+                            )
+                        }
                     },
                     onGoToUpPage = {
                         UpInfoActivity.actionStart(context, item.authorMid, item.author)
