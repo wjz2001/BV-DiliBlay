@@ -36,6 +36,7 @@ import dev.aaa1115910.bv.activities.user.FollowActivity
 import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.activities.user.UserSwitchActivity
 import dev.aaa1115910.bv.component.UserPanel
+import dev.aaa1115910.bv.component.BlackoutSwitch
 import dev.aaa1115910.bv.screen.main.HomeContent
 import dev.aaa1115910.bv.screen.main.LeftNaviContent
 import dev.aaa1115910.bv.screen.main.LeftNaviItem
@@ -59,7 +60,15 @@ fun MainScreen(
     val logger = KotlinLogging.logger("MainScreen")
     var showUserPanel by remember { mutableStateOf(false) }
     var lastPressBack: Long by remember { mutableLongStateOf(0L) }
-    var selectedDrawerItem by remember { mutableStateOf(LeftNaviItem.Home) }
+
+    // requestedDrawerItem：左侧栏选中后“请求切换到”的目标
+    // displayedDrawerItem：当前真正正在渲染的内容页（黑场切换时用于避免双树过渡）
+    // requested/displayed 必须同源初始化。否则会遇到“首次先渲染 Home 再跳”的闪屏/误导。
+    val initialDrawerItem = LeftNaviItem.Home
+    var requestedDrawerItem by remember { mutableStateOf(initialDrawerItem) }
+    var displayedDrawerItem by remember { mutableStateOf(initialDrawerItem) }
+    val fade = 0
+
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
     val personalFocusRequester = remember { FocusRequester() }
@@ -80,7 +89,7 @@ fun MainScreen(
     }
 
     val onFocusToContent: () -> Unit = {
-        when (selectedDrawerItem) {
+        when (displayedDrawerItem) {
             LeftNaviItem.Home -> mainFocusRequester.requestFocus()
             LeftNaviItem.UGC -> ugcFocusRequester.requestFocus()
             LeftNaviItem.PGC -> pgcFocusRequester.requestFocus()
@@ -110,7 +119,7 @@ fun MainScreen(
                 avatar = userViewModel.face,
                 //avatar = "https://i2.hdslb.com/bfs/face/ef0457addb24141e15dfac6fbf45293ccf1e32ab.jpg",
                 //username = "碧诗",
-                onLeftNaviItemChanged = { selectedDrawerItem = it },
+                onLeftNaviItemChanged = { requestedDrawerItem = it },
                 onOpenSettings = {
                     context.startActivity(Intent(context, SettingsActivity::class.java))
                 },
@@ -128,19 +137,12 @@ fun MainScreen(
         Box(
             modifier = Modifier
         ) {
-            AnimatedContent(
-                targetState = selectedDrawerItem,
-                label = "main animated content",
-                transitionSpec = {
-                    val coefficient = 20
-                    if (targetState.ordinal < initialState.ordinal) {
-                        fadeIn() + slideInVertically { -it / coefficient } togetherWith
-                                fadeOut() + slideOutVertically { it / coefficient }
-                    } else {
-                        fadeIn() + slideInVertically { it / coefficient } togetherWith
-                                fadeOut() + slideOutVertically { -it / coefficient }
-                    }
-                }
+            BlackoutSwitch(
+                targetState = requestedDrawerItem,
+                // 这里可按体感调：值越小切换越“快”，越大越“稳但慢”
+                fadeInMillis = fade,
+                fadeOutMillis = fade,
+                onSwitched = { displayedDrawerItem = it }
             ) { screen ->
                 when (screen) {
                     LeftNaviItem.Search -> SearchInputScreen(defaultFocusRequester = searchFocusRequester)
