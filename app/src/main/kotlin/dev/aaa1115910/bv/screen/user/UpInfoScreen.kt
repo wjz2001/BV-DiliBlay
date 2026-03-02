@@ -49,8 +49,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.tv.material3.Text
+import androidx.compose.runtime.snapshotFlow
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
-import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
@@ -58,9 +58,9 @@ import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import dev.aaa1115910.bv.viewmodel.user.UpInfoViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import org.koin.androidx.compose.koinViewModel
 
 
@@ -92,7 +92,7 @@ fun UpSpaceScreen(
             upInfoViewModel.update()
              */
             upInfoViewModel.reset(mid = mid, name = name)
-            upInfoViewModel.startAutoLoad()
+            upInfoViewModel.update()
         } else {
             context.finish()
         }
@@ -106,8 +106,18 @@ fun UpSpaceScreen(
         }
     }
 
-    /*
-    LaunchedEffect(gridState) {
+    LaunchedEffect(upInfoViewModel.debouncedQuery) {
+        val q = upInfoViewModel.debouncedQuery.trim()
+        if (q.isBlank()) {
+            upInfoViewModel.stopAutoLoad()
+        } else {
+            upInfoViewModel.startAutoLoad()
+        }
+    }
+
+    LaunchedEffect(gridState, upInfoViewModel.debouncedQuery) {
+        if (upInfoViewModel.debouncedQuery.trim().isNotBlank()) return@LaunchedEffect
+
         snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .distinctUntilChanged()
             .filter { index ->
@@ -117,7 +127,6 @@ fun UpSpaceScreen(
                 upInfoViewModel.update()
             }
     }
-     */
 
     // 首批数据到来后，把焦点落到第一张卡片
     LaunchedEffect(upInfoViewModel.spaceVideos.size) {
@@ -131,15 +140,40 @@ fun UpSpaceScreen(
 
     val loadedCount = upInfoViewModel.spaceVideos.size
     val totalCount = upInfoViewModel.totalCount
-    val topRightText = remember(loadedCount, totalCount, upInfoViewModel.noMore) {
-        if (upInfoViewModel.noMore) {
-            val total = totalCount ?: loadedCount
-            "共${total}条视频"
-        } else {
-            if (totalCount != null && totalCount > 0) {
-                "加载中……\n$loadedCount / $totalCount"
-            } else {
-                "加载中……\n$loadedCount"
+    val isSearching = upInfoViewModel.debouncedQuery.trim().isNotBlank()
+    val topRightText = remember(
+        loadedCount, totalCount, upInfoViewModel.noMore, upInfoViewModel.isAutoLoading, isSearching
+    ) {
+        when {
+            upInfoViewModel.noMore -> {
+                val total = totalCount ?: loadedCount
+                "共 ${total} 条视频"
+            }
+
+            // 非搜索模式：不显示“加载中……”
+            !isSearching -> {
+                if (totalCount != null && totalCount > 0) {
+                    "$loadedCount / $totalCount"
+                } else {
+                    "$loadedCount"
+                }
+            }
+
+            // 搜索模式：自动补页中才显示“加载中……”
+            upInfoViewModel.isAutoLoading -> {
+                if (totalCount != null && totalCount > 0) {
+                    "加载中……\n$loadedCount / $totalCount"
+                } else {
+                    "加载中……\n$loadedCount"
+                }
+            }
+
+            else -> {
+                if (totalCount != null && totalCount > 0) {
+                    "$loadedCount / $totalCount"
+                } else {
+                    "$loadedCount"
+                }
             }
         }
     }
@@ -272,7 +306,7 @@ fun UpSpaceScreen(
                 verticalArrangement = Arrangement.spacedBy(24.dp),
                 horizontalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                if (upInfoViewModel.spaceVideos.isNotEmpty()) {
+                if (visibleVideos.isNotEmpty()) {
                     /*
                 itemsIndexed(
                     items = upInfoViewModel.spaceVideos,

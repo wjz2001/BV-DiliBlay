@@ -50,8 +50,8 @@ class UpInfoViewModel(
     var debouncedQuery by mutableStateOf("")
         private set
 
-    // 自动加载控制：输入时暂停（false），停输入防抖结束后恢复（true）
-    var autoLoadEnabled by mutableStateOf(true)
+    // 自动加载控制：仅搜索态开启
+    var autoLoadEnabled by mutableStateOf(false)
         private set
 
     // 顶部展示用
@@ -82,7 +82,7 @@ class UpInfoViewModel(
 
         rawQuery = ""
         debouncedQuery = ""
-        autoLoadEnabled = true
+        autoLoadEnabled = false
 
         isAutoLoading = false
         loading = false
@@ -106,15 +106,31 @@ class UpInfoViewModel(
         queryDebounceJob = viewModelScope.launch {
             delay(900)
             debouncedQuery = rawQuery
-            resumeAutoLoad()
+            if (debouncedQuery.trim().isBlank()) {
+                stopAutoLoad()
+            } else {
+                resumeAutoLoad()
+            }
         }
     }
 
     fun onSearchAction() {
-        // 用户按“搜索”视为输入完成：立即应用过滤并恢复自动加载
+        // 用户按“搜索”视为输入完成：立即应用过滤并根据关键词切换加载模式
         queryDebounceJob?.cancel()
+        queryDebounceJob = null
         debouncedQuery = rawQuery
-        resumeAutoLoad()
+        if (debouncedQuery.trim().isBlank()) {
+            stopAutoLoad()
+        } else {
+            resumeAutoLoad()
+        }
+    }
+
+    fun stopAutoLoad() {
+        autoLoadEnabled = false
+        autoLoadJob?.cancel()
+        autoLoadJob = null
+        isAutoLoading = false
     }
 
     private fun pauseAutoLoad() {
@@ -127,6 +143,7 @@ class UpInfoViewModel(
     }
 
     fun startAutoLoad() {
+        if (!autoLoadEnabled) return
         if (autoLoadJob?.isActive == true) return
 
         autoLoadJob = viewModelScope.launch(Dispatchers.Default) {
