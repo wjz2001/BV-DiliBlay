@@ -131,6 +131,16 @@ fun HomeContent(
                     .focusRequester(navFocusRequester),
                 items = reorderedItems,
                 isLargePadding = !focusOnContent,
+                isHistorySearching = historyViewModel.debouncedQuery.isNotBlank(),
+                onHistoryTabDirectionUp = { isLongPress ->
+                    if (selectedTab == HomeTopNavItem.History) {
+                        if (isLongPress) {
+                            historyViewModel.clearSearch()
+                        } else {
+                            historyViewModel.openSearchDialog()
+                        }
+                    }
+                },
                 onSelectedChanged = { nav ->
                     selectedTab = nav as HomeTopNavItem
                     when (nav) {
@@ -286,7 +296,7 @@ fun HomeContent(
                     HomeTopNavItem.Popular -> PopularScreen()
                     HomeTopNavItem.Dynamics -> DynamicsScreen()
                     HomeTopNavItem.ToView -> ToViewScreen()
-                    HomeTopNavItem.History -> HistoryScreen()
+                    HomeTopNavItem.History -> HistoryScreen(historyViewModel = historyViewModel)
                     HomeTopNavItem.Favorite -> FavoriteScreen(onBack = backToTabRow)
                     HomeTopNavItem.FollowingSeason -> FollowingSeasonScreen()
                 }

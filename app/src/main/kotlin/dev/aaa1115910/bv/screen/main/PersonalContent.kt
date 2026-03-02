@@ -106,6 +106,16 @@ fun PersonalContent(
                     .focusRequester(navFocusRequester),
                 items = PersonalTopNavItem.entries,
                 isLargePadding = !focusOnContent,
+                isHistorySearching = historyViewModel.debouncedQuery.isNotBlank(),
+                onHistoryTabDirectionUp = { isLongPress ->
+                    if (selectedTab == PersonalTopNavItem.History) {
+                        if (isLongPress) {
+                            historyViewModel.clearSearch()
+                        } else {
+                            historyViewModel.openSearchDialog()
+                        }
+                    }
+                },
                 onSelectedChanged = { nav ->
                     selectedTab = nav as PersonalTopNavItem
                 },
@@ -160,7 +170,7 @@ fun PersonalContent(
                     }
 
                     PersonalTopNavItem.History -> {
-                        HistoryScreen()
+                        HistoryScreen(historyViewModel = historyViewModel)
                     }
 
                     PersonalTopNavItem.Favorite -> {
