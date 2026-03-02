@@ -23,9 +23,12 @@ import dev.aaa1115910.bv.util.toast
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.android.annotation.KoinViewModel
+import kotlin.random.Random
 
 @KoinViewModel
 class HistoryViewModel(
@@ -39,13 +42,27 @@ class HistoryViewModel(
     var histories = mutableStateListOf<VideoCardData>()
     var noMore by mutableStateOf(false)
 
+    // 历史页搜索状态（Home/Personal 共用同一个 VM）
+    var rawQuery by mutableStateOf("")
+    var debouncedQuery by mutableStateOf("")
+    var showSearchDialog by mutableStateOf(false)
+
+    // 自动补页（仅搜索态使用）
+    var autoLoadEnabled by mutableStateOf(false)
+        private set
+    var isAutoLoading by mutableStateOf(false)
+        private set
+
+    private var queryDebounceJob: Job? = null
+    private var autoLoadJob: Job? = null
+
     private var cursor = 0L
     private var updating = false
 
     private var updateJob: Job? = null
 
     fun update() {
-        if(updateJob?.isActive == true) return
+        if (updateJob?.isActive == true) return
         updateJob = viewModelScope.launch(Dispatchers.IO) {
             updateHistories()
         }
@@ -53,10 +70,94 @@ class HistoryViewModel(
 
     fun clearData() {
         updateJob?.cancel()
+        stopAutoLoad()
         histories.clear()
         cursor = 0
         noMore = false
         updating = false
+    }
+
+    fun openSearchDialog() {
+        showSearchDialog = true
+    }
+
+    fun closeSearchDialog(apply: Boolean) {
+        if (apply) onSearchAction()
+        showSearchDialog = false
+    }
+
+    fun onQueryChange(newText: String) {
+        rawQuery = newText
+        pauseAutoLoad()
+
+        queryDebounceJob?.cancel()
+        queryDebounceJob = viewModelScope.launch {
+            delay(900)
+            debouncedQuery = rawQuery
+            if (debouncedQuery.trim().isBlank()) {
+                stopAutoLoad()
+            } else {
+                resumeAutoLoad()
+            }
+        }
+    }
+
+    fun onSearchAction() {
+        queryDebounceJob?.cancel()
+        queryDebounceJob = null
+        debouncedQuery = rawQuery
+        if (debouncedQuery.trim().isBlank()) {
+            stopAutoLoad()
+        } else {
+            resumeAutoLoad()
+        }
+    }
+
+    fun clearSearch() {
+        queryDebounceJob?.cancel()
+        queryDebounceJob = null
+        stopAutoLoad()
+        rawQuery = ""
+        debouncedQuery = ""
+        showSearchDialog = false
+    }
+
+    fun startAutoLoad() {
+        if (debouncedQuery.trim().isBlank()) return
+        autoLoadEnabled = true
+        if (autoLoadJob?.isActive == true) return
+
+        autoLoadJob = viewModelScope.launch(Dispatchers.Default) {
+            isAutoLoading = true
+            while (isActive && !noMore) {
+                while (isActive && !autoLoadEnabled) {
+                    delay(100)
+                }
+                if (!isActive || noMore) break
+
+                updateHistories()
+                if (!noMore) {
+                    delay(Random.nextLong(500L, 2000L))
+                }
+            }
+            isAutoLoading = false
+        }
+    }
+
+    fun stopAutoLoad() {
+        autoLoadEnabled = false
+        autoLoadJob?.cancel()
+        autoLoadJob = null
+        isAutoLoading = false
+    }
+
+    private fun pauseAutoLoad() {
+        autoLoadEnabled = false
+    }
+
+    private fun resumeAutoLoad() {
+        autoLoadEnabled = true
+        startAutoLoad()
     }
 
     private suspend fun updateHistories(context: Context = BVApp.context) {
@@ -77,6 +178,9 @@ class HistoryViewModel(
                 histories.addWithMainContext(
                     VideoCardData(
                         avid = historyItem.oid,
+                        cid = historyItem.cid.takeIf { it > 0L },
+                        epId = historyItem.epid?.takeIf { it > 0 },
+                        jumpToSeason = (historyItem.epid ?: 0) > 0 || (historyItem.seasonId ?: 0) > 0,
                         title = historyItem.title,
                         cover = historyItem.cover,
                         upName = historyItem.author,
@@ -90,7 +194,7 @@ class HistoryViewModel(
                     )
                 )
             }
-            //update cursor
+            // update cursor
             cursor = data.cursor
             logger.fInfo { "Update history cursor: [cursor=$cursor]" }
             logger.fInfo { "Update histories success" }
@@ -114,5 +218,12 @@ class HistoryViewModel(
             }
         }
         updating = false
+    }
+
+    override fun onCleared() {
+        updateJob?.cancel()
+        queryDebounceJob?.cancel()
+        autoLoadJob?.cancel()
+        super.onCleared()
     }
 }
