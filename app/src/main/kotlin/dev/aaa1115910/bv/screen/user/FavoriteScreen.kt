@@ -33,6 +33,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -75,6 +76,8 @@ import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import org.koin.androidx.compose.koinViewModel
 
 private class FolderQueryState {
@@ -164,6 +167,13 @@ fun FavoriteScreen(
         }
     }
 
+    val currentFolderQuery by remember {
+        derivedStateOf {
+            val folderId = currentFolderId ?: return@derivedStateOf ""
+            folderQueryStates[folderId]?.debouncedQuery?.trim().orEmpty()
+        }
+    }
+
     // 1s gate：必须在“当前 Tab 按钮上停留 >= 1s”才允许开始请求
     var selectedFolderIdForAutoLoad by remember { mutableStateOf<Long?>(null) }
 
@@ -182,11 +192,23 @@ fun FavoriteScreen(
         searchDialogFolderId = null
     }
 
-// Dialog 打开时暂停加载；关闭后继续
-    LaunchedEffect(showSearchDialog) {
-        favoriteViewModel.updateLoadingPaused(showSearchDialog)
-        if (!showSearchDialog && favoriteViewModel.allowAutoLoad) {
+     // Dialog 打开时暂停加载；关闭后继续
+    // 模式切换：无关键词触底翻页；有关键词自动补页
+    LaunchedEffect(currentFolderId, currentFolderQuery, showSearchDialog) {
+        val hasFolder = currentFolderId != null
+        val searching = currentFolderQuery.isNotBlank()
+
+        if (!hasFolder) {
+            favoriteViewModel.stopAutoLoad()
+            return@LaunchedEffect
+        }
+
+        if (searching) {
+            favoriteViewModel.allowAutoLoad = true
+            favoriteViewModel.updateLoadingPaused(showSearchDialog)
             favoriteViewModel.startAutoLoad()
+        } else {
+            favoriteViewModel.stopAutoLoad()
         }
     }
 
@@ -201,26 +223,31 @@ fun FavoriteScreen(
             favoriteViewModel.updateFolderItems(force = true)
         }
 
-    /*
-    LaunchedEffect(lazyGridState) {
+    LaunchedEffect(lazyGridState, currentFolderId, currentFolderQuery) {
+        if (currentFolderId == null) return@LaunchedEffect
+        if (currentFolderQuery.isNotBlank()) return@LaunchedEffect
+
         snapshotFlow { lazyGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .distinctUntilChanged()
             .filter { index ->
                 index != null && index >= favoriteViewModel.favorites.size - 20
             }
             .collect {
-                scope.launch(Dispatchers.IO) {
-                    favoriteViewModel.updateFolderItems()
-                }
+                favoriteViewModel.updateFolderItems()
             }
     }
-     */
-    // 当“Tab 按钮焦点”稳定停留 1s 后，才开启自动加载
+
+    // 当“Tab 按钮焦点”稳定停留 1s 后，搜索态可开启自动加载
     LaunchedEffect(selectedFolderIdForAutoLoad) {
         val id = selectedFolderIdForAutoLoad ?: return@LaunchedEffect
         delay(1000)
-        if (selectedFolderIdForAutoLoad == id && favoriteViewModel.currentFavoriteFolderMetadata?.id == id) {
+        if (
+            selectedFolderIdForAutoLoad == id &&
+            favoriteViewModel.currentFavoriteFolderMetadata?.id == id &&
+            currentFolderQuery.isNotBlank()
+        ) {
             favoriteViewModel.allowAutoLoad = true
+            favoriteViewModel.updateLoadingPaused(showSearchDialog)
             favoriteViewModel.startAutoLoad()
         }
     }
