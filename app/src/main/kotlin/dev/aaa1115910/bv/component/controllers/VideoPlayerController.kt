@@ -466,7 +466,8 @@ fun VideoPlayerController(
                         showMenuController = true
                     },
                     onShowRelatedVideos = {
-                        if (videoPlayer.isPlaying) onPause()showInfoSeekController = false
+                        if (videoPlayer.isPlaying) onPause()
+                        showInfoSeekController = false
                         showRelatedVideosController = true
                     },
                     onGoToVideoInfo = {
