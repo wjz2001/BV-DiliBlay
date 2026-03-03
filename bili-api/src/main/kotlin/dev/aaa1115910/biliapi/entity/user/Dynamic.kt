@@ -119,7 +119,7 @@ data class DynamicVideo(
                         aid = pgc.aid,
                         bvid = null,
                         cid = pgc.cid,
-                        epid = pgc.cid.toInt(),
+                        epid = pgc.epid.toInt(),
                         seasonId = pgc.seasonId.toInt(),
                         title = pgc.title,
                         cover = pgc.cover,
