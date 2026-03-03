@@ -143,6 +143,7 @@ fun HistoryScreen(
                             VideoInfoActivity.actionStart(
                                 context = context,
                                 aid = history.avid,
+                                epid = history.epId,
                                 proxyArea = ProxyArea.checkProxyArea(history.title)
                             )
                         },
@@ -153,7 +154,8 @@ fun HistoryScreen(
                             VideoInfoActivity.actionStart(
                                 context = context,
                                 fromController = true,
-                                aid = history.avid
+                                aid = history.avid,
+                                epid = history.epId
                             )
                         },
                         onGoToUpPage = history.upMid?.let {

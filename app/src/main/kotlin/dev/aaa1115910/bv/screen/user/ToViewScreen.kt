@@ -72,6 +72,7 @@ fun ToViewScreen(
                             VideoInfoActivity.actionStart(
                                 context = context,
                                 aid = item.avid,
+                                epid = item.epId,
                                 proxyArea = ProxyArea.checkProxyArea(item.title)
                             )
                         },
@@ -82,7 +83,8 @@ fun ToViewScreen(
                             VideoInfoActivity.actionStart(
                                 context = context,
                                 fromController = true,
-                                aid = item.avid
+                                aid = item.avid,
+                                epid = item.epId
                             )
                         },
                         onGoToUpPage = item.upMid?.let {
@@ -116,6 +118,7 @@ fun ToViewScreen(
                             VideoInfoActivity.actionStart(
                                 context = context,
                                 aid = item.avid,
+                                epid = item.epId,
                                 proxyArea = ProxyArea.checkProxyArea(item.title)
                             )
                         },
@@ -126,7 +129,8 @@ fun ToViewScreen(
                             VideoInfoActivity.actionStart(
                                 context = context,
                                 fromController = true,
-                                aid = item.avid
+                                aid = item.avid,
+                                epid = item.epId
                             )
                         },
                         onGoToUpPage = item.upMid?.let {

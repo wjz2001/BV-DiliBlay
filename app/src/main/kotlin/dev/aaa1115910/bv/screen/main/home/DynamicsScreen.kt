@@ -70,7 +70,8 @@ fun DynamicsScreen(
             VideoInfoActivity.actionStart(
                 context = context,
                 aid = dynamic.aid,
-                proxyArea = proxyArea
+                epid = dynamic.epid,
+            proxyArea = proxyArea
             )
         }
     }
@@ -136,25 +137,12 @@ fun DynamicsScreen(
                         toViewViewModel.addToView(item.aid)
                     },
                     onGoToDetailPage = {
-                        val proxyArea = ProxyArea.checkProxyArea(item.title)
-                        val targetEpId = item.epid?.takeIf { it > 0 }
-                        val targetSeasonId = item.seasonId?.takeIf { it > 0 }
-
-                        if (targetSeasonId != null || targetEpId != null) {
-                            SeasonInfoActivity.actionStart(
-                                context = context,
-                                epId = targetEpId,
-                                seasonId = targetSeasonId,
-                                proxyArea = proxyArea
-                            )
-                        } else {
-                            VideoInfoActivity.actionStart(
-                                context = context,
-                                fromController = true,
-                                aid = item.aid,
-                                proxyArea = proxyArea
-                            )
-                        }
+                        VideoInfoActivity.actionStart(
+                            context = context,
+                            fromController = true,
+                            aid = item.aid,
+                            epid = item.epid,
+                        )
                     },
                     onGoToUpPage = {
                         UpInfoActivity.actionStart(context, item.authorMid, item.author)
