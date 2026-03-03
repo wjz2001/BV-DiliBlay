@@ -16,10 +16,20 @@ class VideoInfoActivity : ComponentActivity() {
         fun actionStart(
             context: Context,
             aid: Long,
+            epid: Int? = null,
             fromSeason: Boolean = false,
-            fromController : Boolean = false,
+            fromController: Boolean = false,
             proxyArea: ProxyArea = ProxyArea.MainLand
         ) {
+            if (epid != null) {
+                SeasonInfoActivity.actionStart(
+                    context = context,
+                    epId = epid,
+                    proxyArea = proxyArea
+                )
+                return
+            }
+
             context.startActivity(
                 Intent(context, VideoInfoActivity::class.java).apply {
                     putExtra("aid", aid)
