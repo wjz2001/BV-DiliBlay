@@ -163,7 +163,13 @@ fun FavoriteScreen(
                     ) {
                         SmallVideoCard(
                             data = favorite,
-                            onClick = { VideoInfoActivity.actionStart(context, favorite.avid) },
+                            onClick = {
+                                VideoInfoActivity.actionStart(
+                                    context = context,
+                                    aid = favorite.avid,
+                                    epid = favorite.epId,
+                                )
+                            },
                             onAddWatchLater = {
                                 toViewViewModel.addToView(favorite.avid)
                             },
@@ -171,7 +177,8 @@ fun FavoriteScreen(
                                 VideoInfoActivity.actionStart(
                                     context = context,
                                     fromController = true,
-                                    aid = favorite.avid
+                                    aid = favorite.avid,
+                                    epid = favorite.epId,
                                 )
                             },
                             onGoToUpPage = favorite.upMid?.let {
