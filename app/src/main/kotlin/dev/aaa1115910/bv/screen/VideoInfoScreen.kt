@@ -367,6 +367,8 @@ fun VideoInfoScreen(
 
                                             // 读取合集内视频
                                             videoDetailViewModel.updateVideoList(index)
+                                            // 加载合集内对应视频的详情（主要是为了共享给播放器页）
+                                            videoDetailViewModel.loadVideoDetail(aid)
 
                                             val currentEpisode =
                                                 section.episodes.find { it.cid == cid }

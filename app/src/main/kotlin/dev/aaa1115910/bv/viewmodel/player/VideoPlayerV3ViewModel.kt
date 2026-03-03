@@ -460,6 +460,7 @@ class VideoPlayerV3ViewModel(
 
                 return
             }
+
             ActionAfterPlayItems.PlayRelated -> {
                 val firstRelatedVideo = _uiState.value.relatedVideos.firstOrNull()
                 firstRelatedVideo?.cid?.let {
@@ -468,12 +469,13 @@ class VideoPlayerV3ViewModel(
                         cid = firstRelatedVideo.cid,
                         title = firstRelatedVideo.title
                     )
-                    playNewVideo(nextVideo)
+                    playNewVideo(video = nextVideo, updateList = true)
 
                     // 因为番剧无相关视频，需要继续播放，所以在这里return
                     return
                 }
             }
+
             ActionAfterPlayItems.PlayNext -> {
                 /* 继续执行 */
             }
@@ -554,18 +556,21 @@ class VideoPlayerV3ViewModel(
         danmakuPlayer?.pause()
     }
 
-    fun playNewVideo(video: VideoListItem) {
+    fun playNewVideo(video: VideoListItem, updateList: Boolean = false) {
         videoPlayer?.pause()
 
         val oldAid = _uiState.value.aid
         val newAid = video.aid
 
         // 切换视频时更新detail和视频列表
-        if (oldAid != newAid){
+        if (oldAid != newAid) {
             viewModelScope.launch(Dispatchers.IO) {
                 videoInfoRepository.loadVideoDetail(video.aid, Prefs.apiType)
             }
-            videoInfoRepository.updateVideoList(listOf(video))
+            // 切换分P时不需要更新视频列表
+            if (updateList) {
+                videoInfoRepository.updateVideoList(listOf(video))
+            }
         }
 
         // 重置弹幕
