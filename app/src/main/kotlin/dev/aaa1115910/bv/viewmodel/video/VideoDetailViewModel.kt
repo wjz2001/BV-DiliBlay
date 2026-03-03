@@ -189,8 +189,6 @@ class VideoDetailViewModel(
     }
 
     fun loadVideoDetail(aid: Long) {
-        _uiState.update { it.copy(loadingState = VideoInfoState.Loading) }
-
         viewModelScope.launch(Dispatchers.IO) {
             if (mProxyArea != ProxyArea.MainLand) {
                 val redirectSuccess = tryRedirectToSeason(aid, mProxyArea)
