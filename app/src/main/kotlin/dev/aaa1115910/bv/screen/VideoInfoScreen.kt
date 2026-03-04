@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -1016,6 +1017,24 @@ private fun FullScreenMessage(message: String) {
         description: String
     ) {
         if (show) {
+            val scrollState = rememberScrollState()
+            val scope = rememberCoroutineScope()
+            val focusRequester = remember { FocusRequester() }
+
+            var viewportHeightPx by remember { mutableIntStateOf(0) }
+            val stepPx = remember(viewportHeightPx) {
+                maxOf(1, (viewportHeightPx * 0.2f).toInt())
+            }
+            val canScroll by remember {
+                derivedStateOf { scrollState.maxValue > 0 }
+            }
+
+            LaunchedEffect(show, canScroll) {
+                if (show && canScroll) {
+                    focusRequester.requestFocus()
+                }
+            }
+
             AlertDialog(
                 modifier = modifier,
                 onDismissRequest = { onHideDialog() },
@@ -1026,14 +1045,48 @@ private fun FullScreenMessage(message: String) {
                     )
                 },
                 text = {
-                    LazyColumn {
-                        item {
-                            Text(
-                                text = description,
-                                fontSize = 28.sp,
-                                lineHeight = 34.sp,
-                            )
-                        }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(420.dp)
+                            .onSizeChanged { viewportHeightPx = it.height }
+                            .focusRequester(focusRequester)
+                            .focusable(enabled = canScroll)
+                            .onPreviewKeyEvent { event ->
+                                if (!canScroll) return@onPreviewKeyEvent false
+                                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+
+                                when (event.key) {
+                                    Key.DirectionDown -> {
+                                        val target = (scrollState.value + stepPx)
+                                            .coerceIn(0, scrollState.maxValue)
+                                        scope.launch {
+                                            scrollState.animateScrollTo(target)
+                                        }
+                                        true
+                                    }
+
+                                    Key.DirectionUp -> {
+                                        val target = (scrollState.value - stepPx)
+                                            .coerceIn(0, scrollState.maxValue)
+                                        scope.launch {
+                                            scrollState.animateScrollTo(target)
+                                        }
+                                        true
+                                    }
+
+                                    else -> false
+                                }
+                            }
+                    ) {
+                        Text(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(scrollState),
+                            text = description,
+                            fontSize = 28.sp,
+                            lineHeight = 34.sp,
+                        )
                     }
                 },
                 confirmButton = {}
