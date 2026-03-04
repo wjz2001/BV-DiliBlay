@@ -68,6 +68,7 @@ fun VideoPlayerV3Screen(
         playerViewModel.uiEffect.collect { effect ->
             when (effect) {
                 PlayerUiEffect.FinishActivity -> {
+                    playerViewModel.setSuppressPlayerErrors(true)
                     (context as Activity).finish()
                 }
 
@@ -158,6 +159,7 @@ fun VideoPlayerV3Screen(
             playerViewModel.trySendHeartbeat()
         },
         onExit = {
+            playerViewModel.setSuppressPlayerErrors(true)
             (context as Activity).finish()
         },
         onGoTime = { time ->
