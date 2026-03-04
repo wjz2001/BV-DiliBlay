@@ -145,6 +145,22 @@ fun SmallVideoCard(
         hasFetchedCoAuthors && coAuthors.distinctBy { it.mid }.size > 1
     }
 
+    suspend fun loadCoAuthors(reason: String): List<CoAuthor> {
+        val result = CoAuthorCacheStore.getOrFetch(
+            avid = data.avid,
+            preferApiType = Prefs.apiType,
+            repository = videoDetailRepository
+        )
+
+        return result.authors
+    }
+
+    fun applyCoAuthors(authors: List<CoAuthor>, reason: String) {
+        coAuthors = authors
+        hasFetchedCoAuthors = true
+        fetchingCoAuthors = false
+    }
+
     fun navigateToUp(mid: Long, name: String) {
         UpInfoActivity.actionStart(context, mid = mid, name = name)
     }
@@ -232,6 +248,21 @@ fun SmallVideoCard(
     // 历史上报：当前方案仅走 access_key（/x/v2/history/report）
     val canHistory = Prefs.accessToken.isNotEmpty()
 
+    LaunchedEffect(data.avid, canGoToUpPage) {
+        if (!canGoToUpPage || hasFetchedCoAuthors || fetchingCoAuthors) return@LaunchedEffect
+
+        fetchingCoAuthors = true
+        logger.fInfo { "CoAuthors[prefetch_on_compose] start: aid=${data.avid}, apiType=${Prefs.apiType}" }
+
+        runCatching {
+            loadCoAuthors(reason = "prefetch_on_compose")
+        }.onSuccess { authors ->
+            applyCoAuthors(authors = authors, reason = "prefetch_on_compose")
+        }.onFailure { e ->
+            fetchingCoAuthors = false
+        }
+    }
+
     LaunchedEffect(showActions) {
         if (showActions) {
             // 用项目内已有的“带重试的请求焦点”扩展，确保默认焦点可靠
@@ -264,20 +295,15 @@ fun SmallVideoCard(
                 }
             }
 
-            // actions 显示时预拉取 coAuthors（只拉一次），用于决定“个人空间”图标是否显示 Group
+            // 用于决定“个人空间”图标是否显示 Group，如果前置预取还没成功，打开 actions 时再尝试一次
             if (canGoToUpPage && !hasFetchedCoAuthors && !fetchingCoAuthors) {
                 fetchingCoAuthors = true
                 scope.launch(Dispatchers.IO) {
                     runCatching {
-                        videoDetailRepository.getVideoDetail(
-                            aid = data.avid,
-                            preferApiType = Prefs.apiType
-                        ).coAuthors
+                        loadCoAuthors(reason = "showActions_fallback")
                     }.onSuccess { authors ->
                         withContext(Dispatchers.Main) {
-                            coAuthors = authors
-                            hasFetchedCoAuthors = true
-                            fetchingCoAuthors = false
+                            applyCoAuthors(authors = authors, reason = "showActions_fallback")
                         }
                     }.onFailure { e ->
                         logger.fWarn {
@@ -533,15 +559,10 @@ fun SmallVideoCard(
 
                                         scope.launch(Dispatchers.IO) {
                                             runCatching {
-                                                videoDetailRepository.getVideoDetail(
-                                                    aid = data.avid,
-                                                    preferApiType = Prefs.apiType
-                                                ).coAuthors
+                                                loadCoAuthors(reason = "up_button_click")
                                             }.onSuccess { authors ->
                                                 withContext(Dispatchers.Main) {
-                                                    coAuthors = authors
-                                                    hasFetchedCoAuthors = true
-                                                    fetchingCoAuthors = false
+                                                    applyCoAuthors(authors = authors, reason = "up_button_click")
                                                     openCoAuthorsOrNavigateSingle(authors)
                                                 }
                                             }.onFailure { e ->
@@ -710,6 +731,7 @@ fun SmallVideoCard(
             title = data.title,
             upName = data.upName,
             pubTime = data.pubTime,
+            hasMultipleCoAuthors = hasMultipleCoAuthors,
             // 3. 将信息相关的参数传递给 CardInfo
             infoDensityMultiplier = infoDensityMultiplier,
             infoFontScaleMultiplier = infoFontScaleMultiplier
@@ -919,6 +941,7 @@ fun CardInfo(
     title: String,
     upName: String,
     pubTime: String?,
+    hasMultipleCoAuthors: Boolean = false,
     infoDensityMultiplier: Float,
     infoFontScaleMultiplier: Float
 ) {
@@ -945,7 +968,7 @@ fun CardInfo(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                UpIcon()
+                UpIcon(upgroup = hasMultipleCoAuthors)
                 Text(
                     modifier = Modifier.weight(1f),
                     text = upName,
