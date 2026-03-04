@@ -49,6 +49,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -140,8 +141,9 @@ fun VideoInfoScreen(
 
     val defaultFocusRequester = remember { FocusRequester() }
     val scrollState = rememberScrollState()
-
     val uiState by videoDetailViewModel.uiState.collectAsState()
+
+    var lastPlayedAid by remember { mutableLongStateOf(0L) }
     val containsVerticalScreenVideo by remember(uiState.videoDetailState) {
         derivedStateOf {
             uiState.videoDetailState?.run {
@@ -166,36 +168,66 @@ fun VideoInfoScreen(
         }
     }
 
-    fun playCurrentVideo(cid: Long? = null) {
+    fun performLaunchPlayer(
+        targetAid: Long,
+        targetCid: Long,
+        targetTitle: String,
+        targetPartTitle: String,
+        isFromSeason: Boolean
+    ) {
         val videoDetailState = uiState.videoDetailState ?: return
 
-        val lastPlayedCid = videoDetailState.lastPlayedCid
-        val lastPlayedTime = videoDetailState.lastPlayedTime
-        val fromSeason = uiState.fromSeason
+        val playedTime = if (targetCid == videoDetailState.lastPlayedCid) {
+            videoDetailState.lastPlayedTime * 1000
+        } else {
+            0
+        }
 
+        // 播放其他avid时更新视频详情
+        if (lastPlayedAid != targetAid) {
+            videoDetailViewModel.loadVideoDetail(targetAid)
+            lastPlayedAid = targetAid
+        }
+
+        launchPlayerActivity(
+            context = context,
+            avid = targetAid,
+            cid = targetCid,
+            title = targetTitle,
+            partTitle = targetPartTitle,
+            played = playedTime,
+            fromSeason = isFromSeason,
+            author = videoDetailState.author
+        )
+    }
+
+    fun playCurrentVideo(cid: Long? = null) {
+        val videoDetailState = uiState.videoDetailState ?: return
+        val targetCid = cid ?: videoDetailState.cid
+
+        // 1. 更新播放列表
         videoDetailViewModel.updateVideoList(
             listOf(
                 VideoListItem(
                     aid = videoDetailState.aid,
-                    cid = cid ?: videoDetailState.cid,
+                    cid = targetCid,
                     title = videoDetailState.title,
                 )
             )
         )
 
-        launchPlayerActivity(
-            context = context,
-            avid = videoDetailState.aid,
-            cid = cid ?: videoDetailState.cid,
-            title = videoDetailState.title,
-            partTitle = videoDetailState.pages.find { it.cid == cid }?.title
-                ?: videoDetailState.pages.first().title,
-            played = if (cid?.let { it == lastPlayedCid }
-                    ?: (videoDetailState.cid == lastPlayedCid)) {
-                lastPlayedTime * 1000
-            } else 0,
-            fromSeason = fromSeason,
-            author = videoDetailState.author)
+        // 2. 解析分集标题
+        val partTitle = videoDetailState.pages.find { it.cid == targetCid }?.title
+            ?: videoDetailState.pages.first().title
+
+        // 3. 统一调用
+        performLaunchPlayer(
+            targetAid = videoDetailState.aid,
+            targetCid = targetCid,
+            targetTitle = videoDetailState.title,
+            targetPartTitle = partTitle,
+            isFromSeason = uiState.fromSeason
+        )
     }
 
     LaunchedEffect(Unit) {
@@ -365,24 +397,21 @@ fun VideoInfoScreen(
                                         onClick = { aid, cid ->
                                             logger.fInfo { "Click ugc season part: [av:$aid, cid:$cid]" }
 
-                                            // 读取合集内视频
+                                            // 1. 读取合集内视频
                                             videoDetailViewModel.updateVideoList(index)
-                                            // 加载合集内对应视频的详情（主要是为了共享给播放器页）
-                                            videoDetailViewModel.loadVideoDetail(aid)
 
+                                            // 2. 解析标题
                                             val currentEpisode =
                                                 section.episodes.find { it.cid == cid }
                                             val episodeTitle = currentEpisode?.title ?: ""
 
-                                            launchPlayerActivity(
-                                                context = context,
-                                                avid = aid,
-                                                cid = cid,
-                                                title = episodeTitle,
-                                                partTitle = episodeTitle,
-                                                played = if (cid == videoDetailState.lastPlayedCid) videoDetailState.lastPlayedTime * 1000 else 0,
-                                                fromSeason = false,
-                                                author = videoDetailState.author
+                                            // 3. 统一调用
+                                            performLaunchPlayer(
+                                                targetAid = aid,
+                                                targetCid = cid,
+                                                targetTitle = episodeTitle,
+                                                targetPartTitle = episodeTitle,
+                                                isFromSeason = false
                                             )
                                         }
                                     )
