@@ -61,7 +61,6 @@ class BVApp : Application(), KoinComponent {
         initDeviceInfo()
         initRepository()
         initProxy()
-        HttpServer.startServer()
     }
 
     private fun initCoreLibraries() {
