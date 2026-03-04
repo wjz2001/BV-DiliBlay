@@ -33,8 +33,8 @@ object LogCatcherUtil {
         clearOldLogFiles()
     }
 
-    fun logLogcat(manual: Boolean = false) {
-        runCatching {
+    fun logLogcat(manual: Boolean = false): File? {
+        return runCatching {
             val process = Runtime.getRuntime().exec("logcat -t 10000 -v threadtime")
             val reader = BufferedReader(InputStreamReader(process.inputStream))
 
@@ -57,9 +57,10 @@ object LogCatcherUtil {
                 close()
                 reader.close()
             }
+            logFile
         }.onFailure {
             logger.error(it) { "write log to file failed" }
-        }
+        }.getOrNull()
     }
 
     private fun OutputStreamWriter.writeDeviceInfo() {
