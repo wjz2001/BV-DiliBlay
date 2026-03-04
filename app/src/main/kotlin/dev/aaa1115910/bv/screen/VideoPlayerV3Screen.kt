@@ -209,7 +209,7 @@ fun VideoPlayerV3Screen(
         onTempPlaySpeedChange = { speed ->
             // 临时倍速：同时影响视频与弹幕；不落盘、不改 uiState.playSpeed
             videoPlayer.speed = speed
-            playerViewModel.danmakuPlayer?.updatePlaySpeed(speed)
+            playerViewModel.safeUpdateDanmakuPlaySpeedTemp(speed)
         },
         onDanmakuSettingChange = { action ->
             playerViewModel.updateDanmakuState(action)
@@ -274,7 +274,8 @@ fun VideoPlayerV3Screen(
                         { Prefs.defaultDanmakuMask },
                         Modifier.danmakuMask(currentDanmakuMaskFrame, aspectRatio, areaRatio)
                     ),
-                danmakuPlayer = playerViewModel.danmakuPlayer
+                onViewCreated = { playerViewModel.attachDanmakuView(it) },
+                onViewDisposed = { playerViewModel.detachDanmakuView(it) },
             )
             if (Prefs.showPersistentSeek) {
                 VideoProgressSeek(

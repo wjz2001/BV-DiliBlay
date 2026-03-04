@@ -123,7 +123,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (isFinishing) {
             playerViewModel.dettachPlayer()
-            playerViewModel.releaseDanmakuPlayer()
+            playerViewModel.safeReleaseDanmakuPlayer()
         }
     }
 
@@ -139,7 +139,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
             .show(WindowInsetsCompat.Type.systemBars())
 
         playerViewModel.videoPlayer?.pause()
-        playerViewModel.danmakuPlayer?.pause()
+        playerViewModel.safePauseDanmakuPlayer()
     }
 
     override fun onStop() {
@@ -174,7 +174,9 @@ class VideoPlayerV3Activity : ComponentActivity() {
             PlayerType.Media3 -> ExoPlayerFactory().create(this.applicationContext, options)
         }
         playerViewModel.attachPlayer(videoPlayer)
-        playerViewModel.initDanmakuPlayer()
+        if (Prefs.defaultDanmakuEnabled) {
+            playerViewModel.safeInitDanmakuPlayer()
+        }
     }
 
     /*private fun initDanmakuPlayer() {

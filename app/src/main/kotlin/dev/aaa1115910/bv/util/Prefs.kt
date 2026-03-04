@@ -104,6 +104,7 @@ object Prefs {
     var defaultDanmakuScale by pref(PrefKeys.prefDefaultDanmakuScaleKey, 1.75f)
     var defaultDanmakuOpacity by pref(PrefKeys.prefDefaultDanmakuOpacityKey, 0.7f)
     var defaultDanmakuSpeedFactor by pref(PrefKeys.prefDefaultDanmakuSpeedFactorKey, 1f)
+    var defaultDanmakuEnabled by pref(PrefKeys.prefDefaultDanmakuEnabledKey, true)
 
     // 列表类型映射
     var defaultDanmakuTypes by pref(
@@ -296,6 +297,10 @@ object Prefs {
         updateMemoryCache(initialPrefs)
         checkAndInitBuvid(initialPrefs)
 
+        if (!initialPrefs.contains(PrefKeys.prefDefaultDanmakuEnabledKey)) {
+            defaultDanmakuEnabled = defaultDanmakuTypes.isNotEmpty()
+        }
+
         scope.launch {
             BVApp.dataStoreManager.dataStore.data.collect { preferences ->
                 updateMemoryCache(preferences)
@@ -398,6 +403,7 @@ private object PrefKeys {
     val prefDefaultDanmakuSpeedFactorKey = floatPreferencesKey("ddsf")
     val prefDefaultDanmakuTypesKey = stringPreferencesKey("ddts")
     val prefDefaultDanmakuAreaKey = floatPreferencesKey("dda")
+    val prefDefaultDanmakuEnabledKey = booleanPreferencesKey("dde")
     val prefDefaultVideoCodecKey = intPreferencesKey("dvc")
     val prefIncognitoModeKey = booleanPreferencesKey("im")
     val prefDefaultSubtitleFontSizeKey = intPreferencesKey("dsfs")
