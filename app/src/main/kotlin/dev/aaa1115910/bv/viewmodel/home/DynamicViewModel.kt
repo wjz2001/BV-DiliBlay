@@ -1,6 +1,7 @@
 package dev.aaa1115910.bv.viewmodel.home
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -21,14 +22,14 @@ import kotlinx.coroutines.CancellationException
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.withTimeout
 import dev.aaa1115910.bv.repository.UserRepository as BvUserRepository
 import org.koin.android.annotation.KoinViewModel
 
@@ -78,11 +79,73 @@ class DynamicViewModel(
     private var lastRefreshMs: Long = 0L
 
     // 新增内容后通知 UI 瞬移到顶部（一次性事件）
-    private val _scrollToTopEvent = MutableSharedFlow<Unit>(
-        replay = 0,
-        extraBufferCapacity = 1
+    companion object {
+        // 复用 SmallVideoCard 的占位数据主键
+        const val REFRESH_PLACEHOLDER_AID = -1L
+
+        // 后续页拉取：单页超时 + 总超时，避免占位长时间不消失
+        private const val CATCH_UP_PAGE_TIMEOUT_MS = 8_000L
+        private const val CATCH_UP_TOTAL_TIMEOUT_MS = 45_000L
+    }
+
+    // token 递增：UI 通过“token 变大”触发滚顶，避免 SharedFlow 丢事件
+    var scrollToTopToken by mutableLongStateOf(0L)
+        private set
+
+    // RefreshNew 进行中：屏蔽触底 loadMore
+    private var isRefreshingNew = false
+
+    // 占位卡位置（插在“最新 1 页新增”之后）
+    private var refreshPlaceholderIndex = -1
+
+    private fun buildRefreshPlaceholder(): DynamicVideo = DynamicVideo(
+        aid = REFRESH_PLACEHOLDER_AID,
+        bvid = null,
+        cid = 0,
+        epid = null,
+        seasonId = null,
+        title = "正在同步最新动态……",
+        cover = "",
+        author = "",
+        authorMid = 0L,
+        duration = 0,
+        play = -1,
+        danmaku = -1,
+        pubTime = null
     )
-    val scrollToTopEvent: SharedFlow<Unit> = _scrollToTopEvent.asSharedFlow()
+
+    // 仅在主线程调用
+    private fun removeRefreshPlaceholderLocked(): Int {
+        val previousSize = dynamicList.size
+        // removeAll 会遍历一遍列表，把所有满足条件的都删掉，内部处理了指针
+        dynamicList.removeAll { it.aid == REFRESH_PLACEHOLDER_AID }
+        val removed = previousSize - dynamicList.size
+        refreshPlaceholderIndex = -1
+        return removed
+    }
+
+    private suspend fun showRefreshPlaceholder(expectedGen: Long, insertIndex: Int) {
+        withContext(Dispatchers.Main) {
+            if (expectedGen != generation) return@withContext
+            val removed = removeRefreshPlaceholderLocked()
+
+            val safeIndex = insertIndex.coerceIn(0, dynamicList.size)
+            dynamicList.add(safeIndex, buildRefreshPlaceholder())
+            refreshPlaceholderIndex = safeIndex
+
+            logger.fInfo {
+                "Show refresh placeholder: gen=$expectedGen, index=$safeIndex, removedBefore=$removed"
+            }
+        }
+    }
+
+    private suspend fun hideRefreshPlaceholder(expectedGen: Long) {
+        withContext(Dispatchers.Main) {
+            if (expectedGen != generation) return@withContext
+            val removed = removeRefreshPlaceholderLocked()
+            logger.fInfo { "Hide refresh placeholder: gen=$expectedGen, removed=$removed" }
+        }
+    }
 
     suspend fun loadMore(mode: LoadMode = LoadMode.More, showNoUpdateToast: Boolean = false) {
         if (!bvUserRepository.isLogin) return
@@ -106,7 +169,7 @@ class DynamicViewModel(
             if (now - lastRefreshMs < 1500) return
             lastRefreshMs = now
 
-            // 只 cancel，不等待：减少刷新起步等待
+            // 取消可能在进行的“触底翻页”请求
             loadJob?.cancel()
             loadJob = null
 
@@ -114,14 +177,26 @@ class DynamicViewModel(
             generation++
             val expectedGen = generation
 
+            logger.fInfo { "RefreshNew start: gen=$expectedGen" }
+
+            isRefreshingNew = true
             val hadItemsBefore = withContext(Dispatchers.Main) { dynamicList.isNotEmpty() }
             var totalAdded = 0
+
+            // 清理可能残留的占位
+            withContext(Dispatchers.Main) {
+                if (expectedGen != generation) return@withContext
+                val removed = removeRefreshPlaceholderLocked()
+                if (removed > 0) {
+                    logger.fWarn { "RefreshNew pre-clean removed stale placeholders: $removed" }
+                }
+            }
 
             setLoading(true, expectedGen)
             try {
                 val baselineSeed = updateBaseline.orEmpty()
 
-                // 只拉 page=1，快速展示
+                // 只拉最新 1 页并立即落地
                 val firstData = userRepository.getDynamicVideos(
                     page = 1,
                     offset = "",
@@ -135,7 +210,7 @@ class DynamicViewModel(
                     list = firstData.videos
                 ) { it.authorMid }
 
-                val firstNewItems = ArrayList<DynamicVideo>(firstFiltered.size)
+                val firstPageNewItems = ArrayList<DynamicVideo>(firstFiltered.size)
                 var firstPageOverlap = false
 
                 withContext(Dispatchers.Main) {
@@ -143,14 +218,15 @@ class DynamicViewModel(
 
                     for (item in firstFiltered) {
                         if (aidSet.contains(item.aid)) firstPageOverlap = true
-                        if (aidSet.add(item.aid)) firstNewItems.add(item)
+                        if (aidSet.add(item.aid)) firstPageNewItems.add(item)
                     }
 
-                    if (firstNewItems.isNotEmpty()) {
-                        dynamicList.addAll(0, firstNewItems)
-                        totalAdded += firstNewItems.size
-                        // 有新增就瞬移到顶部
-                        _scrollToTopEvent.tryEmit(Unit)
+                    if (firstPageNewItems.isNotEmpty()) {
+                        dynamicList.addAll(0, firstPageNewItems)
+                        totalAdded += firstPageNewItems.size
+
+                        // 第一页落地后立即滚顶
+                        scrollToTopToken += 1
                     }
 
                     // 只在非空时更新 baseline
@@ -166,112 +242,147 @@ class DynamicViewModel(
                     }
                 }
 
-                // 第一阶段结束后立即关 loading，保证首屏反馈速度
+                // 第一页完成后先关全局 loading，后续用占位卡提示
                 setLoading(false, expectedGen)
 
-                // 如果第一页已经命中重叠且没有新增，可直接给出提示并结束
-                if (firstNewItems.isEmpty() && firstPageOverlap) {
+                // 第一页无新增且命中重叠，可直接判定无更新
+                if (firstPageNewItems.isEmpty() && firstPageOverlap) {
                     if (showNoUpdateToast && hadItemsBefore) {
                         withContext(Dispatchers.Main) {
                             if (expectedGen != generation) return@withContext
                             "没有更新的了".toast(BVApp.context)
                         }
                     }
+                    logger.fInfo { "RefreshNew end early(no update): gen=$expectedGen" }
                     return
                 }
 
-                // 后台补齐到边界（无固定页数上限）
-                // 边界条件：
-                // 1) 本页无新增且出现已知 aid（命中重叠边界）
-                // 2) hasMore=false
-                // 3) offset 为空
+                // 若还有后续，显示占位卡并在后台拉取，最终一次性插入
                 val baselineForCatchUp = updateBaseline.orEmpty()
                 var cursorOffset = firstData.historyOffset
                 var page = 2
 
-                if (firstData.hasMore && cursorOffset.isNotBlank()) {
-                    val job = viewModelScope.launch(Dispatchers.IO) {
-                        try {
-                            while (isActive && expectedGen == generation) {
-                                if (cursorOffset.isBlank()) break
+                val pendingItems = ArrayList<DynamicVideo>()
+                val pendingAidSet = HashSet<Long>(512)
+                var reachNoMore = false
+                var catchUpTimedOut = false
 
-                                val data = userRepository.getDynamicVideos(
-                                    page = page,
-                                    offset = cursorOffset,
-                                    updateBaseline = baselineForCatchUp,
-                                    preferApiType = Prefs.apiType
-                                )
-                                if (!isActive || expectedGen != generation) return@launch
+                if (firstData.hasMore && cursorOffset.isNotBlank()) {
+                    // 占位卡放在“第一页新增内容”之后
+                    showRefreshPlaceholder(
+                        expectedGen = expectedGen,
+                        insertIndex = firstPageNewItems.size
+                    )
+
+                    logger.fInfo {
+                        "Refresh catch-up start: gen=$expectedGen, startPage=$page, offset=$cursorOffset"
+                    }
+
+                    try {
+                        withTimeout(CATCH_UP_TOTAL_TIMEOUT_MS) {
+                            while (coroutineContext.isActive && expectedGen == generation) {
+                                if (cursorOffset.isBlank()) {
+                                    reachNoMore = true
+                                    break
+                                }
+
+                                val data = withTimeout(CATCH_UP_PAGE_TIMEOUT_MS) {
+                                    userRepository.getDynamicVideos(
+                                        page = page,
+                                        offset = cursorOffset,
+                                        updateBaseline = baselineForCatchUp,
+                                        preferApiType = Prefs.apiType
+                                    )
+                                }
+                                if (!coroutineContext.isActive || expectedGen != generation) return@withTimeout
 
                                 val filtered = dev.aaa1115910.bv.block.BlockManager.filterList(
                                     page = dev.aaa1115910.bv.block.BlockPage.Dynamics,
                                     list = data.videos
                                 ) { it.authorMid }
 
-                                val pageNewItems = ArrayList<DynamicVideo>(filtered.size)
                                 var pageOverlap = false
+                                var pageAdded = 0
 
-                                withContext(Dispatchers.Main) {
-                                    if (expectedGen != generation) return@withContext
-
-                                    for (item in filtered) {
-                                        if (aidSet.contains(item.aid)) pageOverlap = true
-                                        if (aidSet.add(item.aid)) pageNewItems.add(item)
+                                for (item in filtered) {
+                                    val alreadyInList = aidSet.contains(item.aid)
+                                    if (alreadyInList) {
+                                        pageOverlap = true
+                                        continue
                                     }
-
-                                    if (pageNewItems.isNotEmpty()) {
-                                        dynamicList.addAll(0, pageNewItems)
-                                        totalAdded += pageNewItems.size
+                                    if (pendingAidSet.add(item.aid)) {
+                                        pendingItems.add(item)
+                                        pageAdded++
                                     }
                                 }
 
                                 cursorOffset = data.historyOffset
 
-                                // 命中重叠边界：结束补齐
-                                if (pageNewItems.isEmpty() && pageOverlap) break
-                                if (!data.hasMore) break
-                                if (cursorOffset.isBlank()) break
+                                // 主条件：hasMore=false/offset 为空
+                                if (!data.hasMore || cursorOffset.isBlank()) {
+                                    reachNoMore = true
+                                    break
+                                }
+
+                                // 提前结束条件：本页无新增 && 命中重叠
+                                if (pageAdded == 0 && pageOverlap) break
 
                                 page++
                             }
-
-                            if (showNoUpdateToast && hadItemsBefore) {
-                                withContext(Dispatchers.Main) {
-                                    if (expectedGen != generation) return@withContext
-                                    if (totalAdded > 0) {
-                                        "更新了 ${totalAdded} 条".toast(BVApp.context)
-                                    } else {
-                                        "没有更新的了".toast(BVApp.context)
-                                    }
-                                }
-                            }
-                        } catch (_: CancellationException) {
-                            logger.fInfo { "Refresh catch-up canceled" }
-                        } catch (e: Exception) {
-                            if (expectedGen != generation) return@launch
-                            logger.fWarn { "Refresh catch-up failed: ${e.stackTraceToString()}" }
+                        }
+                    } catch (_: TimeoutCancellationException) {
+                        catchUpTimedOut = true
+                        logger.fWarn {
+                            "Refresh catch-up timeout: gen=$expectedGen, page=$page, offset=$cursorOffset"
                         }
                     }
 
-                    loadJob = job
-                    job.invokeOnCompletion {
-                        if (loadJob === job) loadJob = null
+                    withContext(Dispatchers.Main) {
+                        if (expectedGen != generation) return@withContext
+
+                        // 先移除占位，再一次性插入后续新数据（避免中途重排抖动）
+                        removeRefreshPlaceholderLocked()
+
+                        if (pendingItems.isNotEmpty()) {
+                            val committed = ArrayList<DynamicVideo>(pendingItems.size)
+                            for (item in pendingItems) {
+                                if (aidSet.add(item.aid)) committed.add(item)
+                            }
+
+                            if (committed.isNotEmpty()) {
+                                val insertAt = firstPageNewItems.size.coerceIn(0, dynamicList.size)
+                                dynamicList.addAll(insertAt, committed)
+                                totalAdded += committed.size
+                            }
+                        }
+
+                        if (reachNoMore) {
+                            hasMore = false
+                        }
                     }
-                } else {
-                    // 没有后台补齐时，立即给提示
-                    if (showNoUpdateToast && hadItemsBefore) {
+
+                    if (catchUpTimedOut && showNoUpdateToast && hadItemsBefore) {
                         withContext(Dispatchers.Main) {
                             if (expectedGen != generation) return@withContext
-                            if (totalAdded > 0) {
-                                "更新了 ${totalAdded} 条".toast(BVApp.context)
-                            } else {
-                                "没有更新的了".toast(BVApp.context)
-                            }
+                            "更新超时，已展示已获取内容".toast(BVApp.context)
                         }
                     }
                 }
+
+                if (showNoUpdateToast && hadItemsBefore) {
+                    withContext(Dispatchers.Main) {
+                        if (expectedGen != generation) return@withContext
+                        if (totalAdded > 0) {
+                            "更新了 $totalAdded 条".toast(BVApp.context)
+                        } else {
+                            "没有更新的了".toast(BVApp.context)
+                        }
+                    }
+                }
+
+                logger.fInfo { "RefreshNew end: gen=$expectedGen, totalAdded=$totalAdded" }
             } catch (_: CancellationException) {
-                logger.fInfo { "Refresh new canceled" }
+                logger.fInfo { "Refresh new canceled: gen=$expectedGen" }
             } catch (e: Exception) {
                 if (expectedGen != generation) return
                 logger.fWarn { "Refresh new failed: ${e.stackTraceToString()}" }
@@ -279,13 +390,19 @@ class DynamicViewModel(
                     "刷新动态失败: ${e.localizedMessage}".toast(BVApp.context)
                 }
             } finally {
-                setLoading(false, expectedGen)
+                // 即使协程处于取消态，也必须完成占位清理和状态收口
+                withContext(NonCancellable) {
+                    hideRefreshPlaceholder(expectedGen)
+                    isRefreshingNew = false
+                    setLoading(false, expectedGen)
+                }
             }
         }
     }
 
     private fun loadMoreInternal() {
         if (!hasMore) return
+        if (isRefreshingNew) return
 
         // 有在途请求就不再发新请求（避免并发 append / 重复 aid）
         if (loadJob?.isActive == true) return
@@ -384,5 +501,7 @@ class DynamicViewModel(
         hasMore = true
         historyOffset = null
         updateBaseline = null
+        isRefreshingNew = false
+        refreshPlaceholderIndex = -1
     }
 }
