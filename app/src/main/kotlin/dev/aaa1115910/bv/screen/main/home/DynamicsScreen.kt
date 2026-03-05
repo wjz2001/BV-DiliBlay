@@ -14,6 +14,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -41,6 +44,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.yield
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -86,9 +90,19 @@ fun DynamicsScreen(
         }
     }
 
-    LaunchedEffect(dynamicViewModel, gridState) {
-        dynamicViewModel.scrollToTopEvent.collectLatest {
+    var lastHandledScrollToken by remember { mutableStateOf(dynamicViewModel.scrollToTopToken) }
+
+    LaunchedEffect(dynamicViewModel.scrollToTopToken, gridState) {
+        val token = dynamicViewModel.scrollToTopToken
+        if (token <= lastHandledScrollToken) return@LaunchedEffect
+
+        lastHandledScrollToken = token
+
+        // 最多重试 3 次，避免重组/焦点导致首次滚动被抵消
+        repeat(3) {
             gridState.scrollToItem(0)
+            if (gridState.firstVisibleItemIndex == 0) return@LaunchedEffect
+            yield()
         }
     }
 
@@ -119,34 +133,47 @@ fun DynamicsScreen(
                 items = dynamicViewModel.dynamicList,
                 key = { _, item -> item.aid }
             ) { _, item ->
+                val isRefreshPlaceholder = item.aid == DynamicViewModel.REFRESH_PLACEHOLDER_AID
+
                 SmallVideoCard(
-                    data = remember(item) {         // `VideoCardData` 只在 item 变动时重建
+                    data = remember(item, isRefreshPlaceholder) {
                         VideoCardData(
                             avid = item.aid,
                             title = item.title,
                             cover = item.cover,
-                            playString = item.play.takeIf { it != -1 }.toWanString(),
-                            danmakuString = item.danmaku.takeIf { it != -1 }.toWanString(),
+                            playString = if (isRefreshPlaceholder) "" else item.play.takeIf { it != -1 }.toWanString(),
+                            danmakuString = if (isRefreshPlaceholder) "" else item.danmaku.takeIf { it != -1 }.toWanString(),
                             upName = item.author,
-                            timeString = (item.duration * 1000L).formatHourMinSec(),
-                            pubTime = item.pubTime
+                            timeString = if (isRefreshPlaceholder) "" else (item.duration * 1000L).formatHourMinSec(),
+                            pubTime = if (isRefreshPlaceholder) null else item.pubTime
                         )
                     },
-                    onClick = { onClickVideo(item) },
-                    onAddWatchLater = {
-                        toViewViewModel.addToView(item.aid)
+                    onClick = {
+                        if (!isRefreshPlaceholder) onClickVideo(item)
                     },
-                    onGoToDetailPage = {
-                        VideoInfoActivity.actionStart(
-                            context = context,
-                            fromController = true,
-                            aid = item.aid,
-                            epid = item.epid,
-                        )
+                    onAddWatchLater = if (isRefreshPlaceholder) {
+                        null
+                    } else {
+                        { toViewViewModel.addToView(item.aid) }
                     },
-                    onGoToUpPage = {
-                        UpInfoActivity.actionStart(context, item.authorMid, item.author)
-                    }
+                    onGoToDetailPage = if (isRefreshPlaceholder) {
+                        null
+                    } else {
+                        {
+                            VideoInfoActivity.actionStart(
+                                context = context,
+                                fromController = true,
+                                aid = item.aid,
+                                epid = item.epid,
+                            )
+                        }
+                    },
+                    onGoToUpPage = if (isRefreshPlaceholder) {
+                        null
+                    } else {
+                        { UpInfoActivity.actionStart(context, item.authorMid, item.author) }
+                    },
+                    interactive = !isRefreshPlaceholder
                 )
             }
 

@@ -42,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
@@ -96,6 +97,7 @@ import dev.aaa1115910.biliapi.repositories.FavoriteRepository
 import dev.aaa1115910.biliapi.repositories.VideoDetailRepository
 import dev.aaa1115910.biliapi.entity.user.CoAuthor
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
+import dev.aaa1115910.bv.component.ifElse
 
 @Composable
 fun SmallVideoCard(
@@ -106,6 +108,7 @@ fun SmallVideoCard(
     onAddWatchLater: (() -> Unit)? = null,
     onGoToDetailPage : (() -> Unit)? = null,
     onGoToUpPage : (() -> Unit)? = null,
+    interactive: Boolean = true,
     // 1. 为 SmallVideoCard 添加独立的参数，用于分别控制 Cover 和 Info
     coverDensityMultiplier: Float = 1.5f,
     coverFontScaleMultiplier: Float = 1.5f,
@@ -337,14 +340,19 @@ fun SmallVideoCard(
 
     Column(modifier = modifier.fillMaxWidth()) {
         Card(
-            onClick = { if (!showActions) onClick() },
+            onClick = { if (interactive && !showActions) onClick() },
             onLongClick = {
+                if (!interactive) return@Card
+
                 //if (hasAnyAction) showActions = true
                 // 四按钮必须永远显示：长按永远进入 actions
                 showActions = true
-
             },
             modifier = Modifier
+                .ifElse(
+                    !interactive,
+                    Modifier.focusProperties { canFocus = false }
+                )
                 .fillMaxWidth()
                 .aspectRatio(1.6f)
                 .onFocusChanged { focusState ->
@@ -658,6 +666,7 @@ fun SmallVideoCard(
                     play = data.playString,
                     danmaku = data.danmakuString,
                     time = data.timeString,
+                    interactive = interactive,
                     coverDensityMultiplier = coverDensityMultiplier,
                     coverFontScaleMultiplier = coverFontScaleMultiplier
                 )
@@ -787,6 +796,7 @@ fun CardCover(
     play: String,
     danmaku: String,
     time: String,
+    interactive: Boolean,
     // 4. CardCover 使用独立的参数名
     coverDensityMultiplier: Float,
     coverFontScaleMultiplier: Float
@@ -833,15 +843,22 @@ fun CardCover(
             BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            colorStops = arrayOf(
-                                0.0f to Color.Transparent,
-                                0.15f to Color.Transparent,
-                                0.16f to Color.Black.copy(alpha = 0.7f),
-                                1.0f to Color.Black.copy(alpha = 0.7f)
+                    // 使用 then 进行条件判断插入 Modifier
+                    .then(
+                        if (interactive) {
+                            Modifier.background(
+                                Brush.verticalGradient(
+                                    colorStops = arrayOf(
+                                        0.0f to Color.Transparent,
+                                        0.15f to Color.Transparent,
+                                        0.16f to Color.Black.copy(alpha = 0.7f),
+                                        1.0f to Color.Black.copy(alpha = 0.7f)
+                                    )
+                                )
                             )
-                        )
+                        } else {
+                            Modifier
+                        }
                     )
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
