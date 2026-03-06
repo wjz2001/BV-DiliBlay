@@ -88,6 +88,7 @@ class VideoPlayRepository(
                                         qn = 127
                                         fnver = 0
                                         fourk = true
+                                        forceHost = 2
                                         preferCodecType = codecType.toPlayerSharedCodeType()
                                     }
                                 }) ?: throw IllegalStateException("Player stub is not initialized")
@@ -169,6 +170,7 @@ class VideoPlayRepository(
                             fnval = 4048
                             fourk = true
                             forceHost = 0
+                            forceHost = 2
                             download = 0
                             preferCodecType = codecType.toPgcPlayUrlCodeType()
                         }
@@ -224,8 +226,8 @@ class VideoPlayRepository(
             ApiType.App -> {
                 val dmViewReply = runCatching {
                     danmakuStub?.dmView(dmViewReq {
-                        pid = aid.toLong()
-                        oid = cid.toLong()
+                        pid = aid
+                        oid = cid
                         type = 1
                     })
                 }.onFailure { handleGrpcException(it) }.getOrThrow()
@@ -265,7 +267,7 @@ class VideoPlayRepository(
     ) {
         val result = when (preferApiType) {
             ApiType.Web -> BiliHttpApi.sendHeartbeat(
-                avid = aid.toLong(),
+                avid = aid,
                 cid = cid,
                 playedTime = time,
                 type = type.value,
@@ -277,7 +279,7 @@ class VideoPlayRepository(
             )
 
             ApiType.App -> BiliHttpApi.sendHeartbeat(
-                avid = aid.toLong(),
+                avid = aid,
                 cid = cid,
                 playedTime = time,
                 type = type.value,
