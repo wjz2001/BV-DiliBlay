@@ -43,6 +43,7 @@ import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.player.AbstractVideoPlayer
 import dev.aaa1115910.bv.player.VideoPlayerListener
 import dev.aaa1115910.bv.repository.VideoInfoRepository
+import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
 import dev.aaa1115910.bv.ui.effect.PlayerUiEffect
 import dev.aaa1115910.bv.ui.state.DanmakuState
@@ -59,6 +60,7 @@ import dev.aaa1115910.bv.util.formatHourMinSec
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.ResponseException
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -126,6 +128,22 @@ class VideoPlayerV3ViewModel(
     private var danmakuView: DanmakuView? = null
 
     private var playData: PlayData? = null
+
+    private data class OneShotApiOverride(
+        val aid: Long,
+        val cid: Long,
+        val apiType: ApiType,
+        val preferredQualityId: Int?
+    )
+
+    @Volatile
+    private var oneShotApiOverride: OneShotApiOverride? = null
+
+    @Volatile
+    private var currentPlayApiType: ApiType = Prefs.apiType
+
+    @Volatile
+    private var app302FallbackTried: Boolean = false
 
     private data class ContinueSelection(
         val type: SubtitleType,
@@ -201,6 +219,7 @@ class VideoPlayerV3ViewModel(
 
     private val videoPlayerListener = object : VideoPlayerListener {
         override fun onError(error: Exception) {
+            if (tryAutoSwitchToWebForApp302(error)) return
             // 抑制期：stop/surfaceDestroyed/回场 attach 阶段的 surface 类错误不进 UI，避免“进/退页面闪抽风”
             if (suppressPlayerErrors) {
                 val isDetachTimeoutByType = hasDetachSurfaceTimeout(error)
@@ -289,6 +308,50 @@ class VideoPlayerV3ViewModel(
         }
     }
 
+    private fun isHttp302Error(error: Throwable): Boolean {
+        val responseCode = (error as? ResponseException)?.response?.status?.value
+        if (responseCode == 302) return true
+
+        val msg = error.message.orEmpty()
+        val stack = error.stackTraceToString()
+        val has302 = Regex("""\b302\b""").containsMatchIn("$msg\n$stack")
+        if (!has302) return false
+
+        return msg.contains("http", ignoreCase = true) ||
+                msg.contains("status", ignoreCase = true) ||
+                msg.contains("response", ignoreCase = true) ||
+                stack.contains("HTTP/1.1 302", ignoreCase = true) ||
+                stack.contains("status: 302", ignoreCase = true) ||
+                stack.contains("Response code: 302", ignoreCase = true)
+    }
+
+    private fun tryAutoSwitchToWebForApp302(error: Throwable): Boolean {
+        if (currentPlayApiType != ApiType.App) return false
+        if (app302FallbackTried) return false
+        if (!isHttp302Error(error)) return false
+
+        app302FallbackTried = true
+
+        val state = _uiState.value
+        val fallbackQualityId = state.mediaProfileState.qualityId.takeIf { it > 0 }
+
+        logger.fWarn {
+            "App chain hit HTTP 302, fallback once to Web, qualityId=$fallbackQualityId"
+        }
+
+        loadPlayUrl(
+            avid = state.aid,
+            cid = state.cid,
+            epid = state.epid,
+            seasonId = state.seasonId.takeIf { it != 0 },
+            title = state.title,
+            partTitle = state.partTitle,
+            preferApi = ApiType.Web,
+            preferredQualityId = fallbackQualityId,
+            isAutoApp302Fallback = true
+        )
+        return true
+    }
     /*
     init {
         videoInfoRepository.videoList
@@ -1306,12 +1369,30 @@ class VideoPlayerV3ViewModel(
         seasonId: Int? = null,
         title: String,
         partTitle: String? = null,
+        preferApi: ApiType = Prefs.apiType,
+        preferredQualityId: Int? = null,
+        isAutoApp302Fallback: Boolean = false,
     ) {
         // 在 UI State 中保持 epid 的真实语义：
         // - UGC：null
         // - PGC：非 null
         // 同时兼容外部偶发传入 0 的情况（0 视作无 epid）
         val normalizedEpid = epid?.takeIf { it != 0 }
+
+        // 非自动回退路径：每次新触发播放都允许“最多一次”App->Web 回退
+        if (!isAutoApp302Fallback) {
+            app302FallbackTried = false
+        }
+
+        // 一次性覆盖：仅影响下一次同 aid/cid 的 loadPlayUrlImpl，不改全局 Prefs.apiType
+        if (preferApi != Prefs.apiType || preferredQualityId != null) {
+            oneShotApiOverride = OneShotApiOverride(
+                aid = avid,
+                cid = cid,
+                apiType = preferApi,
+                preferredQualityId = preferredQualityId
+            )
+        }
 
         // 如果调用方没传 partTitle：
         // - 切换到新视频/新 cid 时，至少用 title 覆盖掉旧 partTitle，避免残留
@@ -1418,7 +1499,18 @@ class VideoPlayerV3ViewModel(
         preferApi: ApiType = Prefs.apiType,
         proxyArea: ProxyArea = ProxyArea.MainLand
     ) {
-        logger.fInfo { "Load play url: [av=$avid, cid=$cid, preferApi=$preferApi, proxyArea=$proxyArea]" }
+        val matchedOverride = oneShotApiOverride?.takeIf { it.aid == avid && it.cid == cid }
+        if (matchedOverride != null) {
+            oneShotApiOverride = null
+        }
+
+        val effectiveApi = matchedOverride?.apiType ?: preferApi
+        val effectivePreferredQualityId = matchedOverride?.preferredQualityId
+        currentPlayApiType = effectiveApi
+
+        logger.fInfo {
+            "Load play url: [av=$avid, cid=$cid, preferApi=$preferApi, effectiveApi=$effectiveApi, proxyArea=$proxyArea]"
+        }
 
         runCatching {
             val playData = if (_uiState.value.fromSeason) {
@@ -1427,7 +1519,7 @@ class VideoPlayerV3ViewModel(
                     cid = cid,
                     epid = epid,
                     preferCodec = Prefs.defaultVideoCodec.toBiliApiCodeType(),
-                    preferApiType = Prefs.apiType,
+                    preferApiType = effectiveApi,
                     enableProxy = Prefs.enableProxy,
                     proxyArea = when (proxyArea) {
                         ProxyArea.MainLand -> ""
@@ -1439,7 +1531,7 @@ class VideoPlayerV3ViewModel(
                 videoPlayRepository.getPlayData(
                     aid = avid,
                     cid = cid,
-                    preferApiType = Prefs.apiType
+                    preferApiType = effectiveApi
                 )
             }
 
@@ -1482,8 +1574,8 @@ class VideoPlayerV3ViewModel(
             logger.fInfo { "Video available audio: $audioList" }
             _uiState.update { it.copy(availableAudio = audioList) }
 
-            // 确认最终所选清晰度
-            val defaultQualityCode = Prefs.defaultQuality.code
+            // 确认最终所选清晰度（302 回退时优先沿用上一次清晰度）
+            val defaultQualityCode = effectivePreferredQualityId ?: Prefs.defaultQuality.code
             val existDefaultResolution = resolutionMap.containsKey(defaultQualityCode)
             val targetQualityId = if (existDefaultResolution) {
                 defaultQualityCode
@@ -1532,6 +1624,10 @@ class VideoPlayerV3ViewModel(
                 videoPlayer?.start()
             }
         }.onFailure { throwable ->
+            if (tryAutoSwitchToWebForApp302(throwable)) {
+                return@onFailure
+            }
+
             _uiState.update {
                 it.copy(
                     playerState = PlayerState.Error(throwable.message ?: "Unknown error"),
@@ -1565,7 +1661,7 @@ class VideoPlayerV3ViewModel(
     private fun getTargetVideoCodec(): VideoCodec {
         val state = _uiState.value
 
-        if (Prefs.apiType == ApiType.App && playData!!.codec.isEmpty()) {
+        if (currentPlayApiType == ApiType.App && playData!!.codec.isEmpty()) {
             // 纠正当前实际播放的编码
             val videoItem = playData!!.dashVideos
                 .find { it.quality == state.mediaProfileState.qualityId }
@@ -1626,7 +1722,7 @@ class VideoPlayerV3ViewModel(
         }
 
         val foundVideoItem = playData!!.dashVideos.find {
-            when (Prefs.apiType) {
+            when (currentPlayApiType) {
                 ApiType.Web -> it.quality == targetQn && it.codecs!!.startsWith(targetCodec.prefix)
                 ApiType.App -> {
                     if (playData!!.codec.isEmpty()) it.quality == targetQn
@@ -1677,6 +1773,10 @@ class VideoPlayerV3ViewModel(
 
         logger.info { "Video url: $videoUrl" }
         logger.info { "Audio url: $audioUrl" }
+
+        val playbackHeaders = buildPlaybackHeaders(currentPlayApiType)
+        videoPlayer!!.setHeader(playbackHeaders)
+        logger.fInfo { "Apply playback headers for apiType=$currentPlayApiType,referer=${playbackHeaders.containsKey("referer")}" }
         videoPlayer!!.playUrl(videoUrl, audioUrl)
         videoPlayer!!.prepare()
 
@@ -1957,6 +2057,19 @@ class VideoPlayerV3ViewModel(
         }
     }
 
+    private fun buildPlaybackHeaders(apiType: ApiType): Map<String, String> {
+        return when (apiType) {
+            ApiType.Web -> mapOf(
+                "User-Agent" to BVApp.context.getString(R.string.video_player_user_agent_http),
+                "referer" to BVApp.context.getString(R.string.video_player_referer)
+            )
+
+            ApiType.App -> mapOf(
+                "User-Agent" to BVApp.context.getString(R.string.video_player_user_agent_client)
+            )
+        }
+    }
+
     private fun clearVideoShotCache() {
         _uiState.value.videoShotCache.clear()
     }
@@ -2041,6 +2154,7 @@ class VideoPlayerV3ViewModel(
                     showSkipToNextEp = true,
                 )
             }
+
             delay(5000)
 
             playNextTarget(target)

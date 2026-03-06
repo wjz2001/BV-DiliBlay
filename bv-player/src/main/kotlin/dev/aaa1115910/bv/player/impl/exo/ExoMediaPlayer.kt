@@ -85,7 +85,18 @@ class ExoMediaPlayer(
 
     @OptIn(UnstableApi::class)
     override fun setHeader(headers: Map<String, String>) {
+        val userAgent = headers.entries
+            .firstOrNull { it.key.equals("User-Agent", ignoreCase = true) }
+            ?.value
+        if (!userAgent.isNullOrBlank()) {
+            dataSourceFactory.setUserAgent(userAgent)
+        }
 
+        val requestHeaders = headers
+            .filterKeys { !it.equals("User-Agent", ignoreCase = true) }
+            .mapKeys { if (it.key.equals("referer", ignoreCase = true)) "referer" else it.key }
+
+        dataSourceFactory.setDefaultRequestProperties(requestHeaders)
     }
 
     @OptIn(UnstableApi::class)
