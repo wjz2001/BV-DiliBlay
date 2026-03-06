@@ -2154,8 +2154,9 @@ class VideoPlayerV3ViewModel(
                     showSkipToNextEp = true,
                 )
             }
-
-            delay(5000)
+            //切换下一个视频间隔
+            //delay(5000)
+            delay(1000)
 
             playNextTarget(target)
             _uiState.update { it.copy(showSkipToNextEp = false) }
