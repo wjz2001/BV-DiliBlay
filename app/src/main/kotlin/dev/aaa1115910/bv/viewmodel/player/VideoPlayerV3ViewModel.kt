@@ -395,6 +395,7 @@ class VideoPlayerV3ViewModel(
 
         if (old == new) return
 
+        // 首先更新UI
         _uiState.update { it.copy(danmakuState = new) }
 
         // ===== 副作用处理 =====
@@ -411,6 +412,7 @@ class VideoPlayerV3ViewModel(
             Prefs.defaultDanmakuSpeedFactor = new.speedFactor
         }
         if (new.area != old.area) {
+            updateDanmakuArea(new.area)
             Prefs.defaultDanmakuArea = new.area
         }
         if (new.opacity != old.opacity) {
@@ -1066,6 +1068,7 @@ class VideoPlayerV3ViewModel(
 
     private fun initDanmakuConfig() {
         val danmakuTypes = Prefs.defaultDanmakuTypes
+        val area = Prefs.defaultDanmakuArea
         val scale = Prefs.defaultDanmakuScale
         val factor = Prefs.defaultDanmakuSpeedFactor
 
@@ -1086,6 +1089,7 @@ class VideoPlayerV3ViewModel(
         danmakuConfig = danmakuConfig.copy(
             retainerPolicy = RETAINER_BILIBILI,
             textSizeScale = scale,
+            screenPart = area,
             dataFilter = listOf(typeFilter),
             rollingSpeedFactor = factor
         )
@@ -1114,6 +1118,18 @@ class VideoPlayerV3ViewModel(
         logger.info { "Update danmaku type filters: ${typeFilter.filterSet}" }
         danmakuConfig.updateFilter()
         danmakuPlayer?.updateConfig(danmakuConfig)
+    }
+
+    private fun updateDanmakuArea(area: Float) {
+        logger.info { "Update danmaku area: $area" }
+
+        danmakuConfig = danmakuConfig.copy(
+            screenPart = area
+        )
+        danmakuPlayer?.updateConfig(danmakuConfig)
+
+        // 更新弹幕库之后updateConfig会导致滚动速度被重置，所以这里需要重新设置
+        danmakuPlayer?.setDanmakuRollingSpeed(_uiState.value.danmakuState.speedFactor)
     }
 
     private fun updateDanmakuScale(scale: Float) {
