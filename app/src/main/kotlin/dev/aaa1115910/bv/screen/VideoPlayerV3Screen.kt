@@ -232,7 +232,6 @@ fun VideoPlayerV3Screen(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .fillMaxHeight(areaRatio)
                     // 在之前版本中，设置 DanmakuConfig 透明度后，更改其它弹幕设置后，可能会导致弹幕透明度
                     // 突然变成完全不透明一瞬间，因此这次新版选择直接在此处设置透明度
                     .alpha(uiState.danmakuState.opacity)
