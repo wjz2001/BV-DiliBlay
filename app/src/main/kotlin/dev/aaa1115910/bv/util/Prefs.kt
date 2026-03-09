@@ -32,6 +32,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import java.net.URLDecoder
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.util.Date
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -222,6 +225,56 @@ object Prefs {
         }
     )
 
+    /**
+     * 自动字幕规则展示名映射（token -> label）
+     *
+     * 说明：
+     * - token 例："CC|zh"、"AI|en"
+     * - label 例："中文"、"English(AI)"
+     * - 存储格式：URL 编码后的 k=v，以 & 连接
+     */
+    var autoSubtitleRuleTokenLabels by pref(
+        PrefKeys.prefAutoSubtitleRuleTokenLabelsKey,
+        emptyMap(),
+        save = { map ->
+            map.entries
+                .asSequence()
+                .filter { it.key.isNotBlank() && it.value.isNotBlank() }
+                .joinToString("&") { (token, label) ->
+                    val k = URLEncoder.encode(token, StandardCharsets.UTF_8.toString())
+                    val v = URLEncoder.encode(label, StandardCharsets.UTF_8.toString())
+                    "$k=$v"
+                }
+        },
+        restore = { raw ->
+            if (raw.isBlank()) {
+                emptyMap()
+            } else {
+                val map = linkedMapOf<String, String>()
+                raw.split("&").forEach { pair ->
+                    val sep = pair.indexOf('=')
+                    if (sep <= 0 || sep >= pair.length - 1) return@forEach
+
+                    runCatching {
+                        val token = URLDecoder.decode(
+                            pair.substring(0, sep),
+                            StandardCharsets.UTF_8.toString()
+                        ).trim()
+                        val label = URLDecoder.decode(
+                            pair.substring(sep + 1),
+                            StandardCharsets.UTF_8.toString()
+                        ).trim()
+
+                        if (token.isNotEmpty() && label.isNotEmpty()) {
+                            map[token] = label
+                        }
+                    }
+                }
+                map
+            }
+        }
+    )
+
     //连播下一集是否自动开启字幕（继承上一集选择）
 
     var continuePlayAutoSubtitleEnabled by pref(
@@ -379,10 +432,8 @@ class PrefDelegate<T, P>(
             return
         }
 
-        BVApp.dataStoreManager.run {
-            kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
-                editPreference(key, persistValue)
-            }
+        persistScope.launch {
+            BVApp.dataStoreManager.editPreference(key, persistValue)
         }
     }
 }
@@ -411,6 +462,7 @@ private object PrefKeys {
     val prefDefaultSubtitleBottomPaddingKey = intPreferencesKey("dsbp")
     // 自动字幕
     val prefAutoSubtitleRuleTokensKey = stringPreferencesKey("auto_subtitle_rules_csv")
+    val prefAutoSubtitleRuleTokenLabelsKey = stringPreferencesKey("auto_subtitle_rule_labels_kv")
     val prefContinuePlayAutoSubtitleEnabledKey =
         booleanPreferencesKey("continue_play_auto_subtitle_enabled")
     val prefShowFpsKey = booleanPreferencesKey("sf")
