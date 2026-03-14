@@ -1,8 +1,10 @@
 package dev.aaa1115910.bv.repository
 
 import dev.aaa1115910.biliapi.entity.ApiType
+import dev.aaa1115910.biliapi.entity.user.CoAuthor
 import dev.aaa1115910.biliapi.entity.video.RelatedVideo
 import dev.aaa1115910.biliapi.repositories.VideoDetailRepository
+import dev.aaa1115910.bv.component.videocard.CoAuthorCacheStore
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.util.formatHourMinSec
@@ -88,6 +90,31 @@ class VideoInfoRepository(private val videoDetailRepository: VideoDetailReposito
                 item.copy(ugcPages = pages)
             }
         }
+    }
+
+    suspend fun ensureCoAuthorsLoaded(
+        aid: Long,
+        preferApiType: ApiType = ApiType.Web
+    ): List<CoAuthor> {
+        val current = _videoDetailState.value
+        if (current?.aid == aid && current.coAuthors.isNotEmpty()) {
+            return current.coAuthors
+        }
+
+        val result = CoAuthorCacheStore.getOrFetch(
+            avid = aid,
+            preferApiType = preferApiType,
+            repository = videoDetailRepository
+        )
+        val authors = result.authors
+
+        _videoDetailState.update { old ->
+            if (old?.aid != aid) return@update old
+            if (old.coAuthors == authors) return@update old
+            old.copy(coAuthors = authors)
+        }
+
+        return authors
     }
 
     fun clearVideoList() {

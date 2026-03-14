@@ -100,7 +100,6 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import org.jsoup.nodes.Document
 import javax.xml.parsers.DocumentBuilderFactory
 
-@Suppress("SpellCheckingInspection")
 object BiliHttpApi {
     private var endPoint: String = "api.bilibili.com"
     private lateinit var client: HttpClient
@@ -415,17 +414,12 @@ object BiliHttpApi {
      */
 
     suspend fun getToView(
-        // max: Long = 0,
-        // business: String = "",
-        // viewAt: Long = 0,
-        // pageSize: Int = 20,
-        sessData: String = ""
+        accessKey: String? = null,
+        sessData: String? = null
     ): BiliResponse<ToViewData> = client.get("/x/v2/history/toview") {
-        // parameter("max", max)
-        // parameter("business", business)
-        // parameter("view_at", viewAt)
-        // parameter("ps", pageSize)
-        header("Cookie", "SESSDATA=$sessData;")
+        checkToken(accessKey, sessData)
+        accessKey?.let { parameter("access_key", it) }
+        sessData?.let { header("Cookie", "SESSDATA=$it;") }
     }.body()
 
     /**
@@ -471,6 +465,45 @@ object BiliHttpApi {
                     }
                 ))
             header("Cookie", "SESSDATA=$sessData;")
+        }.body<BiliResponseWithoutData>()
+        return Pair(response.code == 0, response.message)
+    }
+
+    suspend fun addToViewWithAccessKey(
+        avid: Long? = null,
+        bvid: String? = null,
+        accessKey: String
+    ): Pair<Boolean, String> {
+        val response = client.post("/x/v2/history/toview/add") {
+            require(avid != null || bvid != null) { "avid and bvid cannot be null at the same time" }
+            setBody(
+                FormDataContent(
+                    Parameters.build {
+                        avid?.let { append("aid", "$it") }
+                        bvid?.let { append("bvid", it) }
+                        append("access_key", accessKey)
+                    }
+                )
+            )
+        }.body<BiliResponseWithoutData>()
+        return Pair(response.code == 0, response.message)
+    }
+
+    suspend fun delToViewWithAccessKey(
+        viewed: Boolean = false,
+        avid: Long? = null,
+        accessKey: String
+    ): Pair<Boolean, String> {
+        val response = client.post("/x/v2/history/toview/del") {
+            setBody(
+                FormDataContent(
+                    Parameters.build {
+                        append("viewed", "${if (viewed) 1 else 0}")
+                        avid?.let { append("aid", "$it") }
+                        append("access_key", accessKey)
+                    }
+                )
+            )
         }.body<BiliResponseWithoutData>()
         return Pair(response.code == 0, response.message)
     }

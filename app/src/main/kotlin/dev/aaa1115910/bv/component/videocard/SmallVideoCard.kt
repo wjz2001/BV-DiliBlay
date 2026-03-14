@@ -86,7 +86,9 @@ import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.swapListWithMainContext
 import dev.aaa1115910.bv.util.toast
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.compose.getKoin
@@ -219,6 +221,9 @@ fun SmallVideoCard(
     // 历史记录：缓存 cid，避免重复请求
     var historyCid by remember(data.avid) { mutableStateOf<Long?>(null) }
 
+    // 当前卡片 coAuthors 预取任务（仅 showActions 生命周期内有效）
+    var coAuthorPrefetchJob by remember(data.avid) { mutableStateOf<Job?>(null) }
+
     // 收藏：状态由 SmallVideoCard 自己管理
     var showFavoriteDialog by remember(data.avid) { mutableStateOf(false) }
     var isFavorite by remember(data.avid) { mutableStateOf(false) }
@@ -251,22 +256,7 @@ fun SmallVideoCard(
     // 历史上报：当前方案仅走 access_key（/x/v2/history/report）
     val canHistory = Prefs.accessToken.isNotEmpty()
 
-    LaunchedEffect(data.avid, canGoToUpPage) {
-        if (!canGoToUpPage || hasFetchedCoAuthors || fetchingCoAuthors) return@LaunchedEffect
-
-        fetchingCoAuthors = true
-        logger.fInfo { "CoAuthors[prefetch_on_compose] start: aid=${data.avid}, apiType=${Prefs.apiType}" }
-
-        runCatching {
-            loadCoAuthors(reason = "prefetch_on_compose")
-        }.onSuccess { authors ->
-            applyCoAuthors(authors = authors, reason = "prefetch_on_compose")
-        }.onFailure { e ->
-            fetchingCoAuthors = false
-        }
-    }
-
-    LaunchedEffect(showActions) {
+    LaunchedEffect(showActions, canGoToUpPage) {
         if (showActions) {
             // 用项目内已有的“带重试的请求焦点”扩展，确保默认焦点可靠
             historyButtonRequester.requestFocus(scope)
@@ -298,29 +288,38 @@ fun SmallVideoCard(
                 }
             }
 
-            // 用于决定“个人空间”图标是否显示 Group，如果前置预取还没成功，打开 actions 时再尝试一次
-            if (canGoToUpPage && !hasFetchedCoAuthors && !fetchingCoAuthors) {
+            // 仅在长按菜单显示期间，对当前卡片预取一次 coAuthors
+            if (canGoToUpPage && !hasFetchedCoAuthors && !fetchingCoAuthors && coAuthorPrefetchJob?.isActive != true) {
                 fetchingCoAuthors = true
-                scope.launch(Dispatchers.IO) {
+                coAuthorPrefetchJob = scope.launch(Dispatchers.IO) {
                     runCatching {
-                        loadCoAuthors(reason = "showActions_fallback")
+                        loadCoAuthors(reason = "showActions_prefetch")
                     }.onSuccess { authors ->
                         withContext(Dispatchers.Main) {
-                            applyCoAuthors(authors = authors, reason = "showActions_fallback")
+                            applyCoAuthors(authors = authors, reason = "showActions_prefetch")
                         }
                     }.onFailure { e ->
-                        logger.fWarn {
-                            "Prefetch coAuthors failed: aid=${data.avid}, apiType=${Prefs.apiType}, error=${e.stackTraceToString()}"
-                        }
                         withContext(Dispatchers.Main) {
                             fetchingCoAuthors = false
-                            // 预拉取失败不影响点击逻辑：点击时仍会走兜底跳转
+                        }
+                        if (e is CancellationException) return@onFailure
+                        logger.fWarn {
+                            "Prefetch coAuthors failed: aid=${data.avid}, apiType=${Prefs.apiType}, error=${e.stackTraceToString()}"
                         }
                     }
                 }
             }
         } else {
             releaseLongPress = false // 退出操作态时重置
+            coAuthorPrefetchJob?.cancel()
+            coAuthorPrefetchJob = null
+            fetchingCoAuthors = false
+
+            // 关闭菜单时取消该卡片在途 coAuthors 请求，避免无效请求占用风控预算
+            CoAuthorCacheStore.cancelInFlight(
+                avid = data.avid,
+                apiType = Prefs.apiType
+            )
         }
     }
 
@@ -414,7 +413,7 @@ fun SmallVideoCard(
                                                     ?: videoDetailRepository
                                                         .getUgcPages(
                                                             aid = data.avid,
-                                                            preferApiType = ApiType.Web
+                                                            preferApiType = Prefs.apiType
                                                         )
                                                         .firstOrNull()
                                                         ?.cid
