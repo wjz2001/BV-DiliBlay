@@ -71,10 +71,10 @@ object CoAuthorCacheStore {
         } else {
             val newTask = async(Dispatchers.IO) {
                 val networkStartMs = System.currentTimeMillis()
-                val authors = repository.getVideoDetail(
+                val authors = repository.getCoAuthors(
                     aid = avid,
                     preferApiType = preferApiType
-                ).coAuthors
+                )
                 FetchPayload(
                     authors = authors,
                     networkCostMs = System.currentTimeMillis() - networkStartMs
@@ -111,12 +111,18 @@ object CoAuthorCacheStore {
         }
     }
 
+    fun cancelInFlight(avid: Long, apiType: ApiType) {
+        val key = CacheKey(avid = avid, apiType = apiType)
+        activeTasks.remove(key)?.cancel()
+    }
+
     fun invalidate(avid: Long, apiType: ApiType) {
         cache.remove(CacheKey(avid = avid, apiType = apiType))
     }
 
     fun clear() {
-        cache.clear()
+        activeTasks.values.forEach { it.cancel() }
         activeTasks.clear()
+        cache.clear()
     }
 }

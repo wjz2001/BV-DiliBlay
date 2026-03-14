@@ -3,6 +3,7 @@ package dev.aaa1115910.biliapi.repositories
 import bilibili.app.view.v1.ViewGrpcKt
 import bilibili.app.view.v1.viewReq
 import dev.aaa1115910.biliapi.entity.ApiType
+import dev.aaa1115910.biliapi.entity.user.CoAuthor
 import dev.aaa1115910.biliapi.entity.video.VideoDetail
 import dev.aaa1115910.biliapi.entity.video.VideoPage
 import dev.aaa1115910.biliapi.entity.video.season.UgcSeason
@@ -27,6 +28,13 @@ class VideoDetailRepository(
         get() = runCatching {
             ViewGrpcKt.ViewCoroutineStub(channelRepository.defaultChannel!!)
         }.getOrNull()
+
+    //app
+    private suspend fun getAppViewReply(aid: Long) = runCatching {
+        viewStub?.view(viewReq {
+            this.aid = aid
+        }) ?: throw IllegalStateException("Player stub is not initialized")
+    }.onFailure { handleGrpcException(it) }.getOrThrow()
 
     suspend fun getVideoDetail(
         aid: Long,
@@ -110,12 +118,7 @@ class VideoDetailRepository(
             }
 
             ApiType.App -> {
-                val viewReply = runCatching {
-                    viewStub?.view(viewReq {
-                        this.aid = aid
-                    }) ?: throw IllegalStateException("Player stub is not initialized")
-                }.onFailure { handleGrpcException(it) }.getOrThrow()
-
+                val viewReply = getAppViewReply(aid)
                 val appDetail = VideoDetail.fromViewReply(viewReply)
 
                 // 仅当存在 ugcSeason 时，补一发 Web view/detail 获取 pages 并求和。
@@ -163,13 +166,7 @@ class VideoDetailRepository(
                 }
 
                 ApiType.App -> {
-                    val viewReply = runCatching {
-                        viewStub?.view(viewReq {
-                            this.aid = aid
-                        }) ?: throw IllegalStateException("Player stub is not initialized")
-                    }.onFailure { handleGrpcException(it) }
-                        .getOrThrow()
-
+                    val viewReply = getAppViewReply(aid)
                     viewReply.pagesList.map { VideoPage.fromViewPage(it) }
                 }
             }
@@ -178,6 +175,26 @@ class VideoDetailRepository(
         } catch (e: Throwable) {
             println("Get ugc pages failed: aid=$aid, preferApiType=$preferApiType, error=${e.stackTraceToString()}")
             emptyList()
+        }
+    }
+
+    suspend fun getCoAuthors(
+        aid: Long,
+        preferApiType: ApiType = ApiType.Web
+    ): List<CoAuthor> {
+        return when (preferApiType) {
+            ApiType.Web -> {
+                val httpVideoDetail = BiliHttpApi.getVideoDetail(
+                    av = aid,
+                    sessData = authRepository.sessionData ?: ""
+                ).getResponseData()
+                VideoDetail.fromVideoDetail(httpVideoDetail).coAuthors
+            }
+
+            ApiType.App -> {
+                val viewReply = getAppViewReply(aid)
+                VideoDetail.fromViewReply(viewReply).coAuthors
+            }
         }
     }
 

@@ -507,6 +507,19 @@ class VideoPlayerV3ViewModel(
             )
         }
 
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                videoInfoRepository.ensureCoAuthorsLoaded(
+                    aid = aid,
+                    preferApiType = Prefs.apiType
+                )
+            }.onFailure { e ->
+                logger.fWarn {
+                    "Prefetch coAuthors in player failed: aid=$aid, apiType=${Prefs.apiType}, error=${e.stackTraceToString()}"
+                }
+            }
+        }
+
         startClockUpdater()
 
         videoInfoRepository.videoList

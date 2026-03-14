@@ -290,6 +290,7 @@ class VideoDetailViewModel(
 
             runCatching {
                 videoInfoRepository.loadVideoDetail(aid, Prefs.apiType)
+                videoInfoRepository.ensureCoAuthorsLoaded(aid, Prefs.apiType)
             }.onFailure { e ->
                 handleLoadFailure(e, aid)
             }

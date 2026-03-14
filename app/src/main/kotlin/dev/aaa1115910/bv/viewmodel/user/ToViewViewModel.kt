@@ -59,7 +59,11 @@ class ToViewViewModel(
     fun addToView(aid: Long, bvid: String? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
-                ToViewRepository.addToView(aid = aid, bvid = bvid)
+                ToViewRepository.addToView(
+                    aid = aid,
+                    bvid = bvid,
+                    preferApiType = Prefs.apiType
+                )
             }.onSuccess {
                 _uiEffect.emit(UiEffect.ShowToast("添加到稍后再看"))
             }.onFailure {
@@ -71,7 +75,11 @@ class ToViewViewModel(
     fun delToView(aid: Long, viewed: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
-                ToViewRepository.delToView(viewed = viewed, aid = aid)
+                ToViewRepository.delToView(
+                    viewed = viewed,
+                    aid = aid,
+                    preferApiType = Prefs.apiType
+                )
             }.onSuccess {
                 histories.removeAll { it.avid == aid }
                 _uiEffect.emit(UiEffect.ShowToast("删除稍后再看"))
