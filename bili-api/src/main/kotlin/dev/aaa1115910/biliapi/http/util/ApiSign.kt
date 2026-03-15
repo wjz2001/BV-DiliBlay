@@ -117,9 +117,9 @@ fun HttpClient.encApiSign() = plugin(HttpSend)
         val isPlayUrlRequest = request.url.encodedPath.contains("/x/player/playurl") ||
                 request.url.encodedPath.contains("/x/player/wbi/playurl")
         if (!isAppRequest && !isPlayUrlRequest) {
-            val buvid3 = BiliHttpApi.buvid3Provider()
+            val buvid3 = BiliHttpApi.buvid3
             val existingCookie = request.headers["Cookie"] ?: ""
-            if (!buvid3.isNullOrBlank() && !existingCookie.contains("buvid3=")) {
+            if (buvid3.isNotBlank() && !existingCookie.contains("buvid3=")) {
                 val newCookie = if (existingCookie.isNotBlank()) {
                     "buvid3=$buvid3; $existingCookie"
                 } else {

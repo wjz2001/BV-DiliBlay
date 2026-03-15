@@ -1296,29 +1296,6 @@ class VideoPlayerV3ViewModel(
             override val title: String = video.title
         }
     }
-
-    override fun onCleared() {
-        super.onCleared()
-
-        // 最后一次心跳，此时viewModelScope已失效
-        if (Prefs.incognitoMode) return
-        val player = videoPlayer ?: return
-
-        val currentTimeSeconds =
-            (player.currentPosition.coerceAtLeast(0) / 1000).toInt()
-        val totalTimeSeconds =
-            (player.duration.coerceAtLeast(0) / 1000).toInt()
-
-        val reportTime =
-            if (currentTimeSeconds >= totalTimeSeconds) -1 else currentTimeSeconds
-
-        runBlocking {
-            withContext(Dispatchers.IO) {
-                uploadHistory(reportTime)
-            }
-        }
-    }
-
 }
 
 sealed interface DanmakuSettingAction {
