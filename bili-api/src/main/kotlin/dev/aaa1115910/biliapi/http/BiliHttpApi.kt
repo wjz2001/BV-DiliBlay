@@ -114,9 +114,12 @@ object BiliHttpApi {
     private var wbiLastRefreshDate = 0L
 
     // 用于获取 buvid3 的提供者，由应用层设置
-    var buvid3Provider: () -> String? = { null }
+    var buvid3: String = ""
+        private set
 
-    init {
+    fun init(buvid3: String) {
+        this.buvid3 = buvid3
+
         createClient()
         CoroutineScope(Dispatchers.IO).launch {
             updateWbi()

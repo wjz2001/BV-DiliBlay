@@ -62,7 +62,7 @@ class BVApp : Application(), KoinComponent {
         initRepository()
         initProxy()
 
-        BiliHttpApi.buvid3Provider = { Prefs.buvid3 }
+        BiliHttpApi.init(buvid3 = Prefs.buvid3)
     }
 
     private fun initCoreLibraries() {
