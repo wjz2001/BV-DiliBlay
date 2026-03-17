@@ -57,10 +57,12 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -72,7 +74,6 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.koin.android.annotation.KoinViewModel
@@ -263,31 +264,10 @@ class VideoPlayerV3ViewModel(
         videoPlayer?.setPlayerEventListener(videoPlayerListener)
     }
 
-    fun dettachPlayer() {
-        val player = videoPlayer
-        if (player != null && !Prefs.incognitoMode) {
-            val currentTime = (player.currentPosition.coerceAtLeast(0) / 1000).toInt()
-            val totalTime = (player.duration.coerceAtLeast(0) / 1000).toInt()
-            val reportTime = if (currentTime >= totalTime) -1 else currentTime
-
-            // 用于更新详情页播放进度
-            videoInfoRepository.updateHistory(
-                progress = reportTime,
-                lastPlayedCid = _uiState.value.cid
-            )
-
-            // 最后一次发送心跳
-            @OptIn(DelicateCoroutinesApi::class)
-            GlobalScope.launch(Dispatchers.IO) { // 使用GlobalScope，避免ViewModel销毁导致协程域取消
-                try {
-                    withTimeout(3000L) { // 3秒超时
-                        uploadHistory(reportTime)
-                    }
-                } catch (e: Exception) {
-                    logger.warn { "Failed to upload history on detach: $e" }
-                }
-            }
-        }
+    fun detachPlayer() {
+        // 使用 GlobalScope 确保在 ViewModel 销毁后任务依然能尝试完成
+        @OptIn(DelicateCoroutinesApi::class)
+        syncProgress(scope = GlobalScope, isDetaching = true)
 
         videoPlayer?.release()
         videoPlayer = null
@@ -471,7 +451,7 @@ class VideoPlayerV3ViewModel(
                         cid = firstRelatedVideo.cid,
                         title = firstRelatedVideo.title
                     )
-                    playNewVideo(video = nextVideo, updateList = true)
+                    playNewVideo(newVideo = nextVideo)
 
                     // 因为番剧无相关视频，需要继续播放，所以在这里return
                     return
@@ -558,22 +538,28 @@ class VideoPlayerV3ViewModel(
         danmakuPlayer?.pause()
     }
 
-    fun playNewVideo(video: VideoListItem, updateList: Boolean = false) {
+    fun playNewVideo(newVideo: VideoListItem) {
         videoPlayer?.pause()
 
-        val oldAid = _uiState.value.aid
-        val newAid = video.aid
+        val state = _uiState.value
 
-        // 切换视频时更新detail和视频列表
-        if (oldAid != newAid) {
+        val shouldUpdateVideoDetail = state.aid != newVideo.aid
+        val shouldUpdateVideoList = !state.availableVideoList.any { it.aid == newVideo.aid }
+
+        // 切换视频时更新detail
+        if (shouldUpdateVideoDetail) {
             viewModelScope.launch(Dispatchers.IO) {
-                videoInfoRepository.loadVideoDetail(video.aid, Prefs.apiType)
-            }
-            // 切换分P时不需要更新视频列表
-            if (updateList) {
-                videoInfoRepository.updateVideoList(listOf(video))
+                videoInfoRepository.loadVideoDetail(newVideo.aid, Prefs.apiType)
             }
         }
+
+        // 新视频不在当前视频列表时更新列表
+        if (shouldUpdateVideoList) {
+            videoInfoRepository.updateVideoList(listOf(newVideo))
+        }
+
+        // 更新播放历史并上传
+        syncProgress(viewModelScope)
 
         // 重置弹幕
         releaseDanmakuPlayer()
@@ -582,37 +568,24 @@ class VideoPlayerV3ViewModel(
         // 更新UiState
         _uiState.update {
             it.copy(
-                aid = video.aid,
-                cid = video.cid,
-                epid = video.epid,
-                seasonId = video.seasonId ?: 0,
-                title = video.title
+                aid = newVideo.aid,
+                cid = newVideo.cid,
+                epid = newVideo.epid,
+                seasonId = newVideo.seasonId ?: 0,
+                title = newVideo.title
             )
         }
 
         // 加载新播放url
         loadPlayUrl(
-            avid = video.aid,
-            cid = video.cid,
-            epid = video.epid,
+            avid = newVideo.aid,
+            cid = newVideo.cid,
+            epid = newVideo.epid,
         )
     }
 
     fun trySendHeartbeat() {
-        if (Prefs.incognitoMode) return
-        val player = videoPlayer ?: return
-
-        heartbeatJob?.cancel()
-        heartbeatJob = viewModelScope.launch(Dispatchers.Main) {
-            val currentTimeSeconds = (player.currentPosition.coerceAtLeast(0) / 1000).toInt()
-            val totalTimeSeconds = (player.duration.coerceAtLeast(0) / 1000).toInt()
-
-            val reportTime = if (currentTimeSeconds >= totalTimeSeconds) -1 else currentTimeSeconds
-
-            withContext(Dispatchers.IO) {
-                uploadHistory(reportTime)
-            }
-        }
+        syncProgress(scope = viewModelScope, updateLocal = false)
     }
 
     private fun loadPlayUrl(
@@ -620,27 +593,32 @@ class VideoPlayerV3ViewModel(
         cid: Long,
         epid: Int? = null,
     ) {
-        viewModelScope.launch(Dispatchers.Default) {
-            loadPlayUrlImpl(
-                avid,
-                cid,
-                epid ?: 0,
-                preferApi = Prefs.apiType,
-                proxyArea = _uiState.value.proxyArea
-            )
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val playUrlDeferred = async {
+                    loadPlayUrlImpl(avid, cid, epid ?: 0, Prefs.apiType, _uiState.value.proxyArea)
+                }
 
-            loadDanmaku(cid)
-            updateDanmakuMask()
-            updateSubtitle()
-            updateVideoShot()
-            updateVideoPages()
-            clearVideoShotCache()
+                launch {
+                    updateSubtitle()
+                    val lastPlayEnabledSubtitle = _uiState.value.subtitleId != -1L
+                    if (lastPlayEnabledSubtitle) {
+                        logger.info { "Subtitle is enabled, auto-enabling first subtitle..." }
+                        enableFirstSubtitle()
+                    }
+                }
+                launch { loadDanmaku(cid) }
+                launch { updateDanmakuMask() }
+                launch { updateVideoShot() }
+                launch { updateVideoPages() }
+                launch { clearVideoShotCache() }
 
-            //如果是继续播放下一集，且之前开启了字幕，就会自动加载第一条字幕，主要用于观看番剧时自动加载字幕
-            val lastPlayEnabledSubtitle = _uiState.value.subtitleId != -1L
-            if (lastPlayEnabledSubtitle) {
-                logger.info { "Subtitle is enabled, next video will enable subtitle automatic" }
-                enableFirstSubtitle()
+                playUrlDeferred.await()
+
+                logger.info { "Play URL loaded, start playback now" }
+
+            } catch (e: Exception) {
+                logger.error(e) { "Loading video data error: $e" }
             }
         }
     }
@@ -989,11 +967,44 @@ class VideoPlayerV3ViewModel(
         }
     }
 
-    private suspend fun uploadHistory(time: Int) {
+    private fun syncProgress(
+        scope: CoroutineScope,
+        updateLocal: Boolean = true,
+        isDetaching: Boolean = false
+    ) {
+        val player = videoPlayer ?: return
         val state = _uiState.value
 
+        val currentTime = (player.currentPosition.coerceAtLeast(0) / 1000).toInt()
+        val totalTime = (player.duration.coerceAtLeast(0) / 1000).toInt()
+        val reportTime = if (currentTime >= totalTime) -1 else currentTime
+
+        if (updateLocal) {
+            videoInfoRepository.updateHistory(
+                progress = reportTime,
+                lastPlayedCid = state.cid
+            )
+        }
+
+        if (!Prefs.incognitoMode) {
+            heartbeatJob?.cancel()
+            heartbeatJob = scope.launch(Dispatchers.IO) {
+                try {
+                    if (isDetaching) {
+                        withTimeout(3000L) { uploadHistory(state, reportTime) }
+                    } else {
+                        uploadHistory(state, reportTime)
+                    }
+                } catch (e: Exception) {
+                    logger.warn { "Failed to upload history: $e" }
+                }
+            }
+        }
+    }
+
+    private suspend fun uploadHistory(uiState: PlayerUiState, time: Int) {
         try {
-            with(state) {
+            with(uiState) {
                 val currentApiType = Prefs.apiType
 
                 if (!fromSeason) {
