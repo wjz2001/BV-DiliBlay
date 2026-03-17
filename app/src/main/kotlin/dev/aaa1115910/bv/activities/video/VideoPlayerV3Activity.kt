@@ -97,7 +97,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
         }
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (isFinishing) {
-            playerViewModel.dettachPlayer()
+            playerViewModel.detachPlayer()
             playerViewModel.releaseDanmakuPlayer()
         }
     }
