@@ -86,7 +86,6 @@ fun Modifier.focusedScale(
 fun Modifier.bitmapMask(
     bitmap: Bitmap,
     videoAspectRatio: Float, // 视频的宽高比 (例如 1920/1080 ≈ 1.77, 21/9 ≈ 2.33)
-    areaRatio: Float         // 弹幕区域占屏幕高度的比例 (0.0 - 1.0)
 ): Modifier = composed {
     val imageBitmap = bitmap.asImageBitmap()
 
@@ -95,9 +94,8 @@ fun Modifier.bitmapMask(
             canvas.saveLayer(Rect(Offset.Zero, size), Paint())
             drawContent()
 
-            val safeArea = if (areaRatio <= 0f) 1f else areaRatio
             val screenWidth = size.width
-            val screenHeight = size.height / safeArea
+            val screenHeight = size.height
             val screenAspectRatio = screenWidth / screenHeight
 
             val dstWidth: Float
@@ -134,7 +132,6 @@ fun Modifier.bitmapMask(
 fun Modifier.danmakuWebMask(
     frame: DanmakuWebMaskFrame,
     aspectRatio: Float,
-    areaRatio: Float
 ): Modifier = composed {
     val svgObj = runCatching {
         SVG.getFromString(frame.svg)
@@ -147,13 +144,12 @@ fun Modifier.danmakuWebMask(
     val canvas = Canvas(bitmap)
     svgObj.renderToCanvas(canvas)
 
-    bitmapMask(bitmap, aspectRatio, areaRatio)
+    bitmapMask(bitmap, aspectRatio)
 }
 
 fun Modifier.danmakuMobMask(
     frame: DanmakuMobMaskFrame,
     aspectRatio: Float,
-    areaRatio: Float
 ): Modifier = composed {
     val binaryBitmap= Bitmap.createBitmap(40, 180, Bitmap.Config.ARGB_8888)
     frame.image.forEachIndexed { index, byte ->
@@ -162,18 +158,17 @@ fun Modifier.danmakuMobMask(
         binaryBitmap.setPixel(x, y, if (byte.toInt() == 0) android.graphics.Color.BLACK else android.graphics.Color.TRANSPARENT)
     }
 
-    bitmapMask(binaryBitmap, aspectRatio, areaRatio)
+    bitmapMask(binaryBitmap, aspectRatio)
 }
 
 fun Modifier.danmakuMask(
     frame: DanmakuMaskFrame?,
     aspectRatio: Float,
-    areaRatio: Float
 ): Modifier = composed {
     if (frame == null) return@composed this
 
     when(frame){
-        is DanmakuWebMaskFrame -> danmakuWebMask(frame, aspectRatio, areaRatio)
-        is DanmakuMobMaskFrame -> danmakuMobMask(frame, aspectRatio, areaRatio)
+        is DanmakuWebMaskFrame -> danmakuWebMask(frame, aspectRatio)
+        is DanmakuMobMaskFrame -> danmakuMobMask(frame, aspectRatio)
     }
 }

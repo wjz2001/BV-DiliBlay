@@ -219,7 +219,6 @@ fun VideoPlayerV3Screen(
                 VideoAspectRatio.FourToThree -> 4 / 3f
                 VideoAspectRatio.SixteenToNine -> 16 / 9f
             }
-            val areaRatio = uiState.danmakuState.area
 
             BvVideoPlayer(
                 modifier = Modifier
@@ -237,7 +236,7 @@ fun VideoPlayerV3Screen(
                     .alpha(uiState.danmakuState.opacity)
                     .ifElse(
                         { Prefs.defaultDanmakuMask },
-                        Modifier.danmakuMask(currentDanmakuMaskFrame, aspectRatio, areaRatio)
+                        Modifier.danmakuMask(currentDanmakuMaskFrame, aspectRatio)
                     ),
                 danmakuPlayer = playerViewModel.danmakuPlayer
             )
