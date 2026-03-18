@@ -83,14 +83,12 @@ import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.client.statement.readRawBytes
 import io.ktor.http.Parameters
 import io.ktor.http.URLProtocol
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.utils.io.InternalAPI
-import io.ktor.utils.io.jvm.javaio.toInputStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -291,22 +289,46 @@ object BiliHttpApi {
         header("referer", "https://www.bilibili.com")
     }.body()
 
-    /**
-     * 通过[cid]获取视频弹幕
-     */
+    class NonXmlDanmakuResponseException(
+        val code: Int?,
+        val serverMessage: String?,
+        val responsePreview: String,
+    ) : IllegalStateException(
+        "Danmaku API returned non-XML response: code=${code ?: "unknown"}, message=${serverMessage ?: "unknown"}, preview=$responsePreview"
+    )
+
+    private val danmakuJsonCodeRegex = Regex(""""code"\s*:\s*(-?\d+)""")
+    private val danmakuJsonMessageRegex = Regex("\"message\"\\s*:\\s*\"([^\"]*)\"")
+
+    private fun buildNonXmlDanmakuException(rawText: String): NonXmlDanmakuResponseException {
+        val trimmed = rawText.trim()
+        val code = danmakuJsonCodeRegex.find(trimmed)?.groupValues?.getOrNull(1)?.toIntOrNull()
+        val message = danmakuJsonMessageRegex.find(trimmed)?.groupValues?.getOrNull(1)
+        val preview = trimmed.take(200)
+        return NonXmlDanmakuResponseException(code = code, serverMessage = message, responsePreview = preview)
+    }
+
+    // 通过[cid]获取视频弹幕
     suspend fun getDanmakuXml(
         cid: Long,
         sessData: String = ""
     ): DanmakuResponse {
-        val xmlChannel = client.get("/x/v1/dm/list.so") {
+        val rawBytes = client.get("/x/v1/dm/list.so") {
             parameter("oid", cid)
             header("Cookie", "SESSDATA=$sessData;")
-        }.bodyAsChannel()
+            header("referer", "https://www.bilibili.com")
+        }.readRawBytes()
+
+        val rawText = rawBytes.toString(Charsets.UTF_8)
+        val trimmed = rawText.trimStart()
+        if (!trimmed.startsWith("<")) {
+            throw buildNonXmlDanmakuException(rawText)
+        }
 
         val dbFactory = DocumentBuilderFactory.newInstance()
         val dBuilder = dbFactory.newDocumentBuilder()
         val doc = withContext(Dispatchers.IO) {
-            dBuilder.parse(xmlChannel.toInputStream())
+            dBuilder.parse(rawBytes.inputStream())
         }
         doc.documentElement.normalize()
 
