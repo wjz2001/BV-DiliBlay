@@ -51,6 +51,7 @@ fun VideoPlayerV3Screen(
     val logger = KotlinLogging.logger { }
     val context = LocalContext.current
     val videoPlayer = playerViewModel.videoPlayer!!
+    val danmakuPlayer = playerViewModel.danmakuPlayer
 
     val maskFinder = remember { DanmakuMaskFinder() }
     var currentDanmakuMaskFrame: DanmakuMaskFrame? by remember { mutableStateOf(null) }
@@ -243,7 +244,7 @@ fun VideoPlayerV3Screen(
                         { Prefs.defaultDanmakuMask },
                         Modifier.danmakuMask(currentDanmakuMaskFrame, aspectRatio)
                     ),
-                danmakuPlayer = playerViewModel.danmakuPlayer
+                danmakuPlayer = danmakuPlayer
             )
             if (Prefs.showPersistentSeek) {
                 VideoProgressSeek(
