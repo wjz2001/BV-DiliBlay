@@ -123,8 +123,8 @@ class VideoPlayerV3ViewModel(
     var videoPlayer: AbstractVideoPlayer? by mutableStateOf(null)
         private set
 
-    private var danmakuPlayer: DanmakuPlayer? by mutableStateOf(null)
-    private var danmakuView: DanmakuView? = null
+    var danmakuPlayer: DanmakuPlayer? by mutableStateOf(null)
+        private set
 
     private var playData: PlayData? = null
 
@@ -857,15 +857,6 @@ class VideoPlayerV3ViewModel(
 
     fun safeUpdateDanmakuPlaySpeedTemp(speed: Float) =
         withDanmakuPlayerLocked { danmakuPlayer?.updatePlaySpeed(speed) }
-
-    fun attachDanmakuView(view: DanmakuView) = withDanmakuPlayerLocked {
-        danmakuView = view
-        danmakuPlayer?.bindView(view)
-    }
-
-    fun detachDanmakuView(view: DanmakuView) = withDanmakuPlayerLocked {
-        if (danmakuView === view) danmakuView = null
-    }
 
     fun updateSubtitleState(action: SubtitleSettingAction) {
         val old = _uiState.value.subtitleState
@@ -1972,7 +1963,6 @@ class VideoPlayerV3ViewModel(
     private fun unsafeInitDanmakuPlayer() {
         danmakuPlayer = DanmakuPlayer(SimpleRenderer())
         initDanmakuConfig()
-        danmakuView?.let { v -> danmakuPlayer?.bindView(v) }
     }
 
     private fun unsafeReleaseDanmakuPlayer() {
