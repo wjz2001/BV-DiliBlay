@@ -51,9 +51,10 @@ fun VideoPlayerV3Screen(
     modifier: Modifier = Modifier,
     playerViewModel: VideoPlayerV3ViewModel = koinViewModel()
 ) {
-    val logger = KotlinLogging.logger { }
+    val logger = KotlinLogging.logger {}
     val context = LocalContext.current
     val videoPlayer = playerViewModel.videoPlayer!!
+    val danmakuPlayer = playerViewModel.danmakuPlayer
 
     val coAuthorsDialogState = rememberCoAuthorsDialogState()
     var lastCoAuthorsDialogVisible by remember { mutableStateOf(false) }
@@ -274,8 +275,7 @@ fun VideoPlayerV3Screen(
                         { Prefs.defaultDanmakuMask },
                         Modifier.danmakuMask(currentDanmakuMaskFrame, aspectRatio)
                     ),
-                onViewCreated = { playerViewModel.attachDanmakuView(it) },
-                onViewDisposed = { playerViewModel.detachDanmakuView(it) },
+                danmakuPlayer = danmakuPlayer,
             )
             if (Prefs.showPersistentSeek) {
                 VideoProgressSeek(

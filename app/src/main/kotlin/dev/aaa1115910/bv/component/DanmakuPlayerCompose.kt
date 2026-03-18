@@ -11,31 +11,37 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import com.kuaishou.akdanmaku.ui.DanmakuPlayer
 import com.kuaishou.akdanmaku.ui.DanmakuView
 
 @Composable
 fun DanmakuPlayerCompose(
     modifier: Modifier = Modifier,
-    onViewCreated: (DanmakuView) -> Unit,
-    onViewDisposed: (DanmakuView) -> Unit,
+    danmakuPlayer: DanmakuPlayer?,
 ) {
     val context = LocalContext.current
     var danmakuView: DanmakuView? by remember { mutableStateOf(null) }
 
     val view = danmakuView
-    DisposableEffect(view) {
-        if (view == null) return@DisposableEffect onDispose { }
-        onDispose { onViewDisposed(view) }
+    DisposableEffect(view, danmakuPlayer) {
+        if (view != null && danmakuPlayer != null && view.danmakuPlayer !== danmakuPlayer) {
+            danmakuPlayer.bindView(view)
+        }
+
+        onDispose {
+            view?.let {
+                if (it.danmakuPlayer === danmakuPlayer) {
+                    it.danmakuPlayer = null
+                }
+            }
+        }
     }
 
     Box(modifier = modifier.fillMaxSize()) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = {
-                val v = DanmakuView(context)
-                danmakuView = v
-                onViewCreated(v)
-                v
+                DanmakuView(context).also { danmakuView = it }
             }
         )
     }
