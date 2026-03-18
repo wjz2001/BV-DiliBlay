@@ -519,6 +519,12 @@ fun VideoInfoScreen(
                         // 相关视频
                         val relatedVideos = videoDetailState.relatedVideos
                         if (relatedVideos.isNotEmpty()) {
+                            CompositionLocalProvider(
+                                LocalDensity provides Density(
+                                    density = LocalDensity.current.density * 1.25f,
+                                    fontScale = LocalDensity.current.fontScale * 1.25f
+                                )
+                            ) {
                             VideosRow(
                                 header = stringResource(R.string.video_info_related_video_title),
                                 videos = relatedVideos,
@@ -550,6 +556,7 @@ fun VideoInfoScreen(
                                     UpInfoActivity.actionStart(context, mid, upName)
                                 }
                             )
+                        }
                         }
                     }
                 }
