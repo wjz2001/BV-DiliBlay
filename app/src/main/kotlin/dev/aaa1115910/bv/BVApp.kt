@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.webkit.WebViewCompat
 import de.schnettler.datastore.manager.DataStoreManager
+import dev.aaa1115910.biliapi.http.BiliHttpApi
 import dev.aaa1115910.biliapi.http.BiliHttpProxyApi
 import dev.aaa1115910.biliapi.http.util.BiliAppConf
 import dev.aaa1115910.biliapi.http.util.BiliWebConf
@@ -16,7 +17,6 @@ import dev.aaa1115910.biliapi.repositories.AuthRepository
 import dev.aaa1115910.biliapi.repositories.BiliApiModule
 import dev.aaa1115910.biliapi.repositories.ChannelRepository
 import dev.aaa1115910.bv.dao.AppDatabase
-import dev.aaa1115910.bv.network.HttpServer
 import dev.aaa1115910.bv.util.LogCatcherUtil
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.block.BlockManager
@@ -63,7 +63,8 @@ class BVApp : Application(), KoinComponent {
         initDeviceInfo()
         initRepository()
         initProxy()
-        HttpServer.startServer()
+
+        BiliHttpApi.init(buvid3 = Prefs.buvid3)
     }
 
     private fun initCoreLibraries() {

@@ -112,7 +112,13 @@ object BiliHttpApi {
     var wbiSubKey: String? = null
     private var wbiLastRefreshDate = 0L
 
-    init {
+    // 用于获取 buvid3 的提供者，由应用层设置
+    var buvid3: String = ""
+        private set
+
+    fun init(buvid3: String) {
+        this.buvid3 = buvid3
+
         createClient()
         CoroutineScope(Dispatchers.IO).launch {
             updateWbi()
@@ -190,10 +196,10 @@ object BiliHttpApi {
         av: Long? = null,
         bv: String? = null,
         cid: Long,
-        qn: Int? = null,
-        fnval: Int? = null,
-        fnver: Int? = null,
-        fourk: Int? = 0,
+        qn: Int? = 80,
+        fnval: Int? = 1,
+        fnver: Int? = 0,
+        fourk: Int? = 1,
         session: String? = null,
         otype: String = "json",
         type: String = "",
@@ -213,6 +219,13 @@ object BiliHttpApi {
         parameter("otype", otype)
         parameter("type", type)
         parameter("platform", platform)
+        if (sessData.isNullOrEmpty()) {
+            // parameter("voice_balance", 1)
+            parameter("web_location", "1315873")
+            parameter("gaia_source", "pre-load")
+            parameter("isGaiaAvoided", "true")
+            parameter("try_look", "1")
+        }
         sessData?.let { header("Cookie", "SESSDATA=$sessData;DedeUserID=$dedeUserID") }
     }.body()
 

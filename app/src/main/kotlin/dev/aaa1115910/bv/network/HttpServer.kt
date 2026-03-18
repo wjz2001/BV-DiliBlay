@@ -18,25 +18,24 @@ import io.ktor.server.response.respondFile
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
-import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
 import java.io.FileNotFoundException
 
 object HttpServer {
     var server: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
 
-    @OptIn(DelicateCoroutinesApi::class)
     fun startServer() {
-        GlobalScope.launch(Dispatchers.IO) {
-            server = embeddedServer(CIO, port = 0) {
-                homeModule()
-                logsUiStaticModule()
+        server = embeddedServer(CIO, port = 0) {
+            homeModule()
+            logsUiStaticModule()
+            logsUiStaticModule()
                 logsApiModule()
             }
-            server?.start(wait = true)
-        }
+            server?.start(wait = false)
+    }
+
+    fun stopServer() {
+        server?.stop(gracePeriodMillis = 1000, timeoutMillis = 2000)
+        server = null
     }
 
     private fun Application.homeModule() {

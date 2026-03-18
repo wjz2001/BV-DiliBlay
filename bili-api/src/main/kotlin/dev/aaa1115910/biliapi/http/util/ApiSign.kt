@@ -83,7 +83,11 @@ suspend fun HttpRequestBuilder.encWbi() {
     val sortedParams = url.encodedParameters.entries()
         .associate { it.key to it.value.first() }
         .toSortedMap()
-        .map { (key, value) -> "$key=$value" }
+        .map { (key, value) ->
+            // 过滤特殊字符 !"!'()*
+            val filteredValue = value.filter { c -> c !in setOf('!', '\'', '(', ')', '*') }
+            "$key=$filteredValue"
+        }
         .joinToString("&")
 
     val wRid = MessageDigest.getInstance("MD5").digest((sortedParams + mixinKey).toByteArray())
@@ -106,13 +110,30 @@ fun HttpClient.encApiSign() = plugin(HttpSend)
             }.toString()
         }
 
+        // 为 Web 请求自动添加 buvid3 cookie
+        val isAppRequest =
+            request.url.parameters.contains("access_key") || request.url.host == "app.bilibili.com"
+        // playurl 接口不需要添加 buvid3
+        val isPlayUrlRequest = request.url.encodedPath.contains("/x/player/playurl") ||
+                request.url.encodedPath.contains("/x/player/wbi/playurl")
+        if (!isAppRequest && !isPlayUrlRequest) {
+            val buvid3 = BiliHttpApi.buvid3
+            val existingCookie = request.headers["Cookie"] ?: ""
+            if (buvid3.isNotBlank() && !existingCookie.contains("buvid3=")) {
+                val newCookie = if (existingCookie.isNotBlank()) {
+                    "buvid3=$buvid3; $existingCookie"
+                } else {
+                    "buvid3=$buvid3"
+                }
+                request.headers["Cookie"] = newCookie
+            }
+        }
+
         when (request.method) {
             // app 端如果既用到了 wbi get 接口，也用到了 token 去请求，那是先计算 wbi sign 还是 app sign？
             // 目前看来需要计算 wbi sign 的接口之前忘记计算 app sign 都通过校验了🤯
             HttpMethod.Get -> {
                 val isWbiRequest = request.url.encodedPath.contains("wbi")
-                val isAppRequest =
-                    request.url.parameters.contains("access_key") || request.url.host == "app.bilibili.com"
                 if (isWbiRequest) {
                     println("Enc wbi for get request: ${getUrlWithoutAccessToken(request.url)}")
                     request.encWbi()
@@ -136,4 +157,3 @@ fun HttpClient.encApiSign() = plugin(HttpSend)
         }
         execute(request)
     }
-
