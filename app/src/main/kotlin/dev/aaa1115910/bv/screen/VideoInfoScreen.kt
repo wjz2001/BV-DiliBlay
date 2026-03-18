@@ -54,6 +54,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -161,7 +162,6 @@ fun VideoInfoScreen(
 
     val defaultFocusRequester = remember { FocusRequester() }
     val scrollState = rememberScrollState()
-
     val uiState by videoDetailViewModel.uiState.collectAsState()
 
     val scope = rememberCoroutineScope()
@@ -222,6 +222,8 @@ fun VideoInfoScreen(
         }
     }
 
+
+    var lastPlayedAid by remember { mutableLongStateOf(0L) }
     val containsVerticalScreenVideo by remember(uiState.videoDetailState) {
         derivedStateOf {
             uiState.videoDetailState?.run {
@@ -246,84 +248,85 @@ fun VideoInfoScreen(
         }
     }
 
+    fun performLaunchPlayer(
+        targetAid: Long,
+        targetCid: Long,
+        targetTitle: String,
+        targetPartTitle: String,
+        isFromSeason: Boolean
+    ) {
+        val videoDetailState = uiState.videoDetailState ?: return
+
+        val playedTime = if (targetCid == videoDetailState.lastPlayedCid) {
+            videoDetailState.lastPlayedTime * 1000
+        } else {
+            0
+        }
+
+        // 播放其他avid时更新视频详情
+        if (lastPlayedAid != targetAid) {
+            videoDetailViewModel.loadVideoDetail(targetAid)
+            lastPlayedAid = targetAid
+        }
+
+        launchPlayerActivity(
+            context = context,
+            avid = targetAid,
+            cid = targetCid,
+            title = targetTitle,
+            partTitle = targetPartTitle,
+            played = playedTime,
+            fromSeason = isFromSeason,
+            author = videoDetailState.author
+        )
+    }
+
     fun playCurrentVideo(cid: Long? = null) {
         val videoDetailState = uiState.videoDetailState ?: return
         val targetCid = cid ?: videoDetailState.cid
-        val lastPlayedCid = videoDetailState.lastPlayedCid
-        val lastPlayedTime = videoDetailState.lastPlayedTime
-        val fromSeason = uiState.fromSeason
 
-        /*
-        videoDetailViewModel.updateVideoList(
-            listOf(
-                VideoListItem(
-                    aid = videoDetailState.aid,
-                    cid = cid ?: videoDetailState.cid,
-                    title = videoDetailState.title,
-                )
-            )
-        )
-         */
+        // 更新播放列表
         val newVideoList = mutableListOf<VideoListItem>()
-        // 根据视频类型构建列表
         if (videoDetailState.ugcSeason != null) {
-            // --- 情况 A: UGC 合集 (UGC Season) ---
-            // 逻辑：将当前分区的所有的“集”作为父项加入列表
-
-            // 尝试找到包含当前 cid 的 section，如果找不到则默认使用当前 videoDetailState 所在的 section 或第一个 section
             val currentSection = videoDetailState.ugcSeason?.sections?.find { section ->
                 section.episodes.any { it.cid == targetCid || it.aid == videoDetailState.aid }
             } ?: videoDetailState.ugcSeason?.sections?.firstOrNull()
 
-            if (currentSection != null) {
-                currentSection.episodes.forEach { episode ->
+            currentSection?.episodes?.forEach { episode ->
                     newVideoList.add(
                         VideoListItem(
                             aid = episode.aid,
                             cid = episode.cid,
-                            //epid = episode.id,
                             seasonId = videoDetailState.ugcSeason!!.id,
                             title = episode.title
-                            // ugcPages 将由播放器内部的 Repository 自动获取
                         )
                     )
                 }
-            }
         } else {
-            // --- 情况 B: 普通视频 (单P 或 多P) ---
-            // 逻辑：只添加一个代表当前视频的 Item。
-            // 播放器内的 Repository 会检测到它，并自动加载它的所有分P填充到 ugcPages 中。
             newVideoList.add(
                 VideoListItem(
                     aid = videoDetailState.aid,
-                    cid = videoDetailState.cid, // 使用视频的主 CID
+                    cid = videoDetailState.cid,
                     title = videoDetailState.title
                 )
             )
         }
-
-        //  将构建好的列表推送到 ViewModel
         videoDetailViewModel.updateVideoList(newVideoList)
 
-        launchPlayerActivity(
-            context = context,
-            avid = videoDetailState.aid,
-            cid = cid ?: videoDetailState.cid,
-            title = videoDetailState.title,
-            /*
-            partTitle = videoDetailState.pages.find { it.cid == cid }?.title
-                ?: videoDetailState.pages.first().title,
-             */
-            partTitle = videoDetailState.pages.find { it.cid ==  targetCid }?.title
-                ?: videoDetailState.ugcSeason?.sections?.flatMap { it.episodes }
-                    ?.find { it.cid ==  targetCid }?.title
-                ?: "",
-            played = if (cid?.let { it == lastPlayedCid }
-                    ?: (videoDetailState.cid == lastPlayedCid)) {
-                lastPlayedTime * 1000
-            } else 0,
-            fromSeason = fromSeason,
-            author = videoDetailState.author)
+        // 解析分集标题
+        val partTitle = videoDetailState.pages.find { it.cid == targetCid }?.title
+            ?: videoDetailState.ugcSeason?.sections?.flatMap { it.episodes }
+                ?.find { it.cid == targetCid }?.title
+            ?: ""
+
+        // 统一调用 performLaunchPlayer
+        performLaunchPlayer(
+            targetAid = videoDetailState.aid,
+            targetCid = targetCid,
+            targetTitle = videoDetailState.title,
+            targetPartTitle = partTitle,
+            isFromSeason = uiState.fromSeason
+        )
     }
 
     LaunchedEffect(Unit) {
@@ -495,95 +498,65 @@ fun VideoInfoScreen(
                                 }
                             )
 
-                            // 合集
-                            videoDetailState.ugcSeason?.let { season ->
-                                season.sections.forEachIndexed { index, section ->
-                                    VideoUgcSeasonRow(
-                                        title = if (season.sections.size == 1) season.title else section.title,
-                                        episodes = section.episodes,
-                                        lastPlayedCid = videoDetailState.lastPlayedCid,
-                                        lastPlayedTime = videoDetailState.lastPlayedTime,
-                                        enableUgcListDialog = section.episodes.size > 5,
-                                        /*
-                                onClick = { aid, cid ->
-                                    logger.fInfo { "Click ugc season part: [av:$aid, cid:$cid]" }
-
-                                            // 读取合集内视频
-                                            videoDetailViewModel.updateVideoList(index)
-                                            // 加载合集内对应视频的详情（主要是为了共享给播放器页）
-                                            videoDetailViewModel.loadVideoDetail(aid)
-
-                                            val currentEpisode =
-                                                section.episodes.find { it.cid == cid }
-                                            val episodeTitle = currentEpisode?.title ?: ""
-
-                                    launchPlayerActivity(
-                                        context = context,
-                                        avid = aid,
-                                        cid = cid,
-                                        title = episodeTitle,
-                                        partTitle = episodeTitle,
-                                        played = if (cid == lastPlayedCid) lastPlayedTime * 1000 else 0,
-                                        fromSeason = false,
-
-                                        author = videoDetail.author
-                                    )
-                                }
-                                 */
-                                    onClick = { aid, _ -> // cid 在这里不再需要，可以用 _ 忽略
+// 合集
+                        videoDetailState.ugcSeason?.let { season ->
+                            season.sections.forEachIndexed { index, section ->
+                                VideoUgcSeasonRow(
+                                    title = if (season.sections.size == 1) season.title else section.title,
+                                    episodes = section.episodes,
+                                    lastPlayedCid = videoDetailState.lastPlayedCid,
+                                    lastPlayedTime = videoDetailState.lastPlayedTime,
+                                    enableUgcListDialog = section.episodes.size > 5,
+                                    // 【修复点】不再原地播放，点击直接跳转新的详情页
+                                    onClick = { aid, _ ->
                                         logger.fInfo { "Click ugc season part, navigating to VideoInfoScreen for avid: $aid" }
-                                        // 直接启动新的 VideoInfoActivity
                                         VideoInfoActivity.actionStart(context, aid)
                                     }
                                 )
                             }
                         }
+
+                        // 相关视频
                         val relatedVideos = videoDetailState.relatedVideos
                         if (relatedVideos.isNotEmpty()) {
-                                CompositionLocalProvider(
-                                    LocalDensity provides Density(
-                                        density = LocalDensity.current.density * 1.25f,
-                                        fontScale = LocalDensity.current.fontScale * 1.25f
+                            VideosRow(
+                                header = stringResource(R.string.video_info_related_video_title),
+                                videos = relatedVideos,
+                                onVideoClicked = { videoData ->
+                                    if (videoData.jumpToSeason) {
+                                        SeasonInfoActivity.actionStart(
+                                            context = context,
+                                            epId = videoData.epId!!,
+                                            proxyArea = ProxyArea.checkProxyArea(videoData.title)
+                                        )
+                                    } else {
+                                        VideoInfoActivity.actionStart(
+                                            context = context,
+                                            aid = videoData.avid
+                                        )
+                                    }
+                                },
+                                onAddWatchLater = { aid ->
+                                    toViewViewModel.addToView(aid)
+                                },
+                                onGoToDetailPage = { aid ->
+                                    VideoInfoActivity.actionStart(
+                                        context = context,
+                                        fromController = true,
+                                        aid = aid
                                     )
-                                ) {
-                                    VideosRow(
-                                        header = stringResource(R.string.video_info_related_video_title),
-                                        videos = relatedVideos,
-                                        onVideoClicked = { videoData ->
-                                            if (videoData.jumpToSeason) {
-                                                SeasonInfoActivity.actionStart(
-                                                    context = context,
-                                                    epId = videoData.epId!!,
-                                                    proxyArea = ProxyArea.checkProxyArea(videoData.title)
-                                                )
-                                            } else {
-                                                VideoInfoActivity.actionStart(
-                                                context = context,
-                                                aid =videoData.avid)
-                                            }
-                                        },
-                                        onAddWatchLater = { aid ->
-                                            toViewViewModel.addToView(aid)
-                                        },
-                                        onGoToDetailPage = { aid ->
-                                            VideoInfoActivity.actionStart(
-                                                context = context,
-                                                fromController = true,
-                                                aid = aid
-                                            )
-                                        },
-                                        onGoToUpPage = { mid, upName ->
-                                            UpInfoActivity.actionStart(context, mid, upName)
-                                        }
-                                    )
+                                },
+                                onGoToUpPage = { mid, upName ->
+                                    UpInfoActivity.actionStart(context, mid, upName)
                                 }
+                            )
                         }
                     }
                 }
             }
         }
     }
-    }
+}
 
     @Composable
 private fun FullScreenMessage(message: String) {
@@ -1029,7 +1002,7 @@ private fun FullScreenMessage(message: String) {
                 derivedStateOf { scrollState.maxValue > 0 }
             }
 
-            LaunchedEffect(show, canScroll) {
+            LaunchedEffect(canScroll) {
                 if (show && canScroll) {
                     focusRequester.requestFocus()
                 }
