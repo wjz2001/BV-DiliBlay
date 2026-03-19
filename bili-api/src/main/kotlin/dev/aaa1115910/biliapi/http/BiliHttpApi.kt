@@ -68,6 +68,7 @@ import dev.aaa1115910.biliapi.http.entity.web.NavResponseData
 import dev.aaa1115910.biliapi.http.plugins.BiliUserAgent
 import dev.aaa1115910.biliapi.http.util.BiliAppConf
 import dev.aaa1115910.biliapi.http.util.encApiSign
+import dev.aaa1115910.biliapi.http.util.injectBuvid3Cookie
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
@@ -129,16 +130,12 @@ object BiliHttpApi {
     private fun createClient() {
         client = HttpClient(OkHttp) {
             BiliUserAgent()
-            install(ContentNegotiation) {
-                json(json)
-            }
+            install(ContentNegotiation) { json(json) }
             install(ContentEncoding) {
                 deflate(1.0F)
                 gzip(0.9F)
             }
-            install(HttpRequestRetry) {
-                retryOnException(maxRetries = 2)
-            }
+            install(HttpRequestRetry) { retryOnException(maxRetries = 2) }
             install(JsoupPlugin)
             defaultRequest {
                 url {
@@ -147,7 +144,8 @@ object BiliHttpApi {
                 }
             }
         }.apply {
-            encApiSign()
+            encApiSign()          // 1. 先注册（LIFO → 后执行）：负责签名
+            injectBuvid3Cookie()  // 2. 后注册（LIFO → 先执行）：cookie 注入在签名之前
         }
     }
 
