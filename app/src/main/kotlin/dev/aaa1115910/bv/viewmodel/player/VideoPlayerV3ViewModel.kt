@@ -568,6 +568,7 @@ class VideoPlayerV3ViewModel(
         // 更新UiState
         _uiState.update {
             it.copy(
+                isBuffering = true,
                 aid = newVideo.aid,
                 cid = newVideo.cid,
                 epid = newVideo.epid,

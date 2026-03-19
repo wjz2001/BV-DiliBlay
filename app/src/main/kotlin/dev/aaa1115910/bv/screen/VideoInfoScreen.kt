@@ -146,12 +146,7 @@ fun VideoInfoScreen(
     var lastPlayedAid by remember { mutableLongStateOf(0L) }
     val containsVerticalScreenVideo by remember(uiState.videoDetailState) {
         derivedStateOf {
-            uiState.videoDetailState?.run {
-                val inPages = pages.any { it.dimension.isVertical }
-                inPages || ugcSeason?.sections?.any { section ->
-                    section.episodes.any { it.dimension?.isVertical == true }
-                } == true
-            } ?: false
+            uiState.videoDetailState?.pages?.any { it.dimension.isVertical } ?: false
         }
     }
 

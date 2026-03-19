@@ -35,7 +35,7 @@ data class PlayerUiState(
 
     // 播放状态
     val playerState: PlayerState = PlayerState.Ready,
-    val isBuffering: Boolean = false, // 缓冲和暂停会同时出现，单独列出
+    val isBuffering: Boolean = false, // 缓冲和暂停会同时出现，故单独列出
     // 进度条缩略图
     val videoShot: VideoShot? = null,
     // 播放器时钟
