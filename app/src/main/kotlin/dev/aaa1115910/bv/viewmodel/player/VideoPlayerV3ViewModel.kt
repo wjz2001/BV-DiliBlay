@@ -611,7 +611,6 @@ class VideoPlayerV3ViewModel(
                 launch { updateDanmakuMask() }
                 launch { updateVideoShot() }
                 launch { updateVideoPages() }
-                launch { clearVideoShotCache() }
 
                 playUrlDeferred.await()
 
@@ -1046,10 +1045,6 @@ class VideoPlayerV3ViewModel(
         }.onFailure { err ->
             logger.fWarn { "Load video shot failed: ${err.stackTraceToString()}" }
         }
-    }
-
-    private fun clearVideoShotCache() {
-        _uiState.value.videoShotCache.clear()
     }
 
     private fun initDanmakuConfig() {

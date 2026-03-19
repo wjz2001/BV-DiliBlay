@@ -36,10 +36,10 @@ import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
-import dev.aaa1115910.bv.player.AbstractVideoPlayer
 import dev.aaa1115910.bv.ui.state.PlayerState
 import dev.aaa1115910.bv.ui.state.PlayerUiState
 import dev.aaa1115910.bv.ui.state.SeekerState
+import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.player.DanmakuSettingAction
 import dev.aaa1115910.bv.viewmodel.player.MediaProfileSettingAction
@@ -52,15 +52,20 @@ import kotlinx.coroutines.launch
 @Composable
 fun VideoPlayerController(
     modifier: Modifier = Modifier,
-    videoPlayer: AbstractVideoPlayer,
     aid: Long,
     fromSeason: Boolean,
     proxyArea: ProxyArea,
+
+    // play state
     isLooping: Boolean,
+    isPlaying: Boolean,
+    
+    // UI related state
+    videoShotCache: VideoShotImageCache,
     uiState: PlayerUiState,
     seekerState: State<SeekerState>,
 
-    //player events
+    // player events
     onPlay: () -> Unit,
     onPause: () -> Unit,
     onExit: () -> Unit,
@@ -118,7 +123,7 @@ fun VideoPlayerController(
         goTime =
             if (targetTime > seekerState.value.totalDuration) seekerState.value.totalDuration else targetTime
         lastSeekChangeTime = System.currentTimeMillis()
-        logger.info { "onTimeForward: [current=${videoPlayer.currentPosition}, goTime=$goTime]" }
+        logger.info { "onTimeForward: [goTime=$goTime]" }
     }
 
     fun onTimeBack() {
@@ -126,7 +131,7 @@ fun VideoPlayerController(
         val targetTime = goTime - (10000 + calCoefficient() * 5000)
         goTime = if (targetTime < 0) 0 else targetTime
         lastSeekChangeTime = System.currentTimeMillis()
-        logger.info { "onTimeBack: [current=${videoPlayer.currentPosition}, goTime=$goTime]" }
+        logger.info { "onTimeBack: [goTime=$goTime]" }
     }
 
     fun startSeekCountdown() {
@@ -135,7 +140,7 @@ fun VideoPlayerController(
             delay(1000)
 
             onGoTime(goTime)
-            if (!videoPlayer.isPlaying) onPlay()
+            if (!isPlaying) onPlay()
 
             isSeeking = false
             showInfoSeekController = false
@@ -158,13 +163,13 @@ fun VideoPlayerController(
     fun onSeekGoTime() {
         onGoTime(goTime)
         isSeeking = false
-        if (!videoPlayer.isPlaying) onPlay()
+        if (!isPlaying) onPlay()
         showInfoSeekController = false
         seekCountdown?.cancel()
     }
 
     fun onPlayPause() {
-        if (videoPlayer.isPlaying) onPause() else onPlay()
+        if (isPlaying) onPause() else onPlay()
     }
 
     fun handleKeyEvent(event: KeyEvent): Boolean {
@@ -214,12 +219,12 @@ fun VideoPlayerController(
             }
 
             Key.MediaPlay -> {
-                if (!videoPlayer.isPlaying) onPlay()
+                if (!isPlaying) onPlay()
                 return true
             }
 
             Key.MediaPause -> {
-                if (videoPlayer.isPlaying) onPause()
+                if (isPlaying) onPause()
                 return true
             }
         }
@@ -347,7 +352,7 @@ fun VideoPlayerController(
             title = uiState.title,
             clock = uiState.clock,
             videoShot = uiState.videoShot,
-            videoShotCache = uiState.videoShotCache,
+            videoShotCache = videoShotCache,
             fromSeason = fromSeason,
             danmakuEnabled = uiState.danmakuState.enabledTypes.isNotEmpty(),
             isLooping = isLooping,
@@ -367,7 +372,7 @@ fun VideoPlayerController(
                 showMenuController = true
             },
             onShowRelatedVideos = {
-                if (videoPlayer.isPlaying) onPause()
+                if (isPlaying) onPause()
 
                 showInfoSeekController = false
                 showRelatedVideosController = true
