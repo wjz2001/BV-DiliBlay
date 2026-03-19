@@ -943,13 +943,14 @@ private fun FullScreenMessage(message: String) {
         ) {
         var showDescriptionDialog by remember { mutableStateOf(false) }
         var hasFocus by remember { mutableStateOf(false) }
+        val normalizedDescription = description.trim()
         val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
         val titleFontSize by animateFloatAsState(
             //targetValue = if (hasFocus) 30f else 14f,
             targetValue = 14f,
             label = "title font size"
         )
-        if (description.isNotBlank()) {
+        if (normalizedDescription.isNotEmpty() && normalizedDescription != "-") {
             Column(
                 modifier = modifier
                 // .padding(horizontal = 50.dp),
@@ -973,7 +974,7 @@ private fun FullScreenMessage(message: String) {
                 ) {
                     Text(
                         modifier = Modifier.fillMaxSize(),
-                        text = description.ifBlank { " " },
+                        text = normalizedDescription,
                         maxLines = 5,
                         fontSize = 22.sp,
                         overflow = TextOverflow.Ellipsis,
