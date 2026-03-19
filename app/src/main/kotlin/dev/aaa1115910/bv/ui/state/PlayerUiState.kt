@@ -30,7 +30,6 @@ data class PlayerUiState(
     val title: String = "",
     val videoHeight: Int = 0,
     val videoWidth: Int = 0,
-    val needPay: Boolean = false,
     val lastPlayed: Int = 0,
     val fromSeason: Boolean = false,
     val proxyArea: ProxyArea = ProxyArea.MainLand,
@@ -48,6 +47,7 @@ data class PlayerUiState(
     // 显示tip
     val showSkipToNextEp: Boolean = false,
     val showBackToStart: Boolean = false,
+    val showPreviewTip: Boolean = false,
 
     // 播放器配置与资源
     val availableQuality: Map<Int, String> = emptyMap(),

@@ -1,7 +1,6 @@
 package dev.aaa1115910.bv.viewmodel.player
 
 import android.net.Uri
-import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -95,8 +94,8 @@ class VideoPlayerV3ViewModel(
         private set
 
     private var playData: PlayData? = null
-    private val typeFilter = TypeFilter()
     private var danmakuConfig = DanmakuConfig()
+    private val danmakuTypeFilter = TypeFilter()
 
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState = _uiState.asStateFlow()
@@ -112,6 +111,7 @@ class VideoPlayerV3ViewModel(
 
     private var backToStartCountdownJob: Job? = null
     private var playNextCountdownJob: Job? = null
+    private var previewTipCountdownJob: Job? = null
 
     private val videoPlayerListener = object : VideoPlayerListener {
         override fun onError(error: Exception) {
@@ -633,121 +633,60 @@ class VideoPlayerV3ViewModel(
         logger.fInfo { "Load play url: [av=$avid, cid=$cid, preferApi=$preferApi, proxyArea=$proxyArea]" }
 
         runCatching {
-            val playData = if (_uiState.value.fromSeason) {
-                videoPlayRepository.getPgcPlayData(
-                    aid = avid,
-                    cid = cid,
-                    epid = epid,
-                    preferCodec = Prefs.defaultVideoCodec.toBiliApiCodeType(),
-                    preferApiType = Prefs.apiType,
-                    enableProxy = Prefs.enableProxy,
-                    proxyArea = when (proxyArea) {
-                        ProxyArea.MainLand -> ""
-                        ProxyArea.HongKong -> "hk"
-                        ProxyArea.TaiWan -> "tw"
-                    }
-                )
-            } else {
-                videoPlayRepository.getPlayData(
-                    aid = avid,
-                    cid = cid,
-                    preferApiType = Prefs.apiType
-                )
-            }
+            // 1. 获取播放数据
+            val playData = fetchPlayData(avid, cid, epid, preferApi, proxyArea)
+            this@VideoPlayerV3ViewModel.playData = playData
 
-            //检查是否需要购买，如果未购买，则正片返回的dash为null，非正片例如可以免费观看的预告片等则会返回数据，此时不做提示
-            _uiState.update { it.copy(needPay = playData.needPay) }
-            if (playData.needPay) return@runCatching
+            logger.fInfo { "Load play data response success. Play data: $playData" }
 
-            withContext(Dispatchers.Main) { this@VideoPlayerV3ViewModel.playData = playData }
-            logger.fInfo { "Load play data response success" }
-            logger.info { "Play data: $playData" }
-
-            //读取清晰度
-            val resolutionMap = mutableMapOf<Int, String>()
-            playData.dashVideos.forEach {
-                if (!resolutionMap.containsKey(it.quality)) {
-                    val name = Resolution.fromCode(it.quality).getShortDisplayName(BVApp.context)
-                    resolutionMap[it.quality] = name
-                }
+            // 2. 解析并去重可用的清晰度 (使用 associate 替代 forEach + mutableMap)
+            val resolutionMap = playData.dashVideos.associate { video ->
+                video.quality to Resolution.fromCode(video.quality)
+                    .getShortDisplayName(BVApp.context)
             }
             logger.fInfo { "Video available resolution: $resolutionMap" }
-            _uiState.update { it.copy(availableQuality = resolutionMap) }
 
-            //读取音频
-            val audioList = mutableListOf<Audio>()
-            playData.dashAudios.forEach {
-                Audio.fromCode(it.codecId).let { audio ->
-                    if (!audioList.contains(audio)) audioList.add(audio)
-                }
-            }
-            playData.dolby?.let {
-                Audio.fromCode(it.codecId).let { audio ->
-                    audioList.add(audio)
-                }
-            }
-            playData.flac?.let {
-                Audio.fromCode(it.codecId).let { audio ->
-                    audioList.add(audio)
-                }
-            }
-            logger.fInfo { "Video available audio: $audioList" }
-            _uiState.update { it.copy(availableAudio = audioList) }
+            // 3. 解析并去重可用的音质 (使用 buildList 和 distinct 替代 forEach + mutableList)
+            val availableAudioList = buildList {
+                addAll(playData.dashAudios.map { Audio.fromCode(it.codecId) })
+                playData.dolby?.let { add(Audio.fromCode(it.codecId)) }
+                playData.flac?.let { add(Audio.fromCode(it.codecId)) }
+            }.distinct()
 
-            // 确认最终所选清晰度
-            val defaultQualityCode = Prefs.defaultQuality.code
-            val existDefaultResolution = resolutionMap.containsKey(defaultQualityCode)
-            val targetQualityId = if (existDefaultResolution) {
-                defaultQualityCode
-            } else {
-                val sortedQualities = resolutionMap.keys.sorted()
-                sortedQualities.findLast { it <= defaultQualityCode }
-                    ?: sortedQualities.firstOrNull()
-                    ?: 0
-            }
-            _uiState.update {
-                it.copy(
-                    mediaProfileState = it.mediaProfileState.copy(qualityId = targetQualityId)
-                )
-            }
+            logger.fInfo { "Video available audio: $availableAudioList" }
 
-            // 确定最终目标音质
-            val availableAudio = audioList
-            Log.d("Available audio", "Available audio: $availableAudio")
-            Log.d("Available audio", "Prefs.defaultAudio: ${Prefs.defaultAudio}")
-            val targetAudio = if (availableAudio.contains(Prefs.defaultAudio)) {
-                Prefs.defaultAudio
-            } else {
-                when {
-                    Prefs.defaultAudio == Audio.ADolbyAtoms && availableAudio.contains(Audio.AHiRes) -> Audio.AHiRes
-                    Prefs.defaultAudio == Audio.AHiRes && availableAudio.contains(Audio.ADolbyAtoms) -> Audio.ADolbyAtoms
-                    availableAudio.contains(Audio.A192K) -> Audio.A192K
-                    availableAudio.contains(Audio.A132K) -> Audio.A132K
-                    availableAudio.contains(Audio.A64K) -> Audio.A64K
-                    else -> availableAudio.firstOrNull() ?: Audio.A132K
-                }
-            }
-            _uiState.update {
-                it.copy(mediaProfileState = it.mediaProfileState.copy(audio = targetAudio))
-            }
-
-            //确认最终所选视频编码
+            // 4. 计算目标清晰度、音质和编码 (已抽取业务逻辑)
+            val targetQualityId =
+                calculateTargetQuality(resolutionMap.keys, Prefs.defaultQuality.code)
+            val targetAudio = calculateTargetAudio(availableAudioList, Prefs.defaultAudio)
             val targetCodec = getTargetVideoCodec()
 
-            // 开始播放对应profile的视频
-            withContext(Dispatchers.Main) {
-                playQuality(
-                    qn = targetQualityId,
-                    codec = targetCodec,
-                    audio = targetAudio,
-                )
-                videoPlayer?.start()
-            }
-        }.onFailure { throwable ->
+            // 5. 统一批量更新 UI State (避免多次触发重组)
             _uiState.update {
                 it.copy(
-                    playerState = PlayerState.Error(throwable.message ?: "Unknown error"),
+                    availableQuality = resolutionMap,
+                    availableAudio = availableAudioList,
+                    mediaProfileState = it.mediaProfileState.copy(
+                        qualityId = targetQualityId,
+                        audio = targetAudio
+                    )
                 )
+            }
+
+            // 6. 付费视频预览状态提示
+            if (playData.needPay) {
+                startShowPreviewTipCountdown()
+            }
+
+            // 7. 切回主线程并启动播放
+            withContext(Dispatchers.Main) {
+                playQuality(qn = targetQualityId, codec = targetCodec, audio = targetAudio)
+                videoPlayer?.start()
+            }
+
+        }.onFailure { throwable ->
+            _uiState.update {
+                it.copy(playerState = PlayerState.Error(throwable.message ?: "Unknown error"))
             }
             logger.fException(throwable) { "Load video failed" }
         }.onSuccess {
@@ -755,48 +694,85 @@ class VideoPlayerV3ViewModel(
         }
     }
 
-    // 加载合集内的分P
-    private fun updateVideoPages() {
-        viewModelScope.launch(Dispatchers.IO) {
-            videoInfoRepository.updateUgcPages(Prefs.apiType)
+    private suspend fun fetchPlayData(
+        avid: Long, cid: Long, epid: Int, preferApi: ApiType, proxyArea: ProxyArea
+    ): PlayData {
+        return if (_uiState.value.fromSeason) {
+            videoPlayRepository.getPgcPlayData(
+                aid = avid,
+                cid = cid,
+                epid = epid,
+                preferCodec = Prefs.defaultVideoCodec.toBiliApiCodeType(),
+                preferApiType = preferApi,
+                enableProxy = Prefs.enableProxy,
+                proxyArea = proxyArea.toQueryParam()
+            )
+        } else {
+            videoPlayRepository.getPlayData(
+                aid = avid,
+                cid = cid,
+                preferApiType = preferApi
+            )
         }
     }
 
-    private fun getTargetVideoCodec(): VideoCodec {
-        val state = _uiState.value
+    private fun calculateTargetQuality(availableQualities: Set<Int>, defaultQualityCode: Int): Int {
+        if (availableQualities.contains(defaultQualityCode)) return defaultQualityCode
 
-        if (Prefs.apiType == ApiType.App && playData!!.codec.isEmpty()) {
-            // 纠正当前实际播放的编码
-            val videoItem = playData!!.dashVideos
+        val sortedQualities = availableQualities.sorted()
+        return sortedQualities.findLast { it <= defaultQualityCode }
+            ?: sortedQualities.firstOrNull()
+            ?: 0
+    }
+
+    private fun calculateTargetAudio(availableAudio: List<Audio>, defaultAudio: Audio): Audio {
+        if (availableAudio.contains(defaultAudio)) return defaultAudio
+
+        // Fallback 逻辑
+        return when {
+            defaultAudio == Audio.ADolbyAtoms && availableAudio.contains(Audio.AHiRes) -> Audio.AHiRes
+            defaultAudio == Audio.AHiRes && availableAudio.contains(Audio.ADolbyAtoms) -> Audio.ADolbyAtoms
+            availableAudio.contains(Audio.A192K) -> Audio.A192K
+            availableAudio.contains(Audio.A132K) -> Audio.A132K
+            availableAudio.contains(Audio.A64K) -> Audio.A64K
+            else -> availableAudio.firstOrNull() ?: Audio.A132K
+        }
+    }
+
+    private fun getTargetVideoCodec(): VideoCodec? {
+        val state = _uiState.value
+        val playData = playData ?: return null
+
+        if (Prefs.apiType == ApiType.App && playData.codec.isEmpty()) {
+            val videoItem = playData.dashVideos
                 .find { it.quality == state.mediaProfileState.qualityId }
-                ?: playData!!.dashVideos.first()
+                ?: playData.dashVideos.firstOrNull()
+                ?: return null
+
             val codec = VideoCodec.fromCodecId(videoItem.codecId)
             _uiState.update {
                 it.copy(
+                    availableVideoCodec = listOf(codec),
                     mediaProfileState = it.mediaProfileState.copy(
-                        videoCodec = VideoCodec.fromCodecId(
-                            videoItem.codecId
-                        )
+                        videoCodec = VideoCodec.fromCodecId(videoItem.codecId)
                     )
                 )
             }
             return codec
         }
 
-        val supportedCodec = playData!!.codec
-
-        val codecList =
-            supportedCodec[state.mediaProfileState.qualityId]!!.mapNotNull {
-                VideoCodec.fromCodecString(
-                    it
-                )
-            }
+        val supportedCodec = playData.codec
+        val codecList = supportedCodec[state.mediaProfileState.qualityId]
+            ?.mapNotNull { VideoCodec.fromCodecString(it) }
+            ?.takeIf { it.isNotEmpty() }
+            ?: return null
 
         val targetVideoCodec = if (codecList.contains(Prefs.defaultVideoCodec)) {
             Prefs.defaultVideoCodec
         } else {
-            codecList.minByOrNull { it.ordinal }!!
+            codecList.minByOrNull { it.ordinal } ?: return null
         }
+
         _uiState.update {
             it.copy(
                 availableVideoCodec = codecList,
@@ -812,42 +788,44 @@ class VideoPlayerV3ViewModel(
         codec: VideoCodec? = null,
         audio: Audio? = null
     ) {
+        val currentPlayData = playData ?: return
+        val player = videoPlayer ?: return
+
         val state = _uiState.value
 
         val targetQn = qn ?: state.mediaProfileState.qualityId
         val targetCodec = codec ?: state.mediaProfileState.videoCodec
         val targetAudio = audio ?: state.mediaProfileState.audio
+
         logger.fInfo {
-            "Video quality：${state.availableQuality[targetQn]}, video encoding：${
-                targetCodec.getDisplayName(
-                    BVApp.context
-                )
-            }"
+            "Video quality：${state.availableQuality[targetQn]}, video encoding：$targetCodec"
         }
 
-        val foundVideoItem = playData!!.dashVideos.find {
+        val foundVideoItem = currentPlayData.dashVideos.find {
             when (Prefs.apiType) {
-                ApiType.Web -> it.quality == targetQn && it.codecs!!.startsWith(targetCodec.prefix)
+                ApiType.Web -> it.quality == targetQn && it.codecs?.startsWith(targetCodec.prefix) == true
                 ApiType.App -> {
-                    if (playData!!.codec.isEmpty()) it.quality == targetQn
-                    else it.quality == targetQn && it.codecs!!.startsWith(targetCodec.prefix)
+                    if (currentPlayData.codec.isEmpty()) it.quality == targetQn
+                    else it.quality == targetQn && it.codecs?.startsWith(targetCodec.prefix) == true
                 }
             }
         }
 
-        val actualVideoItem = foundVideoItem ?: playData!!.dashVideos.first()
+        val actualVideoItem = foundVideoItem ?: currentPlayData.dashVideos.firstOrNull() ?: run {
+            _uiState.update { it.copy(playerState = PlayerState.Error("视频源不可用")) }
+            return
+        }
 
         var videoUrl = actualVideoItem.baseUrl
         val videoUrls = mutableListOf<String?>()
         videoUrls.add(actualVideoItem.baseUrl)
-        videoUrls.addAll(actualVideoItem.backUrl ?: emptyList())
+        videoUrls.addAll(actualVideoItem.backUrl)
 
-        val audioItem = playData!!.dashAudios.find { it.codecId == targetAudio.code }
-            ?: playData!!.dolby.takeIf { it?.codecId == targetAudio.code }
-            ?: playData!!.flac.takeIf { it?.codecId == targetAudio.code }
-            ?: playData!!.dashAudios.minByOrNull { it.codecId }
+        val audioItem = currentPlayData.dashAudios.find { it.codecId == targetAudio.code }
+            ?: currentPlayData.dolby.takeIf { it?.codecId == targetAudio.code }
+            ?: currentPlayData.flac.takeIf { it?.codecId == targetAudio.code }
+            ?: currentPlayData.dashAudios.minByOrNull { it.codecId }
 
-        // App 播放源可能返回空的 dashAudios（此时允许仅播放视频，避免 first() 触发 List is empty）
         var audioUrl: String? = audioItem?.baseUrl
         val audioUrls = mutableListOf<String>()
         audioItem?.baseUrl?.let { audioUrls.add(it) }
@@ -866,27 +844,24 @@ class VideoPlayerV3ViewModel(
             audioUrl = if (audioUrls.isNotEmpty()) selectOfficialCdnUrl(audioUrls) else null
         }
 
-        logger.fInfo {
-            "Audio encoding：${
-                (Audio.fromCode(audioItem?.codecId ?: 0)).getDisplayName(
-                    BVApp.context
-                ) ?: "未知"
-            }"
-        }
-
-
+        logger.fInfo { "Audio encoding：${(Audio.fromCode(audioItem?.codecId ?: 0))}" }
         logger.info { "Video url: $videoUrl" }
         logger.info { "Audio url: $audioUrl" }
-        videoPlayer!!.playUrl(videoUrl, audioUrl)
-        videoPlayer!!.prepare()
+
+        player.playUrl(videoUrl, audioUrl)
+        player.prepare()
 
         _uiState.update {
             it.copy(
                 videoHeight = actualVideoItem.height,
-                videoWidth = actualVideoItem?.width ?: 0
+                videoWidth = actualVideoItem.width
             )
         }
+    }
 
+    // 加载合集内的分P
+    private suspend fun updateVideoPages() {
+        videoInfoRepository.updateUgcPages(Prefs.apiType)
     }
 
     private suspend fun loadDanmaku(cid: Long) {
@@ -1095,13 +1070,13 @@ class VideoPlayerV3ViewModel(
                     else -> null
                 }
             }
-            filterTypes.forEach { typeFilter.addFilterItem(it) }
+            filterTypes.forEach { danmakuTypeFilter.addFilterItem(it) }
         }
         danmakuConfig = danmakuConfig.copy(
             retainerPolicy = RETAINER_BILIBILI,
             textSizeScale = scale,
             screenPart = area,
-            dataFilter = listOf(typeFilter),
+            dataFilter = listOf(danmakuTypeFilter),
             rollingSpeedFactor = factor
         )
         danmakuConfig.updateFilter()
@@ -1110,7 +1085,7 @@ class VideoPlayerV3ViewModel(
     }
 
     private fun updateDanmakuConfigTypeFilter(enabledDanmakuTypes: List<DanmakuType>) {
-        typeFilter.clear()
+        danmakuTypeFilter.clear()
 
         if (!enabledDanmakuTypes.contains(DanmakuType.All)) {
             val types = DanmakuType.entries.toMutableList()
@@ -1124,9 +1099,9 @@ class VideoPlayerV3ViewModel(
                     else -> null
                 }
             }
-            filterTypes.forEach { typeFilter.addFilterItem(it) }
+            filterTypes.forEach { danmakuTypeFilter.addFilterItem(it) }
         }
-        logger.info { "Update danmaku type filters: ${typeFilter.filterSet}" }
+        logger.info { "Update danmaku type filters: ${danmakuTypeFilter.filterSet}" }
         danmakuConfig.updateFilter()
         danmakuPlayer?.updateConfig(danmakuConfig)
     }
@@ -1175,6 +1150,22 @@ class VideoPlayerV3ViewModel(
 
             playNextTarget(target)
             _uiState.update { it.copy(showSkipToNextEp = false) }
+        }
+    }
+
+    private fun startShowPreviewTipCountdown() {
+        previewTipCountdownJob?.cancel()
+
+        previewTipCountdownJob = viewModelScope.launch {
+            _uiState.update {
+                it.copy(showPreviewTip = true)
+            }
+
+            delay(5000)
+
+            _uiState.update {
+                it.copy(showPreviewTip = false)
+            }
         }
     }
 
