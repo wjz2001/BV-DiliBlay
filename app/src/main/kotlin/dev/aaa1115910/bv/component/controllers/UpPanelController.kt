@@ -1,14 +1,26 @@
+@file:Suppress("DEPRECATION")
+
 package dev.aaa1115910.bv.component.controllers
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,9 +35,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
-import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
@@ -33,15 +46,21 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Subscriptions
 import androidx.compose.material.icons.rounded.Toc
 import androidx.compose.material.icons.rounded.VideoLibrary
-import androidx.compose.material.icons.rounded.Subscriptions
+import androidx.compose.ui.unit.Dp
+import androidx.tv.material3.DenseListItem
+import androidx.tv.material3.Icon
+import androidx.tv.material3.ListItemDefaults
+import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
-import dev.aaa1115910.bv.component.controllers.playermenu.component.MenuListItem
+import androidx.tv.material3.Text
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.ui.state.PlayerChapter
@@ -97,6 +116,32 @@ fun UpPanelController(
         if (selectedTab == UpPanelTab.Collection && !collectionsEnabled) selectedTab = UpPanelTab.Video
     }
 
+    val chapterBuilt = buildChapterParents(
+        chapters = uiState.availableChapters,
+        currentTimeMs = currentTimeMs
+    )
+    val collectionBuilt = buildCollectionParents(uiState)
+    val videoPageProgress = buildVideoPageProgress(
+        videoList = uiState.availableVideoList,
+        currentAid = uiState.aid,
+        currentCid = uiState.cid
+    )
+
+    val chapterProgressText = formatProgressText(
+        selectedIndex = chapterBuilt.selectedIndex,
+        total = chapterBuilt.parents.size
+    )
+    val videoProgressText = videoPageProgress?.let {
+        formatProgressText(
+            selectedIndex = it.selectedIndex,
+            total = it.total
+        )
+    }
+    val collectionProgressText = formatProgressText(
+        selectedIndex = collectionBuilt.selectedIndex,
+        total = collectionBuilt.parents.size
+    )
+
     Box(
         modifier = modifier,
         contentAlignment = Alignment.CenterStart
@@ -123,10 +168,9 @@ fun UpPanelController(
                                 if (fs.hasFocus) focusState = UpPanelFocusState.Nav
                             }
                             .onPreviewKeyEvent {
-                                // 不再在按键时手动切状态，由 onFocusChanged 跟随真实焦点
                                 if (it.type == KeyEventType.KeyUp) {
-                                    if (listOf(Key.Enter, Key.DirectionCenter).contains(it.key)) return@onPreviewKeyEvent false
-                                    return@onPreviewKeyEvent true
+                                    // 直接判断，避免创建 List 对象
+                                    return@onPreviewKeyEvent it.key != Key.Enter && it.key != Key.DirectionCenter
                                 }
                                 false
                             },
@@ -134,6 +178,9 @@ fun UpPanelController(
                         isExpanded = focusState == UpPanelFocusState.Nav,
                         chaptersEnabled = chaptersEnabled,
                         collectionsEnabled = collectionsEnabled,
+                        chapterProgressText = chapterProgressText,
+                        videoProgressText = videoProgressText,
+                        collectionProgressText = collectionProgressText,
                         navVideoItemFocusRequester = navVideoItemFocusRequester,
                         onSelectedChanged = { selectedTab = it }
                     )
@@ -172,22 +219,17 @@ fun UpPanelController(
                             UpPanelTab.Chapter -> {
                                 if (!chaptersEnabled) return@Box
 
-                                val built = buildChapterParents(
-                                    chapters = uiState.availableChapters,
-                                    currentTimeMs = currentTimeMs
-                                )
-
                                 CollectionListController(
                                     modifier = Modifier
                                         .fillMaxHeight()
                                         .widthIn(min = 300.dp) ,
                                     show = show,
                                     active = contentActive,
-                                    parents = built.parents,
-                                    selectedParentKey = built.selectedParentKey,
+                                    parents = chapterBuilt.parents,
+                                    selectedParentKey = chapterBuilt.selectedParentKey,
+                                    pinnedParentKey = chapterBuilt.selectedParentKey,
+                                    enterFocusKey = chapterBuilt.selectedParentKey,
                                     selectedChildKey = null,
-                                    pinnedParentKey = built.selectedParentKey,
-                                    enterFocusKey = built.selectedParentKey,
                                     autoExpandPinnedParent = false,
                                     onEnsureChildrenLoaded = {},
                                     onParentClick = { parent ->
@@ -203,16 +245,14 @@ fun UpPanelController(
                             UpPanelTab.Collection -> {
                                 if (!collectionsEnabled) return@Box
 
-                                val built = buildCollectionParents(uiState)
-
                                 CollectionListController(
                                     modifier = Modifier.fillMaxHeight(),
                                     show = show,
                                     active = contentActive,
-                                    parents = built.parents,
-                                    selectedParentKey = built.selectedParentKey,
-                                    selectedChildKey = built.selectedChildKey,
-                                    pinnedParentKey = built.selectedParentKey,
+                                    parents = collectionBuilt.parents,
+                                    selectedParentKey = collectionBuilt.selectedParentKey,
+                                    selectedChildKey = collectionBuilt.selectedChildKey,
+                                    pinnedParentKey = collectionBuilt.selectedParentKey,
                                     onEnsureChildrenLoaded = {},
                                     onParentClick = { /* 父项点击展开/折叠由组件内部处理 */ },
                                     onChildClick = { _, child ->
@@ -231,16 +271,108 @@ fun UpPanelController(
 }
 
 @Composable
+private fun UpPanelNavItem(
+    modifier: Modifier = Modifier,
+    title: String,
+    progressText: String?,
+    icon: ImageVector,
+    expanded: Boolean = true,
+    expandedWidth: Dp,
+    selected: Boolean,
+    onFocus: () -> Unit = {},
+    onClick: () -> Unit
+) {
+    val itemWidth by animateDpAsState(
+        targetValue = if (expanded) expandedWidth else 66.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "UpPanelNavItem width [$title]"
+    )
+
+    DenseListItem(
+        modifier = modifier
+            .width(itemWidth)
+            .onFocusChanged { if (it.hasFocus) onFocus() },
+        selected = selected,
+        onClick = onClick,
+        headlineContent = {
+            Box {
+                Row(
+                    modifier = Modifier
+                        .padding(horizontal = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AnimatedVisibility(
+                        visible = expanded,
+                        label = "UpPanelNavItem text [$title]",
+                        enter = fadeIn(),
+                        exit = fadeOut()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(40.dp),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                modifier = Modifier.fillMaxWidth(),
+                                text = if (progressText != null) "$title$progressText" else title,
+                                style = MaterialTheme.typography.titleMedium,
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    AnimatedVisibility(
+                        visible = !expanded,
+                        label = "UpPanelNavItem icon [$title]",
+                        enter = fadeIn(),
+                        exit = fadeOut()
+                    ) {
+                        Icon(
+                            modifier = Modifier.size(32.dp),
+                            imageVector = icon,
+                            contentDescription = null
+                        )
+                    }
+                }
+            }
+        },
+        colors = ListItemDefaults.colors(
+            selectedContainerColor = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.4f),
+        )
+    )
+}
+
+@Composable
 private fun UpPanelNavList(
     modifier: Modifier = Modifier,
     selectedTab: UpPanelTab,
     isExpanded: Boolean,
     chaptersEnabled: Boolean,
     collectionsEnabled: Boolean,
+    chapterProgressText: String?,
+    videoProgressText: String?,
+    collectionProgressText: String?,
     navVideoItemFocusRequester: FocusRequester,
     onSelectedChanged: (UpPanelTab) -> Unit,
 ) {
     val listFocusRequester = remember { FocusRequester() }
+
+    // 判断是否至少存在一个进度文本
+    val hasAnyProgress = chapterProgressText != null ||
+            videoProgressText != null ||
+            collectionProgressText != null
 
     LaunchedEffect(Unit) {
         listFocusRequester.requestFocus()
@@ -260,14 +392,22 @@ private fun UpPanelNavList(
                 UpPanelTab.Collection -> collectionsEnabled
             }
 
-            MenuListItem(
+            val progressText = when (tab) {
+                UpPanelTab.Chapter -> chapterProgressText
+                UpPanelTab.Video -> videoProgressText
+                UpPanelTab.Collection -> collectionProgressText
+            }
+
+            UpPanelNavItem(
                 modifier = Modifier
                     .ifElse(tab == UpPanelTab.Video, Modifier.focusRequester(navVideoItemFocusRequester))
                     .focusProperties { canFocus = enabled }
                     .alpha(if (enabled) 1f else 0.45f),
-                text = tab.title,
+                title = tab.title,
+                progressText = progressText,
                 icon = tab.icon,
                 expanded = isExpanded,
+                expandedWidth = if (hasAnyProgress) 260.dp else 200.dp,
                 selected = selectedTab == tab,
                 onClick = {},
                 onFocus = { if (enabled) onSelectedChanged(tab) }
@@ -278,7 +418,8 @@ private fun UpPanelNavList(
 
 private data class BuiltChapterParents(
     val parents: List<CollectionParentItem>,
-    val selectedParentKey: Long?
+    val selectedParentKey: Long?,
+    val selectedIndex: Int?
 )
 
 private fun buildChapterParents(
@@ -301,14 +442,16 @@ private fun buildChapterParents(
                 extra = ch
             )
         },
-        selectedParentKey = selectedIndex?.toLong()
+        selectedParentKey = selectedIndex?.toLong(),
+        selectedIndex = selectedIndex
     )
 }
 
 private data class BuiltCollectionParents(
     val parents: List<CollectionParentItem>,
     val selectedParentKey: Long?,
-    val selectedChildKey: Long?
+    val selectedChildKey: Long?,
+    val selectedIndex: Int?
 )
 
 private fun buildCollectionParents(uiState: PlayerUiState): BuiltCollectionParents {
@@ -343,6 +486,40 @@ private fun buildCollectionParents(uiState: PlayerUiState): BuiltCollectionParen
     return BuiltCollectionParents(
         parents = parents,
         selectedParentKey = selectedParentIndex?.toLong(),
-        selectedChildKey = currentAid.takeIf { it != 0L }
+        selectedChildKey = currentAid.takeIf { it != 0L },
+        selectedIndex = selectedParentIndex
     )
+}
+
+private data class VideoPageProgress(
+    val total: Int,
+    val selectedIndex: Int?
+)
+
+private fun buildVideoPageProgress(
+    videoList: List<VideoListItem>,
+    currentAid: Long,
+    currentCid: Long
+): VideoPageProgress? {
+    val parent = videoList.firstOrNull { it.aid == currentAid }
+        ?: videoList.firstOrNull { it.cid == currentCid }
+        ?: videoList.firstOrNull { video -> video.ugcPages?.any { it.cid == currentCid } == true }
+
+    val pages = parent?.ugcPages ?: return null
+    val selectedIndex = pages.indexOfFirst { it.cid == currentCid }
+        .takeIf { it >= 0 }
+
+    return VideoPageProgress(
+        total = pages.size,
+        selectedIndex = selectedIndex
+    )
+}
+
+private fun formatProgressText(
+    selectedIndex: Int?,
+    total: Int
+): String? {
+    if (total <= 1) return null
+    val current = selectedIndex?.plus(1) ?: return null
+    return "（$current/$total）"
 }
