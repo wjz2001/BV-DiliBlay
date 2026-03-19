@@ -20,4 +20,10 @@ enum class ProxyArea {
             return proxyArea
         }
     }
+
+    fun toQueryParam(): String = when (this) {
+        MainLand -> ""
+        HongKong -> "hk"
+        TaiWan -> "tw"
+    }
 }

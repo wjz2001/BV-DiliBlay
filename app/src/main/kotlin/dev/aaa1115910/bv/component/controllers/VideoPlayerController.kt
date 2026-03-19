@@ -317,9 +317,9 @@ fun VideoPlayerController(
         }
 
         SkipTips(
-            historyTime = uiState.lastPlayed.toLong(),
             showBackToStart = uiState.showBackToStart,
             showSkipToNextEp = uiState.showSkipToNextEp,
+            showPreviewTip = uiState.showPreviewTip,
         )
 
         PlayStateTips(
@@ -327,8 +327,6 @@ fun VideoPlayerController(
             isBuffering = uiState.isBuffering,
             isError = uiState.playerState is PlayerState.Error,
             errorMessage = (uiState.playerState as? PlayerState.Error)?.message,
-            needPay = uiState.needPay,
-            epid = uiState.epid ?: 0,
         )
 
         RelatedVideosController(
