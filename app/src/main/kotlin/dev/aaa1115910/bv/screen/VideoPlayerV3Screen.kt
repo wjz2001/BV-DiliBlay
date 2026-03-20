@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -37,6 +36,7 @@ import dev.aaa1115910.bv.ui.effect.PlayerUiEffect
 import dev.aaa1115910.bv.ui.state.PlayerState
 import dev.aaa1115910.bv.util.DanmakuMaskFinder
 import dev.aaa1115910.bv.util.Prefs
+import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.calculateMaskDelay
 import dev.aaa1115910.bv.util.danmakuMask
 import dev.aaa1115910.bv.viewmodel.player.VideoPlayerV3ViewModel
@@ -64,6 +64,8 @@ fun VideoPlayerV3Screen(
     var isLooping by remember { mutableStateOf(false) }
     val uiState by playerViewModel.uiState.collectAsState()
     val seekerState = playerViewModel.seekerState.collectAsState()
+
+    val videoShotCache by remember(uiState.videoShot) { mutableStateOf(VideoShotImageCache()) }
 
     LaunchedEffect(Unit) {
         playerViewModel.uiEffect.collect { effect ->
@@ -147,11 +149,12 @@ fun VideoPlayerV3Screen(
 
     VideoPlayerController(
         modifier = modifier,
-        videoPlayer = videoPlayer,
         aid = uiState.aid,
         fromSeason = uiState.fromSeason,
         proxyArea = ProxyArea.MainLand,
         isLooping = isLooping,
+        isPlaying = videoPlayer.isPlaying,
+        videoShotCache = videoShotCache,
         uiState = uiState,
         seekerState = seekerState,
         onPlay = { videoPlayer.start() },
@@ -226,12 +229,14 @@ fun VideoPlayerV3Screen(
             playerViewModel.updateSubtitleState(action)
         },
         onRelatedVideoClicked = { video ->
-            video.cid?.let{
-                playerViewModel.playNewVideo(VideoListItem(
-                    aid = video.avid,
-                    cid = video.cid,
-                    title = video.title,
-                ))
+            video.cid?.let {
+                playerViewModel.playNewVideo(
+                    VideoListItem(
+                        aid = video.avid,
+                        cid = video.cid,
+                        title = video.title,
+                    )
+                )
             }
         },
         onEnsureUgcPagesLoaded = playerViewModel::ensureUgcPagesLoaded,

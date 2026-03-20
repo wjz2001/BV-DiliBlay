@@ -4,7 +4,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kuaishou.akdanmaku.data.DanmakuItemData
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskSegment
 import dev.aaa1115910.biliapi.entity.video.Subtitle
 import dev.aaa1115910.biliapi.entity.video.VideoShot
@@ -16,7 +15,6 @@ import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
-import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.biliapi.entity.video.season.UgcSeason
 
 // 1. 核心 UI 状态 (低频更新)
@@ -33,7 +31,6 @@ data class PlayerUiState(
     val partTitle: String = "",
     val videoHeight: Int = 0,
     val videoWidth: Int = 0,
-    val needPay: Boolean = false,
     val lastPlayed: Int = 0,
     val fromSeason: Boolean = false,
     val proxyArea: ProxyArea = ProxyArea.MainLand,
@@ -41,16 +38,16 @@ data class PlayerUiState(
 
     // 播放状态
     val playerState: PlayerState = PlayerState.Ready,
-    val isBuffering: Boolean = false, // 缓冲和暂停会同时出现，单独列出
-    // 进度条缩略图及其缓存
+    val isBuffering: Boolean = false, // 缓冲和暂停会同时出现，故单独列出
+    // 进度条缩略图
     val videoShot: VideoShot? = null,
-    val videoShotCache: VideoShotImageCache = VideoShotImageCache(),
     // 播放器时钟
     val clock: Pair<Int, Int> = Pair(0, 0),
 
     // 显示tip
     val showSkipToNextEp: Boolean = false,
     val showBackToStart: Boolean = false,
+    val showPreviewTip: Boolean = false,
 
     // 播放器配置与资源
     val availableQuality: Map<Int, String> = emptyMap(),

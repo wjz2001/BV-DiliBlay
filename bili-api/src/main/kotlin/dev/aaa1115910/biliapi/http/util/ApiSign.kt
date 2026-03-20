@@ -27,19 +27,31 @@ private val mixinKeyEncTab = listOf(
     20, 34, 44, 52
 )
 
+private fun String.md5(): String =
+    MessageDigest.getInstance("MD5")
+        .digest(toByteArray())
+        .joinToString("") { "%02x".format(it) }
+
+private fun Map<String, String>.toSortedQueryString(): String =
+    toSortedMap()
+        .map { (k, v) -> "$k=${URLEncoder.encode(v, "utf-8")}" }
+        .joinToString("&")
+
+private fun getMixinKey(orig: String): String =
+    mixinKeyEncTab.fold("") { s, i -> s + orig[i] }.substring(0, 32)
+
+private val HttpRequestBuilder.isAppRequest: Boolean
+    get() = url.parameters.contains("access_key") || url.host == "app.bilibili.com"
+
 fun HttpRequestBuilder.encAppPost() {
     var parameters = (body as FormDataContent).formData
     parameters += Parameters.build { append("appkey", APP_KEY) }
 
-    val sortedParams = parameters.entries()
+    val sortedQueryString = parameters.entries()
         .associate { it.key to it.value.first() }
-        .toSortedMap()
-        .map { (key, value) -> "$key=${URLEncoder.encode(value, "utf-8")}" }
-        .joinToString("&")
+        .toSortedQueryString()
 
-    val sign = MessageDigest.getInstance("MD5").digest((sortedParams + APP_SEC).toByteArray())
-        .joinToString("") { "%02x".format(it) }
-
+    val sign = (sortedQueryString + APP_SEC).md5()
     parameters += Parameters.build { append("sign", sign) }
     setBody(FormDataContent(parameters))
     println("sign: $sign")
@@ -48,34 +60,21 @@ fun HttpRequestBuilder.encAppPost() {
 fun HttpRequestBuilder.encAppGet() {
     parameter("appkey", APP_KEY)
 
-    val sortedParams = url.encodedParameters.entries()
+    val sortedQueryString = url.encodedParameters.entries()
         .associate { it.key to it.value.first() }
-        .toSortedMap()
-        .also {
-            url.parameters.clear()
-            it.entries.forEach { (key, value) -> parameter(key, value) }
-        }
+        .toSortedQueryString()
 
-    val sortedParamsString = sortedParams
-        .map { (key, value) -> "$key=$value" }
-        .joinToString("&")
-
-    val sign = MessageDigest.getInstance("MD5").digest((sortedParamsString + APP_SEC).toByteArray())
-        .joinToString("") { "%02x".format(it) }
-
+    val sign = (sortedQueryString + APP_SEC).md5()
     parameter("sign", sign)
     println("sign: $sign")
 }
 
 suspend fun HttpRequestBuilder.encWbi() {
-    val getMixinKey: (orig: String) -> String = { orig ->
-        val mixinKey = mixinKeyEncTab.fold("") { s, i -> s + orig[i] }
-        mixinKey.substring(0, 32)
-    }
-
     if (BiliHttpApi.wbiImgKey == null || BiliHttpApi.wbiSubKey == null) BiliHttpApi.updateWbi()
-    require(BiliHttpApi.wbiImgKey != null && BiliHttpApi.wbiSubKey != null) { "Wbi keys can't be null!" }
-    val mixinKey = getMixinKey(BiliHttpApi.wbiImgKey + BiliHttpApi.wbiSubKey)
+    val mixinKey = getMixinKey(
+        requireNotNull(BiliHttpApi.wbiImgKey) { "wbiImgKey can't be null!" } +
+                requireNotNull(BiliHttpApi.wbiSubKey) { "wbiSubKey can't be null!" }
+    )
 
     val wts = (System.currentTimeMillis() / 1000).toInt()
     parameter("wts", wts)
@@ -90,8 +89,7 @@ suspend fun HttpRequestBuilder.encWbi() {
         }
         .joinToString("&")
 
-    val wRid = MessageDigest.getInstance("MD5").digest((sortedParams + mixinKey).toByteArray())
-        .joinToString("") { "%02x".format(it) }
+    val wRid = (sortedParams + mixinKey).md5()
     parameter("w_rid", wRid)
 }
 
@@ -110,34 +108,13 @@ fun HttpClient.encApiSign() = plugin(HttpSend)
             }.toString()
         }
 
-        // 为 Web 请求自动添加 buvid3 cookie
-        val isAppRequest =
-            request.url.parameters.contains("access_key") || request.url.host == "app.bilibili.com"
-        // playurl 接口不需要添加 buvid3
-        val isPlayUrlRequest = request.url.encodedPath.contains("/x/player/playurl") ||
-                request.url.encodedPath.contains("/x/player/wbi/playurl")
-        if (!isAppRequest && !isPlayUrlRequest) {
-            val buvid3 = BiliHttpApi.buvid3
-            val existingCookie = request.headers["Cookie"] ?: ""
-            if (buvid3.isNotBlank() && !existingCookie.contains("buvid3=")) {
-                val newCookie = if (existingCookie.isNotBlank()) {
-                    "buvid3=$buvid3; $existingCookie"
-                } else {
-                    "buvid3=$buvid3"
-                }
-                request.headers["Cookie"] = newCookie
-            }
-        }
-
         when (request.method) {
-            // app 端如果既用到了 wbi get 接口，也用到了 token 去请求，那是先计算 wbi sign 还是 app sign？
-            // 目前看来需要计算 wbi sign 的接口之前忘记计算 app sign 都通过校验了🤯
             HttpMethod.Get -> {
                 val isWbiRequest = request.url.encodedPath.contains("wbi")
                 if (isWbiRequest) {
                     println("Enc wbi for get request: ${getUrlWithoutAccessToken(request.url)}")
                     request.encWbi()
-                } else if (isAppRequest) {
+                } else if (request.isAppRequest) {
                     println("Enc app sign for get request: ${getUrlWithoutAccessToken(request.url)}")
                     request.encAppGet()
                     println(getUrlWithoutAccessToken(request.url))
@@ -157,3 +134,21 @@ fun HttpClient.encApiSign() = plugin(HttpSend)
         }
         execute(request)
     }
+
+fun HttpClient.injectBuvid3Cookie() = plugin(HttpSend).intercept { request ->
+    val isPlayUrlRequest =
+        request.url.encodedPath.contains("/x/player/playurl") ||
+                request.url.encodedPath.contains("/x/player/wbi/playurl")
+
+    if (!request.isAppRequest && !isPlayUrlRequest) {
+        val buvid3 = BiliHttpApi.buvid3
+        if (buvid3.isNotBlank()) {
+            val existing = request.headers["Cookie"] ?: ""
+            if (!existing.contains("buvid3=")) {
+                request.headers["Cookie"] =
+                    if (existing.isNotBlank()) "buvid3=$buvid3; $existing" else "buvid3=$buvid3"
+            }
+        }
+    }
+    execute(request)
+}
