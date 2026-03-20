@@ -39,10 +39,10 @@ import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
-import dev.aaa1115910.bv.player.AbstractVideoPlayer
 import dev.aaa1115910.bv.ui.state.PlayerState
 import dev.aaa1115910.bv.ui.state.PlayerUiState
 import dev.aaa1115910.bv.ui.state.SeekerState
+import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.player.DanmakuSettingAction
 import dev.aaa1115910.bv.viewmodel.player.MediaProfileSettingAction
@@ -56,15 +56,20 @@ import kotlinx.coroutines.launch
 @Composable
 fun VideoPlayerController(
     modifier: Modifier = Modifier,
-    videoPlayer: AbstractVideoPlayer,
     aid: Long,
     fromSeason: Boolean,
     proxyArea: ProxyArea,
+
+    // play state
     isLooping: Boolean,
+    isPlaying: Boolean,
+
+    // UI related state
+    videoShotCache: VideoShotImageCache,
     uiState: PlayerUiState,
     seekerState: State<SeekerState>,
 
-    //player events
+    // player events
     onPlay: () -> Unit,
     onPause: () -> Unit,
     onExit: () -> Unit,
@@ -136,17 +141,16 @@ fun VideoPlayerController(
         goTime =
             if (targetTime > seekerState.value.totalDuration) seekerState.value.totalDuration else targetTime
         lastSeekChangeTime = System.currentTimeMillis()
-        logger.info { "onTimeForward: [current=${videoPlayer.currentPosition}, goTime=$goTime]" }
+        logger.info { "onTimeForward: [goTime=$goTime]" }
     }
 
     fun onTimeBack() {
         isSeeking = true
-        // val targetTime = goTime - (10000 + calCoefficient() * 5000)
         // 快退一次从10s改为5s
         val targetTime = goTime - (5000 + calCoefficient() * 5000)
         goTime = if (targetTime < 0) 0 else targetTime
         lastSeekChangeTime = System.currentTimeMillis()
-        logger.info { "onTimeBack: [current=${videoPlayer.currentPosition}, goTime=$goTime]" }
+        logger.info { "onTimeBack: [goTime=$goTime]" }
     }
 
     fun startSeekCountdown() {
@@ -155,7 +159,7 @@ fun VideoPlayerController(
             delay(1000)
 
             onGoTime(goTime)
-            if (!videoPlayer.isPlaying) onPlay()
+            if (!isPlaying) onPlay()
 
             isSeeking = false
             showInfoSeekController = false
@@ -178,13 +182,13 @@ fun VideoPlayerController(
     fun onSeekGoTime() {
         onGoTime(goTime)
         isSeeking = false
-        if (!videoPlayer.isPlaying) onPlay()
+        if (!isPlaying) onPlay()
         showInfoSeekController = false
         seekCountdown?.cancel()
     }
 
     fun onPlayPause() {
-        if (videoPlayer.isPlaying) onPause() else onPlay()
+        if (isPlaying) onPause() else onPlay()
     }
 
     fun handleKeyEvent(event: KeyEvent): Boolean {
@@ -254,12 +258,12 @@ fun VideoPlayerController(
             }
 
             Key.MediaPlay -> {
-                if (!videoPlayer.isPlaying) onPlay()
+                if (!isPlaying) onPlay()
                 return true
             }
 
             Key.MediaPause -> {
-                if (videoPlayer.isPlaying) onPause()
+                if (isPlaying) onPause()
                 return true
             }
         }
@@ -281,7 +285,7 @@ fun VideoPlayerController(
                             //showMenuController = true
                             // 触发长按：临时倍速 = 当前倍速 * 1.5
                             if (!confirmLongPressGuard) {
-                                val originSpeed = videoPlayer.speed
+                                val originSpeed = uiState.playSpeed
                                 confirmLongPressOriginSpeed = originSpeed
 
                                 val boostedSpeed = (originSpeed * 2.0f).coerceAtMost(5f)
@@ -296,13 +300,6 @@ fun VideoPlayerController(
                         }
                     }
                     onPlayPause()
-                    /*
-                        if (uiState.showBackToStart) {
-                            onBackToStart()
-                        } else {
-                            onPlayPause()
-                        }
-                         */
                     return true
                 }
 
@@ -404,20 +401,18 @@ fun VideoPlayerController(
                     )
                 }
 
-                SkipTips(
-                    historyTime = uiState.lastPlayed.toLong(),
-                    showBackToStart = uiState.showBackToStart,
-                    showSkipToNextEp = uiState.showSkipToNextEp,
-                )
+        SkipTips(
+            showBackToStart = uiState.showBackToStart,
+            showSkipToNextEp = uiState.showSkipToNextEp,
+            showPreviewTip = uiState.showPreviewTip,
+        )
 
-                PlayStateTips(
-                    isPlaying = uiState.playerState == PlayerState.Playing,
-                    isBuffering = uiState.isBuffering,
-                    isError = uiState.playerState is PlayerState.Error,
-                    errorMessage = (uiState.playerState as? PlayerState.Error)?.message,
-                    needPay = uiState.needPay,
-                    epid = uiState.epid ?: 0,
-                )
+        PlayStateTips(
+            isPlaying = uiState.playerState == PlayerState.Playing,
+            isBuffering = uiState.isBuffering,
+            isError = uiState.playerState is PlayerState.Error,
+            errorMessage = (uiState.playerState as? PlayerState.Error)?.message,
+        )
 
         RelatedVideosController(
             show = showRelatedVideosController,
@@ -428,71 +423,71 @@ fun VideoPlayerController(
             }
         )
 
-                //val secondTitle = uiState.availableVideoList.firstOrNull { it.cid == uiState.cid }?.title.orEmpty()
                 val secondTitle = uiState.partTitle.ifBlank {
                     uiState.availableVideoList.firstOrNull { it.cid == uiState.cid }?.title.orEmpty()
                 }
 
-                ControllerVideoInfo(
-                    modifier = Modifier.focusable(),
-                    show = showInfoSeekController,
-                    focusButtonsOnShow = focusInfoButtonsOnShow,
-                    onConsumeFocusButtonsOnShow = { focusInfoButtonsOnShow = false },
-                    isSeeking = isSeeking,
-                    goTime = goTime,
-                    seekerState = seekerState.value,
-                    title = uiState.title,
-                    secondTitle = secondTitle,
-                    clock = uiState.clock,
-                    currentPlaySpeed = uiState.playSpeed,
-                    videoShot = uiState.videoShot,
-                    videoShotCache = uiState.videoShotCache,
-                    fromSeason = fromSeason,
-                    danmakuEnabled = uiState.danmakuState.danmakuEnabled,
-                    isLooping = isLooping,
-                    onDirectionLeft = { onDirectionLeft() },
-                    onDirectionRight = { onDirectionRight() },
-                    onSeekGoTime = { onSeekGoTime() },
-                    onPlayPause = { onPlayPause() },
-                    onDanmakuSwitchChange = {
-                        onDanmakuSettingChange(
-                            DanmakuSettingAction.SetDanmakuEnabled(!uiState.danmakuState.danmakuEnabled)
-                        )
-                    },
-                    onShowSettings = {
-                        showInfoSeekController = false
-                        showMenuController = true
-                    },
-                    onShowRelatedVideos = {
-                        if (videoPlayer.isPlaying) onPause()
-                        showInfoSeekController = false
-                        showRelatedVideosController = true
-                    },
-                    onGoToVideoInfo = {
-                        VideoInfoActivity.actionStart(
-                            context = context,
-                            aid = aid,
-                            fromSeason = fromSeason,
-                            fromController = true,
-                            proxyArea = proxyArea
-                        )
-                    },
-                    onToggleLoop = onToggleLoop,
-                    onGoToUpPage = onGoToUpPage,
-                    hasMultipleCoAuthors = uiState.coAuthors.distinctBy { it.mid }.size > 1,
-                    onShowTimeJump = {
-                        // 立刻暂停 + 打开对话框
-                        onPause()
-                        showInfoSeekController = false
-                        showTimeJumpDialog = true
-                    },
-                    onShowComments = {
-                        // 立刻暂停 + 打开评论
-                        onPause()
-                        showInfoSeekController = false
-                        showCommentsDialog = true
-                    },
+        ControllerVideoInfo(
+            modifier = Modifier.focusable(),
+            show = showInfoSeekController,
+            focusButtonsOnShow = focusInfoButtonsOnShow,
+            onConsumeFocusButtonsOnShow = { focusInfoButtonsOnShow = false },
+            isSeeking = isSeeking,
+            goTime = goTime,
+            seekerState = seekerState.value,
+            title = uiState.title,
+            secondTitle = secondTitle,
+            clock = uiState.clock,
+            currentPlaySpeed = uiState.playSpeed,
+            videoShot = uiState.videoShot,
+            videoShotCache = videoShotCache,
+            fromSeason = fromSeason,
+            danmakuEnabled = uiState.danmakuState.danmakuEnabled,
+            isLooping = isLooping,
+            onDirectionLeft = { onDirectionLeft() },
+            onDirectionRight = { onDirectionRight() },
+            onSeekGoTime = { onSeekGoTime() },
+            onPlayPause = { onPlayPause() },
+            onDanmakuSwitchChange = {
+                onDanmakuSettingChange(
+                    DanmakuSettingAction.SetDanmakuEnabled(!uiState.danmakuState.danmakuEnabled)
                 )
+            },
+            onShowSettings = {
+                showInfoSeekController = false
+                showMenuController = true
+            },
+            onShowRelatedVideos = {
+                if (isPlaying) onPause()
+
+                showInfoSeekController = false
+                showRelatedVideosController = true
+            },
+            onGoToVideoInfo = {
+                VideoInfoActivity.actionStart(
+                    context = context,
+                    aid = aid,
+                    fromSeason = fromSeason,
+                    fromController = true,
+                    proxyArea = proxyArea
+                )
+            },
+            onToggleLoop = onToggleLoop,
+            onGoToUpPage = onGoToUpPage,
+            hasMultipleCoAuthors = uiState.coAuthors.distinctBy { it.mid }.size > 1,
+            onShowTimeJump = {
+                // 立刻暂停 + 打开对话框
+                onPause()
+                showInfoSeekController = false
+                showTimeJumpDialog = true
+            },
+            onShowComments = {
+                // 立刻暂停 + 打开评论
+                onPause()
+                showInfoSeekController = false
+                showCommentsDialog = true
+            },
+        )
 
                 TimeJumpDialog(
                     show = showTimeJumpDialog,
@@ -509,27 +504,17 @@ fun VideoPlayerController(
                         // 退出评论组件立刻播放
                         onPlay()
                     }
-                )
+        )
 
-                /*
-                VideoListController(
-                    show = showListController,
-                    currentAid = uiState.aid,
-                    currentCid = uiState.cid,
-                    videoList = uiState.availableVideoList,
-                    onEnsureUgcPagesLoaded = onEnsureUgcPagesLoaded,
-                    onPlayNewVideo = onPlayNewVideo
-                )
-                 */
                 UpPanelController(
                     show = showUpPanelController,
                     uiState = uiState,
                     currentTimeMs = seekerState.value.currentTime,
-                    isPlaying = videoPlayer.isPlaying,
+                    isPlaying = isPlaying,
                     onDismiss = { showUpPanelController = false },
                     onGoTime = { targetMs ->
                         onGoTime(targetMs)
-                        if (!videoPlayer.isPlaying) onPlay()
+                        if (!isPlaying) onPlay()
                     },
                     onPlay = onPlay,
                     onPlayNewVideo = onPlayNewVideo,

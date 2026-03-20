@@ -226,12 +226,7 @@ fun VideoInfoScreen(
     var lastPlayedAid by remember { mutableLongStateOf(0L) }
     val containsVerticalScreenVideo by remember(uiState.videoDetailState) {
         derivedStateOf {
-            uiState.videoDetailState?.run {
-                val inPages = pages.any { it.dimension.isVertical }
-                inPages || ugcSeason?.sections?.any { section ->
-                    section.episodes.any { it.dimension?.isVertical == true }
-                } == true
-            } ?: false
+            uiState.videoDetailState?.pages?.any { it.dimension.isVertical } ?: false
         }
     }
 
@@ -507,7 +502,7 @@ fun VideoInfoScreen(
                                     lastPlayedCid = videoDetailState.lastPlayedCid,
                                     lastPlayedTime = videoDetailState.lastPlayedTime,
                                     enableUgcListDialog = section.episodes.size > 5,
-                                    // 【修复点】不再原地播放，点击直接跳转新的详情页
+                                    // 点击直接跳转新的详情页
                                     onClick = { aid, _ ->
                                         logger.fInfo { "Click ugc season part, navigating to VideoInfoScreen for avid: $aid" }
                                         VideoInfoActivity.actionStart(context, aid)
@@ -565,7 +560,7 @@ fun VideoInfoScreen(
     }
 }
 
-    @Composable
+@Composable
 private fun FullScreenMessage(message: String) {
     Box(
         modifier = Modifier
@@ -580,37 +575,37 @@ private fun FullScreenMessage(message: String) {
 }
 
 @Composable
-    fun ArgueTip(
-        modifier: Modifier = Modifier,
-        text: String
+fun ArgueTip(
+    modifier: Modifier = Modifier,
+    text: String
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 50.dp),
+        colors = SurfaceDefaults.colors(
+            containerColor = Color.Yellow.copy(alpha = 0.2f),
+            contentColor = Color.Yellow
+        ),
+        shape = MaterialTheme.shapes.small
     ) {
-        Surface(
-            modifier = modifier
-                .fillMaxWidth()
-                .padding(horizontal = 50.dp),
-            colors = SurfaceDefaults.colors(
-                containerColor = Color.Yellow.copy(alpha = 0.2f),
-                contentColor = Color.Yellow
+        Row(
+            modifier = Modifier.padding(
+                horizontal = 16.dp,
+                vertical = 8.dp
             ),
-            shape = MaterialTheme.shapes.small
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.padding(
-                    horizontal = 16.dp,
-                    vertical = 8.dp
-                ),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Warning,
-                    contentDescription = null,
-                    tint = Color.Yellow
-                )
-                Text(text = text)
-            }
+            Icon(
+                imageVector = Icons.Rounded.Warning,
+                contentDescription = null,
+                tint = Color.Yellow
+            )
+            Text(text = text)
         }
     }
+}
 
     @OptIn(ExperimentalTvMaterial3Api::class)
     @Composable
@@ -871,18 +866,17 @@ private fun FullScreenMessage(message: String) {
         }
     }
 
-    @Composable
-    private fun UpButton(
-        modifier: Modifier = Modifier,
-        name: String,
-        followed: Boolean,
-
-        onClickUp: () -> Unit,
-        onAddFollow: () -> Unit,
-        onDelFollow: () -> Unit
-    ) {
-        val view = LocalView.current
-        val isLogin by remember { mutableStateOf(if (!view.isInEditMode) Prefs.isLogin else true) }
+@Composable
+private fun UpButton(
+    modifier: Modifier = Modifier,
+    name: String,
+    followed: Boolean,
+    onClickUp: () -> Unit,
+    onAddFollow: () -> Unit,
+    onDelFollow: () -> Unit
+) {
+    val view = LocalView.current
+    val isLogin by remember { mutableStateOf(if (!view.isInEditMode) Prefs.isLogin else true) }
 
         Row(
             modifier = modifier,
@@ -1075,115 +1069,100 @@ private fun FullScreenMessage(message: String) {
         }
     }
 
-    @Composable
-    fun DurationUnitText(
-        duration: Int,
-        unit: String,
-        fontSize: Int // <-- 关键修改：接收 Int 类型
-    ) {
-        // 1. 根据传入的单位标识符，在内部进行计算
-        val value = when (unit.lowercase()) {
-            "h" -> duration / 3600
-            "m" -> (duration % 3600) / 60
-            "s" -> duration % 60
-            else -> 0L
-        }
-        // 2. 在调用 Text 组件时，将 Int 转换为 .sp
-        Text(
-            text = String.format("%02d", value),
-            fontSize = fontSize.sp, // <-- 关键修改：在这里进行单位转换
-            fontWeight = FontWeight.Bold
-        )
+@Composable
+fun DurationUnitText(
+    duration: Int,
+    unit: String,
+    fontSize: Int // <-- 关键修改：接收 Int 类型
+) {
+    // 1. 根据传入的单位标识符，在内部进行计算
+    val value = when (unit.lowercase()) {
+        "h" -> duration / 3600
+        "m" -> (duration % 3600) / 60
+        "s" -> duration % 60
+        else -> 0L
     }
+    // 2. 在调用 Text 组件时，将 Int 转换为 .sp
+    Text(
+        text = String.format("%02d", value),
+        fontSize = fontSize.sp, // <-- 关键修改：在这里进行单位转换
+        fontWeight = FontWeight.Bold
+    )
+}
 
-    @Composable
-    fun VideoPartButton(
-        modifier: Modifier = Modifier,
-        index: Int,
-        title: String,
-        duration: Int,
-        played: Int = 0,
-        onClick: () -> Unit
+@Composable
+fun VideoPartButton(
+    modifier: Modifier = Modifier,
+    index: Int,
+    title: String,
+    duration: Int,
+    played: Int = 0,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier.height(96.dp),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
+            pressedContainerColor = MaterialTheme.colorScheme.inverseSurface
+        ),
+        shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.medium),
+        onClick = { onClick() }
     ) {
-        Surface(
-            // modifier = modifier,
-            modifier = modifier.height(96.dp),
-            colors = ClickableSurfaceDefaults.colors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
-                pressedContainerColor = MaterialTheme.colorScheme.inverseSurface
-            ),
-            shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.medium),
-            onClick = { onClick() }
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.CenterStart
         ) {
+            //播放进度覆盖
             Box(
                 modifier = Modifier
-                    // .size(200.dp, 64.dp)
-                    .fillMaxSize(),
-                // contentAlignment = Alignment.Center
-                contentAlignment = Alignment.CenterStart
-
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+                    .fillMaxHeight()
+                    .fillMaxWidth(if (played < 0) 1f else (played / duration.toFloat()))
+            ){}
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
+                // 左侧：标题
+                Text(
                     modifier = Modifier
-                        .background(Color.Black.copy(alpha = 0.2f))
+                        // weight(1f) 会让标题占据除了时长之外的所有剩余空间
+                        .weight(1f)
+                        .padding(start = 12.dp, end = 6.dp, top = 12.dp, bottom = 12.dp),
+                    text = "P$index $title",
+                    fontSize = LocalTextStyle.current.fontSize * 1.5,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                VerticalDivider(
+                    // 添加垂直内边距，让线变短一点
+                    modifier = Modifier.padding(vertical = 12.dp),
+                    // 使用 thickness 参数设置分割线的厚度（宽度）
+                    thickness = 1.dp,
+                    // 设置分割线的颜色
+                    color = Color.White.copy(alpha = 0.5f)
+                )
+                // 右侧：垂直显示的时长
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceAround,
+                    // 增加内边距，使其与按钮边缘有一定距离
+                    modifier = Modifier
                         .fillMaxHeight()
-                        .fillMaxWidth(if (played < 0) 1f else (played / duration.toFloat()))
-                ) {}
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(start = 6.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)
                 ) {
-                    // 左侧：标题
-                    Text(
-                        modifier = Modifier
-                            // weight(1f) 会让标题占据除了时长之外的所有剩余空间
-                            .weight(1f)
-                            .padding(start = 12.dp, end = 6.dp, top = 12.dp, bottom = 12.dp),
-                        text = "P$index $title",
-                        fontSize = LocalTextStyle.current.fontSize * 1.5,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    VerticalDivider(
-                        // 添加垂直内边距，让线变短一点
-                        modifier = Modifier.padding(vertical = 12.dp),
-                        // 使用 thickness 参数设置分割线的厚度（宽度）
-                        thickness = 1.dp,
-                        // 设置分割线的颜色
-                        color = Color.White.copy(alpha = 0.5f)
-                    )
-                    // 右侧：垂直显示的时长
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.SpaceAround,
-                        // 增加内边距，使其与按钮边缘有一定距离
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .padding(start = 6.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)
-                    ) {
-                        // 只有当视频时长超过1小时才显示小时
-                        if (duration >= 3600) {
-                            DurationUnitText(duration = duration, unit = "h", fontSize = 24)
-                        }
-                        DurationUnitText(duration = duration, unit = "m", fontSize = 21)
-                        DurationUnitText(duration = duration, unit = "s", fontSize = 19)
+                    // 只有当视频时长超过1小时才显示小时
+                    if (duration >= 3600) {
+                        DurationUnitText(duration = duration, unit = "h", fontSize = 24)
                     }
+                    DurationUnitText(duration = duration, unit = "m", fontSize = 21)
+                    DurationUnitText(duration = duration, unit = "s", fontSize = 19)
                 }
-                /*
-            Text(
-                modifier = Modifier
-                    // .padding(8.dp),
-                    .padding(10.dp),
-                text = "P$index $title",
-                fontSize = LocalTextStyle.current.fontSize * 1.4,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            */
             }
         }
     }
+}
 
     @Composable
     fun VideoPartRowButton(
@@ -1224,7 +1203,6 @@ private fun FullScreenMessage(message: String) {
         var showPartListDialog by remember { mutableStateOf(false) }
         val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
         val titleFontSize by animateFloatAsState(
-            //targetValue = if (hasFocus) 30f else 14f,
             targetValue = 14f,
             label = "title font size"
         )
@@ -1246,7 +1224,6 @@ private fun FullScreenMessage(message: String) {
                     .padding(top = 15.dp)
                     .focusRestorer(focusRequester),
                 contentPadding = PaddingValues(12.dp),
-                // horizontalArrangement = Arrangement.spacedBy(16.dp)
                 horizontalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 if (enablePartListDialog) {
@@ -1255,7 +1232,6 @@ private fun FullScreenMessage(message: String) {
                             onClick = { showPartListDialog = true }
                         ) {
                             Icon(
-                                // modifier = Modifier.size(36.dp),
                                 modifier = Modifier.size(54.dp),
                                 imageVector = Icons.Rounded.ViewModule,
                                 contentDescription = null
@@ -1272,7 +1248,6 @@ private fun FullScreenMessage(message: String) {
                             onClick = { onClick(matchedPage.cid) }
                         ) {
                             Icon(
-                                // modifier = Modifier.size(36.dp),
                                 modifier = Modifier.size(54.dp),
                                 imageVector = Icons.Rounded.History,
                                 contentDescription = null
@@ -1285,7 +1260,6 @@ private fun FullScreenMessage(message: String) {
                     VideoPartButton(
                         modifier = Modifier
                             .ifElse(index == 0, Modifier.focusRequester(focusRequester))
-                            // .width(200.dp),
                             .width(300.dp),
                         index = index + 1,
                         title = page.title,
@@ -1321,7 +1295,6 @@ private fun FullScreenMessage(message: String) {
         var showUgcListDialog by remember { mutableStateOf(false) }
         val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
         val titleFontSize by animateFloatAsState(
-            // targetValue = if (hasFocus) 30f else 14f,
             targetValue = 14f,
             label = "title font size"
         )
@@ -1348,7 +1321,6 @@ private fun FullScreenMessage(message: String) {
                     .padding(top = 15.dp)
                     .focusRestorer(focusRequester),
                 contentPadding = PaddingValues(12.dp),
-                // horizontalArrangement = Arrangement.spacedBy(16.dp)
                 horizontalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 if (enableUgcListDialog) {
@@ -1357,7 +1329,6 @@ private fun FullScreenMessage(message: String) {
                             onClick = { showUgcListDialog = true }
                         ) {
                             Icon(
-                                // modifier = Modifier.size(36.dp),
                                 modifier = Modifier.size(54.dp),
                                 imageVector = Icons.Rounded.ViewModule,
                                 contentDescription = null
@@ -1374,7 +1345,6 @@ private fun FullScreenMessage(message: String) {
                             onClick = { onClick(matchedEp.aid, matchedEp.cid) }
                         ) {
                             Icon(
-                                // modifier = Modifier.size(36.dp),
                                 modifier = Modifier.size(54.dp),
                                 imageVector = Icons.Rounded.History,
                                 contentDescription = null
@@ -1387,13 +1357,13 @@ private fun FullScreenMessage(message: String) {
 
                     // 为每个分P独立计算播放进度
                     val currentPlayedTime = when {
-                        // 1. 如果没有播放记录，所有分P进度都为0
+                        // 如果没有播放记录，所有分P进度都为0
                         playingIndex == -1 -> 0
-                        // 2. 如果当前分P在正在播放的分P之前，说明已经看完，进度为满
+                        // 如果当前分P在正在播放的分P之前，说明已经看完，进度为满
                         index < playingIndex -> episode.duration
-                        // 3. 如果当前分P就是正在播放的分P，使用历史记录的进度
+                        // 如果当前分P就是正在播放的分P，使用历史记录的进度
                         index == playingIndex -> lastPlayedTime
-                        // 4. 如果当前分P在正在播放的分P之后，说明还没看，进度为0
+                        // 如果当前分P在正在播放的分P之后，说明还没看，进度为0
                         else -> 0
                     }
 
@@ -1404,8 +1374,6 @@ private fun FullScreenMessage(message: String) {
                             .width(300.dp),
                         index = index + 1,
                         title = episode.title,
-                        // played = if (episode.cid == lastPlayedCid) lastPlayedTime else 0,
-                        // duration = episode.duration,
                         played = currentPlayedTime,
                         duration = episode.duration,
                         onClick = { onClick(episode.aid, episode.cid) }
@@ -1435,7 +1403,6 @@ private fun FullScreenMessage(message: String) {
         val scope = rememberCoroutineScope()
 
         var selectedTabIndex by remember { mutableIntStateOf(0) }
-        // val tabCount by remember { mutableIntStateOf(ceil(pages.size / 20.0).toInt()) }
         val tabCount by remember { mutableIntStateOf(ceil(pages.size / 35.0).toInt()) }
         val selectedVideoPart = remember { mutableStateListOf<VideoPage>() }
 
@@ -1449,9 +1416,7 @@ private fun FullScreenMessage(message: String) {
         val listState = rememberLazyGridState()
 
         LaunchedEffect(selectedTabIndex) {
-            // val fromIndex = selectedTabIndex * 20
             val fromIndex = selectedTabIndex * 35
-            // var toIndex = (selectedTabIndex + 1) * 20
             var toIndex = (selectedTabIndex + 1) * 35
             if (toIndex >= pages.size) {
                 toIndex = pages.size
@@ -1674,7 +1639,6 @@ private fun FullScreenMessage(message: String) {
         val scope = rememberCoroutineScope()
 
         var selectedTabIndex by remember { mutableIntStateOf(0) }
-        // val tabCount by remember { mutableIntStateOf(ceil(episodes.size / 20.0).toInt()) }
         val tabCount by remember { mutableIntStateOf(ceil(episodes.size / 35.0).toInt()) }
         val selectedVideoPart = remember { mutableStateListOf<Episode>() }
 
@@ -1683,9 +1647,7 @@ private fun FullScreenMessage(message: String) {
         val listState = rememberLazyGridState()
 
         LaunchedEffect(selectedTabIndex) {
-            // val fromIndex = selectedTabIndex * 20
             val fromIndex = selectedTabIndex * 35
-            // var toIndex = (selectedTabIndex + 1) * 20
             var toIndex = (selectedTabIndex + 1) * 35
             if (toIndex >= episodes.size) {
                 toIndex = episodes.size
