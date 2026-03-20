@@ -30,7 +30,7 @@ class ToViewRepository(
 
     suspend fun getToView(
         cursor: Long,
-        preferApiType: ApiType = ApiType.Web
+        preferApiType: ApiType
     ): ToViewData {
         return when (preferApiType) {
             ApiType.Web -> {
@@ -52,7 +52,7 @@ class ToViewRepository(
     suspend fun addToView(
         aid: Long,
         bvid: String? = null,
-        preferApiType: ApiType = ApiType.Web
+        preferApiType: ApiType
     ) {
         val (success, message) = when (preferApiType) {
             ApiType.Web -> BiliHttpApi.addToView(
@@ -74,7 +74,7 @@ class ToViewRepository(
     suspend fun delToView(
         aid: Long,
         viewed: Boolean = false,
-        preferApiType: ApiType = ApiType.Web
+        preferApiType: ApiType
     ) {
         val (success, message) = when (preferApiType) {
             ApiType.Web -> BiliHttpApi.delToView(
