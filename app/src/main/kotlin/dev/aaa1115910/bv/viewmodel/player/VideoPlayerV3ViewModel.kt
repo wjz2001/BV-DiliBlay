@@ -13,7 +13,6 @@ import androidx.lifecycle.viewModelScope
 import com.kuaishou.akdanmaku.DanmakuConfig
 import com.kuaishou.akdanmaku.data.DanmakuItemData
 import com.kuaishou.akdanmaku.ecs.component.filter.TypeFilter
-import com.kuaishou.akdanmaku.ext.RETAINER_BILIBILI
 import com.kuaishou.akdanmaku.render.SimpleRenderer
 import com.kuaishou.akdanmaku.ui.DanmakuPlayer
 import dev.aaa1115910.biliapi.entity.ApiType
@@ -874,8 +873,8 @@ class VideoPlayerV3ViewModel(
                     position = (it.time * 1000).toLong(),
                     content = it.text,
                     mode = when (it.type) {
-                        4 -> DanmakuItemData.DANMAKU_MODE_CENTER_TOP
-                        5 -> DanmakuItemData.DANMAKU_MODE_CENTER_BOTTOM
+                        4 -> DanmakuItemData.DANMAKU_MODE_CENTER_BOTTOM
+                        5 -> DanmakuItemData.DANMAKU_MODE_CENTER_TOP
                         else -> DanmakuItemData.DANMAKU_MODE_ROLLING
                     },
                     textSize = it.size,
@@ -1054,6 +1053,7 @@ class VideoPlayerV3ViewModel(
         val scale = Prefs.defaultDanmakuScale
         val factor = Prefs.defaultDanmakuSpeedFactor
 
+        danmakuTypeFilter.clear()
         if (!danmakuTypes.contains(DanmakuType.All)) {
             val types = DanmakuType.entries.toMutableList()
             types.remove(DanmakuType.All)
@@ -1069,7 +1069,7 @@ class VideoPlayerV3ViewModel(
             filterTypes.forEach { danmakuTypeFilter.addFilterItem(it) }
         }
         danmakuConfig = danmakuConfig.copy(
-            retainerPolicy = RETAINER_BILIBILI,
+            density = 120,
             textSizeScale = scale,
             screenPart = area,
             dataFilter = listOf(danmakuTypeFilter),
