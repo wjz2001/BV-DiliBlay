@@ -1,15 +1,8 @@
 package dev.aaa1115910.bv.component
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import com.kuaishou.akdanmaku.ui.DanmakuPlayer
 import com.kuaishou.akdanmaku.ui.DanmakuView
@@ -17,32 +10,20 @@ import com.kuaishou.akdanmaku.ui.DanmakuView
 @Composable
 fun DanmakuPlayerCompose(
     modifier: Modifier = Modifier,
-    danmakuPlayer: DanmakuPlayer?,
+    danmakuPlayer: DanmakuPlayer?
 ) {
-    val context = LocalContext.current
-    var danmakuView: DanmakuView? by remember { mutableStateOf(null) }
-
-    val view = danmakuView
-    DisposableEffect(view, danmakuPlayer) {
-        if (view != null && danmakuPlayer != null && view.danmakuPlayer !== danmakuPlayer) {
-            danmakuPlayer.bindView(view)
-        }
-
-        onDispose {
-            view?.let {
-                if (it.danmakuPlayer === danmakuPlayer) {
-                    it.danmakuPlayer = null
-                }
+    AndroidView(
+        modifier = modifier.fillMaxSize(),
+        factory = { context ->
+            DanmakuView(context)
+        },
+        update = { danmakuView ->
+            danmakuPlayer?.bindView(danmakuView)
+        },
+        onRelease = { danmakuView ->
+            if (danmakuView.danmakuPlayer === danmakuPlayer) {
+                danmakuView.danmakuPlayer = null
             }
         }
-    }
-
-    Box(modifier = modifier.fillMaxSize()) {
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = {
-                DanmakuView(context).also { danmakuView = it }
-            }
-        )
-    }
+    )
 }
