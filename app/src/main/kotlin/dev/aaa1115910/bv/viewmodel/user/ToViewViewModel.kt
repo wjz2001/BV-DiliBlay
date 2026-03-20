@@ -33,7 +33,7 @@ import org.koin.android.annotation.KoinViewModel
 @KoinViewModel
 class ToViewViewModel(
     private val userRepository: UserRepository,
-    private val ToViewRepository: ToViewRepository
+    private val toViewRepository: ToViewRepository
 ) : ViewModel() {
     private val _uiEffect = MutableSharedFlow<UiEffect>()
     val uiEvent = _uiEffect.asSharedFlow()
@@ -59,7 +59,7 @@ class ToViewViewModel(
     fun addToView(aid: Long, bvid: String? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
-                ToViewRepository.addToView(aid = aid, bvid = bvid)
+                toViewRepository.addToView(aid = aid, bvid = bvid, preferApiType = Prefs.apiType)
             }.onSuccess {
                 _uiEffect.emit(UiEffect.ShowToast("添加到稍后再看"))
             }.onFailure {
@@ -71,7 +71,7 @@ class ToViewViewModel(
     fun delToView(aid: Long, viewed: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
-                ToViewRepository.delToView(viewed = viewed, aid = aid)
+                toViewRepository.delToView(viewed = viewed, aid = aid, preferApiType = Prefs.apiType)
             }.onSuccess {
                 histories.removeAll { it.avid == aid }
                 _uiEffect.emit(UiEffect.ShowToast("删除稍后再看"))
@@ -94,24 +94,24 @@ class ToViewViewModel(
         logger.fInfo { "Updating histories with params [cursor=$cursor, apiType=${Prefs.apiType}]" }
         updating = true
         runCatching {
-            val data = ToViewRepository.getToView(
+            val data = toViewRepository.getToView(
                 cursor = cursor,
                 preferApiType = Prefs.apiType
             )
 
-            data.data.forEach { ToViewItem ->
+            data.data.forEach { toViewItem ->
                 histories.addWithMainContext(
                     VideoCardData(
-                        avid = ToViewItem.oid,
-                        title = ToViewItem.title,
-                        cover = ToViewItem.cover,
-                        upName = ToViewItem.author,
-                        upMid = ToViewItem.mid,
-                        timeString = if (ToViewItem.progress == -1) context.getString(R.string.play_time_finish)
+                        avid = toViewItem.oid,
+                        title = toViewItem.title,
+                        cover = toViewItem.cover,
+                        upName = toViewItem.author,
+                        upMid = toViewItem.mid,
+                        timeString = if (toViewItem.progress == -1) context.getString(R.string.play_time_finish)
                         else context.getString(
                             R.string.play_time_history,
-                            (ToViewItem.progress * 1000L).formatHourMinSec(),
-                            (ToViewItem.duration * 1000L).formatHourMinSec()
+                            (toViewItem.progress * 1000L).formatHourMinSec(),
+                            (toViewItem.duration * 1000L).formatHourMinSec()
                         )
                     )
                 )
