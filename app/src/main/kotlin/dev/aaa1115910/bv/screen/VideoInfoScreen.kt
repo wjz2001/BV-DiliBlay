@@ -1116,7 +1116,7 @@ fun VideoPartButton(
             //播放进度覆盖
             Box(
                 modifier = Modifier
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+                    .background(Color.Black.copy(alpha = 0.2f))
                     .fillMaxHeight()
                     .fillMaxWidth(if (played < 0) 1f else (played / duration.toFloat()))
             ){}
