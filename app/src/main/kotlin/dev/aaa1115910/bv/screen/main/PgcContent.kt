@@ -1,11 +1,5 @@
 package dev.aaa1115910.bv.screen.main
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -159,21 +153,8 @@ fun PgcContent(
                     return@onPreviewKeyEvent false
                 }
         ) {
-            AnimatedContent(
-                targetState = selectedTab,
-                label = "pgc animated content",
-                transitionSpec = {
-                    val coefficient = 10
-                    if (targetState.ordinal < initialState.ordinal) {
-                        fadeIn() + slideInHorizontally { -it / coefficient } togetherWith
-                                fadeOut() + slideOutHorizontally { it / coefficient }
-                    } else {
-                        fadeIn() + slideInHorizontally { it / coefficient } togetherWith
-                                fadeOut() + slideOutHorizontally { -it / coefficient }
-                    }
-                }
-            ) { screen ->
-                when (screen) {
+
+                when (selectedTab) {
                     PgcTopNavItem.Anime -> AnimeContent(lazyListState = animeState)
                     PgcTopNavItem.GuoChuang -> GuoChuangContent(lazyListState = guoChuangState)
                     PgcTopNavItem.Movie -> MovieContent(lazyListState = movieState)
@@ -181,7 +162,6 @@ fun PgcContent(
                     PgcTopNavItem.Tv -> TvContent(lazyListState = tvState)
                     PgcTopNavItem.Variety -> VarietyContent(lazyListState = varietyState)
                 }
-            }
         }
     }
 }

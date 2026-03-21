@@ -1,11 +1,5 @@
 package dev.aaa1115910.bv.screen.main
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -330,21 +324,7 @@ fun HomeContent(
                     return@onKeyEvent false
                 },
         ) {
-            AnimatedContent(
-                targetState = selectedTab,
-                label = "home animated content",
-                transitionSpec = {
-                    val coefficient = 10
-                    if (reorderedItems.indexOf(targetState) < reorderedItems.indexOf(initialState)) {
-                        fadeIn() + slideInHorizontally { -it / coefficient } togetherWith
-                                fadeOut() + slideOutHorizontally { it / coefficient }
-                    } else {
-                        fadeIn() + slideInHorizontally { it / coefficient } togetherWith
-                                fadeOut() + slideOutHorizontally { -it / coefficient }
-                    }
-                }
-            ) { screen ->
-                when (screen) {
+                when (selectedTab) {
                     HomeTopNavItem.Recommend -> RecommendScreen(gridState = recommendGridState)
                     HomeTopNavItem.Popular -> PopularScreen(gridState = popularGridState)
                     HomeTopNavItem.Dynamics -> DynamicsScreen(gridState = dynamicsGridState)
@@ -361,7 +341,6 @@ fun HomeContent(
                         lazyGridState = followingSeasonGridState
                     )
                 }
-            }
         }
     }
 }
