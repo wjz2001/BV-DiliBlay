@@ -3,6 +3,9 @@ package dev.aaa1115910.bv.viewmodel.ugc
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import dev.aaa1115910.biliapi.entity.ugc.region.UgcFeedPage
 import dev.aaa1115910.biliapi.repositories.UgcRepository
 import dev.aaa1115910.bv.BVApp
@@ -22,6 +25,8 @@ class UgcViewModel(private val ugcRepository: UgcRepository) : ViewModel() {
 
     private val _ugcScaffoldStateMap = mutableMapOf<UgcTopNavItem, UgcScaffoldState>()
     val ugcScaffoldStateMap: Map<UgcTopNavItem, UgcScaffoldState> get() = _ugcScaffoldStateMap
+
+    var selectedTab by mutableStateOf(UgcTopNavItem.Douga)
 
     fun addUgcScaffoldState(item: UgcTopNavItem, state: UgcScaffoldState) {
         _ugcScaffoldStateMap[item] = state
@@ -45,6 +50,13 @@ class UgcViewModel(private val ugcRepository: UgcRepository) : ViewModel() {
 
     fun loadMoreData(item: UgcTopNavItem) {
         launchWithIO { loadData(item, isInit = false) }
+    }
+
+    fun updateViewport(item: UgcTopNavItem, index: Int, offset: Int) {
+        _ugcScaffoldStateMap[item]?.let { state ->
+            state.firstVisibleItemIndex = index
+            state.firstVisibleItemScrollOffset = offset
+        }
     }
 
     private suspend fun initUgcRegionData(item: UgcTopNavItem) {

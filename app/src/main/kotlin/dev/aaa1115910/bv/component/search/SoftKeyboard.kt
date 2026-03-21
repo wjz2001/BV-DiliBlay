@@ -11,11 +11,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -28,6 +32,7 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.ui.theme.BVTheme
 
 @Composable
+
 fun SoftKeyboard(
     modifier: Modifier = Modifier,
     firstButtonFocusRequester: FocusRequester,
@@ -37,8 +42,11 @@ fun SoftKeyboard(
     onClear: () -> Unit,
     onDelete: () -> Unit,
     onSearch: () -> Unit,
-    onEnableSearchWithProxyChange: (Boolean) -> Unit
+    onEnableSearchWithProxyChange: (Boolean) -> Unit,
+    onFirstButtonPlaced: (() -> Unit)? = null
 ) {
+    var firstButtonPlacedNotified by remember { mutableStateOf(false) }
+
     val keys = listOf(
         listOf("A", "B", "C", "D", "E", "F"),
         listOf("G", "H", "I", "J", "K", "L"),
@@ -58,7 +66,14 @@ fun SoftKeyboard(
             ) {
                 rowKeys.forEachIndexed { index, key ->
                     val keyModifier = if (rowIndex == 0 && index == 0) {
-                        Modifier.focusRequester(firstButtonFocusRequester)
+                        Modifier
+                            .focusRequester(firstButtonFocusRequester)
+                            .onGloballyPositioned {
+                                if (!firstButtonPlacedNotified) {
+                                    firstButtonPlacedNotified = true
+                                    onFirstButtonPlaced?.invoke()
+                                }
+                            }
                     } else {
                         Modifier
                     }

@@ -8,7 +8,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,7 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -52,7 +50,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
@@ -78,6 +75,7 @@ import org.koin.androidx.compose.koinViewModel
 fun SearchInputScreen(
     modifier: Modifier = Modifier,
     defaultFocusRequester: FocusRequester,
+    onDefaultFocusReady: (() -> Unit)? = null,
     searchInputViewModel: SearchInputViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
@@ -87,10 +85,8 @@ fun SearchInputScreen(
     val searchHistories = searchInputViewModel.searchHistories
     val suggests = searchInputViewModel.suggests
 
-    var enableProxy by remember { mutableStateOf(false) }
-
     val onSearch: (String) -> Unit = { keyword ->
-        SearchResultActivity.actionStart(context, keyword, enableProxy)
+        SearchResultActivity.actionStart(context, keyword, searchInputViewModel.enableProxy)
         searchInputViewModel.keyword = keyword
         searchInputViewModel.addSearchHistory(keyword)
     }
@@ -102,12 +98,13 @@ fun SearchInputScreen(
     SearchInputScreenContent(
         modifier = modifier,
         defaultFocusRequester = defaultFocusRequester,
+        onDefaultFocusReady = onDefaultFocusReady,
         searchKeyword = searchKeyword,
         onSearchKeywordChange = { searchInputViewModel.keyword = it },
         onSearch = onSearch,
         showProxyOptions = Prefs.enableProxy,
-        enableProxy = enableProxy,
-        onEnableProxyChange = { enableProxy = it },
+        enableProxy = searchInputViewModel.enableProxy,
+        onEnableProxyChange = { searchInputViewModel.enableProxy = it },
         hotwords = hotwords,
         suggests = suggests,
         histories = searchHistories,
@@ -120,6 +117,7 @@ fun SearchInputScreen(
 private fun SearchInputScreenContent(
     modifier: Modifier = Modifier,
     defaultFocusRequester: FocusRequester,
+    onDefaultFocusReady: (() -> Unit)? = null,
     searchKeyword: String,
     onSearchKeywordChange: (String) -> Unit,
     onSearch: (String) -> Unit,
@@ -169,6 +167,7 @@ private fun SearchInputScreenContent(
         ) {
             SearchInput(
                 firstButtonFocusRequester = defaultFocusRequester,
+                onDefaultFocusReady = onDefaultFocusReady,
                 searchKeyword = searchKeyword,
                 onSearchKeywordChange = onSearchKeywordChange,
                 onSearch = { onSearch(searchKeyword) },
@@ -209,6 +208,7 @@ private fun SearchInputScreenContent(
 private fun SearchInput(
     modifier: Modifier = Modifier,
     firstButtonFocusRequester: FocusRequester,
+    onDefaultFocusReady: (() -> Unit)? = null,
     searchKeyword: String,
     onSearchKeywordChange: (String) -> Unit,
     onSearch: (String) -> Unit,
@@ -282,7 +282,8 @@ private fun SearchInput(
                     }
                 },
                 onSearch = { onSearch(searchKeyword) },
-                onEnableSearchWithProxyChange = onEnableProxyChange
+                onEnableSearchWithProxyChange = onEnableProxyChange,
+                onFirstButtonPlaced = onDefaultFocusReady
             )
         }
     }

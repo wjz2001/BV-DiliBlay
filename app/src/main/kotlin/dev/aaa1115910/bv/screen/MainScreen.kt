@@ -3,23 +3,20 @@ package dev.aaa1115910.bv.screen
 import android.app.Activity
 import android.content.Intent
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,6 +33,7 @@ import dev.aaa1115910.bv.activities.user.FollowActivity
 import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.activities.user.UserSwitchActivity
 import dev.aaa1115910.bv.component.UserPanel
+import dev.aaa1115910.bv.component.BlackoutSwitch
 import dev.aaa1115910.bv.screen.main.HomeContent
 import dev.aaa1115910.bv.screen.main.LeftNaviContent
 import dev.aaa1115910.bv.screen.main.LeftNaviItem
@@ -45,6 +43,7 @@ import dev.aaa1115910.bv.screen.main.UgcContent
 import dev.aaa1115910.bv.screen.search.SearchInputScreen
 import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
+import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.UserViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -59,14 +58,23 @@ fun MainScreen(
     val logger = KotlinLogging.logger("MainScreen")
     var showUserPanel by remember { mutableStateOf(false) }
     var lastPressBack: Long by remember { mutableLongStateOf(0L) }
-    var selectedDrawerItem by remember { mutableStateOf(LeftNaviItem.Home) }
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+
+    val initialDrawerItem = LeftNaviItem.Home
+    var requestedDrawerItem by remember { mutableStateOf(initialDrawerItem) }
+
+    val scope = rememberCoroutineScope()
 
     val personalFocusRequester = remember { FocusRequester() }
     val mainFocusRequester = remember { FocusRequester() }
     val ugcFocusRequester = remember { FocusRequester() }
     val pgcFocusRequester = remember { FocusRequester() }
     val searchFocusRequester = remember { FocusRequester() }
+
+    var pendingFocusTargetItem by remember { mutableStateOf<LeftNaviItem?>(initialDrawerItem) }
+    var currentReadyItem by remember { mutableStateOf<LeftNaviItem?>(null) }
+
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val fade = 0
 
     val handleBack = {
         val currentTime = System.currentTimeMillis()
@@ -79,23 +87,42 @@ fun MainScreen(
         }
     }
 
-    val onFocusToContent: () -> Unit = {
-        when (selectedDrawerItem) {
-            LeftNaviItem.Home -> mainFocusRequester.requestFocus()
-            LeftNaviItem.UGC -> ugcFocusRequester.requestFocus()
-            LeftNaviItem.PGC -> pgcFocusRequester.requestFocus()
-            LeftNaviItem.Search -> searchFocusRequester.requestFocus()
-            LeftNaviItem.Personal -> personalFocusRequester.requestFocus()
-            else -> {}
+    val requestFocusForItem: (LeftNaviItem) -> Unit = { item ->
+        runCatching {
+            when (item) {
+                LeftNaviItem.Home -> mainFocusRequester.requestFocus(scope)
+                LeftNaviItem.UGC -> ugcFocusRequester.requestFocus(scope)
+                LeftNaviItem.PGC -> pgcFocusRequester.requestFocus(scope)
+                LeftNaviItem.Search -> searchFocusRequester.requestFocus(scope)
+                LeftNaviItem.Personal -> personalFocusRequester.requestFocus(scope)
+                else -> {}
+            }
+        }.onFailure {
+            logger.fException(it) { "request focus to content failed: $item" }
         }
     }
 
-    LaunchedEffect(Unit) {
-        runCatching {
-            mainFocusRequester.requestFocus()
-        }.onFailure {
-            logger.fException(it) { "request default focus requester failed" }
+    val onContentDefaultFocusReady: (LeftNaviItem) -> Unit = { item ->
+        if (requestedDrawerItem == item) {
+            currentReadyItem = item
+            if (pendingFocusTargetItem == item) {
+                requestFocusForItem(item)
+                pendingFocusTargetItem = null
+            }
         }
+    }
+
+    val onFocusToContent: () -> Unit = {
+        val target = requestedDrawerItem
+        if (currentReadyItem == target) {
+            requestFocusForItem(target)
+        } else {
+            pendingFocusTargetItem = target
+        }
+    }
+
+    LaunchedEffect(requestedDrawerItem) {
+        currentReadyItem = null
     }
 
     BackHandler {
@@ -108,9 +135,7 @@ fun MainScreen(
             LeftNaviContent(
                 isLogin = userViewModel.isLogin,
                 avatar = userViewModel.face,
-                //avatar = "https://i2.hdslb.com/bfs/face/ef0457addb24141e15dfac6fbf45293ccf1e32ab.jpg",
-                //username = "碧诗",
-                onLeftNaviItemChanged = { selectedDrawerItem = it },
+                onLeftNaviItemChanged = { requestedDrawerItem = it },
                 onOpenSettings = {
                     context.startActivity(Intent(context, SettingsActivity::class.java))
                 },
@@ -125,30 +150,51 @@ fun MainScreen(
         },
         drawerState = drawerState
     ) {
-        Box(
-            modifier = Modifier
-        ) {
-            AnimatedContent(
-                targetState = selectedDrawerItem,
-                label = "main animated content",
-                transitionSpec = {
-                    val coefficient = 20
-                    if (targetState.ordinal < initialState.ordinal) {
-                        fadeIn() + slideInVertically { -it / coefficient } togetherWith
-                                fadeOut() + slideOutVertically { it / coefficient }
-                    } else {
-                        fadeIn() + slideInVertically { it / coefficient } togetherWith
-                                fadeOut() + slideOutVertically { -it / coefficient }
+        Box(modifier = Modifier) {
+            BlackoutSwitch(
+                targetState = requestedDrawerItem,
+                fadeInMillis = fade,
+                fadeOutMillis = fade
+            ) { currentItem ->
+                Box(modifier = Modifier.fillMaxSize()) {
+                    when (currentItem) {
+                        LeftNaviItem.Search -> SearchInputScreen(
+                            defaultFocusRequester = searchFocusRequester,
+                            onDefaultFocusReady = {
+                                onContentDefaultFocusReady(LeftNaviItem.Search)
+                            }
+                        )
+
+                        LeftNaviItem.Personal -> PersonalContent(
+                            navFocusRequester = personalFocusRequester,
+                            onDefaultFocusReady = {
+                                onContentDefaultFocusReady(LeftNaviItem.Personal)
+                            }
+                        )
+
+                        LeftNaviItem.Home -> HomeContent(
+                            navFocusRequester = mainFocusRequester,
+                            onDefaultFocusReady = {
+                                onContentDefaultFocusReady(LeftNaviItem.Home)
+                            }
+                        )
+
+                        LeftNaviItem.UGC -> UgcContent(
+                            navFocusRequester = ugcFocusRequester,
+                            onDefaultFocusReady = {
+                                onContentDefaultFocusReady(LeftNaviItem.UGC)
+                            }
+                        )
+
+                        LeftNaviItem.PGC -> PgcContent(
+                            navFocusRequester = pgcFocusRequester,
+                            onDefaultFocusReady = {
+                                onContentDefaultFocusReady(LeftNaviItem.PGC)
+                            }
+                        )
+
+                        else -> Unit
                     }
-                }
-            ) { screen ->
-                when (screen) {
-                    LeftNaviItem.Search -> SearchInputScreen(defaultFocusRequester = searchFocusRequester)
-                    LeftNaviItem.Personal -> PersonalContent(navFocusRequester = personalFocusRequester)
-                    LeftNaviItem.Home -> HomeContent(navFocusRequester = mainFocusRequester)
-                    LeftNaviItem.UGC -> UgcContent(navFocusRequester = ugcFocusRequester)
-                    LeftNaviItem.PGC -> PgcContent(navFocusRequester = pgcFocusRequester)
-                    else -> {}
                 }
             }
 
@@ -176,8 +222,8 @@ fun MainScreen(
                             } else if (this <= 0) {
                                 userViewModel.responseData?.levelExp?.currentExp ?: 1
                             } else {
-                                (userViewModel.responseData?.levelExp?.currentExp ?: 1)
-                                +(userViewModel.responseData?.levelExp?.nextExp ?: 0)
+                                (userViewModel.responseData?.levelExp?.currentExp ?: 1) +
+                                        (userViewModel.responseData?.levelExp?.nextExp ?: 0)
                             }
                         },
                         onHide = { showUserPanel = false },

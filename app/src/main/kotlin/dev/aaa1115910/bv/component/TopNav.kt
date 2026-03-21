@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +30,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
@@ -49,19 +51,40 @@ fun TopNav(
     modifier: Modifier = Modifier,
     items: List<TopNavItem>,
     isLargePadding: Boolean,
+    selectedItem: TopNavItem? = null,
+    defaultFocusRequester: FocusRequester? = null,
+    onDefaultFocusReady: (() -> Unit)? = null,
     isHistorySearching: Boolean = false,
     onHistoryTabDirectionUp: (isLongPress: Boolean) -> Unit = {},
     onSelectedChanged: (TopNavItem) -> Unit = {},
     onClick: (TopNavItem) -> Unit = {}
 ) {
-    val focusRequester = remember { FocusRequester() }
+    val internalFocusRequester = remember { FocusRequester() }
+    val entryFocusRequester = defaultFocusRequester ?: internalFocusRequester
 
-    var selectedNav by remember { mutableStateOf(items.first()) }
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    var selectedTabIndex by remember(items) { mutableIntStateOf(0) }
+
+    val focusTargetIndex = selectedItem
+        ?.let(items::indexOf)
+        ?.takeIf { it >= 0 }
+        ?: 0
+
+    var defaultFocusReadyNotified by remember(focusTargetIndex) { mutableStateOf(false) }
     val verticalPadding by animateDpAsState(
         targetValue = if (isLargePadding) 12.dp else 6.dp,
         label = "top nav vertical padding"
     )
+
+    LaunchedEffect(items, selectedItem) {
+        val selectedIndex = selectedItem
+            ?.let(items::indexOf)
+            ?.takeIf { it >= 0 }
+            ?: return@LaunchedEffect
+
+        if (selectedTabIndex != selectedIndex) {
+            selectedTabIndex = selectedIndex
+        }
+    }
 
     Row(
         modifier = modifier
@@ -71,7 +94,7 @@ fun TopNav(
     ) {
         TabRow(
             modifier = Modifier
-                .focusRestorer(focusRequester),
+                .focusRestorer(entryFocusRequester),
             selectedTabIndex = selectedTabIndex,
             separator = { Spacer(modifier = Modifier.width(12.dp)) },
         ) {
@@ -82,13 +105,22 @@ fun TopNav(
 
                 NavItemTab(
                     modifier = Modifier
-                        .ifElse(index == 0, Modifier.focusRequester(focusRequester)),
+                        .ifElse(
+                            index == focusTargetIndex,
+                            Modifier
+                                .focusRequester(entryFocusRequester)
+                                .onGloballyPositioned {
+                                    if (!defaultFocusReadyNotified) {
+                                        defaultFocusReadyNotified = true
+                                        onDefaultFocusReady?.invoke()
+                                    }
+                                }
+                        ),
                     topNavItem = tab,
                     selected = index == selectedTabIndex,
                     showHistorySearchIcon = isHistoryTab && isHistorySearching,
                     onHistoryTabDirectionUp = if (isHistoryTab) onHistoryTabDirectionUp else null,
                     onFocus = {
-                        selectedNav = tab
                         selectedTabIndex = index
                         onSelectedChanged(tab)
                     },
