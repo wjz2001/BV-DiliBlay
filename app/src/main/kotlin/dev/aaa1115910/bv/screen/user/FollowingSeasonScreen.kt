@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,6 +50,7 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun FollowingSeasonScreen(
     modifier: Modifier = Modifier,
+    lazyGridState: LazyGridState = rememberLazyGridState(),
     followingSeasonViewModel: FollowingSeasonViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
@@ -99,6 +102,7 @@ fun FollowingSeasonScreen(
         )
         TvLazyVerticalGrid(
             modifier = Modifier,
+            state = lazyGridState,
             columns = GridCells.Fixed(6),
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),

@@ -30,6 +30,7 @@ class SearchInputViewModel(
     private val logger = KotlinLogging.logger { }
 
     var keyword by mutableStateOf("")
+    var enableProxy by mutableStateOf(false)
     val hotwords = mutableStateListOf<Hotword>()
     val suggests = mutableStateListOf<String>()
     val searchHistories = mutableStateListOf<SearchHistoryDB>()

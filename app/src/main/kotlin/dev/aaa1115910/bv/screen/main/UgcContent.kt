@@ -9,7 +9,6 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -19,7 +18,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -32,6 +30,9 @@ import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.UgcTopNavItem
+import dev.aaa1115910.bv.component.PersistLazyGridViewportEffect
+import dev.aaa1115910.bv.component.rememberRestoredLazyGridState
+import dev.aaa1115910.bv.entity.state.GridViewportState
 import dev.aaa1115910.bv.screen.main.ugc.UgcRegionScaffold
 import dev.aaa1115910.bv.screen.main.ugc.UgcScaffoldState
 import dev.aaa1115910.bv.ui.effect.UiEffect
@@ -43,12 +44,13 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun UgcContent(
     navFocusRequester: FocusRequester,
+    onDefaultFocusReady: (() -> Unit)? = null,
     ugcViewModel: UgcViewModel = koinViewModel(),
     toViewViewModel: ToViewViewModel = koinViewModel(),
 ) {
     val context = LocalContext.current
 
-    var selectedTab by remember { mutableStateOf(UgcTopNavItem.Douga) }
+    val selectedTab = ugcViewModel.selectedTab
     var focusOnContent by remember { mutableStateOf(false) }
     val ugcTopNavItems = UgcTopNavItem.entries
 
@@ -65,12 +67,14 @@ fun UgcContent(
     Scaffold(
         topBar = {
             TopNav(
-                modifier = Modifier.padding(horizontal = 10.dp)
-                    .focusRequester(navFocusRequester),
+                modifier = Modifier.padding(horizontal = 10.dp),
                 items = ugcTopNavItems,
                 isLargePadding = !focusOnContent,
+                selectedItem = selectedTab,
+                defaultFocusRequester = navFocusRequester,
+                onDefaultFocusReady = onDefaultFocusReady,
                 onSelectedChanged = { nav ->
-                    selectedTab = nav as UgcTopNavItem
+                    ugcViewModel.selectedTab = nav as UgcTopNavItem
                 },
                 onClick = { nav ->
                     ugcViewModel.reloadAll(nav as UgcTopNavItem)
@@ -112,16 +116,29 @@ fun UgcContent(
                     if (item !in ugcViewModel.ugcScaffoldStateMap) {
                         Log.d("UgcContent", "rememberUgcScaffoldState: $item")
                         ugcViewModel.addUgcScaffoldState(
-                            item, UgcScaffoldState(
-                                lazyGridState = rememberLazyGridState(),
+                            item,
+                            UgcScaffoldState(
                                 ugcType = item.ugcTypeV2
                             )
                         )
                     }
                 }
 
+                val screenState = ugcViewModel.ugcScaffoldStateMap[screen] ?: return@AnimatedContent
+                val gridState = rememberRestoredLazyGridState(
+                    GridViewportState(
+                        index = screenState.firstVisibleItemIndex,
+                        scrollOffset = screenState.firstVisibleItemScrollOffset
+                    )
+                )
+
+                PersistLazyGridViewportEffect(gridState) { index, offset ->
+                    ugcViewModel.updateViewport(screen, index, offset)
+                }
+
                 UgcRegionScaffold(
-                    state = ugcViewModel.ugcScaffoldStateMap[screen]!!,
+                    state = screenState,
+                    gridState = gridState,
                     onLoadMore = { ugcViewModel.loadMoreData(screen) },
                     onAddWatchLater = { aid ->
                         toViewViewModel.addToView(aid)

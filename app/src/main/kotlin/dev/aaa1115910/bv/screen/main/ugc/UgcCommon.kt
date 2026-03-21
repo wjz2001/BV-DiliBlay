@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,12 +35,12 @@ import kotlinx.coroutines.flow.filter
 fun UgcRegionScaffold(
     modifier: Modifier = Modifier,
     state: UgcScaffoldState,
+    gridState: LazyGridState,
     onLoadMore: () -> Unit,
     onAddWatchLater: ((Long) -> Unit),
     onGoToDetailPage: ((Long) -> Unit),
     onGoToUpPage: ((Long, String) -> Unit),
 ) {
-    val gridState = state.lazyGridState
     val context = LocalContext.current
 
 
@@ -103,10 +102,11 @@ fun UgcRegionScaffold(
 
 
 data class UgcScaffoldState(
-    val lazyGridState: LazyGridState,
     val ugcType: UgcTypeV2,
     val ugcItems: MutableList<UgcItem> = mutableStateListOf<UgcItem>(),
     var nextPage: UgcFeedPage = UgcFeedPage(),
     var hasMore: Boolean = true,
-    var updating: Boolean = false
+    var updating: Boolean = false,
+    var firstVisibleItemIndex: Int = 0,
+    var firstVisibleItemScrollOffset: Int = 0
 )

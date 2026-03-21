@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -43,17 +44,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.yield
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun DynamicsScreen(
     modifier: Modifier = Modifier,
+    gridState: LazyGridState = rememberLazyGridState(),
     dynamicViewModel: DynamicViewModel = koinViewModel(),
     toViewViewModel: ToViewViewModel = koinViewModel()
 ) {
-    val gridState = rememberLazyGridState()   // 直接用 LazyVerticalGrid
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 

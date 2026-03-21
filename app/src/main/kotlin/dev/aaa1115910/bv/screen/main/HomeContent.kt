@@ -18,14 +18,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.screen.main.home.DynamicsScreen
@@ -37,6 +35,9 @@ import dev.aaa1115910.bv.screen.user.HistoryScreen
 import dev.aaa1115910.bv.screen.user.ToViewScreen
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
+import dev.aaa1115910.bv.component.PersistLazyGridViewportEffect
+import dev.aaa1115910.bv.component.rememberRestoredLazyGridState
+import dev.aaa1115910.bv.viewmodel.main.HomeContentViewModel
 import dev.aaa1115910.bv.viewmodel.UserViewModel
 import dev.aaa1115910.bv.viewmodel.home.DynamicViewModel
 import dev.aaa1115910.bv.viewmodel.home.PopularViewModel
@@ -53,6 +54,8 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun HomeContent(
     navFocusRequester: FocusRequester,
+    onDefaultFocusReady: (() -> Unit)? = null,
+    homeContentViewModel: HomeContentViewModel = koinViewModel(),
     recommendViewModel: RecommendViewModel = koinViewModel(),
     popularViewModel: PopularViewModel = koinViewModel(),
     dynamicViewModel: DynamicViewModel = koinViewModel(),
@@ -66,7 +69,7 @@ fun HomeContent(
     val logger = KotlinLogging.logger("HomeContent")
 
     val firstTab = remember { Prefs.firstHomeTopNavItem }
-    var selectedTab by remember { mutableStateOf(firstTab) }
+    val selectedTab = homeContentViewModel.selectedTab
     var focusOnContent by remember { mutableStateOf(false) }
 
     // 1. 在这里定义 backToTabRow 函数
@@ -85,31 +88,79 @@ fun HomeContent(
         getReorderedItems(firstTab)
     }
 
-    //启动时刷新数据
+    val recommendGridState = rememberRestoredLazyGridState(
+        homeContentViewModel.viewportOf(HomeTopNavItem.Recommend)
+    )
+    val popularGridState = rememberRestoredLazyGridState(
+        homeContentViewModel.viewportOf(HomeTopNavItem.Popular)
+    )
+    val dynamicsGridState = rememberRestoredLazyGridState(
+        homeContentViewModel.viewportOf(HomeTopNavItem.Dynamics)
+    )
+    val toViewGridState = rememberRestoredLazyGridState(
+        homeContentViewModel.viewportOf(HomeTopNavItem.ToView)
+    )
+    val historyGridState = rememberRestoredLazyGridState(
+        homeContentViewModel.viewportOf(HomeTopNavItem.History)
+    )
+    val favoriteGridState = rememberRestoredLazyGridState(
+        homeContentViewModel.viewportOf(HomeTopNavItem.Favorite)
+    )
+    val followingSeasonGridState = rememberRestoredLazyGridState(
+        homeContentViewModel.viewportOf(HomeTopNavItem.FollowingSeason)
+    )
+
+    PersistLazyGridViewportEffect(recommendGridState) { index, offset ->
+        homeContentViewModel.updateViewport(HomeTopNavItem.Recommend, index, offset)
+    }
+    PersistLazyGridViewportEffect(popularGridState) { index, offset ->
+        homeContentViewModel.updateViewport(HomeTopNavItem.Popular, index, offset)
+    }
+    PersistLazyGridViewportEffect(dynamicsGridState) { index, offset ->
+        homeContentViewModel.updateViewport(HomeTopNavItem.Dynamics, index, offset)
+    }
+    PersistLazyGridViewportEffect(toViewGridState) { index, offset ->
+        homeContentViewModel.updateViewport(HomeTopNavItem.ToView, index, offset)
+    }
+    PersistLazyGridViewportEffect(historyGridState) { index, offset ->
+        homeContentViewModel.updateViewport(HomeTopNavItem.History, index, offset)
+    }
+    PersistLazyGridViewportEffect(favoriteGridState) { index, offset ->
+        homeContentViewModel.updateViewport(HomeTopNavItem.Favorite, index, offset)
+    }
+    PersistLazyGridViewportEffect(followingSeasonGridState) { index, offset ->
+        homeContentViewModel.updateViewport(HomeTopNavItem.FollowingSeason, index, offset)
+    }
+
+    //启动时刷新数据，只初始化一次
     LaunchedEffect(Unit) {
-        scope.launch(Dispatchers.IO) {
-            recommendViewModel.loadMore()
-        }
-        scope.launch(Dispatchers.IO) {
-            popularViewModel.loadMore()
-        }
-        scope.launch(Dispatchers.IO) {
-            dynamicViewModel.loadMore()
-        }
-        scope.launch(Dispatchers.IO) {
-            userViewModel.updateUserInfo()
-        }
-        scope.launch(Dispatchers.IO) {
-            favouriteViewModel.updateFolderItems()
-        }
-        scope.launch(Dispatchers.IO) {
-            historyViewModel.update()
-        }
-        scope.launch(Dispatchers.IO) {
-            toViewViewModel.update()
-        }
-        scope.launch(Dispatchers.IO) {
-            followingSeasonViewModel.loadMore()
+        if (!homeContentViewModel.initialized) {
+            homeContentViewModel.initialized = true
+
+            scope.launch(Dispatchers.IO) {
+                recommendViewModel.loadMore()
+            }
+            scope.launch(Dispatchers.IO) {
+                popularViewModel.loadMore()
+            }
+            scope.launch(Dispatchers.IO) {
+                dynamicViewModel.loadMore()
+            }
+            scope.launch(Dispatchers.IO) {
+                userViewModel.updateUserInfo()
+            }
+            scope.launch(Dispatchers.IO) {
+                favouriteViewModel.updateFolderItems()
+            }
+            scope.launch(Dispatchers.IO) {
+                historyViewModel.update()
+            }
+            scope.launch(Dispatchers.IO) {
+                toViewViewModel.update()
+            }
+            scope.launch(Dispatchers.IO) {
+                followingSeasonViewModel.loadMore()
+            }
         }
     }
 
@@ -127,10 +178,12 @@ fun HomeContent(
     Scaffold(
         topBar = {
             TopNav(
-                modifier = Modifier
-                    .focusRequester(navFocusRequester),
+                modifier = Modifier,
                 items = reorderedItems,
                 isLargePadding = !focusOnContent,
+                selectedItem = selectedTab,
+                defaultFocusRequester = navFocusRequester,
+                onDefaultFocusReady = onDefaultFocusReady,
                 isHistorySearching = historyViewModel.debouncedQuery.isNotBlank(),
                 onHistoryTabDirectionUp = { isLongPress ->
                     if (selectedTab == HomeTopNavItem.History) {
@@ -142,7 +195,7 @@ fun HomeContent(
                     }
                 },
                 onSelectedChanged = { nav ->
-                    selectedTab = nav as HomeTopNavItem
+                    homeContentViewModel.selectedTab = nav as HomeTopNavItem
                     when (nav) {
                         HomeTopNavItem.Recommend -> {}
                         HomeTopNavItem.Popular -> {}
@@ -292,13 +345,21 @@ fun HomeContent(
                 }
             ) { screen ->
                 when (screen) {
-                    HomeTopNavItem.Recommend -> RecommendScreen()
-                    HomeTopNavItem.Popular -> PopularScreen()
-                    HomeTopNavItem.Dynamics -> DynamicsScreen()
-                    HomeTopNavItem.ToView -> ToViewScreen()
-                    HomeTopNavItem.History -> HistoryScreen(historyViewModel = historyViewModel)
-                    HomeTopNavItem.Favorite -> FavoriteScreen(onBack = backToTabRow)
-                    HomeTopNavItem.FollowingSeason -> FollowingSeasonScreen()
+                    HomeTopNavItem.Recommend -> RecommendScreen(gridState = recommendGridState)
+                    HomeTopNavItem.Popular -> PopularScreen(gridState = popularGridState)
+                    HomeTopNavItem.Dynamics -> DynamicsScreen(gridState = dynamicsGridState)
+                    HomeTopNavItem.ToView -> ToViewScreen(gridState = toViewGridState)
+                    HomeTopNavItem.History -> HistoryScreen(
+                        historyViewModel = historyViewModel,
+                        gridState = historyGridState
+                    )
+                    HomeTopNavItem.Favorite -> FavoriteScreen(
+                        onBack = backToTabRow,
+                        lazyGridState = favoriteGridState
+                    )
+                    HomeTopNavItem.FollowingSeason -> FollowingSeasonScreen(
+                        lazyGridState = followingSeasonGridState
+                    )
                 }
             }
         }

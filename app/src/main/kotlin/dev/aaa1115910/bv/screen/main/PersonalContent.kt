@@ -18,19 +18,21 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import dev.aaa1115910.bv.component.PersistLazyGridViewportEffect
+import dev.aaa1115910.bv.component.rememberRestoredLazyGridState
 import dev.aaa1115910.bv.component.PersonalTopNavItem
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.screen.user.FavoriteScreen
 import dev.aaa1115910.bv.screen.user.FollowingSeasonScreen
 import dev.aaa1115910.bv.screen.user.HistoryScreen
 import dev.aaa1115910.bv.screen.user.ToViewScreen
+import dev.aaa1115910.bv.viewmodel.main.PersonalContentViewModel
 import dev.aaa1115910.bv.viewmodel.user.FavoriteViewModel
 import dev.aaa1115910.bv.viewmodel.user.FollowingSeasonViewModel
 import dev.aaa1115910.bv.viewmodel.user.HistoryViewModel
@@ -42,6 +44,8 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun PersonalContent(
     navFocusRequester: FocusRequester,
+    onDefaultFocusReady: (() -> Unit)? = null,
+    personalContentViewModel: PersonalContentViewModel = koinViewModel(),
     favouriteViewModel: FavoriteViewModel = koinViewModel(),
     historyViewModel: HistoryViewModel = koinViewModel(),
     toViewViewModel: ToViewViewModel = koinViewModel(),
@@ -49,12 +53,38 @@ fun PersonalContent(
 ) {
     val scope = rememberCoroutineScope()
 
-    var selectedTab by remember { mutableStateOf(PersonalTopNavItem.ToView) }
+    val selectedTab = personalContentViewModel.selectedTab
     var focusOnContent by remember { mutableStateOf(false) }
     // 1. 在这里定义 backToTabRow 函数
     // 它会使用从外部传入的 navFocusRequester 来请求焦点
     val backToTabRow: () -> Unit = {
         navFocusRequester.requestFocus()
+    }
+
+    val toViewGridState = rememberRestoredLazyGridState(
+        personalContentViewModel.viewportOf(PersonalTopNavItem.ToView)
+    )
+    val historyGridState = rememberRestoredLazyGridState(
+        personalContentViewModel.viewportOf(PersonalTopNavItem.History)
+    )
+    val favoriteGridState = rememberRestoredLazyGridState(
+        personalContentViewModel.viewportOf(PersonalTopNavItem.Favorite)
+    )
+    val followingSeasonGridState = rememberRestoredLazyGridState(
+        personalContentViewModel.viewportOf(PersonalTopNavItem.FollowingSeason)
+    )
+
+    PersistLazyGridViewportEffect(toViewGridState) { index, offset ->
+        personalContentViewModel.updateViewport(PersonalTopNavItem.ToView, index, offset)
+    }
+    PersistLazyGridViewportEffect(historyGridState) { index, offset ->
+        personalContentViewModel.updateViewport(PersonalTopNavItem.History, index, offset)
+    }
+    PersistLazyGridViewportEffect(favoriteGridState) { index, offset ->
+        personalContentViewModel.updateViewport(PersonalTopNavItem.Favorite, index, offset)
+    }
+    PersistLazyGridViewportEffect(followingSeasonGridState) { index, offset ->
+        personalContentViewModel.updateViewport(PersonalTopNavItem.FollowingSeason, index, offset)
     }
 
     fun refreshPageData(nav: PersonalTopNavItem) {
@@ -82,19 +112,23 @@ fun PersonalContent(
         }
     }
 
-    //启动时刷新数据
+    //启动时刷新数据，仅一次
     LaunchedEffect(Unit) {
-        scope.launch(Dispatchers.IO) {
-            favouriteViewModel.updateFolderItems()
-        }
-        scope.launch(Dispatchers.IO) {
-            historyViewModel.update()
-        }
-        scope.launch(Dispatchers.IO) {
-            toViewViewModel.update()
-        }
-        scope.launch(Dispatchers.IO) {
-            followingSeasonViewModel.loadMore()
+        if (!personalContentViewModel.initialized) {
+            personalContentViewModel.initialized = true
+
+            scope.launch(Dispatchers.IO) {
+                favouriteViewModel.updateFolderItems()
+            }
+            scope.launch(Dispatchers.IO) {
+                historyViewModel.update()
+            }
+            scope.launch(Dispatchers.IO) {
+                toViewViewModel.update()
+            }
+            scope.launch(Dispatchers.IO) {
+                followingSeasonViewModel.loadMore()
+            }
         }
     }
 
@@ -102,10 +136,12 @@ fun PersonalContent(
     Scaffold(
         topBar = {
             TopNav(
-                modifier = Modifier
-                    .focusRequester(navFocusRequester),
+                modifier = Modifier,
                 items = PersonalTopNavItem.entries,
                 isLargePadding = !focusOnContent,
+                selectedItem = selectedTab,
+                defaultFocusRequester = navFocusRequester,
+                onDefaultFocusReady = onDefaultFocusReady,
                 isHistorySearching = historyViewModel.debouncedQuery.isNotBlank(),
                 onHistoryTabDirectionUp = { isLongPress ->
                     if (selectedTab == PersonalTopNavItem.History) {
@@ -117,7 +153,7 @@ fun PersonalContent(
                     }
                 },
                 onSelectedChanged = { nav ->
-                    selectedTab = nav as PersonalTopNavItem
+                    personalContentViewModel.selectedTab = nav as PersonalTopNavItem
                 },
                 onClick = { nav ->
                     refreshPageData(nav as PersonalTopNavItem)
@@ -166,19 +202,25 @@ fun PersonalContent(
             ) { screen ->
                 when (screen) {
                     PersonalTopNavItem.ToView -> {
-                        ToViewScreen()
+                        ToViewScreen(gridState = toViewGridState)
                     }
 
                     PersonalTopNavItem.History -> {
-                        HistoryScreen(historyViewModel = historyViewModel)
+                        HistoryScreen(
+                            historyViewModel = historyViewModel,
+                            gridState = historyGridState
+                        )
                     }
 
                     PersonalTopNavItem.Favorite -> {
-                        FavoriteScreen(onBack = backToTabRow)
+                        FavoriteScreen(
+                            onBack = backToTabRow,
+                            lazyGridState = favoriteGridState
+                        )
                     }
 
                     PersonalTopNavItem.FollowingSeason -> {
-                        FollowingSeasonScreen()
+                        FollowingSeasonScreen(lazyGridState = followingSeasonGridState)
                     }
                 }
             }

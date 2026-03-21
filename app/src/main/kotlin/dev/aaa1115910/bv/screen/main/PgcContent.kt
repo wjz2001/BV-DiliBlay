@@ -8,10 +8,8 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,7 +17,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -29,12 +26,15 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.component.PgcTopNavItem
 import dev.aaa1115910.bv.component.TopNav
+import dev.aaa1115910.bv.component.PersistLazyListViewportEffect
+import dev.aaa1115910.bv.component.rememberRestoredLazyListState
 import dev.aaa1115910.bv.screen.main.pgc.AnimeContent
 import dev.aaa1115910.bv.screen.main.pgc.DocumentaryContent
 import dev.aaa1115910.bv.screen.main.pgc.GuoChuangContent
 import dev.aaa1115910.bv.screen.main.pgc.MovieContent
 import dev.aaa1115910.bv.screen.main.pgc.TvContent
 import dev.aaa1115910.bv.screen.main.pgc.VarietyContent
+import dev.aaa1115910.bv.viewmodel.main.PgcContentViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcAnimeViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcDocumentaryViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcGuoChuangViewModel
@@ -46,6 +46,8 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun PgcContent(
     navFocusRequester: FocusRequester,
+    onDefaultFocusReady: (() -> Unit)? = null,
+    pgcContentViewModel: PgcContentViewModel = koinViewModel(),
     pgcAnimeViewModel: PgcAnimeViewModel = koinViewModel(),
     pgcGuoChuangViewModel: PgcGuoChuangViewModel = koinViewModel(),
     pgcMovieViewModel: PgcMovieViewModel = koinViewModel(),
@@ -53,14 +55,45 @@ fun PgcContent(
     pgcTvViewModel: PgcTvViewModel = koinViewModel(),
     pgcVarietyViewModel: PgcVarietyViewModel = koinViewModel()
 ) {
-    val animeState = rememberLazyListState()
-    val guoChuangState = rememberLazyListState()
-    val movieState = rememberLazyListState()
-    val documentaryState = rememberLazyListState()
-    val tvState = rememberLazyListState()
-    val varietyState = rememberLazyListState()
+    val animeState = rememberRestoredLazyListState(
+        pgcContentViewModel.viewportOf(PgcTopNavItem.Anime)
+    )
+    val guoChuangState = rememberRestoredLazyListState(
+        pgcContentViewModel.viewportOf(PgcTopNavItem.GuoChuang)
+    )
+    val movieState = rememberRestoredLazyListState(
+        pgcContentViewModel.viewportOf(PgcTopNavItem.Movie)
+    )
+    val documentaryState = rememberRestoredLazyListState(
+        pgcContentViewModel.viewportOf(PgcTopNavItem.Documentary)
+    )
+    val tvState = rememberRestoredLazyListState(
+        pgcContentViewModel.viewportOf(PgcTopNavItem.Tv)
+    )
+    val varietyState = rememberRestoredLazyListState(
+        pgcContentViewModel.viewportOf(PgcTopNavItem.Variety)
+    )
 
-    var selectedTab by remember { mutableStateOf(PgcTopNavItem.Anime) }
+    PersistLazyListViewportEffect(animeState) { index, offset ->
+        pgcContentViewModel.updateViewport(PgcTopNavItem.Anime, index, offset)
+    }
+    PersistLazyListViewportEffect(guoChuangState) { index, offset ->
+        pgcContentViewModel.updateViewport(PgcTopNavItem.GuoChuang, index, offset)
+    }
+    PersistLazyListViewportEffect(movieState) { index, offset ->
+        pgcContentViewModel.updateViewport(PgcTopNavItem.Movie, index, offset)
+    }
+    PersistLazyListViewportEffect(documentaryState) { index, offset ->
+        pgcContentViewModel.updateViewport(PgcTopNavItem.Documentary, index, offset)
+    }
+    PersistLazyListViewportEffect(tvState) { index, offset ->
+        pgcContentViewModel.updateViewport(PgcTopNavItem.Tv, index, offset)
+    }
+    PersistLazyListViewportEffect(varietyState) { index, offset ->
+        pgcContentViewModel.updateViewport(PgcTopNavItem.Variety, index, offset)
+    }
+
+    val selectedTab = pgcContentViewModel.selectedTab
     var focusOnContent by remember { mutableStateOf(false) }
     val currentListOnTop by remember {
         derivedStateOf {
@@ -79,22 +112,18 @@ fun PgcContent(
         }
     }
 
-    //启动时刷新数据
-    LaunchedEffect(Unit) {
-
-    }
-
     Scaffold(
         modifier = Modifier,
         topBar = {
             TopNav(
-                modifier = Modifier
-                    .focusRequester(navFocusRequester)
-                    .padding(end = 80.dp),
+                modifier = Modifier.padding(end = 80.dp),
                 items = PgcTopNavItem.entries,
                 isLargePadding = !focusOnContent && currentListOnTop,
+                selectedItem = selectedTab,
+                defaultFocusRequester = navFocusRequester,
+                onDefaultFocusReady = onDefaultFocusReady,
                 onSelectedChanged = { nav ->
-                    selectedTab = nav as PgcTopNavItem
+                    pgcContentViewModel.selectedTab = nav as PgcTopNavItem
                 },
                 onClick = { nav ->
                     when (nav) {

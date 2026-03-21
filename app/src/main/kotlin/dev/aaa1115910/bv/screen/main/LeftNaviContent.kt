@@ -17,7 +17,6 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,15 +34,14 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.DrawerValue
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
-import androidx.tv.material3.rememberDrawerState
 import coil.compose.AsyncImage
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.isDpadRight
+import dev.aaa1115910.bv.util.isKeyUp
 import dev.aaa1115910.bv.util.isKeyDown
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -60,16 +58,17 @@ fun LeftNaviContent(
 ) {
     var selectedItem by remember { mutableStateOf(LeftNaviItem.Home) }
 
-    LaunchedEffect(selectedItem) {
-        onLeftNaviItemChanged(selectedItem)
-    }
-
     NavigationRail(
         modifier = modifier
             .fillMaxHeight()
             .onPreviewKeyEvent { keyEvent ->
                 if (keyEvent.isDpadRight()) {
                     if (keyEvent.isKeyDown()) {
+                        // KeyDown 先吞掉，避免和焦点系统同拍竞争
+                        return@onPreviewKeyEvent true
+                    }
+                    if (keyEvent.isKeyUp()) {
+                        // KeyUp 再触发进内容区
                         onFocusToContent()
                         return@onPreviewKeyEvent true
                     }
@@ -145,7 +144,12 @@ fun LeftNaviContent(
                                 label = "selectionIndicatorColor"
                             ).value
                         ),
-                    onClick = { selectedItem = item },
+                    onClick = {
+                        if (selectedItem != item) {
+                            selectedItem = item
+                            onLeftNaviItemChanged(item)
+                        }
+                    },
                     selected = isFocused,
                     icon = {
                         Icon(

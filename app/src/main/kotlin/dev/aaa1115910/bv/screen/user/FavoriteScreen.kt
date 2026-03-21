@@ -12,11 +12,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -89,9 +89,9 @@ private class FolderQueryState {
 @Composable
 fun FavoriteScreen(
     modifier: Modifier = Modifier,
+    lazyGridState: LazyGridState = rememberLazyGridState(),
     favoriteViewModel: FavoriteViewModel = koinViewModel(),
     toViewViewModel: ToViewViewModel = koinViewModel(),
-    // 添加 onBack 回调参数
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -99,7 +99,6 @@ fun FavoriteScreen(
     val focusRequester = remember { FocusRequester() }
     val defaultFocusRequester = remember { FocusRequester() }
     var focusOnTabs by remember { mutableStateOf(true) }
-    val lazyGridState = rememberLazyGridState()
 
     // 每个收藏夹自己的搜索状态（切换收藏夹不清空；离开本页面才清空）
     val folderQueryStates = remember { mutableStateMapOf<Long, FolderQueryState>() }

@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -29,6 +31,7 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun ToViewScreen(
     modifier: Modifier = Modifier,
+    gridState: LazyGridState = rememberLazyGridState(),
     toViewViewModel: ToViewViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
@@ -48,6 +51,7 @@ fun ToViewScreen(
 
     TvLazyVerticalGrid(
         modifier = modifier,
+        state = gridState,
         columns = GridCells.Fixed(4),
         contentPadding = PaddingValues(24.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
