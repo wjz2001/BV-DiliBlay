@@ -153,12 +153,22 @@ class DynamicViewModel(
         }
     }
 
-    suspend fun loadMore(mode: LoadMode = LoadMode.More, showNoUpdateToast: Boolean = false) {
+    suspend fun loadMore(
+        mode: LoadMode = LoadMode.More,
+        showNoUpdateToast: Boolean = false,
+        showErrorToast: Boolean = true
+    ) {
         if (!bvUserRepository.isLogin) return
 
         when (mode) {
-            LoadMode.RefreshNew -> refreshNewInternal(showNoUpdateToast)
-            LoadMode.More -> loadMoreInternal()
+            LoadMode.RefreshNew -> refreshNewInternal(
+                showNoUpdateToast = showNoUpdateToast,
+                showErrorToast = showErrorToast
+            )
+
+            LoadMode.More -> loadMoreInternal(
+                showErrorToast = showErrorToast
+            )
         }
     }
 
@@ -169,7 +179,10 @@ class DynamicViewModel(
         }
     }
 
-    private suspend fun refreshNewInternal(showNoUpdateToast: Boolean) {
+    private suspend fun refreshNewInternal(
+        showNoUpdateToast: Boolean,
+        showErrorToast: Boolean
+    ) {
         refreshMutex.withLock {
             val now = System.currentTimeMillis()
             if (now - lastRefreshMs < 1500) return
@@ -405,7 +418,9 @@ class DynamicViewModel(
                     if (expectedGen == generation && dynamicList.isEmpty()) {
                         initialLoadState = LoadState.Error
                     }
-                    "刷新动态失败: ${e.localizedMessage}".toast(BVApp.context)
+                    if (showErrorToast) {
+                        "刷新动态失败: ${e.localizedMessage}".toast(BVApp.context)
+                    }
                 }
             } finally {
                 // 即使协程处于取消态，也必须完成占位清理和状态收口
@@ -418,7 +433,7 @@ class DynamicViewModel(
         }
     }
 
-    private fun loadMoreInternal() {
+    private fun loadMoreInternal(showErrorToast: Boolean) {
         if (!hasMore) return
         if (isRefreshingNew) return
 
@@ -430,7 +445,7 @@ class DynamicViewModel(
         val offset = historyOffset.orEmpty()
 
         loadJob = viewModelScope.launch(Dispatchers.IO) {
-            loadHistoryPage(expectedGen, nextPage, offset)
+            loadHistoryPage(expectedGen, nextPage, offset, showErrorToast)
         }.also { job ->
             job.invokeOnCompletion {
                 if (loadJob === job) loadJob = null
@@ -438,7 +453,12 @@ class DynamicViewModel(
         }
     }
 
-    private suspend fun loadHistoryPage(expectedGen: Long, page: Int, offset: String) {
+    private suspend fun loadHistoryPage(
+        expectedGen: Long,
+        page: Int,
+        offset: String,
+        showErrorToast: Boolean
+    ) {
         if (!hasMore || !bvUserRepository.isLogin) return
         if (expectedGen != generation) return
 
@@ -496,39 +516,53 @@ class DynamicViewModel(
 
             when (e) {
                 is AuthFailureException -> {
+                if (showErrorToast) {
                     withContext(Dispatchers.Main) {
                         BVApp.context.getString(R.string.exception_auth_failure)
                             .toast(BVApp.context)
                     }
-                    if (!BuildConfig.DEBUG) bvUserRepository.logout()
                 }
+                if (!BuildConfig.DEBUG) bvUserRepository.logout()
+            }
 
                 else -> {
-                    withContext(Dispatchers.Main) {
-                        if (expectedGen == generation && dynamicList.isEmpty()) {
-                            initialLoadState = LoadState.Error
-                        }
+                withContext(Dispatchers.Main) {
+                    if (expectedGen == generation && dynamicList.isEmpty()) {
+                        initialLoadState = LoadState.Error
+                    }
+                    if (showErrorToast) {
                         "加载动态失败: ${e.localizedMessage}".toast(BVApp.context)
                     }
                 }
+            }
             }
         } finally {
             setLoading(false, expectedGen)
         }
     }
 
-    fun ensureLoaded() {
+    fun ensureLoaded(showErrorToast: Boolean = true) {
         if (!initialLoadState.canAutoLoad()) return
         initialLoadState = LoadState.Loading
         viewModelScope.launch(Dispatchers.IO) {
-            loadMore(LoadMode.More)
+            loadMore(
+                mode = LoadMode.More,
+                showErrorToast = showErrorToast
+            )
         }
     }
 
-    fun reloadAll(showNoUpdateToast: Boolean = true) {
+    fun reloadAll(
+        showNoUpdateToast: Boolean = true,
+        showErrorToast: Boolean = true
+    ) {
         initialLoadState = LoadState.Loading
         viewModelScope.launch(Dispatchers.IO) {
-            loadMore(LoadMode.RefreshNew, showNoUpdateToast = showNoUpdateToast)
+            loadMore(
+                mode = LoadMode.RefreshNew,
+                showNoUpdateToast = showNoUpdateToast,
+                showErrorToast = showErrorToast
+            )
         }
     }
 

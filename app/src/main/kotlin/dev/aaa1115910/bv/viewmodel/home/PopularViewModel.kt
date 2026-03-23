@@ -42,7 +42,8 @@ class PopularViewModel(
     private val maxItems = 480
 
     suspend fun loadMore(
-        beforeAppendData: () -> Unit = {}
+        beforeAppendData: () -> Unit = {},
+        showErrorToast: Boolean = true
     ) {
         val expectedVersion = requestVersion
         requestMutex.withLock {
@@ -50,14 +51,16 @@ class PopularViewModel(
             if (loading) return
             loadData(
                 beforeAppendData = beforeAppendData,
-                expectedVersion = expectedVersion
+                expectedVersion = expectedVersion,
+                showErrorToast = showErrorToast
             )
         }
     }
 
     private suspend fun loadData(
         beforeAppendData: () -> Unit,
-        expectedVersion: Long
+        expectedVersion: Long,
+        showErrorToast: Boolean
     ) {
         if (expectedVersion != requestVersion) return
 
@@ -93,7 +96,9 @@ class PopularViewModel(
                 if (expectedVersion == requestVersion && popularVideoList.isEmpty()) {
                     initialLoadState = LoadState.Error
                 }
-                "加载热门视频失败: ${t.localizedMessage}".toast(BVApp.context)
+                if (showErrorToast) {
+                    "加载热门视频失败: ${t.localizedMessage}".toast(BVApp.context)
+                }
             }
         } finally {
             withContext(Dispatchers.Main) {
@@ -112,22 +117,22 @@ class PopularViewModel(
         initialLoadState = LoadState.Idle
     }
 
-    fun ensureLoaded() {
+    fun ensureLoaded(showErrorToast: Boolean = true) {
         if (!initialLoadState.canAutoLoad()) return
         initialLoadState = LoadState.Loading
         viewModelScope.launch(Dispatchers.IO) {
-            loadMore()
+            loadMore(showErrorToast = showErrorToast)
         }
     }
 
-    fun reloadAll() {
+    fun reloadAll(showErrorToast: Boolean = true) {
         requestVersion++
         popularVideoList = emptyList()
         resetPage()
         loading = false
         initialLoadState = LoadState.Loading
         viewModelScope.launch(Dispatchers.IO) {
-            loadMore()
+            loadMore(showErrorToast = showErrorToast)
         }
     }
 
