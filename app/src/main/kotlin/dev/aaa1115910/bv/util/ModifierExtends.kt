@@ -151,12 +151,18 @@ fun Modifier.danmakuMobMask(
     frame: DanmakuMobMaskFrame,
     aspectRatio: Float,
 ): Modifier = composed {
-    val binaryBitmap= Bitmap.createBitmap(40, 180, Bitmap.Config.ARGB_8888)
-    frame.image.forEachIndexed { index, byte ->
-        val y= index / 40
-        val x= index % 40
-        binaryBitmap.setPixel(x, y, if (byte.toInt() == 0) android.graphics.Color.BLACK else android.graphics.Color.TRANSPARENT)
+    val width = frame.width
+    val height = frame.height
+    val binaryBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+
+    // 1bpp 连续 bit 流，MSB first
+    val pixels = IntArray(width * height) { i ->
+        val byteIndex = i / 8
+        val bitOffset = 7 - (i % 8)
+        val bit = (frame.image[byteIndex].toInt() shr bitOffset) and 1
+        if (bit == 0) android.graphics.Color.TRANSPARENT else android.graphics.Color.BLACK
     }
+    binaryBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
 
     bitmapMask(binaryBitmap, aspectRatio)
 }
