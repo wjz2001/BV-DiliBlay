@@ -17,6 +17,8 @@ import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.fWarn
 import dev.aaa1115910.bv.util.toast
+import dev.aaa1115910.bv.viewmodel.common.LoadState
+import dev.aaa1115910.bv.viewmodel.common.canAutoLoad
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CancellationException
 import kotlin.coroutines.coroutineContext
@@ -97,6 +99,10 @@ class DynamicViewModel(
 
     // 占位卡位置（插在“最新 1 页新增”之后）
     private var refreshPlaceholderIndex = -1
+
+    var initialLoadState by mutableStateOf(LoadState.Idle)
+        private set
+    private val maxItems = 600
 
     private fun buildRefreshPlaceholder(): DynamicVideo = DynamicVideo(
         aid = REFRESH_PLACEHOLDER_AID,
@@ -223,6 +229,7 @@ class DynamicViewModel(
 
                     if (firstPageNewItems.isNotEmpty()) {
                         dynamicList.addAll(0, firstPageNewItems)
+                        trimDynamicDataLocked()
                         totalAdded += firstPageNewItems.size
 
                         // 第一页落地后立即滚顶
@@ -244,6 +251,13 @@ class DynamicViewModel(
 
                 // 第一页完成后先关全局 loading，后续用占位卡提示
                 setLoading(false, expectedGen)
+
+                withContext(Dispatchers.Main) {
+                    if (expectedGen != generation) return@withContext
+                    if (initialLoadState == LoadState.Loading) {
+                        initialLoadState = LoadState.Success
+                    }
+                }
 
                 // 第一页无新增且命中重叠，可直接判定无更新
                 if (firstPageNewItems.isEmpty() && firstPageOverlap) {
@@ -352,6 +366,7 @@ class DynamicViewModel(
                             if (committed.isNotEmpty()) {
                                 val insertAt = firstPageNewItems.size.coerceIn(0, dynamicList.size)
                                 dynamicList.addAll(insertAt, committed)
+                                trimDynamicDataLocked()
                                 totalAdded += committed.size
                             }
                         }
@@ -387,6 +402,9 @@ class DynamicViewModel(
                 if (expectedGen != generation) return
                 logger.fWarn { "Refresh new failed: ${e.stackTraceToString()}" }
                 withContext(Dispatchers.Main) {
+                    if (expectedGen == generation && dynamicList.isEmpty()) {
+                        initialLoadState = LoadState.Error
+                    }
                     "刷新动态失败: ${e.localizedMessage}".toast(BVApp.context)
                 }
             } finally {
@@ -451,6 +469,7 @@ class DynamicViewModel(
                     if (aidSet.add(item.aid)) distinct.add(item)
                 }
                 if (distinct.isNotEmpty()) dynamicList.addAll(distinct)
+                trimDynamicDataLocked()
 
                 currentPage = page
                 historyOffset = data.historyOffset
@@ -458,6 +477,13 @@ class DynamicViewModel(
 
                 // 不要用“空 baseline”覆盖已有 baseline（历史页 baseline 常为空）
                 if (data.updateBaseline.isNotBlank()) updateBaseline = data.updateBaseline
+            }
+
+            withContext(Dispatchers.Main) {
+                if (expectedGen != generation) return@withContext
+                if (initialLoadState == LoadState.Loading) {
+                    initialLoadState = LoadState.Success
+                }
             }
 
             logger.fInfo { "Loaded page=$page size=${data.videos.size}" }
@@ -479,6 +505,9 @@ class DynamicViewModel(
 
                 else -> {
                     withContext(Dispatchers.Main) {
+                        if (expectedGen == generation && dynamicList.isEmpty()) {
+                            initialLoadState = LoadState.Error
+                        }
                         "加载动态失败: ${e.localizedMessage}".toast(BVApp.context)
                     }
                 }
@@ -488,8 +517,22 @@ class DynamicViewModel(
         }
     }
 
+    fun ensureLoaded() {
+        if (!initialLoadState.canAutoLoad()) return
+        initialLoadState = LoadState.Loading
+        viewModelScope.launch(Dispatchers.IO) {
+            loadMore(LoadMode.More)
+        }
+    }
+
+    fun reloadAll(showNoUpdateToast: Boolean = true) {
+        initialLoadState = LoadState.Loading
+        viewModelScope.launch(Dispatchers.IO) {
+            loadMore(LoadMode.RefreshNew, showNoUpdateToast = showNoUpdateToast)
+        }
+    }
+
     fun clearData() {
-        // 强制全量重建时才用（刷新入口不再调用 clearData）
         generation++
         loadJob?.cancel()
         loadJob = null
@@ -503,5 +546,18 @@ class DynamicViewModel(
         updateBaseline = null
         isRefreshingNew = false
         refreshPlaceholderIndex = -1
+        initialLoadState = LoadState.Idle
+    }
+
+    private fun trimDynamicDataLocked() {
+        if (dynamicList.size <= maxItems) return
+        val overflow = dynamicList.size - maxItems
+        repeat(overflow) {
+            if (dynamicList.isNotEmpty()) {
+                dynamicList.removeAt(dynamicList.lastIndex)
+            }
+        }
+        aidSet.clear()
+        dynamicList.forEach { aidSet.add(it.aid) }
     }
 }

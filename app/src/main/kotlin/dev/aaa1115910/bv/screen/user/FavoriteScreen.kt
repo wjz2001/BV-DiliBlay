@@ -213,13 +213,7 @@ fun FavoriteScreen(
 
     val updateCurrentFavoriteFolder: (folderMetadata: FavoriteFolderMetadata) -> Unit =
         { folderMetadata ->
-            // 切换收藏夹：必须立刻停旧的自动加载
-            favoriteViewModel.stopAutoLoad()
-
-            favoriteViewModel.currentFavoriteFolderMetadata = folderMetadata
-            favoriteViewModel.favorites.clear()
-            favoriteViewModel.resetPageNumber()
-            favoriteViewModel.updateFolderItems(force = true)
+            favoriteViewModel.switchToFolder(folderMetadata)
         }
 
     LaunchedEffect(lazyGridState, currentFolderId, currentFolderQuery) {

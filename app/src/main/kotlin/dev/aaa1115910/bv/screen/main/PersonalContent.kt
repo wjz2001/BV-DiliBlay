@@ -8,7 +8,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -31,8 +30,6 @@ import dev.aaa1115910.bv.viewmodel.user.FavoriteViewModel
 import dev.aaa1115910.bv.viewmodel.user.FollowingSeasonViewModel
 import dev.aaa1115910.bv.viewmodel.user.HistoryViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -45,9 +42,8 @@ fun PersonalContent(
     toViewViewModel: ToViewViewModel = koinViewModel(),
     followingSeasonViewModel: FollowingSeasonViewModel = koinViewModel()
 ) {
-    val scope = rememberCoroutineScope()
-
-    val selectedTab = personalContentViewModel.selectedTab
+    val focusedTab = personalContentViewModel.focusedTab
+    val activeTab = personalContentViewModel.activeTab
     var focusOnContent by remember { mutableStateOf(false) }
     // 1. 在这里定义 backToTabRow 函数
     // 它会使用从外部传入的 navFocusRequester 来请求焦点
@@ -83,49 +79,25 @@ fun PersonalContent(
 
     fun refreshPageData(nav: PersonalTopNavItem) {
         when (nav) {
-            PersonalTopNavItem.ToView -> {
-                toViewViewModel.clearData()
-                toViewViewModel.update()
-            }
-
-            PersonalTopNavItem.History -> {
-                historyViewModel.clearData()
-                historyViewModel.update()
-            }
-
-            PersonalTopNavItem.Favorite -> {
-                favouriteViewModel.clearData()
-                favouriteViewModel.updateFoldersInfo()
-                favouriteViewModel.updateFolderItems(force = true)
-            }
-
-            PersonalTopNavItem.FollowingSeason -> {
-                followingSeasonViewModel.clearData()
-                followingSeasonViewModel.loadMore()
-            }
+            PersonalTopNavItem.ToView -> toViewViewModel.reloadAll()
+            PersonalTopNavItem.History -> historyViewModel.reloadAll()
+            PersonalTopNavItem.Favorite -> favouriteViewModel.reloadAll()
+            PersonalTopNavItem.FollowingSeason -> followingSeasonViewModel.reloadAll()
         }
     }
 
-    //启动时刷新数据，仅一次
-    LaunchedEffect(Unit) {
-        if (!personalContentViewModel.initialized) {
-            personalContentViewModel.initialized = true
-
-            scope.launch(Dispatchers.IO) {
-                favouriteViewModel.updateFolderItems()
-            }
-            scope.launch(Dispatchers.IO) {
-                historyViewModel.update()
-            }
-            scope.launch(Dispatchers.IO) {
-                toViewViewModel.update()
-            }
-            scope.launch(Dispatchers.IO) {
-                followingSeasonViewModel.loadMore()
-            }
+    fun ensurePersonalTabLoaded(tab: PersonalTopNavItem) {
+        when (tab) {
+            PersonalTopNavItem.ToView -> toViewViewModel.ensureLoaded()
+            PersonalTopNavItem.History -> historyViewModel.ensureLoaded()
+            PersonalTopNavItem.Favorite -> favouriteViewModel.ensureLoaded()
+            PersonalTopNavItem.FollowingSeason -> followingSeasonViewModel.ensureLoaded()
         }
     }
 
+    LaunchedEffect(activeTab) {
+        ensurePersonalTabLoaded(activeTab)
+    }
 
     Scaffold(
         topBar = {
@@ -133,12 +105,12 @@ fun PersonalContent(
                 modifier = Modifier,
                 items = PersonalTopNavItem.entries,
                 isLargePadding = !focusOnContent,
-                selectedItem = selectedTab,
+                selectedItem = focusedTab,
                 defaultFocusRequester = navFocusRequester,
                 onDefaultFocusReady = onDefaultFocusReady,
                 isHistorySearching = historyViewModel.debouncedQuery.isNotBlank(),
                 onHistoryTabDirectionUp = { isLongPress ->
-                    if (selectedTab == PersonalTopNavItem.History) {
+                    if (focusedTab == PersonalTopNavItem.History) {
                         if (isLongPress) {
                             historyViewModel.clearSearch()
                         } else {
@@ -147,10 +119,12 @@ fun PersonalContent(
                     }
                 },
                 onSelectedChanged = { nav ->
-                    personalContentViewModel.selectedTab = nav as PersonalTopNavItem
+                    personalContentViewModel.onTabFocused(nav as PersonalTopNavItem)
                 },
                 onClick = { nav ->
-                    refreshPageData(nav as PersonalTopNavItem)
+                    val target = nav as PersonalTopNavItem
+                    personalContentViewModel.onTabClicked(target)
+                    refreshPageData(target)
                 }
             )
         }
@@ -173,7 +147,7 @@ fun PersonalContent(
 
                     if (it.key == Key.Menu) {
                         if (it.type == KeyEventType.KeyDown) return@onKeyEvent true
-                        refreshPageData(selectedTab)
+                        refreshPageData(activeTab)
                         navFocusRequester.requestFocus()
                         return@onKeyEvent true
                     }
@@ -181,7 +155,7 @@ fun PersonalContent(
                 },
         ) {
 
-                when (selectedTab) {
+            when (activeTab) {
                     PersonalTopNavItem.ToView -> {
                         ToViewScreen(gridState = toViewGridState)
                     }

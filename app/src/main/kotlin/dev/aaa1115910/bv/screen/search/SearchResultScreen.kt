@@ -91,8 +91,10 @@ fun SearchResultScreen(
     var rowSize by remember { mutableIntStateOf(4) }
 
     var searchKeyword by remember { mutableStateOf("") }
+    val focusedSearchType = searchResultViewModel.focusedSearchType
+    val activeSearchType = searchResultViewModel.activeSearchType
 
-    val searchResult = when (searchResultViewModel.searchType) {
+    val searchResult = when (activeSearchType) {
         SearchType.Video -> searchResultViewModel.videoSearchResult
         SearchType.MediaBangumi -> searchResultViewModel.mediaBangumiSearchResult
         SearchType.MediaFt -> searchResultViewModel.mediaFtSearchResult
@@ -104,7 +106,7 @@ fun SearchResultScreen(
 
     val isVideoSearchViaWebApi by remember {
         derivedStateOf {
-            searchResultViewModel.searchType == SearchType.Video &&
+            activeSearchType == SearchType.Video &&
                     Prefs.apiType == ApiType.Web
         }
     }
@@ -148,14 +150,30 @@ fun SearchResultScreen(
         tabRowFocusRequester.requestFocus(scope)
     }
 
+    fun SearchTypeTopNavItem.toSearchType(): SearchType = when (this) {
+        SearchTypeTopNavItem.Video -> SearchType.Video
+        SearchTypeTopNavItem.MediaBangumi -> SearchType.MediaBangumi
+        SearchTypeTopNavItem.MediaFt -> SearchType.MediaFt
+        SearchTypeTopNavItem.BiliUser -> SearchType.BiliUser
+    }
+
+    fun SearchType.toTopNavItem(): SearchTypeTopNavItem = when (this) {
+        SearchType.Video -> SearchTypeTopNavItem.Video
+        SearchType.MediaBangumi -> SearchTypeTopNavItem.MediaBangumi
+        SearchType.MediaFt -> SearchTypeTopNavItem.MediaFt
+        SearchType.BiliUser -> SearchTypeTopNavItem.BiliUser
+    }
+
     LaunchedEffect(Unit) {
         val intent = (context as Activity).intent
         if (intent.hasExtra("keyword")) {
             searchKeyword = intent.getStringExtra("keyword") ?: ""
             val enableProxy = intent.getBooleanExtra("enableProxy", false)
             if (searchKeyword == "") context.finish()
-            searchResultViewModel.enableProxySearchResult = enableProxy
-            searchResultViewModel.keyword = searchKeyword
+            searchResultViewModel.onKeywordChanged(
+                newKeyword = searchKeyword,
+                enableProxy = enableProxy
+            )
         } else {
             context.finish()
         }
@@ -171,8 +189,12 @@ fun SearchResultScreen(
         }
     }
 
-    LaunchedEffect(searchResultViewModel.searchType) {
-        rowSize = when (searchResultViewModel.searchType) {
+    LaunchedEffect(activeSearchType) {
+        searchResultViewModel.ensureLoaded(activeSearchType)
+    }
+
+    LaunchedEffect(activeSearchType) {
+        rowSize = when (activeSearchType) {
             SearchType.Video -> 4
             SearchType.MediaBangumi, SearchType.MediaFt -> 6
             SearchType.BiliUser -> 3
@@ -183,7 +205,7 @@ fun SearchResultScreen(
         selectedOrder, selectedDuration, selectedPartition, selectedChildPartition
     ) {
         logger.fInfo { "Start update search result because filter updated" }
-        searchResultViewModel.update()
+        searchResultViewModel.updateActiveType()
     }
 
 
@@ -244,22 +266,15 @@ fun SearchResultScreen(
                     .focusRequester(tabRowFocusRequester),
                 items = SearchTypeTopNavItem.entries,
                 isLargePadding = !focusOnContent,
+                selectedItem = focusedSearchType.toTopNavItem(),
                 onSelectedChanged = { nav ->
-                    when (nav) {
-                        SearchTypeTopNavItem.Video -> searchResultViewModel.searchType =
-                            SearchType.Video
-
-                        SearchTypeTopNavItem.MediaBangumi -> searchResultViewModel.searchType =
-                            SearchType.MediaBangumi
-
-                        SearchTypeTopNavItem.MediaFt -> searchResultViewModel.searchType =
-                            SearchType.MediaFt
-
-                        SearchTypeTopNavItem.BiliUser -> searchResultViewModel.searchType =
-                            SearchType.BiliUser
-                    }
+                    val target = (nav as SearchTypeTopNavItem).toSearchType()
+                    searchResultViewModel.onSearchTypeFocused(target)
                 },
-                onClick = { }
+                onClick = { nav ->
+                    val target = (nav as SearchTypeTopNavItem).toSearchType()
+                    searchResultViewModel.onSearchTypeClicked(target)
+                }
             )
 
             Spacer(modifier = Modifier.height(6.dp))

@@ -12,6 +12,8 @@ import dev.aaa1115910.biliapi.entity.season.FollowingSeasonType
 import dev.aaa1115910.biliapi.repositories.SeasonRepository
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
+import dev.aaa1115910.bv.viewmodel.common.LoadState
+import dev.aaa1115910.bv.viewmodel.common.canAutoLoad
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -37,6 +39,10 @@ class FollowingSeasonViewModel(
     private var updating = false
 
     private var updateJob: Job? = null
+    var initialLoadState by mutableStateOf(LoadState.Idle)
+        private set
+    @Volatile private var requestGeneration = 0L
+    private val maxItems = 360
 
     init {
         followingSeasonType = FollowingSeasonType.Bangumi
@@ -44,23 +50,46 @@ class FollowingSeasonViewModel(
     }
 
     fun clearData() {
+        requestGeneration++
         updateJob?.cancel()
         pageNumber = 1
         updating = false
         noMore = false
         followingSeasons.clear()
+        initialLoadState = LoadState.Idle
+    }
+
+    fun ensureLoaded() {
+        if (!initialLoadState.canAutoLoad()) return
+        initialLoadState = LoadState.Loading
+        loadMore()
+    }
+
+    fun reloadAll() {
+        requestGeneration++
+        updateJob?.cancel()
+        pageNumber = 1
+        updating = false
+        noMore = false
+        followingSeasons.clear()
+        initialLoadState = LoadState.Loading
+        loadMore()
     }
 
     fun loadMore() {
+        if (updateJob?.isActive == true) return
+        val expectedGeneration = requestGeneration
         updateJob = viewModelScope.launch(Dispatchers.IO) {
-            updateData()
+            updateData(expectedGeneration)
         }
     }
 
-    private suspend fun updateData() {
-        if (updating) return
+    private suspend fun updateData(expectedGeneration: Long) {
+        if (expectedGeneration != requestGeneration) return
+        if (updating || noMore) return
+
         updating = true
-        runCatching {
+        try {
             logger.fInfo { "Updating following season data" }
             val response = seasonRepository.getFollowingSeasons(
                 type = followingSeasonType,
@@ -69,16 +98,41 @@ class FollowingSeasonViewModel(
                 pageSize = pageSize,
                 preferApiType = Prefs.apiType
             )
+
+            if (expectedGeneration != requestGeneration) return
+
             withContext(Dispatchers.Main) {
+                if (expectedGeneration != requestGeneration) return@withContext
                 if (pageSize * pageNumber >= response.total) noMore = true
                 pageNumber++
                 followingSeasons.addAll(response.list)
+
+                if (followingSeasons.size > maxItems) {
+                    val overflow = followingSeasons.size - maxItems
+                    repeat(overflow) {
+                        if (followingSeasons.isNotEmpty()) {
+                            followingSeasons.removeAt(followingSeasons.lastIndex)
+                        }
+                    }
+                }
+
+                if (initialLoadState == LoadState.Loading) {
+                    initialLoadState = LoadState.Success
+                }
             }
             logger.fInfo { "Following season count: ${response.list.size}" }
-        }.onFailure {
-            logger.fInfo { "Update following seasons failed: ${it.stackTraceToString()}" }
+        } catch (t: Throwable) {
+            logger.fInfo { "Update following seasons failed: ${t.stackTraceToString()}" }
+            withContext(Dispatchers.Main) {
+                if (expectedGeneration == requestGeneration && followingSeasons.isEmpty()) {
+                    initialLoadState = LoadState.Error
+                }
+            }
+        } finally {
+            if (expectedGeneration == requestGeneration) {
+                updating = false
+            }
         }
-        updating = false
     }
 }
 

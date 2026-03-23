@@ -3,6 +3,7 @@ package dev.aaa1115910.bv.viewmodel.pgc
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -18,11 +19,16 @@ import dev.aaa1115910.bv.util.addAllWithMainContext
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.fWarn
 import dev.aaa1115910.bv.util.toast
+import dev.aaa1115910.bv.viewmodel.common.LoadState
+import dev.aaa1115910.bv.viewmodel.common.canAutoLoad
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 abstract class PgcViewModel(
     open val pgcRepository: PgcRepository,
@@ -33,49 +39,238 @@ abstract class PgcViewModel(
     /**
      * 轮播图
      */
-    val carouselItems = mutableStateListOf<CarouselData.CarouselItem>()
-
-    /**
-     * 猜你喜欢
-     */
-    val feedItems = mutableStateListOf<FeedListItem>()
-
-    /**
-     * 推荐数据中会穿插排行榜，为了避免出现某一行仅出现单独几个剧集，因此将不满一行的剧集单独存起来
-     */
+    var carouselItems by mutableStateOf<List<CarouselData.CarouselItem>>(emptyList())
+        private set
+    var feedItems by mutableStateOf<List<FeedListItem>>(emptyList())
+        private set
     private val restSubItems = mutableListOf<PgcItem>()
 
-    var updating by mutableStateOf(false)
+    private var inFlightCount by mutableIntStateOf(0)
+    val updating get() = inFlightCount > 0
     var hasNext by mutableStateOf(true)
     private var cursor = 0
 
-    init {
-        loadMore()
-        viewModelScope.launch(Dispatchers.IO) {
-            updateCarousel()
+    var initialLoadState by mutableStateOf(LoadState.Idle)
+        private set
+    @Volatile
+    private var requestGeneration = 0L
+    private var loadAllJob: Job? = null
+    private val loadMutex = Mutex()
+    private val maxFeedBlocks = 240
+
+    private val feedUpdateMutex = Mutex()
+
+    private var feedRequestSeq = 0L
+    private var inFlightFeedToken: Long? = null
+
+    private suspend fun beginLoading() {
+        withContext(Dispatchers.Main) {
+            inFlightCount += 1
         }
     }
 
-    /**
-     * 加载更多推荐数据
-     */
+    private suspend fun endLoading() {
+        withContext(Dispatchers.Main) {
+            inFlightCount = (inFlightCount - 1).coerceAtLeast(0)
+        }
+    }
+
+    fun ensureLoaded() {
+        if (!initialLoadState.canAutoLoad()) return
+        initialLoadState = LoadState.Loading
+        launchLoadAll(expectedGeneration = requestGeneration)
+    }
+
     fun loadMore() {
-        if (hasNext) {
-            viewModelScope.launch(Dispatchers.IO) {
-                updateFeed()
+        if (!hasNext) return
+        val expectedGeneration = requestGeneration
+        viewModelScope.launch(Dispatchers.IO) {
+            updateFeed(expectedGeneration)
+        }
+    }
+
+    fun reloadAll() {
+        logger.fInfo { "Reload all $pgcType data" }
+        requestGeneration++
+        clearAll()
+        initialLoadState = LoadState.Loading
+        launchLoadAll(expectedGeneration = requestGeneration)
+    }
+
+    private fun launchLoadAll(expectedGeneration: Long) {
+        loadAllJob?.cancel()
+        loadAllJob = viewModelScope.launch(Dispatchers.IO) {
+            loadMutex.withLock {
+                if (expectedGeneration != requestGeneration) return@withLock
+                updateCarousel(expectedGeneration)
+                updateFeed(expectedGeneration)
             }
         }
     }
 
-    /**
-     * 重新加载所有数据，点击界面顶部 Tab 时使用
-     */
-    fun reloadAll() {
-        logger.fInfo { "Reload all $pgcType data" }
-        clearAll()
-        viewModelScope.launch(Dispatchers.IO) {
-            updateCarousel()
-            updateFeed()
+    // 更新轮播图
+    private suspend fun updateCarousel(expectedGeneration: Long) {
+        if (expectedGeneration != requestGeneration) return
+        logger.fInfo { "Updating $pgcType carousel" }
+
+        beginLoading()
+        try {
+            runCatching {
+                val carouselData = pgcRepository.getCarousel(pgcType)
+                if (expectedGeneration != requestGeneration) return@runCatching
+                logger.fInfo { "Find $pgcType carousels, size: ${carouselData.items.size}" }
+                withContext(Dispatchers.Main) {
+                    if (expectedGeneration != requestGeneration) return@withContext
+                    carouselItems = carouselData.items
+                    if (initialLoadState == LoadState.Loading) {
+                        initialLoadState = LoadState.Success
+                    }
+                }
+            }.onFailure {
+                if (expectedGeneration != requestGeneration) return@onFailure
+                logger.fInfo { "Update $pgcType carousel failed: ${it.stackTraceToString()}" }
+                withContext(Dispatchers.Main) {
+                    if (expectedGeneration != requestGeneration) return@withContext
+                    if (carouselItems.isEmpty() && feedItems.isEmpty()) {
+                        initialLoadState = LoadState.Error
+                        "加载 $pgcType 轮播图失败: ${it.message}".toast(BVApp.context)
+                    }
+                }
+            }
+        } finally {
+            endLoading()
+        }
+    }
+
+    private suspend fun updateFeed(expectedGeneration: Long) {
+        val requestCursor: Int
+        val token: Long
+
+        // 第一段锁：只做占位和快照
+        feedUpdateMutex.withLock {
+            if (expectedGeneration != requestGeneration) return
+            if (!hasNext) return
+            if (inFlightFeedToken != null) return
+
+            requestCursor = cursor
+            token = ++feedRequestSeq
+            inFlightFeedToken = token
+        }
+
+        beginLoading()
+        logger.fInfo { "Update $pgcType feed" }
+
+        try {
+            // 锁外网络请求
+            val pgcFeedData = pgcRepository.getFeed(
+                pgcType = pgcType,
+                cursor = requestCursor
+            )
+
+            // 第二段锁：只做提交
+            feedUpdateMutex.withLock {
+                if (expectedGeneration != requestGeneration) return@withLock
+                if (inFlightFeedToken != token) return@withLock
+                if (cursor != requestCursor) return@withLock
+
+                // 提交分页游标
+                cursor = pgcFeedData.cursor
+                hasNext = pgcFeedData.hasNext
+
+                // 组装并提交 feed block（沿用你现在的拆块逻辑）
+                val epList = ArrayList<PgcItem>(restSubItems.size + pgcFeedData.items.size)
+                epList.addAll(restSubItems)
+                epList.addAll(pgcFeedData.items)
+
+                val newBlocks = ArrayList<FeedListItem>()
+                restSubItems.clear()
+                epList.chunked(5).forEach { chunk ->
+                    if (chunk.size == 5) {
+                        newBlocks.add(
+                            FeedListItem(
+                                type = FeedListType.Ep,
+                                items = chunk
+                            )
+                        )
+                    } else {
+                        restSubItems.addAll(chunk)
+                    }
+                }
+
+                pgcFeedData.ranks.forEach { rank ->
+                    newBlocks.add(
+                        FeedListItem(
+                            type = FeedListType.Rank,
+                            rank = rank
+                        )
+                    )
+                }
+
+                feedItems = (feedItems + newBlocks).takeLast(maxFeedBlocks)
+
+                if (initialLoadState == LoadState.Loading) {
+                    initialLoadState = LoadState.Success
+                }
+            }
+        } catch (t: Throwable) {
+            if (expectedGeneration != requestGeneration) return
+            logger.fInfo { "Update $pgcType feeds failed: ${t.stackTraceToString()}" }
+
+            withContext(Dispatchers.Main) {
+                if (expectedGeneration != requestGeneration) return@withContext
+                if (feedItems.isEmpty() && carouselItems.isEmpty()) {
+                    initialLoadState = LoadState.Error
+                }
+            }
+        } finally {
+            feedUpdateMutex.withLock {
+                if (inFlightFeedToken == token) {
+                    inFlightFeedToken = null
+                }
+            }
+            endLoading()
+        }
+    }
+
+    private suspend fun updateFeedItems(
+        data: PgcFeedData,
+        expectedGeneration: Long
+    ) {
+        if (expectedGeneration != requestGeneration) return
+
+        logger.fInfo { "update $pgcType feed items: [items: ${data.items.size}, ranks: ${data.ranks.size}]" }
+
+        val epList = ArrayList<PgcItem>(restSubItems.size + data.items.size)
+        epList.addAll(restSubItems)
+        epList.addAll(data.items)
+
+        val newBlocks = ArrayList<FeedListItem>()
+        restSubItems.clear()
+        epList.chunked(5).forEach { chunkedVCardList ->
+            if (chunkedVCardList.size == 5) {
+                newBlocks.add(
+                    FeedListItem(
+                        type = FeedListType.Ep,
+                        items = chunkedVCardList
+                    )
+                )
+            } else {
+                restSubItems.addAll(chunkedVCardList)
+            }
+        }
+
+        data.ranks.forEach { rank ->
+            newBlocks.add(
+                FeedListItem(
+                    type = FeedListType.Rank,
+                    rank = rank
+                )
+            )
+        }
+
+        withContext(Dispatchers.Main) {
+            if (expectedGeneration != requestGeneration) return@withContext
+            feedItems = (feedItems + newBlocks).takeLast(maxFeedBlocks)
         }
     }
 
@@ -84,102 +279,23 @@ abstract class PgcViewModel(
      */
     fun clearAll() {
         logger.fInfo { "Clear all data" }
-        carouselItems.clear()
-        feedItems.clear()
+        carouselItems = emptyList()
+        feedItems = emptyList()
         restSubItems.clear()
         cursor = 0
         hasNext = true
+        inFlightCount = 0
+        initialLoadState = LoadState.Idle
+        inFlightFeedToken = null
     }
 
-    /**
-     * 更新轮播图
-     */
-    private suspend fun updateCarousel() {
-        logger.fInfo { "Updating $pgcType carousel" }
-        runCatching {
-            // 由于未知原因，注入的 PgcRepository 可能获取到的对象为 null
-            var maxRetry = 10
-            while (pgcRepository == null && maxRetry > 0) {
-                delay(10)
-                maxRetry--
-            }
-            if (BuildConfig.DEBUG && maxRetry != 10) {
-                logger.fWarn { "Retry ${10 - maxRetry} times to get pgcRepository" }
-            }
+    data class FeedListItem(
+        val type: FeedListType,
+        val items: List<PgcItem>? = emptyList(),
+        val rank: PgcFeedData.FeedRank? = null
+    )
 
-            val carouselData = pgcRepository.getCarousel(pgcType)
-            logger.fInfo { "Find $pgcType carousels, size: ${carouselData.items.size}" }
-            carouselItems.addAllWithMainContext(carouselData.items)
-            logger.debug { "carouselItems: $carouselItems" }
-        }.onFailure {
-            logger.fInfo { "Update $pgcType carousel failed: ${it.stackTraceToString()}" }
-            withContext(Dispatchers.Main) {
-                "加载 $pgcType 轮播图失败: ${it.message}".toast(BVApp.context)
-            }
-        }
+    enum class FeedListType {
+        Ep, Rank
     }
-
-    /**
-     * 获取推荐数据
-     */
-    private suspend fun updateFeed() {
-        if (updating) return
-        withContext(Dispatchers.Main) { updating = true }
-        logger.fInfo { "Update anime feed" }
-        runCatching {
-            val pgcFeedData = pgcRepository.getFeed(
-                pgcType = pgcType,
-                cursor = cursor
-            )
-            cursor = pgcFeedData.cursor
-            withContext(Dispatchers.Main) { hasNext = pgcFeedData.hasNext }
-            updateFeedItems(pgcFeedData)
-        }.onFailure {
-            logger.fInfo { "Update $pgcType feeds failed: ${it.stackTraceToString()}" }
-        }
-        withContext(Dispatchers.Main) { updating = false }
-    }
-
-    /**
-     * 对 [updateFeed] 获取到得数据进行二次整理并更新到 feedItems
-     */
-    private suspend fun updateFeedItems(data: PgcFeedData) {
-        logger.fInfo { "update $pgcType feed items: [items: ${data.items.size}, ranks: ${data.ranks.size}]" }
-        val epList = mutableStateListOf<PgcItem>()
-        epList.addAll(restSubItems)
-        epList.addAll(data.items)
-
-        epList.chunked(5).forEach { chunkedVCardList ->
-            if (chunkedVCardList.size == 5) {
-                feedItems.addWithMainContext(
-                    FeedListItem(
-                        type = FeedListType.Ep,
-                        items = chunkedVCardList
-                    )
-                )
-            } else {
-                restSubItems.clear()
-                restSubItems.addAll(chunkedVCardList)
-            }
-        }
-
-        data.ranks.forEach { rank ->
-            feedItems.addWithMainContext(
-                FeedListItem(
-                    type = FeedListType.Rank,
-                    rank = rank
-                )
-            )
-        }
-    }
-}
-
-data class FeedListItem(
-    val type: FeedListType,
-    val items: List<PgcItem>? = emptyList(),
-    val rank: PgcFeedData.FeedRank? = null
-)
-
-enum class FeedListType {
-    Ep, Rank
 }

@@ -19,8 +19,6 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.pgc.PgcIndexActivity
 import dev.aaa1115910.bv.activities.pgc.anime.AnimeTimelineActivity
 import dev.aaa1115910.bv.activities.user.FollowingSeasonActivity
-import dev.aaa1115910.bv.tv.screens.main.pgc.PgcFeatureButtons
-import dev.aaa1115910.bv.tv.screens.main.pgc.PgcScaffold
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.pgc.PgcAnimeViewModel
