@@ -1,4 +1,4 @@
-package dev.aaa1115910.bv.tv.screens.main.pgc
+package dev.aaa1115910.bv.screen.main.pgc
 
 import android.view.KeyEvent
 import androidx.compose.foundation.background
@@ -44,7 +44,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
@@ -69,7 +68,7 @@ import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.resizedImageUrl
 import dev.aaa1115910.bv.util.toast
-import dev.aaa1115910.bv.viewmodel.pgc.FeedListType
+import dev.aaa1115910.bv.viewmodel.pgc.PgcViewModel.FeedListType
 import dev.aaa1115910.bv.viewmodel.pgc.PgcViewModel
 
 @Composable

@@ -44,9 +44,21 @@ fun UgcContent(
 ) {
     val context = LocalContext.current
 
-    val selectedTab = ugcViewModel.selectedTab
+    val focusedTab = ugcViewModel.focusedTab
+    val activeTab = ugcViewModel.activeTab
     var focusOnContent by remember { mutableStateOf(false) }
     val ugcTopNavItems = UgcTopNavItem.entries
+
+    LaunchedEffect(activeTab) {
+        if (activeTab !in ugcViewModel.ugcScaffoldStateMap) {
+            ugcViewModel.addUgcScaffoldState(
+                activeTab,
+                UgcScaffoldState(ugcType = activeTab.ugcTypeV2)
+            )
+        }
+        ugcViewModel.ensureLoaded(activeTab)
+        ugcViewModel.trimInactiveData(except = activeTab)
+    }
 
     LaunchedEffect(Unit) {
         toViewViewModel.uiEvent.collect { event ->
@@ -64,14 +76,16 @@ fun UgcContent(
                 modifier = Modifier.padding(horizontal = 10.dp),
                 items = ugcTopNavItems,
                 isLargePadding = !focusOnContent,
-                selectedItem = selectedTab,
+                selectedItem = focusedTab,
                 defaultFocusRequester = navFocusRequester,
                 onDefaultFocusReady = onDefaultFocusReady,
                 onSelectedChanged = { nav ->
-                    ugcViewModel.selectedTab = nav as UgcTopNavItem
-                },
+                    ugcViewModel.onTabFocused(nav as UgcTopNavItem)
+                                    },
                 onClick = { nav ->
-                    ugcViewModel.reloadAll(nav as UgcTopNavItem)
+                    val target = nav as UgcTopNavItem
+                    ugcViewModel.onTabClicked(target)
+                    ugcViewModel.reloadAll(target)
                 }
             )
         }
@@ -83,14 +97,14 @@ fun UgcContent(
                 .onPreviewKeyEvent {
                     if (it.key == Key.Menu) {
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
-                        ugcViewModel.reloadAll(selectedTab)
+                        ugcViewModel.reloadAll(activeTab)
                         navFocusRequester.requestFocus()
                         return@onPreviewKeyEvent true
                     }
                     return@onPreviewKeyEvent false
                 },
         ) {
-            val screen = selectedTab
+            val screen = activeTab
             val range = (screen.ordinal)..minOf(screen.ordinal + 2, ugcTopNavItems.size - 1)
             for (i in range) {
                 val item = ugcTopNavItems[i]

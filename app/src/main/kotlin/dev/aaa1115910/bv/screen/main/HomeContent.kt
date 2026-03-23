@@ -8,7 +8,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -28,7 +27,6 @@ import dev.aaa1115910.bv.screen.user.FollowingSeasonScreen
 import dev.aaa1115910.bv.screen.user.HistoryScreen
 import dev.aaa1115910.bv.screen.user.ToViewScreen
 import dev.aaa1115910.bv.util.Prefs
-import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.component.PersistLazyGridViewportEffect
 import dev.aaa1115910.bv.component.rememberRestoredLazyGridState
 import dev.aaa1115910.bv.viewmodel.main.HomeContentViewModel
@@ -40,9 +38,6 @@ import dev.aaa1115910.bv.viewmodel.user.FavoriteViewModel
 import dev.aaa1115910.bv.viewmodel.user.FollowingSeasonViewModel
 import dev.aaa1115910.bv.viewmodel.user.HistoryViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
-import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -59,11 +54,9 @@ fun HomeContent(
     toViewViewModel: ToViewViewModel = koinViewModel(),
     followingSeasonViewModel: FollowingSeasonViewModel = koinViewModel()
 ) {
-    val scope = rememberCoroutineScope()
-    val logger = KotlinLogging.logger("HomeContent")
-
     val firstTab = remember { Prefs.firstHomeTopNavItem }
-    val selectedTab = homeContentViewModel.selectedTab
+    val focusedTab = homeContentViewModel.focusedTab
+    val activeTab = homeContentViewModel.activeTab
     var focusOnContent by remember { mutableStateOf(false) }
 
     // 1. 在这里定义 backToTabRow 函数
@@ -126,36 +119,32 @@ fun HomeContent(
         homeContentViewModel.updateViewport(HomeTopNavItem.FollowingSeason, index, offset)
     }
 
-    //启动时刷新数据，只初始化一次
-    LaunchedEffect(Unit) {
-        if (!homeContentViewModel.initialized) {
-            homeContentViewModel.initialized = true
-
-            scope.launch(Dispatchers.IO) {
-                recommendViewModel.loadMore()
-            }
-            scope.launch(Dispatchers.IO) {
-                popularViewModel.loadMore()
-            }
-            scope.launch(Dispatchers.IO) {
-                dynamicViewModel.loadMore()
-            }
-            scope.launch(Dispatchers.IO) {
-                userViewModel.updateUserInfo()
-            }
-            scope.launch(Dispatchers.IO) {
-                favouriteViewModel.updateFolderItems()
-            }
-            scope.launch(Dispatchers.IO) {
-                historyViewModel.update()
-            }
-            scope.launch(Dispatchers.IO) {
-                toViewViewModel.update()
-            }
-            scope.launch(Dispatchers.IO) {
-                followingSeasonViewModel.loadMore()
-            }
+    fun ensureHomeTabLoaded(tab: HomeTopNavItem) {
+        when (tab) {
+            HomeTopNavItem.Recommend -> recommendViewModel.ensureLoaded()
+            HomeTopNavItem.Popular -> popularViewModel.ensureLoaded()
+            HomeTopNavItem.Dynamics -> dynamicViewModel.ensureLoaded()
+            HomeTopNavItem.ToView -> toViewViewModel.ensureLoaded()
+            HomeTopNavItem.History -> historyViewModel.ensureLoaded()
+            HomeTopNavItem.Favorite -> favouriteViewModel.ensureLoaded()
+            HomeTopNavItem.FollowingSeason -> followingSeasonViewModel.ensureLoaded()
         }
+    }
+
+    fun refreshHomeTab(tab: HomeTopNavItem) {
+        when (tab) {
+            HomeTopNavItem.Recommend -> recommendViewModel.reloadAll()
+            HomeTopNavItem.Popular -> popularViewModel.reloadAll()
+            HomeTopNavItem.Dynamics -> dynamicViewModel.reloadAll(showNoUpdateToast = true)
+            HomeTopNavItem.ToView -> toViewViewModel.reloadAll()
+            HomeTopNavItem.History -> historyViewModel.reloadAll()
+            HomeTopNavItem.Favorite -> favouriteViewModel.reloadAll()
+            HomeTopNavItem.FollowingSeason -> followingSeasonViewModel.reloadAll()
+        }
+    }
+
+    LaunchedEffect(activeTab) {
+        ensureHomeTabLoaded(activeTab)
     }
 
     //监听登录变化
@@ -175,12 +164,12 @@ fun HomeContent(
                 modifier = Modifier,
                 items = reorderedItems,
                 isLargePadding = !focusOnContent,
-                selectedItem = selectedTab,
+                selectedItem = focusedTab,
                 defaultFocusRequester = navFocusRequester,
                 onDefaultFocusReady = onDefaultFocusReady,
                 isHistorySearching = historyViewModel.debouncedQuery.isNotBlank(),
                 onHistoryTabDirectionUp = { isLongPress ->
-                    if (selectedTab == HomeTopNavItem.History) {
+                    if (focusedTab == HomeTopNavItem.History) {
                         if (isLongPress) {
                             historyViewModel.clearSearch()
                         } else {
@@ -189,77 +178,12 @@ fun HomeContent(
                     }
                 },
                 onSelectedChanged = { nav ->
-                    homeContentViewModel.selectedTab = nav as HomeTopNavItem
-                    when (nav) {
-                        HomeTopNavItem.Recommend -> {}
-                        HomeTopNavItem.Popular -> {}
-                        HomeTopNavItem.Dynamics -> {
-                            /*
-                            scope.launch(Dispatchers.IO) {
-                                dynamicViewModel.loadMore(DynamicViewModel.LoadMode.RefreshNew)
-                            }
-                             */
-                        }
-                        HomeTopNavItem.ToView -> {
-                            toViewViewModel.clearData()
-                            toViewViewModel.update()
-                        }
-                        HomeTopNavItem.History -> {
-                            historyViewModel.clearData()
-                            historyViewModel.update()
-                        }
-                        HomeTopNavItem.Favorite -> {
-                            favouriteViewModel.clearData()
-                            favouriteViewModel.updateFoldersInfo()
-                            favouriteViewModel.updateFolderItems(force = true)
-                        }
-                        HomeTopNavItem.FollowingSeason -> {
-                            followingSeasonViewModel.clearData()
-                            followingSeasonViewModel.loadMore()
-                        }
-                    }
+                    homeContentViewModel.onTabFocused(nav as HomeTopNavItem)
                 },
                 onClick = { nav ->
-                    when (nav) {
-                        HomeTopNavItem.Recommend -> {
-                            logger.fInfo { "clear recommend data" }
-                            recommendViewModel.clearData()
-                            logger.fInfo { "reload recommend data" }
-                            scope.launch(Dispatchers.IO) { recommendViewModel.loadMore() }
-                        }
-
-                        HomeTopNavItem.Popular -> {
-                            logger.fInfo { "clear popular data" }
-                            popularViewModel.clearData()
-                            logger.fInfo { "reload popular data" }
-                            scope.launch(Dispatchers.IO) { popularViewModel.loadMore() }
-                        }
-
-                        HomeTopNavItem.Dynamics -> {
-                            scope.launch(Dispatchers.IO) {
-                                dynamicViewModel.loadMore(DynamicViewModel.LoadMode.RefreshNew, showNoUpdateToast = true)
-                            }
-                        }
-                        HomeTopNavItem.ToView -> {
-                            toViewViewModel.clearData()
-                            scope.launch(Dispatchers.IO) { toViewViewModel.update() }
-                        }
-                        HomeTopNavItem.History -> {
-                            historyViewModel.clearData()
-                            scope.launch(Dispatchers.IO) { historyViewModel.update() }
-                        }
-                        HomeTopNavItem.Favorite -> {
-                            favouriteViewModel.clearData()
-                            scope.launch(Dispatchers.IO) {
-                                favouriteViewModel.updateFoldersInfo()
-                                favouriteViewModel.updateFolderItems(force = true)
-                            }
-                        }
-                        HomeTopNavItem.FollowingSeason -> {
-                            followingSeasonViewModel.clearData()
-                            scope.launch(Dispatchers.IO) { followingSeasonViewModel.loadMore() }
-                        }
-                    }
+                    val target = nav as HomeTopNavItem
+                    homeContentViewModel.onTabClicked(target)
+                    refreshHomeTab(target)
                 }
             )
         }
@@ -282,49 +206,14 @@ fun HomeContent(
 
                     if (it.key == Key.Menu) {
                         if (it.type == KeyEventType.KeyDown) return@onKeyEvent true
-                        when (selectedTab) {
-                            HomeTopNavItem.Recommend -> {
-                                recommendViewModel.clearData()
-                                scope.launch(Dispatchers.IO) { recommendViewModel.loadMore() }
-                            }
-
-                            HomeTopNavItem.Popular -> {
-                                popularViewModel.clearData()
-                                scope.launch(Dispatchers.IO) { popularViewModel.loadMore() }
-                            }
-
-                            HomeTopNavItem.Dynamics -> {
-                                scope.launch(Dispatchers.IO) {
-                                    dynamicViewModel.loadMore(DynamicViewModel.LoadMode.RefreshNew, showNoUpdateToast = true)
-                                }
-                            }
-                            HomeTopNavItem.ToView -> {
-                                toViewViewModel.clearData()
-                                scope.launch(Dispatchers.IO) { toViewViewModel.update() }
-                            }
-                            HomeTopNavItem.History -> {
-                                historyViewModel.clearData()
-                                scope.launch(Dispatchers.IO) { historyViewModel.update() }
-                            }
-                            HomeTopNavItem.Favorite -> {
-                                favouriteViewModel.clearData()
-                                scope.launch(Dispatchers.IO) {
-                                    favouriteViewModel.updateFoldersInfo()
-                                    favouriteViewModel.updateFolderItems(force = true)
-                                }
-                            }
-                            HomeTopNavItem.FollowingSeason -> {
-                                followingSeasonViewModel.clearData()
-                                scope.launch(Dispatchers.IO) { followingSeasonViewModel.loadMore() }
-                            }
-                        }
+                        refreshHomeTab(activeTab)
                         navFocusRequester.requestFocus()
                         return@onKeyEvent true
                     }
                     return@onKeyEvent false
                 },
         ) {
-                when (selectedTab) {
+                when (activeTab) {
                     HomeTopNavItem.Recommend -> RecommendScreen(gridState = recommendGridState)
                     HomeTopNavItem.Popular -> PopularScreen(gridState = popularGridState)
                     HomeTopNavItem.Dynamics -> DynamicsScreen(gridState = dynamicsGridState)

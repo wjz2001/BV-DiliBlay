@@ -21,6 +21,8 @@ import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.fWarn
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.toast
+import dev.aaa1115910.bv.viewmodel.common.LoadState
+import dev.aaa1115910.bv.viewmodel.common.canAutoLoad
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -50,9 +52,134 @@ class ToViewViewModel(
 
     private var updateJob: Job? = null
 
+    var initialLoadState by mutableStateOf(LoadState.Idle)
+        private set
+    @Volatile private var requestGeneration = 0L
+    private val maxItems = 600
+
     fun update() {
+        if (updateJob?.isActive == true) return
+        val expectedGeneration = requestGeneration
         updateJob = viewModelScope.launch(Dispatchers.IO) {
-            updateToView()
+            updateToView(expectedGeneration = expectedGeneration)
+        }
+    }
+
+    fun ensureLoaded() {
+        if (!initialLoadState.canAutoLoad()) return
+        initialLoadState = LoadState.Loading
+        update()
+    }
+
+    fun reloadAll() {
+        requestGeneration++
+        updateJob?.cancel()
+        histories.clear()
+        cursor = 0
+        noMore = false
+        updating = false
+        initialLoadState = LoadState.Loading
+        update()
+    }
+
+    fun clearData() {
+        requestGeneration++
+        updateJob?.cancel()
+        histories.clear()
+        cursor = 0
+        noMore = false
+        updating = false
+        initialLoadState = LoadState.Idle
+    }
+
+    private suspend fun updateToView(
+        expectedGeneration: Long,
+        context: Context = BVApp.context
+    ) {
+        if (expectedGeneration != requestGeneration) return
+        if (updating || noMore) return
+
+        logger.fInfo { "Updating histories with params [cursor=$cursor, apiType=${Prefs.apiType}]" }
+        updating = true
+        try {
+            val data = toViewRepository.getToView(
+                cursor = cursor,
+                preferApiType = Prefs.apiType
+            )
+
+            if (expectedGeneration != requestGeneration) return
+
+            data.data.forEach { toViewItem ->
+                if (expectedGeneration != requestGeneration) return
+                if (dev.aaa1115910.bv.block.BlockManager.isPageEnabled(dev.aaa1115910.bv.block.BlockPage.ToView)
+                    && dev.aaa1115910.bv.block.BlockManager.isBlocked(toViewItem.mid)
+                ) return@forEach
+
+                histories.addWithMainContext(
+                    VideoCardData(
+                        avid = toViewItem.oid,
+                        title = toViewItem.title,
+                        cover = toViewItem.cover,
+                        upName = toViewItem.author,
+                        upMid = toViewItem.mid,
+                        timeString = if (toViewItem.progress == -1) context.getString(R.string.play_time_finish)
+                        else context.getString(
+                            R.string.play_time_history,
+                            (toViewItem.progress * 1000L).formatHourMinSec(),
+                            (toViewItem.duration * 1000L).formatHourMinSec()
+                        )
+                    )
+                )
+            }
+
+            if (expectedGeneration != requestGeneration) return
+
+            if (histories.size > maxItems) {
+                val overflow = histories.size - maxItems
+                repeat(overflow) {
+                    if (histories.isNotEmpty()) {
+                        histories.removeAt(histories.lastIndex)
+                    }
+                }
+            }
+
+            cursor = data.cursor
+            logger.fInfo { "Update toview cursor: [cursor=$cursor]" }
+            logger.fInfo { "Update histories success" }
+            withContext(Dispatchers.Main) {
+                if (expectedGeneration != requestGeneration) return@withContext
+                if (initialLoadState == LoadState.Loading) {
+                    initialLoadState = LoadState.Success
+                }
+                if (cursor == 0L) {
+                    noMore = true
+                }
+            }
+            if (cursor == 0L) {
+                logger.fInfo { "No more toview" }
+            }
+        } catch (t: Throwable) {
+            logger.fWarn { "Update histories failed: ${t.stackTraceToString()}" }
+            withContext(Dispatchers.Main) {
+                if (expectedGeneration == requestGeneration && histories.isEmpty()) {
+                    initialLoadState = LoadState.Error
+                }
+            }
+            when (t) {
+                is AuthFailureException -> {
+                    withContext(Dispatchers.Main) {
+                        BVApp.context.getString(R.string.exception_auth_failure)
+                            .toast(BVApp.context)
+                    }
+                    logger.fInfo { "User auth failure" }
+                    if (!BuildConfig.DEBUG) userRepository.logout()
+                }
+                else -> Unit
+            }
+        } finally {
+            if (expectedGeneration == requestGeneration) {
+                updating = false
+            }
         }
     }
 
@@ -88,69 +215,5 @@ class ToViewViewModel(
                 _uiEffect.emit(UiEffect.ShowToast("删除稍后再看失败"))
             }
         }
-    }
-
-    fun clearData() {
-        updateJob?.cancel()
-        histories.clear()
-        cursor = 0
-        noMore = false
-        updating = false
-    }
-    private suspend fun updateToView(context: Context = BVApp.context) {
-        if (updating || noMore) return
-        logger.fInfo { "Updating histories with params [cursor=$cursor, apiType=${Prefs.apiType}]" }
-        updating = true
-        runCatching {
-            val data = toViewRepository.getToView(
-                cursor = cursor,
-                preferApiType = Prefs.apiType
-            )
-
-            data.data.forEach { toViewItem ->
-                if (dev.aaa1115910.bv.block.BlockManager.isPageEnabled(dev.aaa1115910.bv.block.BlockPage.ToView)
-                    && dev.aaa1115910.bv.block.BlockManager.isBlocked(toViewItem.mid)
-                ) return@forEach
-
-                histories.addWithMainContext(
-                    VideoCardData(
-                        avid = toViewItem.oid,
-                        title = toViewItem.title,
-                        cover = toViewItem.cover,
-                        upName = toViewItem.author,
-                        upMid = toViewItem.mid,
-                        timeString = if (toViewItem.progress == -1) context.getString(R.string.play_time_finish)
-                        else context.getString(
-                            R.string.play_time_history,
-                            (toViewItem.progress * 1000L).formatHourMinSec(),
-                            (toViewItem.duration * 1000L).formatHourMinSec()
-                        )
-                    )
-                )
-            }
-            //update cursor
-            cursor = data.cursor
-            logger.fInfo { "Update toview cursor: [cursor=$cursor]" }
-            logger.fInfo { "Update histories success" }
-            if (cursor == 0L) {
-                withContext(Dispatchers.Main) { noMore = true }
-                logger.fInfo { "No more toview" }
-            }
-        }.onFailure {
-            logger.fWarn { "Update histories failed: ${it.stackTraceToString()}" }
-            when (it) {
-                is AuthFailureException -> {
-                    withContext(Dispatchers.Main) {
-                        BVApp.context.getString(R.string.exception_auth_failure)
-                            .toast(BVApp.context)
-                    }
-                    logger.fInfo { "User auth failure" }
-                    if (!BuildConfig.DEBUG) userRepository.logout()
-                }
-
-                else -> {}
-            }
-        }
-        updating = false
     }
 }

@@ -103,10 +103,10 @@ fun UgcRegionScaffold(
 
 data class UgcScaffoldState(
     val ugcType: UgcTypeV2,
-    val ugcItems: MutableList<UgcItem> = mutableStateListOf<UgcItem>(),
-    var nextPage: UgcFeedPage = UgcFeedPage(),
-    var hasMore: Boolean = true,
-    var updating: Boolean = false,
-    var firstVisibleItemIndex: Int = 0,
-    var firstVisibleItemScrollOffset: Int = 0
+    val ugcItems: List<UgcItem> = emptyList(),
+    val nextPage: UgcFeedPage = UgcFeedPage(),
+    val hasMore: Boolean = true,
+    val updating: Boolean = false,
+    val firstVisibleItemIndex: Int = 0,
+    val firstVisibleItemScrollOffset: Int = 0
 )

@@ -121,8 +121,10 @@ fun TopNav(
                     showHistorySearchIcon = isHistoryTab && isHistorySearching,
                     onHistoryTabDirectionUp = if (isHistoryTab) onHistoryTabDirectionUp else null,
                     onFocus = {
-                        selectedTabIndex = index
-                        onSelectedChanged(tab)
+                        if (selectedTabIndex != index) {
+                            selectedTabIndex = index
+                            onSelectedChanged(tab)
+                        }
                     },
                     onClick = { onClick(tab) }
                 )

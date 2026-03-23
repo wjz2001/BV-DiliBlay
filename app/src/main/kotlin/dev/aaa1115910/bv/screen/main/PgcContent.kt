@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -87,12 +88,25 @@ fun PgcContent(
         pgcContentViewModel.updateViewport(PgcTopNavItem.Variety, index, offset)
     }
 
-    val selectedTab = pgcContentViewModel.selectedTab
+    val focusedTab = pgcContentViewModel.focusedTab
+    val activeTab = pgcContentViewModel.activeTab
     var focusOnContent by remember { mutableStateOf(false) }
+
+    LaunchedEffect(activeTab) {
+        when (activeTab) {
+            PgcTopNavItem.Anime -> pgcAnimeViewModel.ensureLoaded()
+            PgcTopNavItem.GuoChuang -> pgcGuoChuangViewModel.ensureLoaded()
+            PgcTopNavItem.Movie -> pgcMovieViewModel.ensureLoaded()
+            PgcTopNavItem.Documentary -> pgcDocumentaryViewModel.ensureLoaded()
+            PgcTopNavItem.Tv -> pgcTvViewModel.ensureLoaded()
+            PgcTopNavItem.Variety -> pgcVarietyViewModel.ensureLoaded()
+        }
+    }
+
     val currentListOnTop by remember {
         derivedStateOf {
             with(
-                when (selectedTab) {
+                when (activeTab) {
                     PgcTopNavItem.Anime -> animeState
                     PgcTopNavItem.GuoChuang -> guoChuangState
                     PgcTopNavItem.Movie -> movieState
@@ -113,14 +127,16 @@ fun PgcContent(
                 modifier = Modifier.padding(end = 80.dp),
                 items = PgcTopNavItem.entries,
                 isLargePadding = !focusOnContent && currentListOnTop,
-                selectedItem = selectedTab,
+                selectedItem = focusedTab,
                 defaultFocusRequester = navFocusRequester,
                 onDefaultFocusReady = onDefaultFocusReady,
                 onSelectedChanged = { nav ->
-                    pgcContentViewModel.selectedTab = nav as PgcTopNavItem
+                    pgcContentViewModel.onTabFocused(nav as PgcTopNavItem)
                 },
                 onClick = { nav ->
-                    when (nav) {
+                    val target = nav as PgcTopNavItem
+                    pgcContentViewModel.onTabClicked(target)
+                    when (target) {
                         PgcTopNavItem.Anime -> pgcAnimeViewModel.reloadAll()
                         PgcTopNavItem.GuoChuang -> pgcGuoChuangViewModel.reloadAll()
                         PgcTopNavItem.Movie -> pgcMovieViewModel.reloadAll()
@@ -139,7 +155,7 @@ fun PgcContent(
                 .onPreviewKeyEvent {
                     if (it.key == Key.Menu) {
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
-                        when (selectedTab) {
+                        when (activeTab) {
                             PgcTopNavItem.Anime -> pgcAnimeViewModel.reloadAll()
                             PgcTopNavItem.GuoChuang -> pgcGuoChuangViewModel.reloadAll()
                             PgcTopNavItem.Movie -> pgcMovieViewModel.reloadAll()
@@ -154,7 +170,7 @@ fun PgcContent(
                 }
         ) {
 
-                when (selectedTab) {
+                when (activeTab) {
                     PgcTopNavItem.Anime -> AnimeContent(lazyListState = animeState)
                     PgcTopNavItem.GuoChuang -> GuoChuangContent(lazyListState = guoChuangState)
                     PgcTopNavItem.Movie -> MovieContent(lazyListState = movieState)
