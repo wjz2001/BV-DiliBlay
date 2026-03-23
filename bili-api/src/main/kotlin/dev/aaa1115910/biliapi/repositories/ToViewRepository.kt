@@ -16,15 +16,27 @@ class ToViewRepository(
             HistoryGrpcKt.HistoryCoroutineStub(channelRepository.defaultChannel!!)
         }.getOrNull()
 
+    private fun requireSessData(): String =
+        authRepository.sessionData?.takeIf { it.isNotBlank() }
+            ?: throw IllegalStateException("SESSDATA is empty")
+
+    private fun requireCsrf(): String =
+        authRepository.biliJct?.takeIf { it.isNotBlank() }
+            ?: throw IllegalStateException("bili_jct is empty")
+
+    private fun requireAccessToken(): String =
+        authRepository.accessToken?.takeIf { it.isNotBlank() }
+            ?: throw IllegalStateException("access_token is empty")
+
     suspend fun getToView(
         cursor: Long,
-        preferApiType: ApiType = ApiType.Web
+        preferApiType: ApiType,
     ): ToViewData {
         return when (preferApiType) {
             ApiType.Web -> {
                 val data = BiliHttpApi.getToView(
                     // viewAt = cursor,
-                    sessData = authRepository.sessionData!!,
+                    sessData = requireSessData(),
                 ).getResponseData()
                 ToViewData.fromToViewResponse(data)
             }
@@ -32,7 +44,7 @@ class ToViewRepository(
             ApiType.App -> {
                 val data = BiliHttpApi.getToView(
                     // viewAt = cursor,
-                    sessData = authRepository.sessionData!!,
+                    accessKey = requireAccessToken(),
                 ).getResponseData()
                 ToViewData.fromToViewResponse(data)
             }
@@ -42,26 +54,44 @@ class ToViewRepository(
     suspend fun addToView(
         aid: Long,
         bvid: String? = null,
+        preferApiType: ApiType,
     ) {
-        val (success, message) = BiliHttpApi.addToView(
-            avid = aid,
-            bvid = bvid,
-            csrf = authRepository.biliJct ?: "",
-            sessData = authRepository.sessionData!!,
-        )
+        val (success, message) = when (preferApiType) {
+            ApiType.Web -> BiliHttpApi.addToView(
+                avid = aid,
+                bvid = bvid,
+                csrf = requireCsrf(),
+                sessData = requireSessData()
+            )
+
+            ApiType.App -> BiliHttpApi.addToViewWithAccessKey(
+                avid = aid,
+                bvid = bvid,
+                accessKey = requireAccessToken()
+            )
+        }
         if (!success) throw Exception("添加到稍后再看失败：$message")
     }
 
     suspend fun delToView(
         aid: Long,
-        viewed: Boolean = false
+        viewed: Boolean = false,
+        preferApiType: ApiType,
     ) {
-        val (success, message) = BiliHttpApi.delToView(
-            viewed = viewed,
-            avid = aid,
-            csrf = authRepository.biliJct ?: "",
-            sessData = authRepository.sessionData!!,
-        )
+        val (success, message) = when (preferApiType) {
+            ApiType.Web -> BiliHttpApi.delToView(
+                viewed = viewed,
+                avid = aid,
+                csrf = requireCsrf(),
+                sessData = requireSessData()
+            )
+
+            ApiType.App -> BiliHttpApi.delToViewWithAccessKey(
+                viewed = viewed,
+                avid = aid,
+                accessKey = requireAccessToken()
+            )
+        }
         if (!success) throw Exception("删除稍后再看失败：$message")
     }
 }
