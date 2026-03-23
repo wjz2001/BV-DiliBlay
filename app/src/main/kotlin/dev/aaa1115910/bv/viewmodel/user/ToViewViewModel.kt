@@ -54,24 +54,29 @@ class ToViewViewModel(
 
     var initialLoadState by mutableStateOf(LoadState.Idle)
         private set
+    var activationRefreshState by mutableStateOf(LoadState.Idle)
+        private set
     @Volatile private var requestGeneration = 0L
     private val maxItems = 600
 
-    fun update() {
+    fun update(showErrorToast: Boolean = true) {
         if (updateJob?.isActive == true) return
         val expectedGeneration = requestGeneration
         updateJob = viewModelScope.launch(Dispatchers.IO) {
-            updateToView(expectedGeneration = expectedGeneration)
+            updateToView(
+                expectedGeneration = expectedGeneration,
+                showErrorToast = showErrorToast
+            )
         }
     }
 
-    fun ensureLoaded() {
+    fun ensureLoaded(showErrorToast: Boolean = true) {
         if (!initialLoadState.canAutoLoad()) return
         initialLoadState = LoadState.Loading
-        update()
+        update(showErrorToast = showErrorToast)
     }
 
-    fun reloadAll() {
+    fun reloadAll(showErrorToast: Boolean = true) {
         requestGeneration++
         updateJob?.cancel()
         histories.clear()
@@ -79,7 +84,12 @@ class ToViewViewModel(
         noMore = false
         updating = false
         initialLoadState = LoadState.Loading
-        update()
+        update(showErrorToast = showErrorToast)
+    }
+
+    fun refreshSnapshotIncrementally(showErrorToast: Boolean = true) {
+        activationRefreshState = LoadState.Loading
+        reloadAll(showErrorToast = showErrorToast)
     }
 
     fun clearData() {
@@ -94,7 +104,8 @@ class ToViewViewModel(
 
     private suspend fun updateToView(
         expectedGeneration: Long,
-        context: Context = BVApp.context
+        context: Context = BVApp.context,
+        showErrorToast: Boolean = true
     ) {
         if (expectedGeneration != requestGeneration) return
         if (updating || noMore) return
@@ -167,9 +178,11 @@ class ToViewViewModel(
             }
             when (t) {
                 is AuthFailureException -> {
-                    withContext(Dispatchers.Main) {
-                        BVApp.context.getString(R.string.exception_auth_failure)
-                            .toast(BVApp.context)
+                    if (showErrorToast) {
+                        withContext(Dispatchers.Main) {
+                            BVApp.context.getString(R.string.exception_auth_failure)
+                                .toast(BVApp.context)
+                        }
                     }
                     logger.fInfo { "User auth failure" }
                     if (!BuildConfig.DEBUG) userRepository.logout()

@@ -1,7 +1,6 @@
 package dev.aaa1115910.bv.viewmodel.home
 
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
@@ -11,7 +10,6 @@ import dev.aaa1115910.biliapi.entity.ugc.UgcItem
 import dev.aaa1115910.biliapi.repositories.RecommendVideoRepository
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.util.Prefs
-import dev.aaa1115910.bv.util.addAllWithMainContext
 import dev.aaa1115910.bv.util.fError
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.toast
@@ -44,7 +42,8 @@ class RecommendViewModel(
     private val maxItems = 480
 
     suspend fun loadMore(
-        beforeAppendData: () -> Unit = {}
+        beforeAppendData: () -> Unit = {},
+        showErrorToast: Boolean = true
     ) {
         val expectedVersion = requestVersion
         requestMutex.withLock {
@@ -59,7 +58,8 @@ class RecommendViewModel(
                     val callback = if (loadCount == 0) beforeAppendData else ({})
                     loadData(
                         beforeAppendData = callback,
-                        expectedVersion = expectedVersion
+                        expectedVersion = expectedVersion,
+                        showErrorToast = showErrorToast
                     )
                     if (expectedVersion != requestVersion) return
                     if (loadCount != 0) logger.fInfo { "Load more recommend videos because items too less" }
@@ -68,7 +68,8 @@ class RecommendViewModel(
             } else {
                 loadData(
                     beforeAppendData = beforeAppendData,
-                    expectedVersion = expectedVersion
+                    expectedVersion = expectedVersion,
+                    showErrorToast = showErrorToast
                 )
             }
         }
@@ -76,7 +77,8 @@ class RecommendViewModel(
 
     private suspend fun loadData(
         beforeAppendData: () -> Unit,
-        expectedVersion: Long
+        expectedVersion: Long,
+        showErrorToast: Boolean
     ) {
         if (expectedVersion != requestVersion) return
 
@@ -112,7 +114,9 @@ class RecommendViewModel(
                 if (expectedVersion == requestVersion && recommendVideoList.isEmpty()) {
                     initialLoadState = LoadState.Error
                 }
-                "加载推荐视频失败: ${t.localizedMessage}".toast(BVApp.context)
+                if (showErrorToast) {
+                    "加载推荐视频失败: ${t.localizedMessage}".toast(BVApp.context)
+                }
             }
         } finally {
             withContext(Dispatchers.Main) {
@@ -131,22 +135,22 @@ class RecommendViewModel(
         initialLoadState = LoadState.Idle
     }
 
-    fun ensureLoaded() {
+    fun ensureLoaded(showErrorToast: Boolean = true) {
         if (!initialLoadState.canAutoLoad()) return
         initialLoadState = LoadState.Loading
         viewModelScope.launch(Dispatchers.IO) {
-            loadMore()
+            loadMore(showErrorToast = showErrorToast)
         }
     }
 
-    fun reloadAll() {
+    fun reloadAll(showErrorToast: Boolean = true) {
         requestVersion++
         recommendVideoList = emptyList()
         resetPage()
         loading = false
         initialLoadState = LoadState.Loading
         viewModelScope.launch(Dispatchers.IO) {
-            loadMore()
+            loadMore(showErrorToast = showErrorToast)
         }
     }
 

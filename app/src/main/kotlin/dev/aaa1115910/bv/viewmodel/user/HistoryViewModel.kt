@@ -68,21 +68,24 @@ class HistoryViewModel(
     @Volatile private var requestGeneration = 0L
     private val maxItems = 800
 
-    fun update() {
+    fun update(showErrorToast: Boolean = true) {
         if (updateJob?.isActive == true) return
         val expectedGeneration = requestGeneration
         updateJob = viewModelScope.launch(Dispatchers.IO) {
-            updateHistories(expectedGeneration = expectedGeneration)
+            updateHistories(
+                expectedGeneration = expectedGeneration,
+                showErrorToast = showErrorToast
+            )
         }
     }
 
-    fun ensureLoaded() {
+    fun ensureLoaded(showErrorToast: Boolean = true) {
         if (!initialLoadState.canAutoLoad()) return
         initialLoadState = LoadState.Loading
-        update()
+        update(showErrorToast = showErrorToast)
     }
 
-    fun reloadAll() {
+    fun reloadAll(showErrorToast: Boolean = true) {
         requestGeneration++
         updateJob?.cancel()
         stopAutoLoad()
@@ -91,7 +94,7 @@ class HistoryViewModel(
         noMore = false
         updating = false
         initialLoadState = LoadState.Loading
-        update()
+        update(showErrorToast = showErrorToast)
     }
 
     fun clearData() {
@@ -107,7 +110,8 @@ class HistoryViewModel(
 
     private suspend fun updateHistories(
         expectedGeneration: Long,
-        context: Context = BVApp.context
+        context: Context = BVApp.context,
+        showErrorToast: Boolean = true
     ) {
         if (expectedGeneration != requestGeneration) return
         if (updating || noMore) return
@@ -183,8 +187,10 @@ class HistoryViewModel(
             }
             when (t) {
                 is AuthFailureException -> {
-                    withContext(Dispatchers.Main) {
-                        BVApp.context.getString(R.string.exception_auth_failure).toast(BVApp.context)
+                    if (showErrorToast) {
+                        withContext(Dispatchers.Main) {
+                            BVApp.context.getString(R.string.exception_auth_failure).toast(BVApp.context)
+                        }
                     }
                     logger.fInfo { "User auth failure" }
                     if (!BuildConfig.DEBUG) userRepository.logout()
