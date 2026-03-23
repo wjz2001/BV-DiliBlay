@@ -19,6 +19,11 @@ fun DanmakuPlayerCompose(
         },
         update = { danmakuView ->
             danmakuPlayer?.bindView(danmakuView)
+        },
+        onRelease = { danmakuView ->
+            if (danmakuView.danmakuPlayer === danmakuPlayer) {
+                danmakuView.danmakuPlayer = null
+            }
         }
     )
 }

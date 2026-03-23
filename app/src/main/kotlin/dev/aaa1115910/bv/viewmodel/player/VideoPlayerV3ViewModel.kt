@@ -56,10 +56,9 @@ import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -93,6 +92,9 @@ class VideoPlayerV3ViewModel(
         private set
 
     private var playData: PlayData? = null
+
+    private val detachedWorkScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     private var danmakuConfig = DanmakuConfig()
     private val danmakuTypeFilter = TypeFilter()
 
@@ -145,21 +147,18 @@ class VideoPlayerV3ViewModel(
 
         override fun onPause() {
             logger.info { "onPause" }
-
             danmakuPlayer?.pause()
             _uiState.update { it.copy(playerState = PlayerState.Paused) }
         }
 
         override fun onBuffering() {
             logger.info { "onBuffering" }
-
             danmakuPlayer?.pause()
             _uiState.update { it.copy(isBuffering = true) }
         }
 
         override fun onEnd() {
             logger.info { "onEnd" }
-
             danmakuPlayer?.pause()
             stopSeekerUpdater()
 
@@ -264,9 +263,7 @@ class VideoPlayerV3ViewModel(
     }
 
     fun detachPlayer() {
-        // 使用 GlobalScope 确保在 ViewModel 销毁后任务依然能尝试完成
-        @OptIn(DelicateCoroutinesApi::class)
-        syncProgress(scope = GlobalScope, isDetaching = true)
+        syncProgress(scope = detachedWorkScope, isDetaching = true)
 
         videoPlayer?.release()
         videoPlayer = null
