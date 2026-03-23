@@ -95,6 +95,7 @@ fun UpPanelController(
 
     var selectedTab by remember { mutableStateOf(UpPanelTab.Video) }
     var focusState by remember { mutableStateOf(UpPanelFocusState.Nav) }
+    var forceNavExpandedOnOpen by remember { mutableStateOf(false) }
 
     // 默认焦点落点：导航“选择视频”
     val navVideoItemFocusRequester = remember { FocusRequester() }
@@ -103,9 +104,12 @@ fun UpPanelController(
         if (show) {
             selectedTab = UpPanelTab.Video
             focusState = UpPanelFocusState.Nav
+            forceNavExpandedOnOpen = true
             // 等一帧再请求焦点，避免初次 composition 未稳定
             kotlinx.coroutines.android.awaitFrame()
             navVideoItemFocusRequester.requestFocus()
+        } else {
+            forceNavExpandedOnOpen = false
         }
     }
 
@@ -152,7 +156,16 @@ fun UpPanelController(
             exit = shrinkHorizontally()
         ) {
             Surface(
-                modifier = Modifier.fillMaxHeight(),
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .onPreviewKeyEvent { event ->
+                        if (!forceNavExpandedOnOpen) return@onPreviewKeyEvent false
+                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                        if (event.key != Key.DirectionUp && event.key != Key.Unknown) {
+                            forceNavExpandedOnOpen = false
+                        }
+                        false
+                    },
                 colors = SurfaceDefaults.colors(containerColor = Color.Black.copy(alpha = 0.5f))
             ) {
                 Row(
@@ -175,7 +188,7 @@ fun UpPanelController(
                                 false
                             },
                         selectedTab = selectedTab,
-                        isExpanded = focusState == UpPanelFocusState.Nav,
+                        isExpanded = forceNavExpandedOnOpen || focusState == UpPanelFocusState.Nav,
                         chaptersEnabled = chaptersEnabled,
                         collectionsEnabled = collectionsEnabled,
                         chapterProgressText = chapterProgressText,
