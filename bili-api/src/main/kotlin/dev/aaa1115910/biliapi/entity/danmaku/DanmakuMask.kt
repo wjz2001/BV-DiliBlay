@@ -122,7 +122,8 @@ data class DanmakuMask(
                                 val height = gzipStream.readShort().toInt()
                                 val time = gzipStream.readLong()
 
-                                val imageBinary = gzipStream.readByteArray(7200)
+                                val imageSize = (width * height + 7) / 8  // 1bpp
+                                val imageBinary = gzipStream.readByteArray(imageSize.toLong())
 
                                 frameList.add(
                                     DanmakuMobMaskFrame(
