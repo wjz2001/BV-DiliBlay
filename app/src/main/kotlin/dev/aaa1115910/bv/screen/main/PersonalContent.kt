@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -15,9 +16,11 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import kotlinx.coroutines.launch
 import dev.aaa1115910.bv.BVApp
+import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.PersistLazyGridViewportEffect
 import dev.aaa1115910.bv.component.PersonalTopNavItem
 import dev.aaa1115910.bv.component.TopNav
@@ -51,6 +54,7 @@ fun PersonalContent(
     val focusedTab = personalContentViewModel.focusedTab
     val activeTab = personalContentViewModel.activeTab
     var focusOnContent by remember { mutableStateOf(false) }
+    val composeScope = rememberCoroutineScope()
     // 1. 在这里定义 backToTabRow 函数
     // 它会使用从外部传入的 navFocusRequester 来请求焦点
     val backToTabRow: () -> Unit = {
@@ -83,10 +87,21 @@ fun PersonalContent(
     }
 
     fun personalRetryStateOf(tab: PersonalTopNavItem): LoadState = when (tab) {
-        PersonalTopNavItem.ToView -> toViewViewModel.initialLoadState
+        PersonalTopNavItem.ToView -> toViewViewModel.retryLoadState
         PersonalTopNavItem.History -> historyViewModel.initialLoadState
         PersonalTopNavItem.Favorite -> favouriteViewModel.initialLoadState
         PersonalTopNavItem.FollowingSeason -> followingSeasonViewModel.initialLoadState
+    }
+
+    fun personalShouldRetry(tab: PersonalTopNavItem, state: LoadState?): Boolean {
+        if (state != LoadState.Error) return false
+
+        return when (tab) {
+            PersonalTopNavItem.ToView -> !toViewViewModel.lastFailureWasAuth
+            PersonalTopNavItem.History -> !historyViewModel.lastFailureWasAuth
+            PersonalTopNavItem.Favorite -> !favouriteViewModel.lastFailureWasAuth
+            PersonalTopNavItem.FollowingSeason -> !followingSeasonViewModel.lastFailureWasAuth
+        }
     }
 
     fun ensurePersonalTabLoadedSilent(tab: PersonalTopNavItem) {
@@ -107,13 +122,60 @@ fun PersonalContent(
         }
     }
 
-    fun toastPersonalFinalFailure(tab: PersonalTopNavItem) {
-        when (tab) {
-            PersonalTopNavItem.ToView -> "加载稍后再看失败".toast(BVApp.context)
-            PersonalTopNavItem.History -> "加载历史记录失败".toast(BVApp.context)
-            PersonalTopNavItem.Favorite -> "加载收藏夹失败".toast(BVApp.context)
-            PersonalTopNavItem.FollowingSeason -> "加载追番追剧失败".toast(BVApp.context)
+    fun personalShouldScrollTopOnUserRefresh(tab: PersonalTopNavItem): Boolean = when (tab) {
+        PersonalTopNavItem.ToView -> true
+        else -> personalActivationBehaviorOf(tab) == ActivationBehavior.RefreshAndScrollTop
+    }
+
+    fun refreshPersonalTabByUser(tab: PersonalTopNavItem) {
+        activationGuard.markClickRefresh(tab)
+
+        if (personalShouldScrollTopOnUserRefresh(tab)) {
+            composeScope.launch {
+                personalGridStateOf(tab).scrollToItem(0)
+                refreshPageDataSilent(tab)
+            }
+        } else {
+            refreshPageDataSilent(tab)
         }
+    }
+
+    fun retryPageDataSilent(tab: PersonalTopNavItem) {
+        refreshPageDataSilent(tab)
+    }
+
+    fun toastPersonalFinalFailure(tab: PersonalTopNavItem) {
+        val message = when (tab) {
+            PersonalTopNavItem.ToView ->
+                if (toViewViewModel.lastFailureWasAuth) {
+                    BVApp.context.getString(R.string.exception_auth_failure)
+                } else {
+                    "加载稍后再看失败"
+                }
+
+            PersonalTopNavItem.History ->
+                if (historyViewModel.lastFailureWasAuth) {
+                    BVApp.context.getString(R.string.exception_auth_failure)
+                } else {
+                    "加载历史记录失败"
+                }
+
+            PersonalTopNavItem.Favorite ->
+                if (favouriteViewModel.lastFailureWasAuth) {
+                    BVApp.context.getString(R.string.exception_auth_failure)
+                } else {
+                    "加载收藏夹失败"
+                }
+
+            PersonalTopNavItem.FollowingSeason ->
+                if (followingSeasonViewModel.lastFailureWasAuth) {
+                    BVApp.context.getString(R.string.exception_auth_failure)
+                } else {
+                    "加载追番追剧失败"
+                }
+        }
+
+        message.toast(BVApp.context)
     }
 
     UnifiedTabActivationEffects(
@@ -122,8 +184,10 @@ fun PersonalContent(
         gridStateOf = ::personalGridStateOf,
         guard = activationGuard,
         currentRetryStateOf = ::personalRetryStateOf,
+        shouldRetryOf = ::personalShouldRetry,
         onEnsureLoadedSilent = ::ensurePersonalTabLoadedSilent,
         onActivationRefreshSilent = ::refreshPageDataSilent,
+        onRetrySilent = ::retryPageDataSilent,
         onFinalFailureToast = ::toastPersonalFinalFailure
     )
 
@@ -146,8 +210,7 @@ fun PersonalContent(
                 onClick = { nav ->
                     val target = nav as PersonalTopNavItem
                     personalContentViewModel.onTabClicked(target)
-                    activationGuard.markClickRefresh(target)
-                    refreshPageDataSilent(target)
+                    refreshPersonalTabByUser(target)
                 }
             )
         }
@@ -156,7 +219,7 @@ fun PersonalContent(
             modifier = Modifier
                 .padding(innerPadding)
                 .onFocusChanged { focusOnContent = it.hasFocus }
-                .onKeyEvent {
+                .onPreviewKeyEvent {
                     if (it.key == Key.Back) {
                         // 确保是按键抬起事件，防止重复触发
                         // 同时检查焦点是否确实在内容区域
@@ -164,18 +227,17 @@ fun PersonalContent(
                             backToTabRow()
                             // 返回 true 表示我们已经处理了这个事件，
                             // 系统不需要再执行默认的返回操作（例如退出页面）
-                            return@onKeyEvent true
+                            return@onPreviewKeyEvent true
                         }
                     }
 
                     if (it.key == Key.Menu) {
-                        if (it.type == KeyEventType.KeyDown) return@onKeyEvent true
-                        activationGuard.markClickRefresh(activeTab)
-                        refreshPageDataSilent(activeTab)
+                        if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
+                        refreshPersonalTabByUser(activeTab)
                         navFocusRequester.requestFocus()
-                        return@onKeyEvent true
+                        return@onPreviewKeyEvent true
                     }
-                    return@onKeyEvent false
+                    return@onPreviewKeyEvent false
                 },
         ) {
 

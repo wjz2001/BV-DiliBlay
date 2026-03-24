@@ -11,6 +11,10 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -22,10 +26,14 @@ import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import org.koin.androidx.compose.koinViewModel
+
 
 
 @Composable
@@ -36,8 +44,24 @@ fun ToViewScreen(
 ) {
     val context = LocalContext.current
 
-    // 按 playString 分组
-    val (unwatched, watched) = toViewViewModel.histories.partition { it.timeString != "已看完" }
+    val groupedHistories by remember {
+        derivedStateOf {
+            val unwatched = ArrayList<VideoCardData>(toViewViewModel.histories.size)
+            val watched = ArrayList<VideoCardData>()
+
+            toViewViewModel.histories.forEach { item ->
+                if (item.timeString == "已看完") {
+                    watched.add(item)
+                } else {
+                    unwatched.add(item)
+                }
+            }
+
+            unwatched to watched
+        }
+    }
+    val unwatched = groupedHistories.first
+    val watched = groupedHistories.second
 
     LaunchedEffect(Unit) {
         toViewViewModel.uiEvent.collect { event ->
@@ -49,6 +73,25 @@ fun ToViewScreen(
         }
     }
 
+    LaunchedEffect(gridState) {
+        snapshotFlow {
+            Triple(
+                gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index,
+                toViewViewModel.histories.size,
+                toViewViewModel.noMore
+            )
+        }
+            .distinctUntilChanged()
+            .filter { (index, size, noMore) ->
+                index != null &&
+                        !noMore &&
+                        index >= size - 20
+            }
+            .collect {
+                toViewViewModel.update()
+            }
+    }
+
     TvLazyVerticalGrid(
         modifier = modifier,
         state = gridState,
@@ -58,16 +101,22 @@ fun ToViewScreen(
         horizontalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         // 未看完标题
-        item(span = { GridItemSpan(maxLineSpan) }) {
+        item(
+            key = "to_view_header_unwatched",
+            span = { GridItemSpan(maxLineSpan) }
+        ) {
             Text(
-                modifier = Modifier
-                    .fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
                 text = "未看完",
                 color = Color.White.copy(alpha = 0.6f)
             )
         }
         if (unwatched.isNotEmpty()) {
-            items(items = unwatched) { item ->
+            items(
+                items = unwatched,
+                key = { it.avid },
+                contentType = { "to_view_unwatched" }
+            ) { item ->
                 Box(contentAlignment = Alignment.Center) {
                     SmallVideoCard(
                         data = item,
@@ -98,22 +147,30 @@ fun ToViewScreen(
                 }
             }
         } else {
-            item(span = { GridItemSpan(maxLineSpan) }) {
+            item(
+                key = "to_view_empty_unwatched",
+                span = { GridItemSpan(maxLineSpan) }
+            ) {
                 EmptyTip()
             }
         }
 
-        // 已看完标题
-        item(span = { GridItemSpan(maxLineSpan) }) {
+        item(
+            key = "to_view_header_watched",
+            span = { GridItemSpan(maxLineSpan) }
+        ) {
             Text(
-                modifier = Modifier
-                    .fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
                 text = "已看完",
                 color = Color.White.copy(alpha = 0.6f)
             )
         }
         if (watched.isNotEmpty()) {
-            items(items = watched) { item ->
+            items(
+                items = watched,
+                key = { it.avid },
+                contentType = { "to_view_watched" }
+            ) { item ->
                 Box(contentAlignment = Alignment.Center) {
                     SmallVideoCard(
                         data = item,
@@ -144,7 +201,10 @@ fun ToViewScreen(
                 }
             }
         } else {
-            item(span = { GridItemSpan(maxLineSpan) }) {
+            item(
+                key = "to_view_empty_watched",
+                span = { GridItemSpan(maxLineSpan) }
+            ) {
                 EmptyTip()
             }
         }

@@ -131,28 +131,33 @@ class UgcViewModel(private val ugcRepository: UgcRepository) : ViewModel() {
                 val feedData = ugcRepository.getRegionFeedRcmd(state.ugcType, state.nextPage)
                 if (expectedGeneration != generationOf(item)) return
 
-                val mergedItems = if (isInit) {
-                    feedData.items.take(maxItemsPerTab)
-                } else {
-                    (state.ugcItems + feedData.items).take(maxItemsPerTab)
+                updateState(item) { current ->
+                    if (expectedGeneration != generationOf(item)) {
+                        current
+                    } else {
+                        val mergedItems = if (isInit) {
+                            feedData.items.take(maxItemsPerTab)
+                        } else {
+                            current.ugcItems + feedData.items
+                        }
+
+                        current.copy(
+                            ugcItems = mergedItems,
+                            nextPage = feedData.nextPage,
+                            hasMore = feedData.items.isNotEmpty(),
+                            updating = false
+                        )
+                    }
                 }
 
-                updateState(item) {
-                    it.copy(
-                        ugcItems = mergedItems,
-                        nextPage = feedData.nextPage,
-                        hasMore = feedData.items.isNotEmpty(),
-                        updating = false
-                    )
-                }
-
-                if (isInit) {
+                if (isInit && expectedGeneration == generationOf(item)) {
                     setLoadState(item, LoadState.Success)
                 }
             } catch (t: Throwable) {
+                if (expectedGeneration != generationOf(item)) return
                 updateState(item) { it.copy(updating = false) }
                 val current = _ugcScaffoldStateMap[item]
-                if (isInit && current != null && current.ugcItems.isEmpty() && expectedGeneration == generationOf(item)) {
+                if (isInit && current != null && current.ugcItems.isEmpty()) {
                     setLoadState(item, LoadState.Error)
                 }
             }

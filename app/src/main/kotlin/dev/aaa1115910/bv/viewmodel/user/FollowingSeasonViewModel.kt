@@ -9,7 +9,10 @@ import androidx.lifecycle.viewModelScope
 import dev.aaa1115910.biliapi.entity.season.FollowingSeason
 import dev.aaa1115910.biliapi.entity.season.FollowingSeasonStatus
 import dev.aaa1115910.biliapi.entity.season.FollowingSeasonType
+import dev.aaa1115910.biliapi.http.entity.AuthFailureException
 import dev.aaa1115910.biliapi.repositories.SeasonRepository
+import dev.aaa1115910.bv.BuildConfig
+import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.viewmodel.common.LoadState
@@ -23,7 +26,8 @@ import org.koin.android.annotation.KoinViewModel
 
 @KoinViewModel
 class FollowingSeasonViewModel(
-    private val seasonRepository: SeasonRepository
+    private val seasonRepository: SeasonRepository,
+    private val userRepository: UserRepository
 ) : ViewModel() {
     companion object {
         private val logger = KotlinLogging.logger { }
@@ -41,8 +45,11 @@ class FollowingSeasonViewModel(
     private var updateJob: Job? = null
     var initialLoadState by mutableStateOf(LoadState.Idle)
         private set
+
+    var lastFailureWasAuth by mutableStateOf(false)
+        private set
+
     @Volatile private var requestGeneration = 0L
-    private val maxItems = 360
 
     init {
         followingSeasonType = FollowingSeasonType.Bangumi
@@ -57,6 +64,7 @@ class FollowingSeasonViewModel(
         noMore = false
         followingSeasons.clear()
         initialLoadState = LoadState.Idle
+        lastFailureWasAuth = false
     }
 
     fun ensureLoaded() {
@@ -90,6 +98,7 @@ class FollowingSeasonViewModel(
 
         updating = true
         try {
+            lastFailureWasAuth = false
             logger.fInfo { "Updating following season data" }
             val response = seasonRepository.getFollowingSeasons(
                 type = followingSeasonType,
@@ -107,15 +116,7 @@ class FollowingSeasonViewModel(
                 pageNumber++
                 followingSeasons.addAll(response.list)
 
-                if (followingSeasons.size > maxItems) {
-                    val overflow = followingSeasons.size - maxItems
-                    repeat(overflow) {
-                        if (followingSeasons.isNotEmpty()) {
-                            followingSeasons.removeAt(followingSeasons.lastIndex)
-                        }
-                    }
-                }
-
+                lastFailureWasAuth = false
                 if (initialLoadState == LoadState.Loading) {
                     initialLoadState = LoadState.Success
                 }
@@ -123,9 +124,28 @@ class FollowingSeasonViewModel(
             logger.fInfo { "Following season count: ${response.list.size}" }
         } catch (t: Throwable) {
             logger.fInfo { "Update following seasons failed: ${t.stackTraceToString()}" }
-            withContext(Dispatchers.Main) {
-                if (expectedGeneration == requestGeneration && followingSeasons.isEmpty()) {
-                    initialLoadState = LoadState.Error
+            when (t) {
+                is AuthFailureException -> {
+                    if (expectedGeneration != requestGeneration) return
+                    withContext(Dispatchers.Main) {
+                        if (expectedGeneration != requestGeneration) return@withContext
+                        lastFailureWasAuth = true
+                        if (initialLoadState == LoadState.Loading) {
+                            initialLoadState = LoadState.Error
+                        }
+                        if (!BuildConfig.DEBUG) userRepository.logout()
+                    }
+                }
+
+                else -> {
+                    if (expectedGeneration != requestGeneration) return
+                    withContext(Dispatchers.Main) {
+                        if (expectedGeneration != requestGeneration) return@withContext
+                        lastFailureWasAuth = false
+                        if (initialLoadState == LoadState.Loading) {
+                            initialLoadState = LoadState.Error
+                        }
+                    }
                 }
             }
         } finally {

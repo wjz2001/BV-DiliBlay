@@ -65,7 +65,6 @@ class SearchResultViewModel(
     private val loadingTypes = mutableSetOf<SearchType>()
     private val requestTokenMap = mutableMapOf<SearchType, Long>()
     private val requestMutexMap = mutableMapOf<SearchType, kotlinx.coroutines.sync.Mutex>()
-    private val maxItemsPerType = 600
 
     private fun loadStateOf(type: SearchType): LoadState = loadStateMap[type] ?: LoadState.Idle
 
@@ -204,28 +203,28 @@ class SearchResultViewModel(
                         when (searchType) {
                             SearchType.Video -> {
                                 videoSearchResult = videoSearchResult.copy(
-                                    videos = (videoSearchResult.videos + filteredResponse.videos).take(maxItemsPerType),
+                                    videos = videoSearchResult.videos + filteredResponse.videos,
                                     page = filteredResponse.page
                                 )
                             }
 
                             SearchType.MediaBangumi -> {
                                 mediaBangumiSearchResult = mediaBangumiSearchResult.copy(
-                                    mediaBangumis = (mediaBangumiSearchResult.mediaBangumis + response.pgcs).take(maxItemsPerType),
+                                    mediaBangumis = mediaBangumiSearchResult.mediaBangumis + response.pgcs,
                                     page = response.page
                                 )
                             }
 
                             SearchType.MediaFt -> {
                                 mediaFtSearchResult = mediaFtSearchResult.copy(
-                                    mediaFts = (mediaFtSearchResult.mediaFts + response.pgcs).take(maxItemsPerType),
+                                    mediaFts = mediaFtSearchResult.mediaFts + response.pgcs,
                                     page = response.page
                                 )
                             }
 
                             SearchType.BiliUser -> {
                                 biliUserSearchResult = biliUserSearchResult.copy(
-                                    biliUsers = (biliUserSearchResult.biliUsers + response.users).take(maxItemsPerType),
+                                    biliUsers = biliUserSearchResult.biliUsers + response.users,
                                     page = response.page
                                 )
                             }
@@ -234,6 +233,7 @@ class SearchResultViewModel(
                     }
                 } catch (t: Throwable) {
                     withContext(Dispatchers.Main) {
+                        if (expectedToken != tokenOf(searchType)) return@withContext
                         val count = when (searchType) {
                             SearchType.Video -> videoSearchResult.count
                             SearchType.MediaBangumi -> mediaBangumiSearchResult.count
@@ -245,7 +245,10 @@ class SearchResultViewModel(
                         }
                     }
                 } finally {
-                    withContext(Dispatchers.Main) { loadingTypes.remove(searchType) }
+                    withContext(Dispatchers.Main) {
+                        if (expectedToken != tokenOf(searchType)) return@withContext
+                        loadingTypes.remove(searchType)
+                    }
                 }
             }
         }

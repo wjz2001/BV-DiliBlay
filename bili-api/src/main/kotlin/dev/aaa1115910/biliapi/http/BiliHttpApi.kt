@@ -447,9 +447,17 @@ object BiliHttpApi {
      */
 
     suspend fun getToView(
+        // max: Long = 0,
+        // business: String = "",
+        // viewAt: Long = 0,
+        // pageSize: Int = 20,
         accessKey: String? = null,
         sessData: String? = null
     ): BiliResponse<ToViewData> = client.get("/x/v2/history/toview") {
+        // parameter("max", max)
+        // parameter("business", business)
+        // parameter("view_at", viewAt)
+        // parameter("ps", pageSize)
         checkToken(accessKey, sessData)
         accessKey?.let { parameter("access_key", it) }
         sessData?.let { header("Cookie", "SESSDATA=$it;") }
@@ -479,6 +487,26 @@ object BiliHttpApi {
         return Pair(response.code == 0, response.message)
     }
 
+    suspend fun addToViewWithAccessKey(
+        avid: Long? = null,
+        bvid: String? = null,
+        accessKey: String
+    ): Pair<Boolean, String> {
+        val response = client.post("/x/v2/history/toview/add") {
+            require(avid != null || bvid != null) { "avid and bvid cannot be null at the same time" }
+            setBody(
+                FormDataContent(
+                    Parameters.build {
+                        avid?.let { append("aid", "$it") }
+                        bvid?.let { append("bvid", it) }
+                        append("access_key", accessKey)
+                    }
+                )
+            )
+        }.body<BiliResponseWithoutData>()
+        return Pair(response.code == 0, response.message)
+    }
+
     /**
      * 移除稍后再看的视频
      */
@@ -498,26 +526,6 @@ object BiliHttpApi {
                     }
                 ))
             header("Cookie", "SESSDATA=$sessData;")
-        }.body<BiliResponseWithoutData>()
-        return Pair(response.code == 0, response.message)
-    }
-
-    suspend fun addToViewWithAccessKey(
-        avid: Long? = null,
-        bvid: String? = null,
-        accessKey: String
-    ): Pair<Boolean, String> {
-        val response = client.post("/x/v2/history/toview/add") {
-            require(avid != null || bvid != null) { "avid and bvid cannot be null at the same time" }
-            setBody(
-                FormDataContent(
-                    Parameters.build {
-                        avid?.let { append("aid", "$it") }
-                        bvid?.let { append("bvid", it) }
-                        append("access_key", accessKey)
-                    }
-                )
-            )
         }.body<BiliResponseWithoutData>()
         return Pair(response.code == 0, response.message)
     }

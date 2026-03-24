@@ -26,6 +26,10 @@ class UserViewModel(
     private val userRepository: UserRepository
 ) : ViewModel() {
     private var shouldUpdateInfo = true
+
+    @Volatile
+    private var requestVersion = 0L
+
     private val logger = KotlinLogging.logger { }
     val isLogin get() = userRepository.isLogin
     val username get() = userRepository.username
@@ -39,30 +43,39 @@ class UserViewModel(
         } else {
             if (!userRepository.isLogin) return
         }
+
+        val expectedVersion = requestVersion + 1L
+        requestVersion = expectedVersion
+
         logger.fInfo { "Update user info" }
         viewModelScope.launch(Dispatchers.IO) {
-            userRepository.reloadAvatar()
-
             runCatching {
                 val data = BiliHttpApi.getUserSelfInfo(sessData = Prefs.sessData).getResponseData()
-                withContext(Dispatchers.Main) { responseData = data }
+                withContext(Dispatchers.Main) {
+                    if (expectedVersion != requestVersion) return@withContext
+                    responseData = data
+                    shouldUpdateInfo = false
+                    userRepository.username = data.name
+                    userRepository.avatar = data.face
+                }
                 logger.fInfo { "Update user info success" }
-                shouldUpdateInfo = false
-                userRepository.username = responseData!!.name
-                userRepository.avatar = responseData!!.face
             }.onFailure {
                 when (it) {
                     is AuthFailureException -> {
+                        if (expectedVersion != requestVersion) return@onFailure
                         withContext(Dispatchers.Main) {
+                            if (expectedVersion != requestVersion) return@withContext
                             BVApp.context.getString(R.string.exception_auth_failure)
                                 .toast(BVApp.context)
+                            logger.fInfo { "User auth failure" }
+                            if (!BuildConfig.DEBUG) userRepository.logout()
                         }
-                        logger.fInfo { "User auth failure" }
-                        if (!BuildConfig.DEBUG) userRepository.logout()
                     }
 
                     else -> {
+                        if (expectedVersion != requestVersion) return@onFailure
                         withContext(Dispatchers.Main) {
+                            if (expectedVersion != requestVersion) return@withContext
                             "获取用户信息失败：${it.message}".toast(BVApp.context)
                         }
                     }
@@ -72,12 +85,21 @@ class UserViewModel(
     }
 
     fun logout() {
+        requestVersion++
+        shouldUpdateInfo = true
+        responseData = null
+        userRepository.username = ""
+        userRepository.avatar = ""
+
         viewModelScope.launch(Dispatchers.IO) {
             userRepository.logout()
         }
     }
 
     fun clearUserInfo() {
+        requestVersion++
+        shouldUpdateInfo = true
+        responseData = null
         userRepository.username = ""
         userRepository.avatar = ""
     }

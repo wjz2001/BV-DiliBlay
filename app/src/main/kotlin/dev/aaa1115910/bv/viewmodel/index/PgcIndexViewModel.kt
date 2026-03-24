@@ -42,9 +42,9 @@ class PgcIndexViewModel(
     val indexResultItems = mutableStateListOf<PgcItem>()
 
     private var updating = false
+    @Volatile private var requestGeneration = 0L
     private var nextPage = PgcIndexData.PgcIndexPage()
     val noMore get() = nextPage.hasNext.not()
-
     var pgcType by mutableStateOf(PgcType.Anime)
 
     var indexOrder by mutableStateOf(IndexOrder.FollowCount)
@@ -67,16 +67,23 @@ class PgcIndexViewModel(
     }
 
     suspend fun loadMore() {
-        if (!updating) loadData()
+        val expectedGeneration = requestGeneration
+        if (!updating) loadData(expectedGeneration)
     }
 
-    private suspend fun loadData() {
+    private suspend fun loadData(expectedGeneration: Long) {
+        if (expectedGeneration != requestGeneration) return
+
         updating = true
         if (!nextPage.hasNext) {
-            updating = false
+            if (expectedGeneration == requestGeneration) {
+                updating = false
+            }
             return
         }
+
         runCatching {
+            val requestPage = nextPage
             val result = pgcRepository.getPgcIndex(
                 pgcType = pgcType,
                 indexOrder = indexOrder,
@@ -92,21 +99,34 @@ class PgcIndexViewModel(
                 year = year,
                 releaseDate = releaseDate,
                 style = style,
-                page = nextPage
+                page = requestPage
             )
-            indexResultItems.addAllWithMainContext(result.list)
-            nextPage = result.nextPage
+
+            if (expectedGeneration != requestGeneration) return@runCatching
+
+            withContext(Dispatchers.Main) {
+                if (expectedGeneration != requestGeneration) return@withContext
+                indexResultItems.addAll(result.list)
+                nextPage = result.nextPage
+            }
+
             logger.info { "load more $pgcType list success, size: ${result.list.size}" }
         }.onFailure {
+            if (expectedGeneration != requestGeneration) return@onFailure
             logger.fError { "Load $pgcType index list failed: ${it.stackTraceToString()}" }
             withContext(Dispatchers.Main) {
+                if (expectedGeneration != requestGeneration) return@withContext
                 "加载 $pgcType 索引失败: ${it.localizedMessage}".toast(BVApp.context)
             }
         }
-        updating = false
+
+        if (expectedGeneration == requestGeneration) {
+            updating = false
+        }
     }
 
     fun clearData() {
+        requestGeneration++
         indexResultItems.clear()
         nextPage = PgcIndexData.PgcIndexPage()
         updating = false

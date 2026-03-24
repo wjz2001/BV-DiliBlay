@@ -35,6 +35,9 @@ class SearchInputViewModel(
     val suggests = mutableStateListOf<String>()
     val searchHistories = mutableStateListOf<SearchHistoryDB>()
 
+    @Volatile
+    private var suggestRequestVersion = 0L
+
     init {
         updateHotwords()
         loadSearchHistories()
@@ -60,17 +63,35 @@ class SearchInputViewModel(
     }
 
     fun updateSuggests() {
-        logger.fInfo { "Update search suggests with '$keyword'" }
+        val requestKeyword = keyword
+        val expectedVersion = suggestRequestVersion + 1L
+        suggestRequestVersion = expectedVersion
+
+        logger.fInfo { "Update search suggests with '$requestKeyword'" }
+
+        if (requestKeyword.isBlank()) {
+            viewModelScope.launch(Dispatchers.Main) {
+                if (expectedVersion != suggestRequestVersion) return@launch
+                suggests.clear()
+            }
+            return
+        }
+
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 val keywordSuggest = searchRepository.getSearchSuggest(
-                    keyword = keyword,
+                    keyword = requestKeyword,
                     preferApiType = Prefs.apiType
                 )
                 logger.debug { "Find suggests: $keywordSuggest" }
-                suggests.swapListWithMainContext(keywordSuggest)
+                withContext(Dispatchers.Main) {
+                    if (expectedVersion != suggestRequestVersion) return@withContext
+                    suggests.clear()
+                    suggests.addAll(keywordSuggest)
+                }
             }.onFailure {
                 withContext(Dispatchers.Main) {
+                    if (expectedVersion != suggestRequestVersion) return@withContext
                     "bilibili 搜索建议加载失败".toast(BVApp.context)
                 }
                 logger.info { it.stackTraceToString() }
