@@ -270,7 +270,16 @@ fun HomeContent(
     )
 
     LaunchedEffect(userViewModel.isLogin) {
-        if (userViewModel.isLogin) userViewModel.updateUserInfo() else userViewModel.clearUserInfo()
+        if (userViewModel.isLogin) {
+            userViewModel.updateUserInfo()
+        } else {
+            userViewModel.clearUserInfo()
+            dynamicViewModel.clearData()
+            historyViewModel.clearData()
+            toViewViewModel.clearData()
+            favouriteViewModel.clearData()
+            followingSeasonViewModel.clearData()
+        }
     }
 
     Scaffold(
