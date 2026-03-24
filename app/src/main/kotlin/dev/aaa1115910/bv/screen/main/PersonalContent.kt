@@ -33,6 +33,8 @@ import dev.aaa1115910.bv.screen.user.FavoriteScreen
 import dev.aaa1115910.bv.screen.user.FollowingSeasonScreen
 import dev.aaa1115910.bv.screen.user.HistoryScreen
 import dev.aaa1115910.bv.screen.user.ToViewScreen
+import androidx.compose.runtime.LaunchedEffect
+import dev.aaa1115910.bv.viewmodel.UserViewModel
 import dev.aaa1115910.bv.viewmodel.common.LoadState
 import dev.aaa1115910.bv.viewmodel.main.PersonalContentViewModel
 import dev.aaa1115910.bv.viewmodel.user.FavoriteViewModel
@@ -46,6 +48,7 @@ fun PersonalContent(
     navFocusRequester: FocusRequester,
     onDefaultFocusReady: (() -> Unit)? = null,
     personalContentViewModel: PersonalContentViewModel = koinViewModel(),
+    userViewModel: UserViewModel = koinViewModel(),
     favouriteViewModel: FavoriteViewModel = koinViewModel(),
     historyViewModel: HistoryViewModel = koinViewModel(),
     toViewViewModel: ToViewViewModel = koinViewModel(),
@@ -190,6 +193,16 @@ fun PersonalContent(
         onRetrySilent = ::retryPageDataSilent,
         onFinalFailureToast = ::toastPersonalFinalFailure
     )
+
+    LaunchedEffect(userViewModel.isLogin) {
+        if (!userViewModel.isLogin) {
+            userViewModel.clearUserInfo()
+            historyViewModel.clearData()
+            toViewViewModel.clearData()
+            favouriteViewModel.clearData()
+            followingSeasonViewModel.clearData()
+        }
+    }
 
     Scaffold(
         topBar = {
