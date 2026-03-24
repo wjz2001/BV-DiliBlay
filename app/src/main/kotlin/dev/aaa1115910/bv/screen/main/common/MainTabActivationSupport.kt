@@ -52,7 +52,7 @@ class TabActivationGuard<T>(
 
     fun markLoadRecovered(tab: T, state: LoadState?) {
         ensureRetryTab(tab)
-        if (state != LoadState.Error) {
+        if (state == LoadState.Success || state == LoadState.Idle) {
             retryCount = 0
             exhaustedToastShown = false
         }
@@ -97,8 +97,10 @@ fun <T> UnifiedTabActivationEffects(
     gridStateOf: (T) -> LazyGridState,
     guard: TabActivationGuard<T>,
     currentRetryStateOf: (T) -> LoadState?,
+    shouldRetryOf: (T, LoadState?) -> Boolean = { _, state -> state == LoadState.Error },
     onEnsureLoadedSilent: (T) -> Unit,
     onActivationRefreshSilent: (T) -> Unit,
+    onRetrySilent: (T) -> Unit,
     onFinalFailureToast: (T) -> Unit,
     maxRetryCount: Int = 3,
 ) {
@@ -122,17 +124,25 @@ fun <T> UnifiedTabActivationEffects(
     LaunchedEffect(activeTab, retryState) {
         guard.markLoadRecovered(activeTab, retryState)
 
-        if (guard.canRetry(activeTab, retryState, maxRetryCount)) {
+        if (retryState == LoadState.Error && !shouldRetryOf(activeTab, retryState)) {
+            if (guard.shouldToastFinalFailure(activeTab, retryState, maxRetries = 0)) {
+                guard.markFinalFailureToastShown(activeTab)
+                onFinalFailureToast(activeTab)
+            }
+            return@LaunchedEffect
+        }
+
+        if (guard.canRetry(activeTab, retryState, maxRetryCount) &&
+            shouldRetryOf(activeTab, retryState)
+        ) {
             delay(guard.nextRetryDelayMs(activeTab))
 
             val latestState = currentRetryStateOf(activeTab)
             if (!guard.canRetry(activeTab, latestState, maxRetryCount)) return@LaunchedEffect
+            if (!shouldRetryOf(activeTab, latestState)) return@LaunchedEffect
 
             guard.markRetryConsumed(activeTab)
-            when (behaviorOf(activeTab)) {
-                ActivationBehavior.KeepPosition -> onEnsureLoadedSilent(activeTab)
-                ActivationBehavior.RefreshAndScrollTop -> onActivationRefreshSilent(activeTab)
-            }
+            onRetrySilent(activeTab)
             return@LaunchedEffect
         }
 

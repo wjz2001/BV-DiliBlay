@@ -9,6 +9,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -16,9 +17,11 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import kotlinx.coroutines.launch
 import dev.aaa1115910.bv.BVApp
+import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.component.PersistLazyGridViewportEffect
 import dev.aaa1115910.bv.component.TopNav
@@ -65,6 +68,7 @@ fun HomeContent(
     val focusedTab = homeContentViewModel.focusedTab
     val activeTab = homeContentViewModel.activeTab
     var focusOnContent by remember { mutableStateOf(false) }
+    val composeScope = rememberCoroutineScope()
 
     // 1. 在这里定义 backToTabRow 函数
     // 它会使用从外部传入的 navFocusRequester 来请求焦点
@@ -123,10 +127,24 @@ fun HomeContent(
         HomeTopNavItem.Recommend -> recommendViewModel.initialLoadState
         HomeTopNavItem.Popular -> popularViewModel.initialLoadState
         HomeTopNavItem.Dynamics -> dynamicViewModel.initialLoadState
-        HomeTopNavItem.ToView -> toViewViewModel.initialLoadState
+        HomeTopNavItem.ToView -> toViewViewModel.retryLoadState
         HomeTopNavItem.History -> historyViewModel.initialLoadState
         HomeTopNavItem.Favorite -> favouriteViewModel.initialLoadState
         HomeTopNavItem.FollowingSeason -> followingSeasonViewModel.initialLoadState
+    }
+
+    fun homeShouldRetry(tab: HomeTopNavItem, state: LoadState?): Boolean {
+        if (state != LoadState.Error) return false
+
+        return when (tab) {
+            HomeTopNavItem.Recommend -> !recommendViewModel.lastFailureWasAuth
+            HomeTopNavItem.Popular -> !popularViewModel.lastFailureWasAuth
+            HomeTopNavItem.Dynamics -> !dynamicViewModel.lastFailureWasAuth
+            HomeTopNavItem.ToView -> !toViewViewModel.lastFailureWasAuth
+            HomeTopNavItem.History -> !historyViewModel.lastFailureWasAuth
+            HomeTopNavItem.Favorite -> !favouriteViewModel.lastFailureWasAuth
+            HomeTopNavItem.FollowingSeason -> !followingSeasonViewModel.lastFailureWasAuth
+        }
     }
 
     fun ensureHomeTabLoadedSilent(tab: HomeTopNavItem) {
@@ -156,16 +174,86 @@ fun HomeContent(
         }
     }
 
-    fun toastHomeFinalFailure(tab: HomeTopNavItem) {
-        when (tab) {
-            HomeTopNavItem.Recommend -> "加载推荐视频失败".toast(BVApp.context)
-            HomeTopNavItem.Popular -> "加载热门视频失败".toast(BVApp.context)
-            HomeTopNavItem.Dynamics -> "加载动态失败".toast(BVApp.context)
-            HomeTopNavItem.ToView -> "加载稍后再看失败".toast(BVApp.context)
-            HomeTopNavItem.History -> "加载历史记录失败".toast(BVApp.context)
-            HomeTopNavItem.Favorite -> "加载收藏夹失败".toast(BVApp.context)
-            HomeTopNavItem.FollowingSeason -> "加载追番追剧失败".toast(BVApp.context)
+    fun homeShouldScrollTopOnUserRefresh(tab: HomeTopNavItem): Boolean = when (tab) {
+        HomeTopNavItem.Dynamics -> false
+        HomeTopNavItem.ToView,
+        HomeTopNavItem.Recommend,
+        HomeTopNavItem.Popular,
+        HomeTopNavItem.History,
+        HomeTopNavItem.Favorite,
+        HomeTopNavItem.FollowingSeason -> true
+    }
+
+    fun refreshHomeTabByUser(tab: HomeTopNavItem) {
+        activationGuard.markClickRefresh(tab)
+
+        if (homeShouldScrollTopOnUserRefresh(tab)) {
+            composeScope.launch {
+                homeGridStateOf(tab).scrollToItem(0)
+                refreshHomeTabSilent(tab)
+            }
+        } else {
+            refreshHomeTabSilent(tab)
         }
+    }
+
+    fun retryHomeTabSilent(tab: HomeTopNavItem) {
+        refreshHomeTabSilent(tab)
+    }
+
+    fun toastHomeFinalFailure(tab: HomeTopNavItem) {
+        val message = when (tab) {
+            HomeTopNavItem.Recommend ->
+                if (recommendViewModel.lastFailureWasAuth) {
+                    BVApp.context.getString(R.string.exception_auth_failure)
+                } else {
+                    "加载推荐视频失败"
+                }
+
+            HomeTopNavItem.Popular ->
+                if (popularViewModel.lastFailureWasAuth) {
+                    BVApp.context.getString(R.string.exception_auth_failure)
+                } else {
+                    "加载热门视频失败"
+                }
+
+            HomeTopNavItem.Dynamics ->
+                if (dynamicViewModel.lastFailureWasAuth) {
+                    BVApp.context.getString(R.string.exception_auth_failure)
+                } else {
+                    "加载动态失败"
+                }
+
+            HomeTopNavItem.ToView ->
+                if (toViewViewModel.lastFailureWasAuth) {
+                    BVApp.context.getString(R.string.exception_auth_failure)
+                } else {
+                    "加载稍后再看失败"
+                }
+
+            HomeTopNavItem.History ->
+                if (historyViewModel.lastFailureWasAuth) {
+                    BVApp.context.getString(R.string.exception_auth_failure)
+                } else {
+                    "加载历史记录失败"
+                }
+
+            HomeTopNavItem.Favorite ->
+                if (favouriteViewModel.lastFailureWasAuth) {
+                    BVApp.context.getString(R.string.exception_auth_failure)
+                } else {
+                    "加载收藏夹失败"
+                }
+
+            HomeTopNavItem.FollowingSeason ->
+                if (followingSeasonViewModel.lastFailureWasAuth) {
+                    BVApp.context.getString(R.string.exception_auth_failure)
+                } else {
+                    "加载追番追剧失败"
+                }
+        }
+
+        message.toast(BVApp.context)
     }
 
     UnifiedTabActivationEffects(
@@ -174,8 +262,10 @@ fun HomeContent(
         gridStateOf = ::homeGridStateOf,
         guard = activationGuard,
         currentRetryStateOf = ::homeRetryStateOf,
+        shouldRetryOf = ::homeShouldRetry,
         onEnsureLoadedSilent = ::ensureHomeTabLoadedSilent,
         onActivationRefreshSilent = ::refreshHomeTabSilent,
+        onRetrySilent = ::retryHomeTabSilent,
         onFinalFailureToast = ::toastHomeFinalFailure
     )
 
@@ -202,8 +292,7 @@ fun HomeContent(
                 onClick = { nav ->
                     val target = nav as HomeTopNavItem
                     homeContentViewModel.onTabClicked(target)
-                    activationGuard.markClickRefresh(target)
-                    refreshHomeTabSilent(target)
+                    refreshHomeTabByUser(target)
                 }
             )
         }
@@ -212,7 +301,7 @@ fun HomeContent(
             modifier = Modifier
                 .padding(innerPadding)
                 .onFocusChanged { focusOnContent = it.hasFocus }
-                .onKeyEvent {
+                .onPreviewKeyEvent {
                     if (it.key == Key.Back) {
                         // 确保是按键抬起事件，防止重复触发
                         // 同时检查焦点是否确实在内容区域
@@ -220,18 +309,17 @@ fun HomeContent(
                             backToTabRow()
                             // 返回 true 表示我们已经处理了这个事件，
                             // 系统不需要再执行默认的返回操作（例如退出页面）
-                            return@onKeyEvent true
+                            return@onPreviewKeyEvent true
                         }
                     }
 
                     if (it.key == Key.Menu) {
-                        if (it.type == KeyEventType.KeyDown) return@onKeyEvent true
-                        activationGuard.markClickRefresh(activeTab)
-                        refreshHomeTabSilent(activeTab)
+                        if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
+                        refreshHomeTabByUser(activeTab)
                         navFocusRequester.requestFocus()
-                        return@onKeyEvent true
+                        return@onPreviewKeyEvent true
                     }
-                    return@onKeyEvent false
+                    return@onPreviewKeyEvent false
                 },
         ) {
             when (activeTab) {

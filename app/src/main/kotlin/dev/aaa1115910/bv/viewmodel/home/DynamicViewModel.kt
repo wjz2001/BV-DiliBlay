@@ -102,6 +102,10 @@ class DynamicViewModel(
 
     var initialLoadState by mutableStateOf(LoadState.Idle)
         private set
+
+    var lastFailureWasAuth by mutableStateOf(false)
+        private set
+
     private val maxItems = 600
 
     private fun buildRefreshPlaceholder(): DynamicVideo = DynamicVideo(
@@ -158,7 +162,15 @@ class DynamicViewModel(
         showNoUpdateToast: Boolean = false,
         showErrorToast: Boolean = true
     ) {
-        if (!bvUserRepository.isLogin) return
+        if (!bvUserRepository.isLogin) {
+            withContext(Dispatchers.Main) {
+                if (initialLoadState == LoadState.Loading) {
+                    initialLoadState = LoadState.Idle
+                }
+                loading = false
+            }
+            return
+        }
 
         when (mode) {
             LoadMode.RefreshNew -> refreshNewInternal(
@@ -185,7 +197,18 @@ class DynamicViewModel(
     ) {
         refreshMutex.withLock {
             val now = System.currentTimeMillis()
-            if (now - lastRefreshMs < 1500) return
+            if (now - lastRefreshMs < 1500) {
+                withContext(Dispatchers.Main) {
+                    if (initialLoadState == LoadState.Loading) {
+                        initialLoadState = if (dynamicList.isNotEmpty()) {
+                            LoadState.Success
+                        } else {
+                            LoadState.Idle
+                        }
+                    }
+                }
+                return
+            }
             lastRefreshMs = now
 
             // 取消可能在进行的“触底翻页”请求
@@ -201,6 +224,8 @@ class DynamicViewModel(
             isRefreshingNew = true
             val hadItemsBefore = withContext(Dispatchers.Main) { dynamicList.isNotEmpty() }
             var totalAdded = 0
+            // 只有首次建链时，刷新结果才允许覆盖 currentPage/historyOffset/hasMore
+            val initializingPagingState = currentPage == 0 && historyOffset == null
 
             // 清理可能残留的占位
             withContext(Dispatchers.Main) {
@@ -213,6 +238,7 @@ class DynamicViewModel(
 
             setLoading(true, expectedGen)
             try {
+                lastFailureWasAuth = false
                 val baselineSeed = updateBaseline.orEmpty()
 
                 // 只拉最新 1 页并立即落地
@@ -254,8 +280,8 @@ class DynamicViewModel(
                         updateBaseline = firstData.updateBaseline
                     }
 
-                    // 首次加载时初始化翻页链
-                    if (currentPage == 0 && historyOffset == null) {
+                    // 只有首次初始化分页链时，才允许第一页刷新覆盖分页前沿，已经存在旧前沿时，刷新只能 prepend 新内容，不能把旧前沿回退到第一页。
+                    if (initializingPagingState) {
                         currentPage = 1
                         historyOffset = firstData.historyOffset
                         hasMore = firstData.hasMore
@@ -268,6 +294,7 @@ class DynamicViewModel(
                 withContext(Dispatchers.Main) {
                     if (expectedGen != generation) return@withContext
                     if (initialLoadState == LoadState.Loading) {
+                        lastFailureWasAuth = false
                         initialLoadState = LoadState.Success
                     }
                 }
@@ -287,7 +314,9 @@ class DynamicViewModel(
                 // 若还有后续，显示占位卡并在后台拉取，最终一次性插入
                 val baselineForCatchUp = updateBaseline.orEmpty()
                 var cursorOffset = firstData.historyOffset
+                var cursorHasMore = firstData.hasMore
                 var page = 2
+                var lastConsumedPage = 1
 
                 val pendingItems = ArrayList<DynamicVideo>()
                 val pendingAidSet = HashSet<Long>(512)
@@ -323,6 +352,8 @@ class DynamicViewModel(
                                 }
                                 if (!coroutineContext.isActive || expectedGen != generation) return@withTimeout
 
+                                lastConsumedPage = page
+
                                 val filtered = dev.aaa1115910.bv.block.BlockManager.filterList(
                                     page = dev.aaa1115910.bv.block.BlockPage.Dynamics,
                                     list = data.videos
@@ -344,6 +375,7 @@ class DynamicViewModel(
                                 }
 
                                 cursorOffset = data.historyOffset
+                                cursorHasMore = data.hasMore
 
                                 // 主条件：hasMore=false/offset 为空
                                 if (!data.hasMore || cursorOffset.isBlank()) {
@@ -384,7 +416,12 @@ class DynamicViewModel(
                             }
                         }
 
-                        if (reachNoMore) {
+                        // 非首次刷新时，旧分页前沿必须保留，只有首次建链时，才用 catch-up 的最终位置初始化正式分页状态。
+                        if (initializingPagingState) {
+                            currentPage = lastConsumedPage
+                            historyOffset = cursorOffset
+                            hasMore = if (reachNoMore) false else cursorHasMore
+                        } else if (reachNoMore) {
                             hasMore = false
                         }
                     }
@@ -411,11 +448,28 @@ class DynamicViewModel(
                 logger.fInfo { "RefreshNew end: gen=$expectedGen, totalAdded=$totalAdded" }
             } catch (_: CancellationException) {
                 logger.fInfo { "Refresh new canceled: gen=$expectedGen" }
+            } catch (e: AuthFailureException) {
+                if (expectedGen != generation) return
+                logger.fWarn { "Refresh new auth failure: ${e.stackTraceToString()}" }
+                withContext(Dispatchers.Main) {
+                    if (expectedGen != generation) return@withContext
+                    lastFailureWasAuth = true
+                    if (initialLoadState == LoadState.Loading) {
+                        initialLoadState = LoadState.Error
+                    }
+                    if (showErrorToast) {
+                        BVApp.context.getString(R.string.exception_auth_failure)
+                            .toast(BVApp.context)
+                    }
+                    if (!BuildConfig.DEBUG) bvUserRepository.logout()
+                }
             } catch (e: Exception) {
                 if (expectedGen != generation) return
                 logger.fWarn { "Refresh new failed: ${e.stackTraceToString()}" }
                 withContext(Dispatchers.Main) {
-                    if (expectedGen == generation && dynamicList.isEmpty()) {
+                    if (expectedGen != generation) return@withContext
+                    lastFailureWasAuth = false
+                    if (initialLoadState == LoadState.Loading) {
                         initialLoadState = LoadState.Error
                     }
                     if (showErrorToast) {
@@ -464,6 +518,11 @@ class DynamicViewModel(
 
         setLoading(true, expectedGen)
         try {
+            withContext(Dispatchers.Main) {
+                if (expectedGen != generation) return@withContext
+                lastFailureWasAuth = false
+            }
+
             logger.fInfo { "Load dynamic page: $page, offset=$historyOffset" }
 
             val data = userRepository.getDynamicVideos(
@@ -489,7 +548,6 @@ class DynamicViewModel(
                     if (aidSet.add(item.aid)) distinct.add(item)
                 }
                 if (distinct.isNotEmpty()) dynamicList.addAll(distinct)
-                trimDynamicDataLocked()
 
                 currentPage = page
                 historyOffset = data.historyOffset
@@ -502,6 +560,7 @@ class DynamicViewModel(
             withContext(Dispatchers.Main) {
                 if (expectedGen != generation) return@withContext
                 if (initialLoadState == LoadState.Loading) {
+                    lastFailureWasAuth = false
                     initialLoadState = LoadState.Success
                 }
             }
@@ -516,25 +575,32 @@ class DynamicViewModel(
 
             when (e) {
                 is AuthFailureException -> {
-                if (showErrorToast) {
                     withContext(Dispatchers.Main) {
-                        BVApp.context.getString(R.string.exception_auth_failure)
-                            .toast(BVApp.context)
+                        if (expectedGen != generation) return@withContext
+                        lastFailureWasAuth = true
+                        if (initialLoadState == LoadState.Loading) {
+                            initialLoadState = LoadState.Error
+                        }
+                        if (showErrorToast) {
+                            BVApp.context.getString(R.string.exception_auth_failure)
+                                .toast(BVApp.context)
+                        }
+                        if (!BuildConfig.DEBUG) bvUserRepository.logout()
                     }
                 }
-                if (!BuildConfig.DEBUG) bvUserRepository.logout()
-            }
 
                 else -> {
-                withContext(Dispatchers.Main) {
-                    if (expectedGen == generation && dynamicList.isEmpty()) {
-                        initialLoadState = LoadState.Error
-                    }
-                    if (showErrorToast) {
-                        "加载动态失败: ${e.localizedMessage}".toast(BVApp.context)
+                    withContext(Dispatchers.Main) {
+                        if (expectedGen != generation) return@withContext
+                        lastFailureWasAuth = false
+                        if (initialLoadState == LoadState.Loading) {
+                            initialLoadState = LoadState.Error
+                        }
+                        if (showErrorToast) {
+                            "加载动态失败: ${e.localizedMessage}".toast(BVApp.context)
+                        }
                     }
                 }
-            }
             }
         } finally {
             setLoading(false, expectedGen)
@@ -556,6 +622,11 @@ class DynamicViewModel(
         showNoUpdateToast: Boolean = true,
         showErrorToast: Boolean = true
     ) {
+        // 防抖必须发生在状态切到 Loading 之前，
+        // 否则被拦下的那次刷新会把状态卡在 Loading。
+        val now = System.currentTimeMillis()
+        if (now - lastRefreshMs < 1500) return
+
         initialLoadState = LoadState.Loading
         viewModelScope.launch(Dispatchers.IO) {
             loadMore(
@@ -570,7 +641,7 @@ class DynamicViewModel(
         generation++
         loadJob?.cancel()
         loadJob = null
-
+        lastFailureWasAuth = false
         dynamicList.clear()
         aidSet.clear()
         currentPage = 0

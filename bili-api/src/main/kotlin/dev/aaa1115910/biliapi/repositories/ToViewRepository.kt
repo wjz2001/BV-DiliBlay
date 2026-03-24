@@ -30,19 +30,21 @@ class ToViewRepository(
 
     suspend fun getToView(
         cursor: Long,
-        preferApiType: ApiType
+        preferApiType: ApiType,
     ): ToViewData {
         return when (preferApiType) {
             ApiType.Web -> {
                 val data = BiliHttpApi.getToView(
-                    sessData = requireSessData()
+                    // viewAt = cursor,
+                    sessData = requireSessData(),
                 ).getResponseData()
                 ToViewData.fromToViewResponse(data)
             }
 
             ApiType.App -> {
                 val data = BiliHttpApi.getToView(
-                    accessKey = requireAccessToken()
+                    // viewAt = cursor,
+                    accessKey = requireAccessToken(),
                 ).getResponseData()
                 ToViewData.fromToViewResponse(data)
             }
@@ -52,7 +54,7 @@ class ToViewRepository(
     suspend fun addToView(
         aid: Long,
         bvid: String? = null,
-        preferApiType: ApiType
+        preferApiType: ApiType,
     ) {
         val (success, message) = when (preferApiType) {
             ApiType.Web -> BiliHttpApi.addToView(
@@ -74,7 +76,7 @@ class ToViewRepository(
     suspend fun delToView(
         aid: Long,
         viewed: Boolean = false,
-        preferApiType: ApiType
+        preferApiType: ApiType,
     ) {
         val (success, message) = when (preferApiType) {
             ApiType.Web -> BiliHttpApi.delToView(

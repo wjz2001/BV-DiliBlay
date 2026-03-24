@@ -7,24 +7,32 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.aaa1115910.biliapi.entity.rank.PopularVideoPage
 import dev.aaa1115910.biliapi.entity.ugc.UgcItem
+import dev.aaa1115910.biliapi.http.entity.AuthFailureException
 import dev.aaa1115910.biliapi.repositories.RecommendVideoRepository
 import dev.aaa1115910.bv.BVApp
+import dev.aaa1115910.bv.BuildConfig
+import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.util.Prefs
+import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.fError
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.common.LoadState
 import dev.aaa1115910.bv.viewmodel.common.canAutoLoad
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.Job
 import org.koin.android.annotation.KoinViewModel
 
 @KoinViewModel
 class PopularViewModel(
-    private val recommendVideoRepository: RecommendVideoRepository
+    private val recommendVideoRepository: RecommendVideoRepository,
+    private val userRepository: UserRepository
 ) : ViewModel() {
     private val logger = KotlinLogging.logger {}
 
@@ -37,23 +45,37 @@ class PopularViewModel(
 
     var initialLoadState by mutableStateOf(LoadState.Idle)
         private set
+
+    var lastFailureWasAuth by mutableStateOf(false)
+        private set
+
     @Volatile private var requestVersion = 0L
     private val requestMutex = Mutex()
-    private val maxItems = 480
+    private var loadJob: Job? = null
 
-    suspend fun loadMore(
+    fun loadMore(
         beforeAppendData: () -> Unit = {},
         showErrorToast: Boolean = true
     ) {
+        if (loadJob?.isActive == true) return
+
         val expectedVersion = requestVersion
-        requestMutex.withLock {
-            if (expectedVersion != requestVersion) return
-            if (loading) return
-            loadData(
-                beforeAppendData = beforeAppendData,
-                expectedVersion = expectedVersion,
-                showErrorToast = showErrorToast
-            )
+        loadJob = viewModelScope.launch(Dispatchers.IO) {
+            requestMutex.withLock {
+                if (expectedVersion != requestVersion) return@withLock
+                if (loading) return@withLock
+                loadData(
+                    beforeAppendData = beforeAppendData,
+                    expectedVersion = expectedVersion,
+                    showErrorToast = showErrorToast
+                )
+            }
+        }.also { job ->
+            job.invokeOnCompletion {
+                if (loadJob === job) {
+                    loadJob = null
+                }
+            }
         }
     }
 
@@ -67,6 +89,7 @@ class PopularViewModel(
         withContext(Dispatchers.Main) { loading = true }
 
         try {
+            lastFailureWasAuth = false
             val popularVideoData = recommendVideoRepository.getPopularVideos(
                 page = nextPage,
                 preferApiType = Prefs.apiType
@@ -84,20 +107,43 @@ class PopularViewModel(
 
                 beforeAppendData()
                 nextPage = popularVideoData.nextPage
-                popularVideoList = (popularVideoList + filtered).take(maxItems)
-
-                if (initialLoadState == LoadState.Loading) {
-                    initialLoadState = LoadState.Success
-                }
+                popularVideoList = popularVideoList + filtered
+                lastFailureWasAuth = false
+                initialLoadState = LoadState.Success
             }
+        } catch (_: CancellationException) {
+            logger.fInfo { "Load popular video list canceled" }
         } catch (t: Throwable) {
             logger.fError { "Load popular video list failed: ${t.stackTraceToString()}" }
-            withContext(Dispatchers.Main) {
-                if (expectedVersion == requestVersion && popularVideoList.isEmpty()) {
-                    initialLoadState = LoadState.Error
+
+            when (t) {
+                is AuthFailureException -> {
+                    if (expectedVersion != requestVersion) return
+                    withContext(Dispatchers.Main) {
+                        if (expectedVersion != requestVersion) return@withContext
+                        lastFailureWasAuth = true
+                        if (initialLoadState == LoadState.Loading) {
+                            initialLoadState = LoadState.Error
+                        }
+                        if (showErrorToast) {
+                            BVApp.context.getString(R.string.exception_auth_failure).toast(BVApp.context)
+                        }
+                        if (!BuildConfig.DEBUG) userRepository.logout()
+                    }
                 }
-                if (showErrorToast) {
-                    "加载热门视频失败: ${t.localizedMessage}".toast(BVApp.context)
+
+                else -> {
+                    if (expectedVersion != requestVersion) return
+                    withContext(Dispatchers.Main) {
+                        if (expectedVersion != requestVersion) return@withContext
+                        lastFailureWasAuth = false
+                        if (initialLoadState == LoadState.Loading) {
+                            initialLoadState = LoadState.Error
+                        }
+                        if (showErrorToast) {
+                            "加载热门视频失败: ${t.localizedMessage}".toast(BVApp.context)
+                        }
+                    }
                 }
             }
         } finally {
@@ -111,29 +157,31 @@ class PopularViewModel(
 
     fun clearData() {
         requestVersion++
+        loadJob?.cancel()
+        loadJob = null
         popularVideoList = emptyList()
         resetPage()
         loading = false
         initialLoadState = LoadState.Idle
+        lastFailureWasAuth = false
     }
 
     fun ensureLoaded(showErrorToast: Boolean = true) {
         if (!initialLoadState.canAutoLoad()) return
         initialLoadState = LoadState.Loading
-        viewModelScope.launch(Dispatchers.IO) {
-            loadMore(showErrorToast = showErrorToast)
-        }
+        loadMore(showErrorToast = showErrorToast)
     }
 
     fun reloadAll(showErrorToast: Boolean = true) {
         requestVersion++
+        loadJob?.cancel()
+        loadJob = null
         popularVideoList = emptyList()
         resetPage()
         loading = false
         initialLoadState = LoadState.Loading
-        viewModelScope.launch(Dispatchers.IO) {
-            loadMore(showErrorToast = showErrorToast)
-        }
+        lastFailureWasAuth = false
+        loadMore(showErrorToast = showErrorToast)
     }
 
     fun resetPage() {

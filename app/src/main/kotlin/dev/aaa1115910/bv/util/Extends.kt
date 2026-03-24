@@ -65,6 +65,38 @@ fun <T> SnapshotStateList<T>.swapList(newList: List<T>) {
     }
 }
 
+fun <T> SnapshotStateList<T>.swapListSkipEqual(newList: List<T>) {
+    if (this.isEmpty()) {
+        addAll(newList)
+        return
+    }
+
+    if (newList.isEmpty()) {
+        clear()
+        return
+    }
+
+    val currentSize = this.size
+    val newSize = newList.size
+    val commonSize = minOf(currentSize, newSize)
+
+    for (i in 0 until commonSize) {
+        val oldItem = this[i]
+        val newItem = newList[i]
+        if (oldItem != newItem) {
+            this[i] = newItem
+        }
+    }
+
+    if (newSize > currentSize) {
+        addAll(newList.subList(currentSize, newSize))
+    } else if (currentSize > newSize) {
+        repeat(currentSize - newSize) {
+            this.removeAt(newSize)
+        }
+    }
+}
+
 suspend fun <T> SnapshotStateList<T>.swapListWithMainContext(newList: List<T>) =
     withContext(Dispatchers.Main) { this@swapListWithMainContext.swapList(newList) }
 

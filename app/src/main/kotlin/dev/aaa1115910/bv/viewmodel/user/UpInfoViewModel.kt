@@ -12,7 +12,6 @@ import dev.aaa1115910.biliapi.entity.user.SpaceVideoPage
 import dev.aaa1115910.biliapi.repositories.UserRepository
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.util.Prefs
-import dev.aaa1115910.bv.util.addWithMainContext
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.toWanString
@@ -61,7 +60,7 @@ class UpInfoViewModel(
         private set
 
     private var page = SpaceVideoPage()
-    private var updating = false
+    @Volatile private var requestGeneration = 0L
     val noMore get() = !page.hasNext
 
     // 防止并发请求、并做按 avid 去重
@@ -75,6 +74,13 @@ class UpInfoViewModel(
     private var preferApiType: ApiType = Prefs.apiType
 
     fun reset(mid: Long, name: String) {
+        requestGeneration++
+
+        queryDebounceJob?.cancel()
+        autoLoadJob?.cancel()
+        queryDebounceJob = null
+        autoLoadJob = null
+
         upMid = mid
         upName = name
 
@@ -91,13 +97,7 @@ class UpInfoViewModel(
         page = SpaceVideoPage()
         spaceVideos.clear()
         loadedAvids.clear()
-
-        queryDebounceJob?.cancel()
-        autoLoadJob?.cancel()
-        queryDebounceJob = null
-        autoLoadJob = null
     }
-
     fun onQueryChange(newText: String) {
         rawQuery = newText
         pauseAutoLoad()
@@ -146,42 +146,46 @@ class UpInfoViewModel(
         if (!autoLoadEnabled) return
         if (autoLoadJob?.isActive == true) return
 
+        val expectedGeneration = requestGeneration
         autoLoadJob = viewModelScope.launch(Dispatchers.Default) {
             isAutoLoading = true
 
             var backoffMs = 0L
-            while (isActive && !noMore) {
-                // 输入时暂停：允许当前请求跑完，但不进入下一轮
+            while (isActive && !noMore && expectedGeneration == requestGeneration) {
                 while (isActive && !autoLoadEnabled) {
                     delay(100)
                 }
-                if (!isActive || noMore) break
+                if (!isActive || noMore || expectedGeneration != requestGeneration) break
 
-                val ok = loadNextPage()
-                if (noMore) break
+                val ok = loadNextPage(expectedGeneration)
+                if (noMore || expectedGeneration != requestGeneration) break
 
                 if (ok) {
                     backoffMs = 0L
-                    // 保守节流 + 抖动，降低风控风险
                     delay(Random.nextLong(500L, 2000L))
                 } else {
-                    // 失败退避：5s 起步，指数增长，上限 60s
                     backoffMs = if (backoffMs == 0L) 5_000L else (backoffMs * 2).coerceAtMost(60_000L)
                     delay(backoffMs)
                 }
             }
 
-            isAutoLoading = false
+            if (expectedGeneration == requestGeneration) {
+                isAutoLoading = false
+            }
         }
     }
 
     fun update() {
+        val expectedGeneration = requestGeneration
         viewModelScope.launch(Dispatchers.Default) {
-            updateSpaceVideos()
+            loadNextPage(expectedGeneration)
         }
     }
 
-    suspend fun loadNextPage(): Boolean = requestMutex.withLock {
+    suspend fun loadNextPage(
+        expectedGeneration: Long = requestGeneration
+    ): Boolean = requestMutex.withLock {
+        if (expectedGeneration != requestGeneration) return false
         if (loading || noMore) return false
 
         loading = true
@@ -196,10 +200,10 @@ class UpInfoViewModel(
                 )
             }
 
-            // totalCount 取不到就保留旧值
+            if (expectedGeneration != requestGeneration) return false
+
             spaceVideoData.totalCount?.takeIf { it > 0 }?.let { totalCount = it }
 
-            // 构造 card 列表
             val newCards = spaceVideoData.videos.map { spaceVideoItem ->
                 VideoCardData(
                     avid = spaceVideoItem.aid,
@@ -214,8 +218,8 @@ class UpInfoViewModel(
                 )
             }
 
-            // 去重 + 主线程 add
             withContext(Dispatchers.Main) {
+                if (expectedGeneration != requestGeneration) return@withContext
                 newCards.forEach { card ->
                     if (loadedAvids.add(card.avid)) {
                         spaceVideos.add(card)
@@ -223,46 +227,16 @@ class UpInfoViewModel(
                 }
             }
 
+            if (expectedGeneration != requestGeneration) return false
             page = spaceVideoData.page
             true
         } catch (t: Throwable) {
             logger.fInfo { "Update up space videos failed: ${t.stackTraceToString()}" }
             false
         } finally {
-            loading = false
-        }
-    }
-
-    private suspend fun updateSpaceVideos() {
-        if (updating || noMore) return
-        logger.fInfo { "Updating up [mid=$upMid] space videos from page $page" }
-        updating = true
-        runCatching {
-            val spaceVideoData = userRepository.getSpaceVideos(
-                mid = upMid,
-                page = page,
-                preferApiType = Prefs.apiType
-            )
-            spaceVideoData.videos.forEach { spaceVideoItem ->
-                spaceVideos.addWithMainContext(
-                    VideoCardData(
-                        avid = spaceVideoItem.aid,
-                        title = spaceVideoItem.title,
-                        //TODO 这里在改造 app 端接口时，没找到在空间内显示为合集样式封面的UP,没法进一步测试接口
-                        cover = spaceVideoItem.cover,
-                        upName = spaceVideoItem.author,
-                        playString = spaceVideoItem.play.takeIf { it != -1 }.toWanString(),
-                        danmakuString = spaceVideoItem.danmaku.takeIf { it != -1 }.toWanString(),
-                        timeString = (spaceVideoItem.duration * 1000L).formatHourMinSec(),
-                        pubTime = spaceVideoItem.pubTime
-                    )
-                )
+            if (expectedGeneration == requestGeneration) {
+                loading = false
             }
-            page = spaceVideoData.page
-            logger.fInfo { "Update up space videos success" }
-        }.onFailure {
-            logger.fInfo { "Update up space videos failed: ${it.stackTraceToString()}" }
         }
-        updating = false
     }
 }

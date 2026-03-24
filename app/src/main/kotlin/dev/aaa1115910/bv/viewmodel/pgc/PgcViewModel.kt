@@ -63,14 +63,16 @@ abstract class PgcViewModel(
     private var feedRequestSeq = 0L
     private var inFlightFeedToken: Long? = null
 
-    private suspend fun beginLoading() {
+    private suspend fun beginLoading(expectedGeneration: Long) {
         withContext(Dispatchers.Main) {
+            if (expectedGeneration != requestGeneration) return@withContext
             inFlightCount += 1
         }
     }
 
-    private suspend fun endLoading() {
+    private suspend fun endLoading(expectedGeneration: Long) {
         withContext(Dispatchers.Main) {
+            if (expectedGeneration != requestGeneration) return@withContext
             inFlightCount = (inFlightCount - 1).coerceAtLeast(0)
         }
     }
@@ -113,7 +115,7 @@ abstract class PgcViewModel(
         if (expectedGeneration != requestGeneration) return
         logger.fInfo { "Updating $pgcType carousel" }
 
-        beginLoading()
+        beginLoading(expectedGeneration)
         try {
             runCatching {
                 val carouselData = pgcRepository.getCarousel(pgcType)
@@ -138,7 +140,7 @@ abstract class PgcViewModel(
                 }
             }
         } finally {
-            endLoading()
+            endLoading(expectedGeneration)
         }
     }
 
@@ -157,7 +159,7 @@ abstract class PgcViewModel(
             inFlightFeedToken = token
         }
 
-        beginLoading()
+        beginLoading(expectedGeneration)
         logger.fInfo { "Update $pgcType feed" }
 
         try {
@@ -228,7 +230,7 @@ abstract class PgcViewModel(
                     inFlightFeedToken = null
                 }
             }
-            endLoading()
+            endLoading(expectedGeneration)
         }
     }
 

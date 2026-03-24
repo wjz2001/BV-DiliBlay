@@ -8,8 +8,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.biliapi.entity.FavoriteItemType
+import dev.aaa1115910.biliapi.http.entity.AuthFailureException
 import dev.aaa1115910.biliapi.repositories.FavoriteRepository
+import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
+import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.addWithMainContext
 import dev.aaa1115910.bv.util.fInfo
@@ -34,7 +37,8 @@ import kotlin.times
 
 @KoinViewModel
 class FavoriteViewModel(
-    private val favoriteRepository: FavoriteRepository
+    private val favoriteRepository: FavoriteRepository,
+    private val userRepository: UserRepository
 ) : ViewModel() {
     companion object {
         private val logger = KotlinLogging.logger { }
@@ -77,8 +81,12 @@ class FavoriteViewModel(
 
     var initialLoadState by mutableStateOf(LoadState.Idle)
         private set
+
+    var lastFailureWasAuth by mutableStateOf(false)
+        private set
+
     @Volatile private var requestGeneration = 0L
-    private val maxItems = 800
+    private var pendingRestoreFolderId: Long? = null
 
     fun ensureLoaded() {
         if (!initialLoadState.canAutoLoad()) return
@@ -87,8 +95,28 @@ class FavoriteViewModel(
     }
 
     fun reloadAll() {
-        clearData()
+        pendingRestoreFolderId = currentFavoriteFolderMetadata?.id
+
+        requestGeneration++
+        updateFoldersJob?.cancel()
+        updateItemsJob?.cancel()
+        autoLoadJob?.cancel()
+        updateFoldersJob = null
+        updateItemsJob = null
+        autoLoadJob = null
+
+        favoriteFolderMetadataList = emptyList()
+        favorites = emptyList()
+        currentFavoriteFolderMetadata = null
+        updatingFolders = false
+        updatingFolderItems = false
         initialLoadState = LoadState.Loading
+        lastFailureWasAuth = false
+        allowAutoLoad = false
+        isAutoLoading = false
+        loadingPaused = false
+        resetPageNumber()
+
         updateFoldersInfo()
     }
 
@@ -97,15 +125,17 @@ class FavoriteViewModel(
         updateFoldersJob?.cancel()
         updateItemsJob?.cancel()
         autoLoadJob?.cancel()
-
+        pendingRestoreFolderId = null
         favoriteFolderMetadataList = emptyList()
         favorites = emptyList()
         currentFavoriteFolderMetadata = null
         updatingFolders = false
         updatingFolderItems = false
         initialLoadState = LoadState.Idle
+        lastFailureWasAuth = false
         allowAutoLoad = false
         isAutoLoading = false
+        loadingPaused = false
         resetPageNumber()
     }
 
@@ -147,6 +177,7 @@ class FavoriteViewModel(
 
         updateFoldersJob = viewModelScope.launch(Dispatchers.IO) {
             runCatching {
+                lastFailureWasAuth = false
                 favoriteRepository.getAllFavoriteFolderMetadataList(
                     mid = Prefs.uid,
                     preferApiType = Prefs.apiType
@@ -155,16 +186,37 @@ class FavoriteViewModel(
                 if (expectedGeneration != requestGeneration) return@launch
                 withContext(Dispatchers.Main) {
                     if (expectedGeneration != requestGeneration) return@withContext
+
+                    val restoreFolderId = pendingRestoreFolderId
                     favoriteFolderMetadataList = folderList
-                    currentFavoriteFolderMetadata = folderList.firstOrNull()
+                    currentFavoriteFolderMetadata =
+                        folderList.firstOrNull { it.id == restoreFolderId }
+                            ?: folderList.firstOrNull()
+                    pendingRestoreFolderId = null
+                    lastFailureWasAuth = false
                 }
                 logger.fInfo { "Update favorite folders success: ${folderList.map { it.id }}" }
                 updateFolderItems(force = true)
-            }.onFailure {
-                logger.fWarn { "Update favorite folders failed: ${it.stackTraceToString()}" }
-                withContext(Dispatchers.Main) {
-                    if (expectedGeneration == requestGeneration) {
-                        initialLoadState = LoadState.Error
+            }.onFailure { throwable ->
+                logger.fWarn { "Update favorite folders failed: ${throwable.stackTraceToString()}" }
+                when (throwable) {
+                    is AuthFailureException -> {
+                        if (expectedGeneration != requestGeneration) return@onFailure
+                        withContext(Dispatchers.Main) {
+                            if (expectedGeneration != requestGeneration) return@withContext
+                            lastFailureWasAuth = true
+                            initialLoadState = LoadState.Error
+                            if (!BuildConfig.DEBUG) userRepository.logout()
+                        }
+                    }
+
+                    else -> {
+                        if (expectedGeneration != requestGeneration) return@onFailure
+                        withContext(Dispatchers.Main) {
+                            if (expectedGeneration != requestGeneration) return@withContext
+                            lastFailureWasAuth = false
+                            initialLoadState = LoadState.Error
+                        }
                     }
                 }
             }
@@ -261,6 +313,7 @@ class FavoriteViewModel(
         logger.fInfo { "Updating favorite folder items with media id: ${folder.id}" }
 
         return try {
+            lastFailureWasAuth = false
             val favoriteFolderData = withContext(Dispatchers.IO) {
                 favoriteRepository.getFavoriteFolderData(
                     mediaId = folder.id,
@@ -296,7 +349,8 @@ class FavoriteViewModel(
                 if (expectedGeneration != requestGeneration) return@withContext
                 if (currentFavoriteFolderMetadata?.id != expectedFolderId) return@withContext
 
-                favorites = (favorites + appended).take(maxItems)
+                favorites = favorites + appended
+                lastFailureWasAuth = false
 
                 if (pageNumber == 1 && initialLoadState == LoadState.Loading) {
                     initialLoadState = LoadState.Success
@@ -309,9 +363,28 @@ class FavoriteViewModel(
             true
         } catch (t: Throwable) {
             logger.fInfo { "Update favorite items failed: ${t.stackTraceToString()}" }
-            withContext(Dispatchers.Main) {
-                if (pageNumber == 1 && favorites.isEmpty()) {
-                    initialLoadState = LoadState.Error
+            when (t) {
+                is AuthFailureException -> {
+                    if (expectedGeneration != requestGeneration) return false
+                    withContext(Dispatchers.Main) {
+                        if (expectedGeneration != requestGeneration) return@withContext
+                        lastFailureWasAuth = true
+                        if (initialLoadState == LoadState.Loading) {
+                            initialLoadState = LoadState.Error
+                        }
+                        if (!BuildConfig.DEBUG) userRepository.logout()
+                    }
+                }
+
+                else -> {
+                    if (expectedGeneration != requestGeneration) return false
+                    withContext(Dispatchers.Main) {
+                        if (expectedGeneration != requestGeneration) return@withContext
+                        lastFailureWasAuth = false
+                        if (initialLoadState == LoadState.Loading) {
+                            initialLoadState = LoadState.Error
+                        }
+                    }
                 }
             }
             false

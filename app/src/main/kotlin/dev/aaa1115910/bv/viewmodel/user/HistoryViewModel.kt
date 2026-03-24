@@ -15,7 +15,6 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.util.Prefs
-import dev.aaa1115910.bv.util.addWithMainContext
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.fWarn
 import dev.aaa1115910.bv.util.formatHourMinSec
@@ -30,6 +29,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.android.annotation.KoinViewModel
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.random.Random
 
 @KoinViewModel
@@ -65,8 +65,11 @@ class HistoryViewModel(
 
     var initialLoadState by mutableStateOf(LoadState.Idle)
         private set
+
+    var lastFailureWasAuth by mutableStateOf(false)
+        private set
+
     @Volatile private var requestGeneration = 0L
-    private val maxItems = 800
 
     fun update(showErrorToast: Boolean = true) {
         if (updateJob?.isActive == true) return
@@ -86,8 +89,11 @@ class HistoryViewModel(
     }
 
     fun reloadAll(showErrorToast: Boolean = true) {
+        val shouldResumeAutoLoad = debouncedQuery.trim().isNotBlank()
+
         requestGeneration++
         updateJob?.cancel()
+        lastFailureWasAuth = false
         stopAutoLoad()
         histories.clear()
         cursor = 0
@@ -95,11 +101,16 @@ class HistoryViewModel(
         updating = false
         initialLoadState = LoadState.Loading
         update(showErrorToast = showErrorToast)
+
+        if (shouldResumeAutoLoad) {
+            startAutoLoad()
+        }
     }
 
     fun clearData() {
         requestGeneration++
         updateJob?.cancel()
+        lastFailureWasAuth = false
         stopAutoLoad()
         histories.clear()
         cursor = 0
@@ -119,6 +130,7 @@ class HistoryViewModel(
         logger.fInfo { "Updating histories with params [cursor=$cursor, apiType=${Prefs.apiType}]" }
         updating = true
         try {
+            lastFailureWasAuth = false
             val data = historyRepository.getHistories(
                 cursor = cursor,
                 preferApiType = Prefs.apiType
@@ -126,41 +138,44 @@ class HistoryViewModel(
 
             if (expectedGeneration != requestGeneration) return
 
-            data.data.forEach { historyItem ->
-                if (expectedGeneration != requestGeneration) return
-                if (dev.aaa1115910.bv.block.BlockManager.isPageEnabled(dev.aaa1115910.bv.block.BlockPage.History)
-                    && dev.aaa1115910.bv.block.BlockManager.isBlocked(historyItem.mid)
-                ) return@forEach
+            val appended = buildList {
+                data.data.forEach { historyItem ->
+                    if (
+                        dev.aaa1115910.bv.block.BlockManager.isPageEnabled(dev.aaa1115910.bv.block.BlockPage.History) &&
+                        dev.aaa1115910.bv.block.BlockManager.isBlocked(historyItem.mid)
+                    ) {
+                        return@forEach
+                    }
 
-                histories.addWithMainContext(
-                    VideoCardData(
-                        avid = historyItem.oid,
-                        cid = historyItem.cid.takeIf { it > 0L },
-                        epId = historyItem.epid?.takeIf { it > 0 },
-                        jumpToSeason = (historyItem.epid ?: 0) > 0 || (historyItem.seasonId ?: 0) > 0,
-                        title = historyItem.title,
-                        cover = historyItem.cover,
-                        upName = historyItem.author,
-                        upMid = historyItem.mid,
-                        timeString = if (historyItem.progress == -1) context.getString(R.string.play_time_finish)
-                        else context.getString(
-                            R.string.play_time_history,
-                            (historyItem.progress * 1000L).formatHourMinSec(),
-                            (historyItem.duration * 1000L).formatHourMinSec()
+                    add(
+                        VideoCardData(
+                            avid = historyItem.oid,
+                            cid = historyItem.cid.takeIf { it > 0L },
+                            epId = historyItem.epid?.takeIf { it > 0 },
+                            jumpToSeason = (historyItem.epid ?: 0) > 0 || (historyItem.seasonId ?: 0) > 0,
+                            title = historyItem.title,
+                            cover = historyItem.cover,
+                            upName = historyItem.author,
+                            upMid = historyItem.mid,
+                            timeString = if (historyItem.progress == -1) {
+                                context.getString(R.string.play_time_finish)
+                            } else {
+                                context.getString(
+                                    R.string.play_time_history,
+                                    (historyItem.progress * 1000L).formatHourMinSec(),
+                                    (historyItem.duration * 1000L).formatHourMinSec()
+                                )
+                            }
                         )
                     )
-                )
+                }
             }
 
             if (expectedGeneration != requestGeneration) return
 
-            if (histories.size > maxItems) {
-                val overflow = histories.size - maxItems
-                repeat(overflow) {
-                    if (histories.isNotEmpty()) {
-                        histories.removeAt(histories.lastIndex)
-                    }
-                }
+            withContext(Dispatchers.Main) {
+                if (expectedGeneration != requestGeneration) return@withContext
+                histories.addAll(appended)
             }
 
             cursor = data.cursor
@@ -169,6 +184,7 @@ class HistoryViewModel(
             withContext(Dispatchers.Main) {
                 if (expectedGeneration != requestGeneration) return@withContext
                 if (initialLoadState == LoadState.Loading) {
+                    lastFailureWasAuth = false
                     initialLoadState = LoadState.Success
                 }
                 if (cursor == 0L) {
@@ -178,24 +194,45 @@ class HistoryViewModel(
             if (cursor == 0L) {
                 logger.fInfo { "No more history" }
             }
+        } catch (_: CancellationException) {
+            logger.fInfo { "Update histories canceled" }
         } catch (t: Throwable) {
             logger.fWarn { "Update histories failed: ${t.stackTraceToString()}" }
-            withContext(Dispatchers.Main) {
-                if (expectedGeneration == requestGeneration && histories.isEmpty()) {
-                    initialLoadState = LoadState.Error
-                }
-            }
+            if (expectedGeneration != requestGeneration) return
+
             when (t) {
                 is AuthFailureException -> {
-                    if (showErrorToast) {
-                        withContext(Dispatchers.Main) {
+                    withContext(Dispatchers.Main) {
+                        if (expectedGeneration != requestGeneration) return@withContext
+                        lastFailureWasAuth = true
+                        if (initialLoadState == LoadState.Loading) {
+                            initialLoadState = LoadState.Error
+                        }
+                        if (showErrorToast) {
                             BVApp.context.getString(R.string.exception_auth_failure).toast(BVApp.context)
                         }
+                        if (autoLoadEnabled || isAutoLoading) {
+                            stopAutoLoad()
+                        }
+                        logger.fInfo { "User auth failure" }
+                        if (!BuildConfig.DEBUG) userRepository.logout()
                     }
-                    logger.fInfo { "User auth failure" }
-                    if (!BuildConfig.DEBUG) userRepository.logout()
                 }
-                else -> Unit
+                else -> {
+                    withContext(Dispatchers.Main) {
+                        if (expectedGeneration != requestGeneration) return@withContext
+                        lastFailureWasAuth = false
+                        if (initialLoadState == LoadState.Loading) {
+                            initialLoadState = LoadState.Error
+                        }
+                        if (showErrorToast) {
+                            "加载历史记录失败: ${t.localizedMessage}".toast(BVApp.context)
+                        }
+                        if (autoLoadEnabled || isAutoLoading) {
+                            stopAutoLoad()
+                        }
+                    }
+                }
             }
         } finally {
             if (expectedGeneration == requestGeneration) {
@@ -262,10 +299,12 @@ class HistoryViewModel(
                 }
                 if (!isActive || noMore) break
 
-                updateHistories(expectedGeneration = requestGeneration)
-                if (!noMore) {
-                    delay(Random.nextLong(500L, 2000L))
-                }
+                // 自动补页统一走 update()，不要绕过 updateJob 直接打 updateHistories()
+                update(showErrorToast = false)
+                updateJob?.join()
+
+                if (!isActive || noMore || !autoLoadEnabled) break
+                delay(Random.nextLong(500L, 2000L))
             }
             isAutoLoading = false
         }
