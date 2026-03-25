@@ -124,10 +124,10 @@ import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.videocard.VideosRow
 import dev.aaa1115910.bv.component.CoAuthorsDialogHost
 import dev.aaa1115910.bv.component.rememberCoAuthorsDialogState
+import dev.aaa1115910.bv.component.BlockTagItem
+import dev.aaa1115910.bv.component.FollowGroupSelectDialog
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
-import dev.aaa1115910.bv.screen.settings.content.BlockGroupSelectDialog
-import dev.aaa1115910.bv.screen.settings.content.BlockTagItem
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.effect.VideoDetailUiEffect
 import dev.aaa1115910.bv.ui.theme.BVTheme
@@ -457,20 +457,18 @@ fun VideoInfoScreen(
                             )
                         }
 
-                        BlockGroupSelectDialog(
+                        FollowGroupSelectDialog(
                             show = showFollowGroupDialog,
                             title = "选择关注分组",
                             tags = uiState.followTags.map { BlockTagItem(it.tagid, it.name, it.count) },
-                            lightMode = true,
                             initialSelectedTagIds = followGroupDialogInitialSelectedTagIds,
-                            initialMembersCache = emptyMap(),
                             onHideDialog = { showFollowGroupDialog = false },
-                            onSubmit = { selectedTagIds, _ ->
+                            onSubmit = { selectedTagIds ->
                                 val finalSelected = normalizeTagIds(selectedTagIds)
                                 val initialSelected = normalizeTagIds(followGroupDialogInitialSelectedTagIds)
 
                                 // 打开即退/未改动：不做任何事
-                                if (finalSelected == initialSelected && followGroupDialogWasFollowing) return@BlockGroupSelectDialog
+                                if (finalSelected == initialSelected && followGroupDialogWasFollowing) return@FollowGroupSelectDialog
 
                                 videoDetailViewModel.submitFollowGroupSelection(
                                     wasFollowing = followGroupDialogWasFollowing,

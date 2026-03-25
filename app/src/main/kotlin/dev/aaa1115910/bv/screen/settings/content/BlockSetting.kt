@@ -22,6 +22,10 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.settings.SettingListItem
+import dev.aaa1115910.bv.component.BlockGroupSelectDialog
+import dev.aaa1115910.bv.component.BlockPageSelectDialog
+import dev.aaa1115910.bv.component.CachedMembers
+import dev.aaa1115910.bv.component.BlockTagItem
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.toast
 import kotlinx.serialization.Serializable
@@ -133,7 +137,7 @@ fun BlockSetting(
             supportText = if (updating) {
                 stringResource(R.string.block_setting_update_now_support_updating)
             } else {
-                "已选择 ${needUpdateCount} 个分组"
+                "已选择 $needUpdateCount 个分组"
             },
             onClick = {
                 if (updating) return@SettingListItem
