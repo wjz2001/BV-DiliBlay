@@ -43,6 +43,7 @@ import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.swapList
+import dev.aaa1115910.bv.component.FavoriteDialog
 
 @Composable
 fun FavoriteButton(
@@ -200,31 +201,6 @@ fun FavoriteButtonDisablePreview() {
         FavoriteButton(
             isFavorite = false,
             onAddToDefaultFavoriteFolder = {},
-            onUpdateFavoriteFolders = {}
-        )
-    }
-}
-
-@Preview(device = "id:tv_1080p")
-@Composable
-private fun FavoriteDialogPreview() {
-    val userFavoriteFolders = listOf(
-        FavoriteFolderMetadata(0, 0, 0, "收藏夹1", null, false, 0),
-        FavoriteFolderMetadata(1, 1, 0, "收藏夹2", null, false, 0),
-        FavoriteFolderMetadata(2, 2, 0, "收藏夹3", null, false, 0),
-        FavoriteFolderMetadata(3, 3, 0, "收藏夹4", null, false, 0),
-        FavoriteFolderMetadata(4, 4, 0, "收藏夹5", null, false, 0),
-        FavoriteFolderMetadata(5, 5, 0, "收藏夹6", null, false, 0),
-        FavoriteFolderMetadata(6, 6, 0, "收藏夹7", null, false, 0),
-        FavoriteFolderMetadata(7, 7, 0, "收藏夹8", null, false, 0),
-        FavoriteFolderMetadata(8, 8, 0, "收藏夹9", null, false, 0),
-        FavoriteFolderMetadata(9, 9, 0, "收藏夹10", null, false, 0),
-    )
-    BVTheme {
-        FavoriteDialog(
-            show = true,
-            onHideDialog = {},
-            userFavoriteFolders = userFavoriteFolders,
             onUpdateFavoriteFolders = {}
         )
     }
