@@ -383,196 +383,193 @@ fun VideoPlayerController(
                 )
             }
         }
-            CompositionLocalProvider(
-                LocalDensity provides Density(
-                    density = LocalDensity.current.density * 1.5f,
-                    fontScale = LocalDensity.current.fontScale * 1.5f
-                )
-            ) {
-                if (uiState.subtitleId != -1L) {
-                    val currentTime = seekerState.value.currentTime
+        CompositionLocalProvider(
+            LocalDensity provides Density(
+                density = LocalDensity.current.density * 1.5f,
+                fontScale = LocalDensity.current.fontScale * 1.5f
+            )
+        ) {
+            if (uiState.subtitleId != -1L) {
+                val currentTime = seekerState.value.currentTime
 
-                    BottomSubtitle(
-                        subtitleData = uiState.subtitleData,
-                        currentTime = currentTime,
-                        fontSize = uiState.subtitleState.fontSize,
-                        opacity = uiState.subtitleState.opacity,
-                        padding = uiState.subtitleState.bottomPadding,
+                BottomSubtitle(
+                    subtitleData = uiState.subtitleData,
+                    currentTime = currentTime,
+                    fontSize = uiState.subtitleState.fontSize,
+                    opacity = uiState.subtitleState.opacity,
+                    padding = uiState.subtitleState.bottomPadding,
+                )
+            }
+
+            SkipTips(
+                showBackToStart = uiState.showBackToStart,
+                showSkipToNextEp = uiState.showSkipToNextEp,
+                showPreviewTip = uiState.showPreviewTip,
+            )
+
+            PlayStateTips(
+                isPlaying = uiState.playerState == PlayerState.Playing,
+                isBuffering = uiState.isBuffering,
+                isError = uiState.playerState is PlayerState.Error,
+                errorMessage = (uiState.playerState as? PlayerState.Error)?.message,
+            )
+
+            RelatedVideosController(
+                show = showRelatedVideosController,
+                relatedVideos = uiState.relatedVideos,
+                onVideoClicked = {
+                    onRelatedVideoClicked(it)
+                    showRelatedVideosController = false
+                }
+            )
+
+            val secondTitle = uiState.partTitle.ifBlank {
+                uiState.availableVideoList.firstOrNull { it.cid == uiState.cid }?.title.orEmpty()
+            }
+
+            ControllerVideoInfo(
+                modifier = Modifier.focusable(),
+                show = showInfoSeekController,
+                focusButtonsOnShow = focusInfoButtonsOnShow,
+                onConsumeFocusButtonsOnShow = { focusInfoButtonsOnShow = false },
+                isSeeking = isSeeking,
+                goTime = goTime,
+                seekerState = seekerState.value,
+                title = uiState.title,
+                secondTitle = secondTitle,
+                clock = uiState.clock,
+                currentPlaySpeed = uiState.playSpeed,
+                videoShot = uiState.videoShot,
+                videoShotCache = videoShotCache,
+                fromSeason = fromSeason,
+                danmakuEnabled = uiState.danmakuState.danmakuEnabled,
+                isLooping = isLooping,
+                onDirectionLeft = { onDirectionLeft() },
+                onDirectionRight = { onDirectionRight() },
+                onSeekGoTime = { onSeekGoTime() },
+                onPlayPause = { onPlayPause() },
+                onDanmakuSwitchChange = {
+                    onDanmakuSettingChange(
+                        DanmakuSettingAction.SetDanmakuEnabled(!uiState.danmakuState.danmakuEnabled)
                     )
+                },
+                onShowSettings = {
+                    showInfoSeekController = false
+                    showMenuController = true
+                },
+                onShowRelatedVideos = {
+                    if (isPlaying) onPause()
+
+                    showInfoSeekController = false
+                    showRelatedVideosController = true
+                },
+                onGoToVideoInfo = {
+                    VideoInfoActivity.actionStart(
+                        context = context,
+                        aid = aid,
+                        fromSeason = fromSeason,
+                        fromController = true,
+                        proxyArea = proxyArea
+                    )
+                },
+                onToggleLoop = onToggleLoop,
+                onGoToUpPage = onGoToUpPage,
+                hasMultipleCoAuthors = uiState.coAuthors.distinctBy { it.mid }.size > 1,
+                onShowTimeJump = {
+                    onPause()
+                    showInfoSeekController = false
+                    showTimeJumpDialog = true
+                },
+                onShowComments = {
+                    onPause()
+                    showInfoSeekController = false
+                    showCommentsDialog = true
+                },
+            )
+
+            TimeJumpDialog(
+                show = showTimeJumpDialog,
+                durationMs = seekerState.value.totalDuration,
+                onDismiss = { showTimeJumpDialog = false; onPlay() },
+                onGoTime = { targetMs -> onGoTime(targetMs) }
+            )
+
+            UpPanelController(
+                show = showUpPanelController,
+                uiState = uiState,
+                currentTimeMs = seekerState.value.currentTime,
+                isPlaying = isPlaying,
+                onDismiss = { showUpPanelController = false },
+                onGoTime = { targetMs ->
+                    onGoTime(targetMs)
+                    if (!isPlaying) onPlay()
+                },
+                onPlay = onPlay,
+                onPlayNewVideo = onPlayNewVideo,
+                onEnsureUgcPagesLoaded = onEnsureUgcPagesLoaded
+            )
+
+            MenuController(
+                show = showMenuController,
+                uiState = uiState,
+                onResolutionChange = { qualityId ->
+                    onMediaProfileSettingChange(
+                        MediaProfileSettingAction.SetQuality(qualityId)
+                    )
+                },
+                onCodecChange = { codec ->
+                    onMediaProfileSettingChange(
+                        MediaProfileSettingAction.SetVideoCodec(codec)
+                    )
+                },
+                onAudioChange = { audio ->
+                    onMediaProfileSettingChange(
+                        MediaProfileSettingAction.SetAudio(audio)
+                    )
+                },
+                onAspectRatioChange = onAspectRatioChange,
+                onPlaySpeedChange = onPlaySpeedChange,
+                onDanmakuSwitchChange = {
+                    onDanmakuSettingChange(
+                        DanmakuSettingAction.SetDanmakuEnabled(!uiState.danmakuState.danmakuEnabled)
+                    )
+                },
+                onDanmakuSizeChange = { scale ->
+                    onDanmakuSettingChange(DanmakuSettingAction.SetScale(scale))
+                },
+                onDanmakuOpacityChange = { opacity ->
+                    onDanmakuSettingChange(DanmakuSettingAction.SetOpacity(opacity))
+                },
+                onDanmakuSpeedFactorChange = { factor ->
+                    onDanmakuSettingChange(DanmakuSettingAction.SetSpeedFactor(factor))
+                },
+                onDanmakuAreaChange = { area ->
+                    onDanmakuSettingChange(DanmakuSettingAction.SetArea(area))
+                },
+                onDanmakuMaskChange = { enabled ->
+                    onDanmakuSettingChange(DanmakuSettingAction.SetMaskEnabled(enabled))
+                },
+                onSubtitleChange = onSubtitleChange,
+                onSubtitleSizeChange = { size ->
+                    onSubtitleSettingChange(SubtitleSettingAction.SetFontSize(size))
+                },
+                onSubtitleBackgroundOpacityChange = { opacity ->
+                    onSubtitleSettingChange(SubtitleSettingAction.SetOpacity(opacity))
+                },
+                onSubtitleBottomPadding = { padding ->
+                    onSubtitleSettingChange(SubtitleSettingAction.SetBottomPadding(padding))
                 }
+            )
+        }
 
-        SkipTips(
-            showBackToStart = uiState.showBackToStart,
-            showSkipToNextEp = uiState.showSkipToNextEp,
-            showPreviewTip = uiState.showPreviewTip,
-        )
-
-        PlayStateTips(
-            isPlaying = uiState.playerState == PlayerState.Playing,
-            isBuffering = uiState.isBuffering,
-            isError = uiState.playerState is PlayerState.Error,
-            errorMessage = (uiState.playerState as? PlayerState.Error)?.message,
-        )
-
-        RelatedVideosController(
-            show = showRelatedVideosController,
-            relatedVideos = uiState.relatedVideos,
-            onVideoClicked = {
-                onRelatedVideoClicked(it)
-                showRelatedVideosController = false
+        VideoCommentsDialog(
+            show = showCommentsDialog,
+            aid = aid,
+            onDismissRequest = {
+                showCommentsDialog = false
+                onPlay()
             }
         )
-
-                val secondTitle = uiState.partTitle.ifBlank {
-                    uiState.availableVideoList.firstOrNull { it.cid == uiState.cid }?.title.orEmpty()
-                }
-
-        ControllerVideoInfo(
-            modifier = Modifier.focusable(),
-            show = showInfoSeekController,
-            focusButtonsOnShow = focusInfoButtonsOnShow,
-            onConsumeFocusButtonsOnShow = { focusInfoButtonsOnShow = false },
-            isSeeking = isSeeking,
-            goTime = goTime,
-            seekerState = seekerState.value,
-            title = uiState.title,
-            secondTitle = secondTitle,
-            clock = uiState.clock,
-            currentPlaySpeed = uiState.playSpeed,
-            videoShot = uiState.videoShot,
-            videoShotCache = videoShotCache,
-            fromSeason = fromSeason,
-            danmakuEnabled = uiState.danmakuState.danmakuEnabled,
-            isLooping = isLooping,
-            onDirectionLeft = { onDirectionLeft() },
-            onDirectionRight = { onDirectionRight() },
-            onSeekGoTime = { onSeekGoTime() },
-            onPlayPause = { onPlayPause() },
-            onDanmakuSwitchChange = {
-                onDanmakuSettingChange(
-                    DanmakuSettingAction.SetDanmakuEnabled(!uiState.danmakuState.danmakuEnabled)
-                )
-            },
-            onShowSettings = {
-                showInfoSeekController = false
-                showMenuController = true
-            },
-            onShowRelatedVideos = {
-                if (isPlaying) onPause()
-
-                showInfoSeekController = false
-                showRelatedVideosController = true
-            },
-            onGoToVideoInfo = {
-                VideoInfoActivity.actionStart(
-                    context = context,
-                    aid = aid,
-                    fromSeason = fromSeason,
-                    fromController = true,
-                    proxyArea = proxyArea
-                )
-            },
-            onToggleLoop = onToggleLoop,
-            onGoToUpPage = onGoToUpPage,
-            hasMultipleCoAuthors = uiState.coAuthors.distinctBy { it.mid }.size > 1,
-            onShowTimeJump = {
-                // 立刻暂停 + 打开对话框
-                onPause()
-                showInfoSeekController = false
-                showTimeJumpDialog = true
-            },
-            onShowComments = {
-                // 立刻暂停 + 打开评论
-                onPause()
-                showInfoSeekController = false
-                showCommentsDialog = true
-            },
-        )
-
-                TimeJumpDialog(
-                    show = showTimeJumpDialog,
-                    durationMs = seekerState.value.totalDuration,
-                    onDismiss = { showTimeJumpDialog = false; onPlay() },
-                    onGoTime = { targetMs -> onGoTime(targetMs) }
-                )
-
-                VideoCommentsDialog(
-                    show = showCommentsDialog,
-                    aid = aid,
-                    onDismissRequest = {
-                        showCommentsDialog = false
-                        // 退出评论组件立刻播放
-                        onPlay()
-                    }
-        )
-
-                UpPanelController(
-                    show = showUpPanelController,
-                    uiState = uiState,
-                    currentTimeMs = seekerState.value.currentTime,
-                    isPlaying = isPlaying,
-                    onDismiss = { showUpPanelController = false },
-                    onGoTime = { targetMs ->
-                        onGoTime(targetMs)
-                        if (!isPlaying) onPlay()
-                    },
-                    onPlay = onPlay,
-                    onPlayNewVideo = onPlayNewVideo,
-                    onEnsureUgcPagesLoaded = onEnsureUgcPagesLoaded
-                )
-
-                MenuController(
-                    show = showMenuController,
-                    uiState = uiState,
-                    onResolutionChange = { qualityId ->
-                        onMediaProfileSettingChange(
-                            MediaProfileSettingAction.SetQuality(qualityId)
-                        )
-                    },
-                    onCodecChange = { codec ->
-                        onMediaProfileSettingChange(
-                            MediaProfileSettingAction.SetVideoCodec(codec)
-                        )
-                    },
-                    onAudioChange = { audio ->
-                        onMediaProfileSettingChange(
-                            MediaProfileSettingAction.SetAudio(audio)
-                        )
-                    },
-                    onAspectRatioChange = onAspectRatioChange,
-                    onPlaySpeedChange = onPlaySpeedChange,
-                    onDanmakuSwitchChange = {
-                        onDanmakuSettingChange(
-                            DanmakuSettingAction.SetDanmakuEnabled(!uiState.danmakuState.danmakuEnabled)
-                        )
-                    },
-                    onDanmakuSizeChange = { scale ->
-                        onDanmakuSettingChange(DanmakuSettingAction.SetScale(scale))
-                    },
-                    onDanmakuOpacityChange = { opacity ->
-                        onDanmakuSettingChange(DanmakuSettingAction.SetOpacity(opacity))
-                    },
-                    onDanmakuSpeedFactorChange = { factor ->
-                        onDanmakuSettingChange(DanmakuSettingAction.SetSpeedFactor(factor))
-                    },
-                    onDanmakuAreaChange = { area ->
-                        onDanmakuSettingChange(DanmakuSettingAction.SetArea(area))
-                    },
-                    onDanmakuMaskChange = { enabled ->
-                        onDanmakuSettingChange(DanmakuSettingAction.SetMaskEnabled(enabled))
-                    },
-                    onSubtitleChange = onSubtitleChange,
-                    onSubtitleSizeChange = { size ->
-                        onSubtitleSettingChange(SubtitleSettingAction.SetFontSize(size))
-                    },
-                    onSubtitleBackgroundOpacityChange = { opacity ->
-                        onSubtitleSettingChange(SubtitleSettingAction.SetOpacity(opacity))
-                    },
-                    onSubtitleBottomPadding = { padding ->
-                        onSubtitleSettingChange(SubtitleSettingAction.SetBottomPadding(padding))
-                    }
-                )
-            }
         }
     }
 
