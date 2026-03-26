@@ -397,6 +397,10 @@ data class PlayData(
                 needPay = needPay
             )
         }
+
+        fun fromPlayUrlV2Data(playUrlV2Data: dev.aaa1115910.biliapi.http.entity.video.PlayUrlV2Data): PlayData {
+            return fromPlayUrlData(playUrlV2Data.videoInfo)
+        }
     }
 
     operator fun plus(other: PlayData): PlayData {
