@@ -38,6 +38,8 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
@@ -47,6 +49,9 @@ import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.isDpadRight
 import dev.aaa1115910.bv.util.isKeyUp
 import dev.aaa1115910.bv.util.isKeyDown
+import dev.aaa1115910.bv.util.isDpadDown
+import dev.aaa1115910.bv.util.isDpadUp
+import dev.aaa1115910.bv.util.requestFocus
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -63,6 +68,14 @@ fun LeftNaviContent(
 ) {
     var selectedItem by remember { mutableStateOf(LeftNaviItem.Home) }
     val scope = rememberCoroutineScope()
+
+    val userFocusRequester = remember { FocusRequester() }
+    val searchFocusRequester = remember { FocusRequester() }
+    val homeFocusRequester = remember { FocusRequester() }
+    val personalFocusRequester = remember { FocusRequester() }
+    val ugcFocusRequester = remember { FocusRequester() }
+    val pgcFocusRequester = remember { FocusRequester() }
+    val settingsFocusRequester = remember { FocusRequester() }
 
     NavigationRail(
         modifier = modifier
@@ -142,36 +155,39 @@ fun LeftNaviContent(
                     } else Color.Transparent,
                     label = "selectionIndicatorColor"
                 )
+
+                val itemFocusRequester = when (item) {
+                    LeftNaviItem.Search -> searchFocusRequester
+                    LeftNaviItem.Home -> homeFocusRequester
+                    LeftNaviItem.Personal -> personalFocusRequester
+                    LeftNaviItem.UGC -> ugcFocusRequester
+                    LeftNaviItem.PGC -> pgcFocusRequester
+                    else -> error("Unexpected item: $item")
+                }
+
                 NavigationRailItem(
                     modifier = Modifier
-                        .onFocusChanged { focusState ->
-                            isFocused = focusState.hasFocus
-
-                            preloadJob?.cancel()
-                            preloadJob = if (focusState.hasFocus) {
-                                scope.launch {
-                                    delay(200)
-                                    if (isFocused) {
-                                        onLeftNaviItemPreload(item)
-                                    }
-                                }
-                            } else {
-                                null
-                            }
+                        .focusRequester(userFocusRequester)
+                        .onFocusChanged {
+                            userIsFocused = it.hasFocus
                         }
-                        .selectionIndicator(
-                            animateColorAsState(
-                                targetValue = indicatorColor,
-                                label = "selectionIndicatorColor"
-                            ).value
-                        ),
+                        .onPreviewKeyEvent { keyEvent ->
+                            if (keyEvent.isDpadUp()) {
+                                if (keyEvent.isKeyDown()) {
+                                    settingsFocusRequester.requestFocus(scope)
+                                }
+                                return@onPreviewKeyEvent true
+                            }
+                            false
+                        },
                     onClick = {
-                        if (selectedItem != item) {
-                            selectedItem = item
-                            onLeftNaviItemChanged(item)
+                        if (isLogin) {
+                            onShowUserPanel()
+                        } else {
+                            onLogin()
                         }
                     },
-                    selected = isFocused,
+                    selected = userIsFocused,
                     icon = {
                         Icon(
                             imageVector = item.displayIcon,
@@ -183,9 +199,20 @@ fun LeftNaviContent(
         }
         var settingsIsFocused by remember { mutableStateOf(false) }
         NavigationRailItem(
-            modifier = Modifier.onFocusChanged {
-                settingsIsFocused = it.hasFocus
-            },
+            modifier = Modifier
+                .focusRequester(settingsFocusRequester)
+                .onFocusChanged {
+                    settingsIsFocused = it.hasFocus
+                }
+                .onPreviewKeyEvent { keyEvent ->
+                    if (keyEvent.isDpadDown()) {
+                        if (keyEvent.isKeyDown()) {
+                            userFocusRequester.requestFocus(scope)
+                        }
+                        return@onPreviewKeyEvent true
+                    }
+                    false
+                },
             onClick = onOpenSettings,
             selected = settingsIsFocused,
             icon = {
