@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -41,18 +42,22 @@ import dev.aaa1115910.bv.screen.main.PersonalContent
 import dev.aaa1115910.bv.screen.main.PgcContent
 import dev.aaa1115910.bv.screen.main.UgcContent
 import dev.aaa1115910.bv.screen.search.SearchInputScreen
+import dev.aaa1115910.bv.screen.main.common.MainDrawerPreloadHost
 import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.toast
+import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.viewmodel.UserViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.getKoin
 
 @Composable
 fun MainScreen(
     modifier: Modifier = Modifier,
-    userViewModel: UserViewModel = koinViewModel()
+    userViewModel: UserViewModel = koinViewModel(),
+    userRepository: UserRepository = getKoin().get()
 ) {
     val context = LocalContext.current
     val logger = KotlinLogging.logger("MainScreen")
@@ -61,6 +66,12 @@ fun MainScreen(
 
     val initialDrawerItem = LeftNaviItem.Home
     var requestedDrawerItem by remember { mutableStateOf(initialDrawerItem) }
+    val preloadedDrawerItems = remember { mutableStateMapOf<LeftNaviItem, Boolean>() }
+    val personalPreloadSessionKey = if (!userRepository.isLogin) {
+        "logout"
+    } else {
+        "${userRepository.uid}:${userRepository.uidCkMd5}:${userRepository.sessData}"
+    }
 
     val scope = rememberCoroutineScope()
 
@@ -121,13 +132,45 @@ fun MainScreen(
         }
     }
 
+    val onLeftNaviItemPreload: (LeftNaviItem) -> Unit = { item ->
+        when (item) {
+            LeftNaviItem.Home,
+            LeftNaviItem.User,
+            LeftNaviItem.Settings -> Unit
+
+            LeftNaviItem.Personal -> {
+                if (userViewModel.isLogin) {
+                    preloadedDrawerItems[item] = true
+                }
+            }
+
+            LeftNaviItem.Search,
+            LeftNaviItem.UGC,
+            LeftNaviItem.PGC -> {
+                preloadedDrawerItems[item] = true
+            }
+        }
+    }
+
     LaunchedEffect(requestedDrawerItem) {
         currentReadyItem = null
+    }
+
+    LaunchedEffect(personalPreloadSessionKey) {
+        preloadedDrawerItems.remove(LeftNaviItem.Personal)
     }
 
     BackHandler {
         handleBack()
     }
+
+    MainDrawerPreloadHost(
+        preloadSearch = preloadedDrawerItems[LeftNaviItem.Search] == true,
+        preloadPersonal = userViewModel.isLogin &&
+                preloadedDrawerItems[LeftNaviItem.Personal] == true,
+        preloadUgc = preloadedDrawerItems[LeftNaviItem.UGC] == true,
+        preloadPgc = preloadedDrawerItems[LeftNaviItem.PGC] == true
+    )
 
     NavigationDrawer(
         modifier = modifier,
@@ -136,6 +179,7 @@ fun MainScreen(
                 isLogin = userViewModel.isLogin,
                 avatar = userViewModel.face,
                 onLeftNaviItemChanged = { requestedDrawerItem = it },
+                onLeftNaviItemPreload = onLeftNaviItemPreload,
                 onOpenSettings = {
                     context.startActivity(Intent(context, SettingsActivity::class.java))
                 },

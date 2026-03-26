@@ -92,35 +92,81 @@ class ToViewViewModel(
     private val snapshotRefreshMinIntervalMs = 1_200L
     private var lastSnapshotRefreshMs = 0L
 
-    fun update(showErrorToast: Boolean = true) {
-        if (updateJob?.isActive == true) return
+    private var loadedAccountSessionKey = currentAccountSessionKey()
 
-        val expectedGeneration = requestGeneration
-        updateJob = viewModelScope.launch(Dispatchers.IO) {
-            updateToView(
-                expectedGeneration = expectedGeneration,
-                showErrorToast = showErrorToast
-            )
+    private fun currentAccountSessionKey(): String {
+        return if (!userRepository.isLogin) {
+            "logout"
+        } else {
+            "${userRepository.uid}:${userRepository.uidCkMd5}:${userRepository.sessData}"
         }
     }
 
-    fun ensureLoaded(showErrorToast: Boolean = true) {
-        if (!initialLoadState.canAutoLoad()) return
-        initialLoadState = LoadState.Loading
-        update(showErrorToast = showErrorToast)
-    }
-
-    fun reloadAll() {
+    private fun resetDataState(
+        targetAccountSessionKey: String = currentAccountSessionKey()
+    ) {
         requestGeneration++
         updateJob?.cancel()
         histories.clear()
         cursor = 0L
         noMore = false
         updating = false
-        initialLoadState = LoadState.Loading
+        initialLoadState = Idle
         activationRefreshState = Idle
         lastFailureWasAuth = false
         lastSnapshotRefreshMs = 0L
+        loadedAccountSessionKey = targetAccountSessionKey
+    }
+
+    private fun ensureAccountStateFresh() {
+        val currentAccountSessionKey = currentAccountSessionKey()
+        if (loadedAccountSessionKey == currentAccountSessionKey) return
+
+        logger.fInfo {
+            "Reset toview state because account session changed"
+        }
+        resetDataState(currentAccountSessionKey)
+    }
+
+    fun update(
+        showErrorToast: Boolean = true,
+        allowAuthFailureLogout: Boolean = true
+    ) {
+        if (updateJob?.isActive == true) return
+
+        val expectedGeneration = requestGeneration
+        updateJob = viewModelScope.launch(Dispatchers.IO) {
+            updateToView(
+                expectedGeneration = expectedGeneration,
+                showErrorToast = showErrorToast,
+                allowAuthFailureLogout = allowAuthFailureLogout
+            )
+        }
+    }
+
+    fun ensureLoaded(showErrorToast: Boolean = true) {
+        ensureAccountStateFresh()
+        if (!initialLoadState.canAutoLoad()) return
+        initialLoadState = LoadState.Loading
+        update(
+            showErrorToast = showErrorToast,
+            allowAuthFailureLogout = true
+        )
+    }
+
+    fun warmUp() {
+        ensureAccountStateFresh()
+        if (!initialLoadState.canAutoLoad()) return
+        initialLoadState = LoadState.Loading
+        update(
+            showErrorToast = false,
+            allowAuthFailureLogout = false
+        )
+    }
+
+    fun reloadAll() {
+        resetDataState()
+        initialLoadState = LoadState.Loading
         update()
     }
 
@@ -186,19 +232,12 @@ class ToViewViewModel(
     }
 
     fun clearData() {
-        requestGeneration++
-        updateJob?.cancel()
-        histories.clear()
-        cursor = 0L
-        noMore = false
-        updating = false
-        initialLoadState = Idle
-        activationRefreshState = Idle
-        lastFailureWasAuth = false
-        lastSnapshotRefreshMs = 0L
+        resetDataState()
     }
 
     fun refreshSnapshotIncrementally(showErrorToast: Boolean = true) {
+        ensureAccountStateFresh()
+
         val now = SystemClock.uptimeMillis()
         if (now - lastSnapshotRefreshMs < snapshotRefreshMinIntervalMs) return
         lastSnapshotRefreshMs = now
@@ -326,6 +365,7 @@ class ToViewViewModel(
     private suspend fun updateToView(
         expectedGeneration: Long,
         showErrorToast: Boolean,
+        allowAuthFailureLogout: Boolean,
         context: Context = BVApp.context
     ) {
         if (expectedGeneration != requestGeneration) return
@@ -392,7 +432,9 @@ class ToViewViewModel(
                                 .toast(BVApp.context)
                         }
                         logger.fInfo { "User auth failure" }
-                        if (!BuildConfig.DEBUG) userRepository.logout()
+                        if (allowAuthFailureLogout && !BuildConfig.DEBUG) {
+                            userRepository.logout()
+                        }
                     }
                 }
 

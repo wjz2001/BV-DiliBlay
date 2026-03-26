@@ -38,13 +38,35 @@ class SearchInputViewModel(
     @Volatile
     private var suggestRequestVersion = 0L
 
-    init {
-        updateHotwords()
-        loadSearchHistories()
+    private var hotwordsLoading = false
+    private var hotwordsLoaded = false
+    private var hotwordShouldToastOnFailure = false
+
+    private var historiesLoading = false
+    private var historiesLoaded = false
+    private var historiesRefreshPending = false
+
+    fun ensureInitialized(showHotwordErrorToast: Boolean = true) {
+        warmUp(showHotwordErrorToast = showHotwordErrorToast)
+    }
+
+    fun warmUp(showHotwordErrorToast: Boolean = false) {
+        hotwordShouldToastOnFailure =
+            hotwordShouldToastOnFailure || showHotwordErrorToast
+
+        if (!hotwordsLoaded && !hotwordsLoading) {
+            updateHotwords()
+        }
+
+        if (!historiesLoaded && !historiesLoading) {
+            loadSearchHistories(force = false)
+        }
     }
 
     private fun updateHotwords() {
         logger.fInfo { "Update hotwords" }
+        hotwordsLoading = true
+
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 val hotwordData = searchRepository.getSearchHotwords(
@@ -52,10 +74,21 @@ class SearchInputViewModel(
                     preferApiType = Prefs.apiType
                 )
                 logger.debug { "Find hotwords: $hotwordData" }
-                withContext(Dispatchers.Main) { hotwords.addAll(hotwordData) }
+                withContext(Dispatchers.Main) {
+                    hotwords.clear()
+                    hotwords.addAll(hotwordData)
+                    hotwordsLoaded = true
+                    hotwordsLoading = false
+                    hotwordShouldToastOnFailure = false
+                }
             }.onFailure {
                 withContext(Dispatchers.Main) {
-                    "bilibili 热搜加载失败".toast(BVApp.context)
+                    val shouldToast = hotwordShouldToastOnFailure
+                    hotwordsLoading = false
+                    hotwordShouldToastOnFailure = false
+                    if (shouldToast) {
+                        "bilibili 热搜加载失败".toast(BVApp.context)
+                    }
                 }
                 logger.info { it.stackTraceToString() }
             }
@@ -99,12 +132,43 @@ class SearchInputViewModel(
         }
     }
 
-    private fun loadSearchHistories() {
+    private fun loadSearchHistories(force: Boolean) {
+        if (historiesLoading) {
+            if (force) {
+                historiesRefreshPending = true
+            }
+            return
+        }
+        if (!force && historiesLoaded) return
+
+        historiesLoading = true
+        historiesRefreshPending = false
         logger.fInfo { "Load search histories" }
+
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
-                searchHistories.swapListWithMainContext(db.searchHistoryDao().getHistories(20))
-                logger.fInfo { "Load search histories finish, size: ${searchHistories.size}" }
+                val histories = db.searchHistoryDao().getHistories(20)
+                withContext(Dispatchers.Main) {
+                    searchHistories.swapListWithMainContext(histories)
+                    historiesLoaded = true
+                    historiesLoading = false
+                    logger.fInfo { "Load search histories finish, size: ${searchHistories.size}" }
+                    val shouldRefreshAgain = historiesRefreshPending
+                    historiesRefreshPending = false
+                    if (shouldRefreshAgain) {
+                        loadSearchHistories(force = true)
+                    }
+                }
+            }.onFailure {
+                withContext(Dispatchers.Main) {
+                    historiesLoading = false
+                    val shouldRefreshAgain = historiesRefreshPending
+                    historiesRefreshPending = false
+                    if (shouldRefreshAgain) {
+                        loadSearchHistories(force = true)
+                    }
+                }
+                logger.info { it.stackTraceToString() }
             }
         }
     }
@@ -121,7 +185,7 @@ class SearchInputViewModel(
                 val history = SearchHistoryDB(keyword = keyword)
                 db.searchHistoryDao().insert(history)
             }
-            loadSearchHistories()
+            loadSearchHistories(force = true)
         }
     }
 
@@ -129,7 +193,7 @@ class SearchInputViewModel(
         logger.fInfo { "Delete search history: ${history.keyword}" }
         viewModelScope.launch(Dispatchers.IO) {
             db.searchHistoryDao().delete(history)
-            loadSearchHistories()
+            loadSearchHistories(force = true)
         }
     }
 
@@ -137,7 +201,7 @@ class SearchInputViewModel(
         logger.fInfo { "Delete all search histories" }
         viewModelScope.launch(Dispatchers.IO) {
             db.searchHistoryDao().deleteAll()
-            loadSearchHistories()
+            loadSearchHistories(force = true)
         }
     }
 }

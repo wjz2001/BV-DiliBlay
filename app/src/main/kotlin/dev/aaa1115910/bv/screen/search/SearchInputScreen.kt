@@ -91,6 +91,10 @@ fun SearchInputScreen(
         searchInputViewModel.addSearchHistory(keyword)
     }
 
+    LaunchedEffect(searchInputViewModel) {
+        searchInputViewModel.ensureInitialized(showHotwordErrorToast = true)
+    }
+
     LaunchedEffect(searchKeyword) {
         searchInputViewModel.updateSuggests()
     }
