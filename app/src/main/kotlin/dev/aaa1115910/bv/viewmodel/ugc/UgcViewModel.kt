@@ -81,6 +81,17 @@ class UgcViewModel(private val ugcRepository: UgcRepository) : ViewModel() {
         _ugcScaffoldStateMap[item] = state
     }
 
+    fun warmUp(item: UgcTopNavItem) {
+        if (!_ugcScaffoldStateMap.containsKey(item)) {
+            addUgcScaffoldState(
+                item,
+                UgcScaffoldState(ugcType = item.ugcTypeV2)
+            )
+        }
+        ensureLoaded(item)
+        trimInactiveData(except = item)
+    }
+
     fun ensureLoaded(item: UgcTopNavItem) {
         if (!_ugcScaffoldStateMap.containsKey(item)) return
         markTabUsed(item)

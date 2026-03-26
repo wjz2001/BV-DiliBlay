@@ -20,7 +20,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,12 +55,14 @@ fun LeftNaviContent(
     isLogin: Boolean = false,
     avatar: String = "",
     onLeftNaviItemChanged: (LeftNaviItem) -> Unit,
+    onLeftNaviItemPreload: (LeftNaviItem) -> Unit = {},
     onOpenSettings: () -> Unit,
     onShowUserPanel: () -> Unit,
     onFocusToContent: () -> Unit,
     onLogin: () -> Unit
 ) {
     var selectedItem by remember { mutableStateOf(LeftNaviItem.Home) }
+    val scope = rememberCoroutineScope()
 
     NavigationRail(
         modifier = modifier
@@ -129,6 +135,7 @@ fun LeftNaviContent(
                 LeftNaviItem.PGC,
             ).forEach { item ->
                 var isFocused by remember { mutableStateOf(false) }
+                var preloadJob by remember(item) { mutableStateOf<Job?>(null) }
                 val indicatorColor by animateColorAsState(
                     targetValue = if (item == selectedItem) {
                         MaterialTheme.colorScheme.border
@@ -137,7 +144,21 @@ fun LeftNaviContent(
                 )
                 NavigationRailItem(
                     modifier = Modifier
-                        .onFocusChanged { isFocused = it.hasFocus }
+                        .onFocusChanged { focusState ->
+                            isFocused = focusState.hasFocus
+
+                            preloadJob?.cancel()
+                            preloadJob = if (focusState.hasFocus) {
+                                scope.launch {
+                                    delay(200)
+                                    if (isFocused) {
+                                        onLeftNaviItemPreload(item)
+                                    }
+                                }
+                            } else {
+                                null
+                            }
+                        }
                         .selectionIndicator(
                             animateColorAsState(
                                 targetValue = indicatorColor,
@@ -206,6 +227,7 @@ private fun LeftNaviContentPreview() {
     BVTheme {
         LeftNaviContent(
             onLeftNaviItemChanged = {},
+            onLeftNaviItemPreload = {},
             onOpenSettings = {},
             onShowUserPanel = {},
             onFocusToContent = {},

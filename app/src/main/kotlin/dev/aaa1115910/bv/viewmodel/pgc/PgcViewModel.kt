@@ -30,6 +30,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+data class PgcWarmUpOptions(
+    val showCarouselErrorToast: Boolean = false
+)
+
 abstract class PgcViewModel(
     open val pgcRepository: PgcRepository,
     val pgcType: PgcType,
@@ -83,6 +87,15 @@ abstract class PgcViewModel(
         launchLoadAll(expectedGeneration = requestGeneration)
     }
 
+    fun warmUp(options: PgcWarmUpOptions = PgcWarmUpOptions()) {
+        if (!initialLoadState.canAutoLoad()) return
+        initialLoadState = LoadState.Loading
+        launchLoadAll(
+            expectedGeneration = requestGeneration,
+            warmUpOptions = options
+        )
+    }
+
     fun loadMore() {
         if (!hasNext) return
         val expectedGeneration = requestGeneration
@@ -99,19 +112,28 @@ abstract class PgcViewModel(
         launchLoadAll(expectedGeneration = requestGeneration)
     }
 
-    private fun launchLoadAll(expectedGeneration: Long) {
+    private fun launchLoadAll(
+        expectedGeneration: Long,
+        warmUpOptions: PgcWarmUpOptions = PgcWarmUpOptions(showCarouselErrorToast = true)
+    ) {
         loadAllJob?.cancel()
         loadAllJob = viewModelScope.launch(Dispatchers.IO) {
             loadMutex.withLock {
                 if (expectedGeneration != requestGeneration) return@withLock
-                updateCarousel(expectedGeneration)
+                updateCarousel(
+                    expectedGeneration = expectedGeneration,
+                    showErrorToast = warmUpOptions.showCarouselErrorToast
+                )
                 updateFeed(expectedGeneration)
             }
         }
     }
 
     // 更新轮播图
-    private suspend fun updateCarousel(expectedGeneration: Long) {
+    private suspend fun updateCarousel(
+        expectedGeneration: Long,
+        showErrorToast: Boolean
+    ) {
         if (expectedGeneration != requestGeneration) return
         logger.fInfo { "Updating $pgcType carousel" }
 
@@ -135,7 +157,9 @@ abstract class PgcViewModel(
                     if (expectedGeneration != requestGeneration) return@withContext
                     if (carouselItems.isEmpty() && feedItems.isEmpty()) {
                         initialLoadState = LoadState.Error
-                        "加载 $pgcType 轮播图失败: ${it.message}".toast(BVApp.context)
+                        if (showErrorToast) {
+                            "加载 $pgcType 轮播图失败: ${it.message}".toast(BVApp.context)
+                        }
                     }
                 }
             }
