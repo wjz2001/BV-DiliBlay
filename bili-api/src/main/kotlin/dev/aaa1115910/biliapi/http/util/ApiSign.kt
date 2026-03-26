@@ -110,7 +110,9 @@ fun HttpClient.encApiSign() = plugin(HttpSend)
 
         when (request.method) {
             HttpMethod.Get -> {
-                val isWbiRequest = request.url.encodedPath.contains("wbi")
+                val isWbiRequest = request.url.encodedPath.contains("wbi") ||
+                        request.url.encodedPath.contains("/pgc/player/web/playurl") ||
+                        request.url.encodedPath.contains("/pgc/player/web/v2/playurl")
                 if (isWbiRequest) {
                     println("Enc wbi for get request: ${getUrlWithoutAccessToken(request.url)}")
                     request.encWbi()

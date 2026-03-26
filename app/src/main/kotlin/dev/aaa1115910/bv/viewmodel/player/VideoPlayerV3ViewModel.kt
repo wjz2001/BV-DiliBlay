@@ -1,5 +1,6 @@
 package dev.aaa1115910.bv.viewmodel.player
 
+import android.content.Context
 import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,8 +28,10 @@ import dev.aaa1115910.biliapi.http.BiliHttpApi
 import dev.aaa1115910.biliapi.repositories.VideoPlayRepository
 import dev.aaa1115910.bilisubtitle.SubtitleParser
 import dev.aaa1115910.bv.BVApp
+import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.controllers.DanmakuType
 import dev.aaa1115910.bv.entity.Audio
+import dev.aaa1115910.bv.entity.PlayerType
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
@@ -36,6 +39,8 @@ import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.player.AbstractVideoPlayer
 import dev.aaa1115910.bv.player.VideoPlayerListener
+import dev.aaa1115910.bv.player.VideoPlayerOptions
+import dev.aaa1115910.bv.player.impl.exo.ExoPlayerFactory
 import dev.aaa1115910.bv.repository.VideoInfoRepository
 import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
 import dev.aaa1115910.bv.ui.effect.PlayerUiEffect
@@ -59,7 +64,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -109,6 +113,7 @@ class VideoPlayerV3ViewModel(
     private var seekerUpdateJob: Job? = null
     private var clockUpdateJob: Job? = null
     private var heartbeatJob: Job? = null
+    private var loadVideoJob: Job? = null
 
     private var backToStartCountdownJob: Job? = null
     private var playNextCountdownJob: Job? = null
@@ -188,12 +193,6 @@ class VideoPlayerV3ViewModel(
         authorMid: Long = 0,
         authorName: String
     ) {
-        loadPlayUrl(
-            avid = aid,
-            cid = cid,
-            epid = epid.takeIf { it != 0 },
-        )
-
         _uiState.update {
             it.copy(
                 aid = aid,
@@ -257,9 +256,28 @@ class VideoPlayerV3ViewModel(
             .launchIn(viewModelScope)
     }
 
-    fun attachPlayer(player: AbstractVideoPlayer) {
-        videoPlayer = player
-        videoPlayer?.setPlayerEventListener(videoPlayerListener)
+    fun initVideoPlayer(context: Context) {
+        logger.info { "Init video player: ${Prefs.playerType.name}" }
+
+        val options = VideoPlayerOptions(
+            userAgent = when (Prefs.apiType) {
+                ApiType.Web -> context.getString(R.string.video_player_user_agent_http)
+                ApiType.App -> context.getString(R.string.video_player_user_agent_client)
+            },
+            referer = when (Prefs.apiType) {
+                ApiType.Web -> context.getString(R.string.video_player_referer)
+                ApiType.App -> null
+            },
+            enableFfmpegAudioRenderer = Prefs.enableFfmpegAudioRenderer,
+            enableSoftwareVideoDecoder = Prefs.enableSoftwareVideoDecoder
+        )
+
+        val newVideoPlayer = when (Prefs.playerType) {
+            PlayerType.Media3 -> ExoPlayerFactory().create(context.applicationContext, options)
+        }
+
+        newVideoPlayer.setPlayerEventListener(videoPlayerListener)
+        videoPlayer = newVideoPlayer
     }
 
     fun detachPlayer() {
@@ -349,12 +367,18 @@ class VideoPlayerV3ViewModel(
             player.pause()
             val currentPosition = player.currentPosition
 
-            playQuality(new.qualityId, new.videoCodec, new.audio)
+            // 解析新配置下的 URL
+            val mediaUrls = resolveMediaUrls(new.qualityId, new.videoCodec, new.audio)
 
-            if (currentPosition > 0) {
-                player.seekTo(currentPosition)
+            if (mediaUrls != null) {
+                // 执行播放逻辑
+                player.playUrl(mediaUrls.videoUrl, mediaUrls.audioUrl)
+                player.prepare()
+                if (currentPosition > 0) {
+                    player.seekTo(currentPosition)
+                }
+                player.start()
             }
-            player.start()
         }
     }
 
@@ -574,27 +598,23 @@ class VideoPlayerV3ViewModel(
         }
 
         // 加载新播放url
-        loadPlayUrl(
-            avid = newVideo.aid,
-            cid = newVideo.cid,
-            epid = newVideo.epid,
-        )
+        loadVideoWithResources()
     }
 
     fun trySendHeartbeat() {
         syncProgress(scope = viewModelScope, updateLocal = false)
     }
 
-    private fun loadPlayUrl(
-        avid: Long,
-        cid: Long,
-        epid: Int? = null,
-    ) {
-        viewModelScope.launch(Dispatchers.IO) {
+    fun loadVideoWithResources() {
+        val state = _uiState.value
+        val avid = state.aid
+        val cid = state.cid
+        val epid = state.epid
+
+        loadVideoJob?.cancel()
+        loadVideoJob = viewModelScope.launch(Dispatchers.IO) {
             try {
-                val playUrlDeferred = async {
-                    loadPlayUrlImpl(avid, cid, epid ?: 0, Prefs.apiType, _uiState.value.proxyArea)
-                }
+                resolveUrlsAndPlay(avid, cid, epid)
 
                 launch {
                     updateSubtitle()
@@ -608,27 +628,60 @@ class VideoPlayerV3ViewModel(
                 launch { updateDanmakuMask() }
                 launch { updateVideoShot() }
                 launch { updateVideoPages() }
-
-                playUrlDeferred.await()
-
-                logger.info { "Play URL loaded, start playback now" }
-
+            } catch (e: CancellationException) {
+                throw e // 让结构化并发正常取消，不作为播放错误处理
             } catch (e: Exception) {
                 logger.error(e) { "Loading video data error: $e" }
+
+                _uiState.update {
+                    it.copy(playerState = PlayerState.Error(e.message ?: "未知错误"))
+                }
             }
         }
     }
 
-    private suspend fun loadPlayUrlImpl(
+    private suspend fun resolveUrlsAndPlay(avid: Long, cid: Long, epid: Int? = 0) {
+        try {
+            val mediaUrls = fetchMediaUrls(avid, cid, epid ?: 0)
+
+            withContext(Dispatchers.Main) {
+                executePlayback(mediaUrls)
+                logger.info { "Video source loaded successfully" }
+            }
+        } catch (e: CancellationException) {
+            throw e // 重新抛出，让结构化并发正常传播取消信号
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to load media: ${e.message}" }
+            // 保留原始异常作为 cause，上层 catch 可通过 e.cause 获取根因
+            throw IllegalStateException("${e.message}", e)
+        }
+
+    }
+
+    private suspend fun fetchMediaUrls(avid: Long, cid: Long, epid: Int): MediaUrls {
+        val config = loadPlaybackConfig(
+            avid, cid, epid,
+            Prefs.apiType,
+            _uiState.value.proxyArea
+        )
+
+        return resolveMediaUrls(
+            config.qn,
+            config.codec,
+            config.audio
+        ) ?: throw IllegalStateException("视频源解析失败")
+    }
+
+    private suspend fun loadPlaybackConfig(
         avid: Long,
         cid: Long,
         epid: Int = 0,
         preferApi: ApiType = Prefs.apiType,
         proxyArea: ProxyArea = ProxyArea.MainLand
-    ) {
+    ): PlaybackConfig {
         logger.fInfo { "Load play url: [av=$avid, cid=$cid, preferApi=$preferApi, proxyArea=$proxyArea]" }
 
-        runCatching {
+        return runCatching {
             // 1. 获取播放数据
             val playData = fetchPlayData(avid, cid, epid, preferApi, proxyArea)
             this@VideoPlayerV3ViewModel.playData = playData
@@ -674,20 +727,16 @@ class VideoPlayerV3ViewModel(
                 startShowPreviewTipCountdown()
             }
 
-            // 7. 切回主线程并启动播放
-            withContext(Dispatchers.Main) {
-                playQuality(qn = targetQualityId, codec = targetCodec, audio = targetAudio)
-                videoPlayer?.start()
-            }
-
+            PlaybackConfig(
+                qn = targetQualityId,
+                codec = targetCodec,
+                audio = targetAudio
+            )
         }.onFailure { throwable ->
-            _uiState.update {
-                it.copy(playerState = PlayerState.Error(throwable.message ?: "Unknown error"))
-            }
             logger.fException(throwable) { "Load video failed" }
         }.onSuccess {
             logger.fInfo { "Load play url success" }
-        }
+        }.getOrThrow()
     }
 
     private suspend fun fetchPlayData(
@@ -779,13 +828,12 @@ class VideoPlayerV3ViewModel(
         return targetVideoCodec
     }
 
-    private fun playQuality(
+    private fun resolveMediaUrls(
         qn: Int? = null,
         codec: VideoCodec? = null,
         audio: Audio? = null
-    ) {
-        val currentPlayData = playData ?: return
-        val player = videoPlayer ?: return
+    ): MediaUrls? {
+        val currentPlayData = playData ?: return null
 
         val state = _uiState.value
 
@@ -808,8 +856,8 @@ class VideoPlayerV3ViewModel(
         }
 
         val actualVideoItem = foundVideoItem ?: currentPlayData.dashVideos.firstOrNull() ?: run {
-            _uiState.update { it.copy(playerState = PlayerState.Error("视频源不可用")) }
-            return
+            logger.fWarn { "No available video stream found" }
+            return null
         }
 
         var videoUrl = actualVideoItem.baseUrl
@@ -844,15 +892,26 @@ class VideoPlayerV3ViewModel(
         logger.info { "Video url: $videoUrl" }
         logger.info { "Audio url: $audioUrl" }
 
-        player.playUrl(videoUrl, audioUrl)
-        player.prepare()
-
         _uiState.update {
             it.copy(
                 videoHeight = actualVideoItem.height,
                 videoWidth = actualVideoItem.width
             )
         }
+
+        return MediaUrls(videoUrl, audioUrl)
+    }
+
+    private fun executePlayback(mediaUrls: MediaUrls) {
+        val player = videoPlayer ?: run {
+            logger.error { "VideoPlayer is not initialized!" }
+            return
+        }
+
+        logger.info { "Execute playback -> Video: ${mediaUrls.videoUrl}, Audio: ${mediaUrls.audioUrl}" }
+        player.playUrl(mediaUrls.videoUrl, mediaUrls.audioUrl)
+        player.prepare()
+        player.start()
     }
 
     // 加载合集内的分P
@@ -1291,6 +1350,17 @@ class VideoPlayerV3ViewModel(
             override val title: String = video.title
         }
     }
+
+    private data class PlaybackConfig(
+        val qn: Int,           // 画质 ID
+        val codec: VideoCodec?,     // 编码格式
+        val audio: Audio      // 音频配置
+    )
+
+    private data class MediaUrls(
+        val videoUrl: String,
+        val audioUrl: String?
+    )
 }
 
 sealed interface DanmakuSettingAction {

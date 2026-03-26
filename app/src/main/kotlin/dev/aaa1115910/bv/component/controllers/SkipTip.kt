@@ -77,18 +77,17 @@ fun PlayerTip(
 ) {
     AnimatedVisibility(
         visible = show,
-        // 竖向展开/收缩，配合 Column spacing 更自然
         enter = expandVertically(
             expandFrom = Alignment.Bottom,
             animationSpec = spring(
                 dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMedium
+                stiffness = Spring.StiffnessLow
             )
-        ) + fadeIn(),
+        ) + fadeIn(tween(400)),
         exit = shrinkVertically(
             shrinkTowards = Alignment.Bottom,
-            animationSpec = tween(200)
-        ) + fadeOut(tween(150))
+            animationSpec = tween(350)
+        ) + fadeOut(tween(280))
     ) {
         Row(
             modifier = Modifier

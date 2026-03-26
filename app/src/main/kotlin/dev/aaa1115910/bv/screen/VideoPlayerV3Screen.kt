@@ -50,7 +50,7 @@ fun VideoPlayerV3Screen(
 ) {
     val logger = KotlinLogging.logger { }
     val context = LocalContext.current
-    val videoPlayer = playerViewModel.videoPlayer!!
+    val videoPlayer = playerViewModel.videoPlayer
     val danmakuPlayer = playerViewModel.danmakuPlayer
 
     val maskFinder = remember { DanmakuMaskFinder() }
@@ -139,13 +139,13 @@ fun VideoPlayerV3Screen(
         fromSeason = uiState.fromSeason,
         proxyArea = ProxyArea.MainLand,
         isLooping = isLooping,
-        isPlaying = videoPlayer.isPlaying,
+        isPlaying = videoPlayer?.isPlaying ?: false,
         videoShotCache = videoShotCache,
         uiState = uiState,
         seekerState = seekerState,
-        onPlay = { videoPlayer.start() },
+        onPlay = { videoPlayer?.start() },
         onPause = {
-            videoPlayer.pause()
+            videoPlayer?.pause()
             playerViewModel.trySendHeartbeat()
         },
         onExit = {
@@ -211,7 +211,7 @@ fun VideoPlayerV3Screen(
             contentAlignment = Alignment.Center
         ) {
             LaunchedEffect(Unit) {
-                videoPlayer.setOptions()
+                videoPlayer?.setOptions()
             }
 
             val aspectRatio = when (uiState.aspectRatio) {

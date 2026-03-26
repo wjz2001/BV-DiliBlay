@@ -9,25 +9,22 @@ import androidx.activity.compose.setContent
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.entity.user.Author
-import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.entity.PlayerType
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
-import dev.aaa1115910.bv.player.VideoPlayerOptions
-import dev.aaa1115910.bv.player.impl.exo.ExoPlayerFactory
 import dev.aaa1115910.bv.screen.VideoPlayerV3Screen
 import dev.aaa1115910.bv.ui.theme.BVTheme
-import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.viewmodel.player.VideoPlayerV3ViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class VideoPlayerV3Activity : ComponentActivity() {
+    private val playerViewModel: VideoPlayerV3ViewModel by viewModel()
+
     companion object {
         private val logger = KotlinLogging.logger { }
         private var currentInstance: VideoPlayerV3Activity? = null
+
         fun actionStart(
             context: Context,
             avid: Long,
@@ -62,20 +59,27 @@ class VideoPlayerV3Activity : ComponentActivity() {
         }
     }
 
-    private val playerViewModel: VideoPlayerV3ViewModel by viewModel()
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        currentInstance = this  // 记录当前实例
-        initVideoPlayer()
-        //initDanmakuPlayer()
-        getParamsFromIntent()
+
+        currentInstance = this
+
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
         setContent {
             BVTheme {
                 VideoPlayerV3Screen()
             }
         }
+
+        // 初始化viewmodel参数
+        initViewModelFromIntent()
+        // 初始化播放器
+        playerViewModel.initVideoPlayer(applicationContext)
+        // 初始化弹幕播放器
+        playerViewModel.initDanmakuPlayer()
+        // 加载视频资源并播放
+        playerViewModel.loadVideoWithResources()
     }
 
     override fun onResume() {
@@ -90,6 +94,17 @@ class VideoPlayerV3Activity : ComponentActivity() {
         }
     }
 
+    override fun onPause() {
+        super.onPause()
+
+        // 恢复状态栏
+        WindowInsetsControllerCompat(window, window.decorView)
+            .show(WindowInsetsCompat.Type.systemBars())
+
+        playerViewModel.videoPlayer?.pause()
+        playerViewModel.danmakuPlayer?.pause()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         if (currentInstance === this) {
@@ -102,44 +117,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
         }
     }
 
-    override fun onPause() {
-        super.onPause()
-
-        // 恢复状态栏
-        WindowInsetsControllerCompat(window, window.decorView)
-            .show(WindowInsetsCompat.Type.systemBars())
-
-        playerViewModel.videoPlayer?.pause()
-        playerViewModel.danmakuPlayer?.pause()
-    }
-
-    private fun initVideoPlayer() {
-        logger.info { "Init video player: ${Prefs.playerType.name}" }
-        val options = VideoPlayerOptions(
-            userAgent = when (Prefs.apiType) {
-                ApiType.Web -> getString(R.string.video_player_user_agent_http)
-                ApiType.App -> getString(R.string.video_player_user_agent_client)
-            },
-            referer = when (Prefs.apiType) {
-                ApiType.Web -> getString(R.string.video_player_referer)
-                ApiType.App -> null
-            },
-            enableFfmpegAudioRenderer = Prefs.enableFfmpegAudioRenderer,
-            enableSoftwareVideoDecoder = Prefs.enableSoftwareVideoDecoder
-        )
-        val videoPlayer = when (Prefs.playerType) {
-            PlayerType.Media3 -> ExoPlayerFactory().create(this.applicationContext, options)
-        }
-        playerViewModel.attachPlayer(videoPlayer)
-        playerViewModel.initDanmakuPlayer()
-    }
-
-    /*private fun initDanmakuPlayer() {
-        logger.info { "Init danamku player" }
-        runBlocking { playerViewModel.initDanmakuPlayer() }
-    }*/
-
-    private fun getParamsFromIntent() {
+    private fun initViewModelFromIntent() {
         if (intent.hasExtra("avid")) {
             val aid = intent.getLongExtra("avid", 170001)
             val cid = intent.getLongExtra("cid", 170001)
@@ -153,6 +131,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
             val author_mid = intent.getLongExtra("author_mid", 0)
             val author_name = intent.getStringExtra("author_name")
             logger.fInfo { "Launch parameter: [aid=$aid, cid=$cid]" }
+
             playerViewModel.init(
                 aid = aid,
                 cid = cid,
