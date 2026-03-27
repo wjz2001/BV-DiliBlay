@@ -1,8 +1,5 @@
 package dev.aaa1115910.bv.entity.carddata
 
-import androidx.compose.runtime.Immutable
-
-@Immutable
 data class VideoCardData(
     val avid: Long,
     val cid: Long? = null,
