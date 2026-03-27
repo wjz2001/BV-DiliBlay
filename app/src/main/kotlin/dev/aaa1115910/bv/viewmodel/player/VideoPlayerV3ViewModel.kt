@@ -1,8 +1,8 @@
 package dev.aaa1115910.bv.viewmodel.player
 
+import android.content.Context
 import android.os.Build
 import android.util.Log
-import androidx.core.net.toUri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
+import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kuaishou.akdanmaku.DanmakuConfig
@@ -33,6 +34,7 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.controllers.DanmakuType
 import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.entity.Audio
+import dev.aaa1115910.bv.entity.PlayerType
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
@@ -40,6 +42,8 @@ import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.player.AbstractVideoPlayer
 import dev.aaa1115910.bv.player.VideoPlayerListener
+import dev.aaa1115910.bv.player.VideoPlayerOptions
+import dev.aaa1115910.bv.player.impl.exo.ExoPlayerFactory
 import dev.aaa1115910.bv.repository.VideoInfoRepository
 import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
 import dev.aaa1115910.bv.ui.effect.PlayerUiEffect
@@ -176,6 +180,7 @@ class VideoPlayerV3ViewModel(
 
     @Volatile
     private var envLogged: Boolean = false
+
     private var danmakuConfig = DanmakuConfig()
     private val danmakuTypeFilter = TypeFilter()
 
@@ -436,14 +441,6 @@ class VideoPlayerV3ViewModel(
             )
         }
 
-        loadPlayUrl(
-            avid = aid,
-            cid = cid,
-            epid = epid.takeIf { it != 0 },
-            title = title,
-            partTitle = partTitle,
-        )
-
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 videoInfoRepository.ensureCoAuthorsLoaded(
@@ -458,6 +455,67 @@ class VideoPlayerV3ViewModel(
         }
 
         startClockUpdater()
+        restartUgcPagesPrefetchIfNeeded(_uiState.value.availableVideoList)
+    }
+
+    /**
+     * 方案 B：公开初始化播放器接口，供 Activity 按上游方式调用
+     */
+    fun initVideoPlayer(context: Context) {
+        if (videoPlayer != null) return
+
+        logger.info { "Init video player: ${Prefs.playerType.name}" }
+        val options = VideoPlayerOptions(
+            userAgent = when (Prefs.apiType) {
+                ApiType.Web -> context.getString(R.string.video_player_user_agent_http)
+                ApiType.App -> context.getString(R.string.video_player_user_agent_client)
+            },
+            referer = when (Prefs.apiType) {
+                ApiType.Web -> context.getString(R.string.video_player_referer)
+                ApiType.App -> null
+            },
+            enableFfmpegAudioRenderer = Prefs.enableFfmpegAudioRenderer,
+            enableSoftwareVideoDecoder = Prefs.enableSoftwareVideoDecoder
+        )
+
+        val player = when (Prefs.playerType) {
+            PlayerType.Media3 -> ExoPlayerFactory().create(context.applicationContext, options)
+        }
+
+        attachPlayer(player)
+    }
+
+    /**
+     * 方案 B：公开初始化弹幕播放器接口，供 Activity 按上游方式调用
+     */
+    fun initDanmakuPlayer() {
+        safeInitDanmakuPlayer()
+    }
+
+    /**
+     * 方案 B：公开加载入口，供 Activity 按上游方式调用
+     */
+    fun loadVideoWithResources() {
+        val state = _uiState.value
+
+        if (state.aid == 0L || state.cid == 0L) {
+            logger.fWarn { "Skip loadVideoWithResources: invalid aid/cid" }
+            return
+        }
+
+        if (videoPlayer == null) {
+            logger.fWarn { "Skip loadVideoWithResources: videoPlayer is null" }
+            return
+        }
+
+        loadPlayUrl(
+            avid = state.aid,
+            cid = state.cid,
+            epid = state.epid,
+            seasonId = state.seasonId.takeIf { it != 0 },
+            title = state.title,
+            partTitle = state.partTitle.ifBlank { state.title }
+        )
     }
 
     fun attachPlayer(player: AbstractVideoPlayer) {
@@ -471,6 +529,10 @@ class VideoPlayerV3ViewModel(
 
         videoPlayer?.release()
         videoPlayer = null
+    }
+
+    fun releaseDanmakuPlayer() {
+        safeReleaseDanmakuPlayer()
     }
 
     fun setSuppressPlayerErrors(suppress: Boolean) {
@@ -753,7 +815,6 @@ class VideoPlayerV3ViewModel(
 
         _uiState.update { it.copy(danmakuState = new) }
 
-        // ===== 副作用处理 =====
         if (new.enabledTypes != old.enabledTypes) {
             updateDanmakuConfigTypeFilter(new.enabledTypes)
             Prefs.defaultDanmakuTypes = new.enabledTypes
@@ -867,7 +928,6 @@ class VideoPlayerV3ViewModel(
 
         _uiState.update { it.copy(subtitleState = new) }
 
-        // ===== 持久化副作用 =====
         if (new.fontSize != old.fontSize) {
             Prefs.defaultSubtitleFontSize = new.fontSize
         }
@@ -881,9 +941,6 @@ class VideoPlayerV3ViewModel(
         }
     }
 
-    /**
-     * 触发播放结束后的检查逻辑
-     */
     fun checkAndPlayNext() {
         when (Prefs.actionAfterPlay) {
             ActionAfterPlayItems.Pause -> return
@@ -891,7 +948,6 @@ class VideoPlayerV3ViewModel(
                 viewModelScope.launch {
                     _uiEffect.emit(PlayerUiEffect.FinishActivity)
                 }
-
                 return
             }
 
@@ -904,14 +960,12 @@ class VideoPlayerV3ViewModel(
                         title = firstRelatedVideo.title
                     )
                     playNewVideo(newVideo = nextVideo)
-
-                    // 因为番剧无相关视频，需要继续播放，所以在这里return
                     return
                 }
             }
 
             ActionAfterPlayItems.PlayNext -> {
-                /* 继续执行 */
+                /* continue */
             }
         }
 
@@ -919,14 +973,11 @@ class VideoPlayerV3ViewModel(
         val videoList = currentState.availableVideoList
         val currentCid = currentState.cid
 
-        // 1. 查找当前视频在列表中的位置
         val videoListIndex = videoList.indexOfFirst { it.aid == currentState.aid }
         val currentVideoItem = videoList.getOrNull(videoListIndex)
 
-        // 2. 预计算下一个播放项 (NextTarget)
         var nextTarget: NextPlayTarget? = null
 
-        // 逻辑 A: 检查是否有下一个分 P (UGC Page)
         if (currentVideoItem?.ugcPages?.isNotEmpty() == true) {
             val currentInnerIndex = currentVideoItem.ugcPages.indexOfFirst { it.cid == currentCid }
             if (currentInnerIndex != -1 && currentInnerIndex + 1 < currentVideoItem.ugcPages.size) {
@@ -935,17 +986,14 @@ class VideoPlayerV3ViewModel(
             }
         }
 
-        // 逻辑 B: 如果没有分 P，检查是否有下一个视频
         if (nextTarget == null && videoListIndex + 1 < videoList.size) {
             val nextVideo = videoList[videoListIndex + 1]
             nextTarget = NextPlayTarget.VideoItem(nextVideo)
         }
 
-        // 3. 根据查找结果执行操作
         if (nextTarget != null) {
             startNextEpisodeCountdown(nextTarget)
         } else {
-            // 没有下一集了，发送事件关闭页面
             viewModelScope.launch {
                 _uiEffect.emit(PlayerUiEffect.FinishActivity)
             }
@@ -966,11 +1014,7 @@ class VideoPlayerV3ViewModel(
         withDanmakuPlayerLocked { danmakuPlayer?.pause() }
     }
 
-    /**
-     * 开始周期性更新播放进度
-     */
     fun startSeekerUpdater() {
-        // 防止重复启动
         if (seekerUpdateJob?.isActive == true) return
 
         seekerUpdateJob = viewModelScope.launch(Dispatchers.Main) {
@@ -999,22 +1043,18 @@ class VideoPlayerV3ViewModel(
         val shouldUpdateVideoDetail = state.aid != newVideo.aid
         val shouldUpdateVideoList = !state.availableVideoList.any { it.aid == newVideo.aid }
 
-        // 切换视频时更新detail
         if (shouldUpdateVideoDetail) {
             viewModelScope.launch(Dispatchers.IO) {
                 videoInfoRepository.loadVideoDetail(newVideo.aid, Prefs.apiType)
             }
         }
 
-        // 新视频不在当前视频列表时更新列表
         if (shouldUpdateVideoList) {
             videoInfoRepository.updateVideoList(listOf(newVideo))
         }
 
-        // 更新播放历史并上传
         syncProgress(viewModelScope)
 
-        // 更新UiState
         _uiState.update {
             it.copy(
                 isBuffering = true,
@@ -1354,6 +1394,7 @@ class VideoPlayerV3ViewModel(
                         generation = generation
                     )
                 }
+
                 launch {
                     updateVideoPages(
                         aid = avid,
@@ -1422,7 +1463,6 @@ class VideoPlayerV3ViewModel(
                 }
             logger.fInfo { "Video available resolution: $resolutionMap" }
 
-            // 3. 解析并去重可用的音质 (使用 buildList 和 distinct 替代 forEach + mutableList)
             val availableAudioList = buildList {
                 addAll(localPlayData.dashAudios.map { Audio.fromCode(it.codecId) })
                 localPlayData.dolby?.let { add(Audio.fromCode(it.codecId)) }
@@ -1431,7 +1471,6 @@ class VideoPlayerV3ViewModel(
 
             logger.fInfo { "Video available audio: $availableAudioList" }
 
-            // 4. 计算目标清晰度、音质和编码 (已抽取业务逻辑)
             val targetQualityId = calculateTargetQuality(
                 availableQualities = resolutionMap.keys,
                 defaultQualityCode = effectivePreferredQualityId ?: Prefs.defaultQuality.code
@@ -1441,7 +1480,6 @@ class VideoPlayerV3ViewModel(
                 defaultAudio = Prefs.defaultAudio
             )
 
-            // 5. 统一批量更新 UI State (避免多次触发重组)
             _uiState.update {
                 it.copy(
                     availableQuality = resolutionMap,
@@ -1463,12 +1501,10 @@ class VideoPlayerV3ViewModel(
                 return false
             }
 
-            // 6. 付费视频预览状态提示
             if (localPlayData.needPay) {
                 startShowPreviewTipCountdown()
             }
 
-            // 7. 切回主线程并启动播放
             withContext(Dispatchers.Main) {
                 if (!isCurrentLoadRequest(generation, avid, cid, epid.takeIf { it != 0 })) {
                     return@withContext
@@ -1695,12 +1731,10 @@ class VideoPlayerV3ViewModel(
         logger.fInfo { "all video hosts: ${videoUrls.mapNotNull { it?.let { u -> with(URI(u)) { "$scheme://$authority" } } }}" }
         logger.fInfo { "all audio hosts: ${audioUrls.map { with(URI(it)) { "$scheme://$authority" } }}" }
 
-        //replace cdn
         if (Prefs.enableProxy && state.proxyArea != ProxyArea.MainLand) {
             videoUrl = videoUrl.replaceUrlDomainWithAliCdn()
             audioUrl = audioUrl?.replaceUrlDomainWithAliCdn()
         } else {
-            // 如果未通过网络代理获得播放地址，才判断是否应该替换为官方 cdn
             videoUrl = selectOfficialCdnUrl(videoUrls.filterNotNull())
             audioUrl = if (audioUrls.isNotEmpty()) selectOfficialCdnUrl(audioUrls) else null
         }
@@ -2256,7 +2290,6 @@ class VideoPlayerV3ViewModel(
 
         videoPlayer?.seekTo(time)
         withDanmakuPlayerLocked { danmakuPlayer?.seekTo(time) }
-        // akdanmaku 会在跳转后立即播放，如果需要缓冲则会导致弹幕不同步
         withDanmakuPlayerLocked { danmakuPlayer?.pause() }
 
         _uiState.update { it.copy(showBackToStart = true) }

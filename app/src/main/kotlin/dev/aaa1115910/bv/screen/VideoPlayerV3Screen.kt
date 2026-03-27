@@ -11,7 +11,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -22,12 +21,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskFrame
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
+import dev.aaa1115910.bv.component.CoAuthorsDialogHost
 import dev.aaa1115910.bv.component.DanmakuPlayerCompose
 import dev.aaa1115910.bv.component.controllers.VideoPlayerController
 import dev.aaa1115910.bv.component.controllers.VideoProgressSeek
-import dev.aaa1115910.bv.component.ifElse
-import dev.aaa1115910.bv.component.CoAuthorsDialogHost
 import dev.aaa1115910.bv.component.handleUpHomeClick
+import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.rememberCoAuthorsDialogState
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoListItem
@@ -52,10 +51,13 @@ fun VideoPlayerV3Screen(
     modifier: Modifier = Modifier,
     playerViewModel: VideoPlayerV3ViewModel = koinViewModel()
 ) {
-    val logger = KotlinLogging.logger {}
+    val logger = KotlinLogging.logger { }
     val context = LocalContext.current
-    val videoPlayer = playerViewModel.videoPlayer!!
+    val videoPlayer = playerViewModel.videoPlayer
     val danmakuPlayer = playerViewModel.danmakuPlayer
+
+    val uiState by playerViewModel.uiState.collectAsState()
+    val seekerState = playerViewModel.seekerState.collectAsState()
 
     val coAuthorsDialogState = rememberCoAuthorsDialogState()
     var lastCoAuthorsDialogVisible by remember { mutableStateOf(false) }
@@ -63,10 +65,17 @@ fun VideoPlayerV3Screen(
     val maskFinder = remember { DanmakuMaskFinder() }
     var currentDanmakuMaskFrame: DanmakuMaskFrame? by remember { mutableStateOf(null) }
     var isLooping by remember { mutableStateOf(false) }
-    val uiState by playerViewModel.uiState.collectAsState()
-    val seekerState = playerViewModel.seekerState.collectAsState()
 
     val videoShotCache by remember(uiState.videoShot) { mutableStateOf(VideoShotImageCache()) }
+
+    if (videoPlayer == null) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(Color.Black)
+        )
+        return
+    }
 
     LaunchedEffect(Unit) {
         playerViewModel.uiEffect.collect { effect ->
@@ -93,7 +102,6 @@ fun VideoPlayerV3Screen(
         delay(5000)
         while (isActive) {
             if (uiState.playerState == PlayerState.Playing) playerViewModel.trySendHeartbeat()
-            // 周期延迟
             delay(15000)
         }
     }
@@ -113,7 +121,6 @@ fun VideoPlayerV3Screen(
             return@LaunchedEffect
         }
 
-        // 当 mask 列表变化（如切集）或开关变化时，重置查找器缓存
         maskFinder.reset()
 
         val masks = uiState.danmakuMasks
@@ -122,27 +129,20 @@ fun VideoPlayerV3Screen(
         while (isActive) {
             val currentTime = seekerState.value.currentTime
             val isPlaying = uiState.playerState == PlayerState.Playing
-
-            // 判断是否发生了 Seek (时间突变 > 200ms)
             val isTimeJumping = (currentTime - lastCheckTime).absoluteValue > 200
 
-            // 2. 只有在播放中或刚刚发生 Seek 时才进行计算，否则低频休眠
             if (isPlaying || isTimeJumping) {
-                // 使用工具类查找 Frame
                 val foundFrame = maskFinder.findFrame(masks, currentTime)
 
-                // 状态去重更新
                 if (currentDanmakuMaskFrame != foundFrame) {
                     currentDanmakuMaskFrame = foundFrame
                 }
 
                 lastCheckTime = currentTime
 
-                // 3. 计算休眠时间
                 val delayTime = calculateMaskDelay(foundFrame, currentTime, isPlaying)
                 delay(delayTime)
             } else {
-                // 暂停且未拖动进度条，降低 CPU 占用
                 delay(500L)
             }
         }
@@ -184,7 +184,6 @@ fun VideoPlayerV3Screen(
         onGoToUpPage = {
             val dedup = uiState.coAuthors.distinctBy { it.mid }
 
-            // 多作者：打开弹窗前立刻暂停
             if (dedup.size > 1) {
                 videoPlayer.pause()
                 playerViewModel.trySendHeartbeat()
@@ -202,7 +201,6 @@ fun VideoPlayerV3Screen(
                 }
             )
         },
-
         onMediaProfileSettingChange = { action ->
             playerViewModel.updateMediaProfile(action)
         },
@@ -214,7 +212,6 @@ fun VideoPlayerV3Screen(
             playerViewModel.updatePlaySpeed(speed)
         },
         onTempPlaySpeedChange = { speed ->
-            // 临时倍速：同时影响视频与弹幕；不落盘、不改 uiState.playSpeed
             videoPlayer.speed = speed
             playerViewModel.safeUpdateDanmakuPlaySpeedTemp(speed)
         },
@@ -246,7 +243,7 @@ fun VideoPlayerV3Screen(
             modifier = Modifier.background(Color.Black),
             contentAlignment = Alignment.Center
         ) {
-            LaunchedEffect(Unit) {
+            LaunchedEffect(videoPlayer) {
                 videoPlayer.setOptions()
             }
 
@@ -270,11 +267,10 @@ fun VideoPlayerV3Screen(
                     .align(Alignment.Center),
                 videoPlayer = videoPlayer,
             )
+
             DanmakuPlayerCompose(
                 modifier = Modifier
                     .fillMaxSize()
-                    // 在之前版本中，设置 DanmakuConfig 透明度后，更改其它弹幕设置后，可能会导致弹幕透明度
-                    // 突然变成完全不透明一瞬间，因此这次新版选择直接在此处设置透明度
                     .alpha(uiState.danmakuState.opacity)
                     .ifElse(
                         { Prefs.defaultDanmakuMask },
@@ -282,6 +278,7 @@ fun VideoPlayerV3Screen(
                     ),
                 danmakuPlayer = danmakuPlayer,
             )
+
             if (Prefs.showPersistentSeek) {
                 VideoProgressSeek(
                     modifier = Modifier
