@@ -161,6 +161,9 @@ class VideoPlayerV3ViewModel(
     )
 
     @Volatile
+    private var allowFastResumeOnNextStart: Boolean = false
+
+    @Volatile
     private var continuePlayPending: ContinuePlayPending? = null
 
     @Volatile
@@ -651,6 +654,9 @@ class VideoPlayerV3ViewModel(
     fun onHostStopFastResume() {
         val player = videoPlayer ?: return
 
+        // 只有真正经历过一次 stop，下一次 start 才允许 fast resume
+        allowFastResumeOnNextStart = true
+
         pendingResumePositionMs = player.currentPosition.coerceAtLeast(0L)
         val resumeSec = (pendingResumePositionMs / 1000L).toInt().coerceAtLeast(0)
         _uiState.update { it.copy(lastPlayed = resumeSec) }
@@ -677,12 +683,23 @@ class VideoPlayerV3ViewModel(
             Log.i("BugDebug", "ViewModel onHostStartFastResumeOrRecreate: recreate")
             onHostStartRecreateAndAutoPlayIfNeeded()
             surfaceBugDetected = false
+            allowFastResumeOnNextStart = false
             return
         }
 
-        if (!fastResumeEnabled) return
+        // 首次启动时跳过 fast resume，避免和 loadVideoWithResources() 的 start 重叠
+        if (!allowFastResumeOnNextStart) {
+            Log.i("BugDebug", "ViewModel onHostStartFastResumeOrRecreate: skip fast resume on first start")
+            return
+        }
+
+        if (!fastResumeEnabled) {
+            allowFastResumeOnNextStart = false
+            return
+        }
 
         Log.i("BugDebug", "ViewModel onHostStartFastResumeOrRecreate: fast resume")
+        allowFastResumeOnNextStart = false
         runCatching { videoPlayer?.start() }
     }
 
