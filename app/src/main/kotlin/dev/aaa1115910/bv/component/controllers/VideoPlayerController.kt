@@ -283,7 +283,7 @@ fun VideoPlayerController(
 
                         if (event.nativeKeyEvent.isLongPress) {
                             //showMenuController = true
-                            // 触发长按：临时倍速 = 当前倍速 * 1.5
+                            // 触发长按：临时倍速 = 当前倍速 * 2
                             if (!confirmLongPressGuard) {
                                 val originSpeed = uiState.playSpeed
                                 confirmLongPressOriginSpeed = originSpeed

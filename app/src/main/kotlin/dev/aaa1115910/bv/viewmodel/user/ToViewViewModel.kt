@@ -122,9 +122,7 @@ class ToViewViewModel(
         val currentAccountSessionKey = currentAccountSessionKey()
         if (loadedAccountSessionKey == currentAccountSessionKey) return
 
-        logger.fInfo {
-            "Reset toview state because account session changed"
-        }
+        logger.fInfo { "Reset toview state because account session changed" }
         resetDataState(currentAccountSessionKey)
     }
 
@@ -380,6 +378,33 @@ class ToViewViewModel(
                 preferApiType = Prefs.apiType
             )
             throwIfStale(expectedGeneration)
+
+             /*
+            上游原始写法，保留参考，不使用。
+             现在改为 buildToViewCards() + 主线程批量 addAll，
+             这样可以统一字段转换、做去重，并减少主线程切换次数。
+
+             data.data.forEach { toViewItem ->
+                 histories.addWithMainContext(
+                     VideoCardData(
+                         avid = toViewItem.oid,
+                         title = toViewItem.title,
+                         cover = toViewItem.cover,
+                         upName = toViewItem.author,
+                         upMid = toViewItem.mid,
+                         timeString = if (toViewItem.progress == -1) {
+                             context.getString(R.string.play_time_finish)
+                         } else {
+                             context.getString(
+                                 R.string.play_time_history,
+                                 (toViewItem.progress * 1000L).formatHourMinSec(),
+                                 (toViewItem.duration * 1000L).formatHourMinSec()
+                             )
+                         }
+                     )
+                 )
+             }
+              */
 
             val cards = buildToViewCards(data.data, context)
             throwIfStale(expectedGeneration)
