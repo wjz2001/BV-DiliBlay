@@ -14,13 +14,26 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.abs
 
 /**
  * 一个封装了 TV 焦点定轴逻辑的 LazyVerticalGrid。
  *
- * @param pivotFraction 焦点 Item 在屏幕上的停留位置比例 (0.0 - 1.0)。
- * 默认 0.3f (即屏幕上方 30% 处)，符合 TV 端习惯。
+ * 与简单的“item 顶边对齐 pivot”相比，这个版本做了 3 件事：
+ * 1. 改成按 item 中心点与 pivot 对齐；
+ * 2. 增加安全区（safe zone），在安全区内不滚动；
+ * 3. 增加死区（hysteresis），避免只差几像素也触发滚动。
+ *
+ * 这样可以明显减少“每次上下切焦点都强行校正位置”带来的抖动感。
+ *
+ * @param pivotFraction 焦点 Item 的中心点在屏幕上的目标停留位置比例 (0.0 - 1.0)。
+ * 默认 0.3f，保持与旧行为接近。
+ * @param topSafeFraction 顶部安全区比例。Item 完全处于安全区内时，不触发滚动。
+ * @param bottomSafeFraction 底部安全区比例。Item 完全处于安全区内时，不触发滚动。
+ * @param hysteresis 滚动死区。只差很少像素时不滚，减少抖动。
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -31,18 +44,49 @@ fun TvLazyVerticalGrid(
     contentPadding: PaddingValues = PaddingValues(0.dp),
     verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(0.dp),
     horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(0.dp),
-    pivotFraction: Float = 0.3f, // 默认定在 30% 处
+    pivotFraction: Float = 0.42f,
+    topSafeFraction: Float = 0.12f,
+    bottomSafeFraction: Float = 0.88f,
+    hysteresis: Dp = 32.dp,
     content: LazyGridScope.() -> Unit
 ) {
-    val bringIntoViewSpec = remember(pivotFraction) {
+    val hysteresisPx = with(LocalDensity.current) { hysteresis.toPx() }
+
+    val bringIntoViewSpec = remember(
+        pivotFraction,
+        topSafeFraction,
+        bottomSafeFraction,
+        hysteresisPx
+    ) {
         object : BringIntoViewSpec {
             override fun calculateScrollDistance(
                 offset: Float,
                 size: Float,
                 containerSize: Float
             ): Float {
-                val targetPosition = containerSize * pivotFraction
-                return offset - targetPosition
+                if (size <= 0f || containerSize <= 0f) return 0f
+
+                val itemStart = offset
+                val itemEnd = offset + size
+
+                val topSafe = containerSize * topSafeFraction
+                val bottomSafe = containerSize * bottomSafeFraction
+
+                // 1) 完全在安全区内：不滚
+                if (
+                    itemStart >= topSafe - hysteresisPx &&
+                    itemEnd <= bottomSafe + hysteresisPx
+                ) {
+                    return 0f
+                }
+
+                // 2) 改成按 item 中心点对齐 pivot，而不是顶部对齐
+                val itemCenter = itemStart + size * 0.5f
+                val targetCenter = containerSize * pivotFraction
+                val delta = itemCenter - targetCenter
+
+                // 3) 死区：避免只差一点点也滚
+                return if (abs(delta) <= hysteresisPx) 0f else delta
             }
         }
     }
