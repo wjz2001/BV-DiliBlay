@@ -22,7 +22,6 @@ import kotlin.math.abs
 /**
  * 一个封装了 TV 焦点定轴逻辑的 LazyVerticalGrid。
  *
- * 与简单的“item 顶边对齐 pivot”相比，这个版本做了 3 件事：
  * 1. 改成按 item 中心点与 pivot 对齐；
  * 2. 增加安全区（safe zone），在安全区内不滚动；
  * 3. 增加死区（hysteresis），避免只差几像素也触发滚动。
@@ -44,10 +43,13 @@ fun TvLazyVerticalGrid(
     contentPadding: PaddingValues = PaddingValues(0.dp),
     verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(0.dp),
     horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(0.dp),
+
+    // 针对“一屏两行多卡片”的默认值
     pivotFraction: Float = 0.42f,
     topSafeFraction: Float = 0.12f,
     bottomSafeFraction: Float = 0.88f,
     hysteresis: Dp = 32.dp,
+
     content: LazyGridScope.() -> Unit
 ) {
     val hysteresisPx = with(LocalDensity.current) { hysteresis.toPx() }
@@ -72,7 +74,7 @@ fun TvLazyVerticalGrid(
                 val topSafe = containerSize * topSafeFraction
                 val bottomSafe = containerSize * bottomSafeFraction
 
-                // 1) 完全在安全区内：不滚
+                // 完全在安全区内：不滚
                 if (
                     itemStart >= topSafe - hysteresisPx &&
                     itemEnd <= bottomSafe + hysteresisPx
@@ -80,12 +82,12 @@ fun TvLazyVerticalGrid(
                     return 0f
                 }
 
-                // 2) 改成按 item 中心点对齐 pivot，而不是顶部对齐
+                // 改成按 item 中心点对齐 pivot
                 val itemCenter = itemStart + size * 0.5f
                 val targetCenter = containerSize * pivotFraction
                 val delta = itemCenter - targetCenter
 
-                // 3) 死区：避免只差一点点也滚
+                // 死区：避免只差一点点也滚
                 return if (abs(delta) <= hysteresisPx) 0f else delta
             }
         }
