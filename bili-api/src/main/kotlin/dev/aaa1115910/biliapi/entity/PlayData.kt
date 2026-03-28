@@ -416,7 +416,7 @@ data class PlayData(
             codec = codec.map {
                 it.key to (it.value + other.codec[it.key].orEmpty())
                     .distinct()
-                    .filter { it != "none" }
+                    .filter { it -> it != "none" }
             }.toMap(),
             needPay = needPay || other.needPay
         )

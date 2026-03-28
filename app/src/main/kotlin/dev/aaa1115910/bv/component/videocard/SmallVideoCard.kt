@@ -76,6 +76,7 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
+import dev.aaa1115910.bv.component.TvGridBringIntoViewMode
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
@@ -93,6 +94,15 @@ private val ActionIconSize = 40.dp
 private const val SmallVideoCardAnimationDurationMillis = 90
 private val SmallVideoCardTransformOrigin = TransformOrigin(0.5f, 0.45f)
 
+/**
+ * 兼容旧调用的公开 API。
+ *
+ * 说明：
+ * 1. delToView 当前实现已不再使用，仅为兼容旧调用保留。
+ * 2. onGoToDetailPage 当前实现已不再使用，仅为兼容旧调用保留。
+ * 3. onGoToUpPage 在非 Host 模式下作为 legacy fallback；
+ *    在 Host 模式下，UP 跳转统一走 SmallVideoCardGridViewModel + SmallVideoCardGridHost。
+ */
 @Suppress("UNUSED_PARAMETER")
 @Composable
 fun SmallVideoCard(
@@ -103,6 +113,35 @@ fun SmallVideoCard(
     onAddWatchLater: (() -> Unit)? = null,
     onGoToDetailPage: (() -> Unit)? = null,
     onGoToUpPage: (() -> Unit)? = null,
+    interactive: Boolean = true,
+    focusedScale: Float = 1.1f,
+    coverDensityMultiplier: Float = 1.5f,
+    coverFontScaleMultiplier: Float = 1.5f,
+    infoDensityMultiplier: Float = 1.35f,
+    infoFontScaleMultiplier: Float = 1.35f
+) {
+    SmallVideoCardCore(
+        modifier = modifier,
+        data = data,
+        onClick = onClick,
+        onAddWatchLater = onAddWatchLater,
+        legacyOnGoToUpPage = onGoToUpPage,
+        interactive = interactive,
+        focusedScale = focusedScale,
+        coverDensityMultiplier = coverDensityMultiplier,
+        coverFontScaleMultiplier = coverFontScaleMultiplier,
+        infoDensityMultiplier = infoDensityMultiplier,
+        infoFontScaleMultiplier = infoFontScaleMultiplier
+    )
+}
+
+@Composable
+private fun SmallVideoCardCore(
+    modifier: Modifier = Modifier,
+    data: VideoCardData,
+    onClick: () -> Unit,
+    onAddWatchLater: (() -> Unit)? = null,
+    legacyOnGoToUpPage: (() -> Unit)? = null,
     interactive: Boolean = true,
     focusedScale: Float = 1.1f,
     coverDensityMultiplier: Float = 1.5f,
@@ -124,19 +163,25 @@ fun SmallVideoCard(
 
     val historyButtonRequester = remember(data.avid) { FocusRequester() }
 
-    val canWatchLater = onAddWatchLater != null
     val isHostMode = hostVm != null
-    val canGoToUpPage = if (isHostMode) {
-        data.upMid != null
-    } else {
-        data.upMid != null || onGoToUpPage != null
-    }
 
+    val canWatchLater = onAddWatchLater != null
     val canFavorite = hostUiState.capabilities.canFavorite
     val canHistory = hostUiState.capabilities.canHistory
 
     val isFavorite = itemUiState.isFavorite
     val hasMultipleCoAuthors = itemUiState.hasMultipleCoAuthors
+
+    /**
+     * 最终版 Host 逻辑：
+     * - Host 模式下：只认 data.upMid / data.upName
+     * - 非 Host 模式下：兼容 legacyOnGoToUpPage
+     */
+    val canGoToUpPage = if (isHostMode) {
+        data.upMid != null
+    } else {
+        data.upMid != null || legacyOnGoToUpPage != null
+    }
 
     val allowDismissActionsOnFocusLoss =
         hostUiState.favoriteDialog.aid != data.avid &&
@@ -146,9 +191,14 @@ fun SmallVideoCard(
         UpInfoActivity.actionStart(context, mid = mid, name = name)
     }
 
+    /**
+     * 仅用于非 Host 模式兜底：
+     * - 有 legacyOnGoToUpPage 就走旧回调
+     * - 没有则尝试 data.upMid
+     */
     fun navigateToUpFallback() {
-        if (onGoToUpPage != null) {
-            onGoToUpPage()
+        if (legacyOnGoToUpPage != null) {
+            legacyOnGoToUpPage()
             return
         }
         val mid = data.upMid ?: return
@@ -218,13 +268,27 @@ fun SmallVideoCard(
                         }
                         if (!canGoToUpPage) return@BvSmallVideoCardActions
 
-                        if (hostVm != null) {
-                            hostVm.openCoAuthorsOrNavigate(
-                                aid = data.avid,
-                                fallbackMid = data.upMid,
-                                fallbackName = data.upName
-                            )
+                        if (isHostMode) {
+                            /**
+                             * Host 模式下：
+                             * 统一走 VM -> Host -> onNavigateUp
+                             * 不再直接依赖 legacyOnGoToUpPage
+                             */
+                            val fallbackMid = data.upMid
+                            val fallbackName = data.upName
+
+                            if (fallbackMid != null) {
+                                hostVm.openCoAuthorsOrNavigate(
+                                    aid = data.avid,
+                                    fallbackMid = fallbackMid,
+                                    fallbackName = fallbackName
+                                )
+                            }
                         } else {
+                            /**
+                             * 非 Host 模式下：
+                             * 继续兼容旧逻辑
+                             */
                             navigateToUpFallback()
                         }
                     },
@@ -739,14 +803,8 @@ private fun compactToThousandOrHundredIfPureNumber(src: String, level: CompactLe
     return when (level) {
         CompactLevel.Normal,
         CompactLevel.DropDecimalWanYi -> s
-
-        CompactLevel.Thousand -> {
-            if (n < 1000) s else "${n / 1000}千"
-        }
-
-        CompactLevel.Hundred -> {
-            if (n < 100) s else "${n / 100}百"
-        }
+        CompactLevel.Thousand -> if (n < 1000) s else "${n / 1000}千"
+        CompactLevel.Hundred -> if (n < 100) s else "${n / 100}百"
     }
 }
 
@@ -824,7 +882,7 @@ private fun pickCompactPairThatFits(
 
 @Preview
 @Composable
-private fun BvSmallVideoCardPreview() {
+private fun SmallVideoCardPreview() {
     val data = VideoCardData(
         avid = 0,
         cid = 0,
@@ -851,7 +909,7 @@ private fun BvSmallVideoCardPreview() {
 
 @Preview(device = "id:tv_1080p")
 @Composable
-private fun BvSmallVideoCardsPreview() {
+private fun SmallVideoCardsPreview() {
     val data = VideoCardData(
         avid = 0,
         cid = 0,
@@ -868,7 +926,8 @@ private fun BvSmallVideoCardsPreview() {
             columns = GridCells.Fixed(4),
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            mode = TvGridBringIntoViewMode.KeepVisible
         ) {
             repeat(20) {
                 item(span = { GridItemSpan(1) }) {
