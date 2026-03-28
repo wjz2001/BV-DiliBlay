@@ -48,6 +48,7 @@ import dev.aaa1115910.bv.util.isDpadDown
 import dev.aaa1115910.bv.util.isDpadRight
 import dev.aaa1115910.bv.util.isDpadUp
 import dev.aaa1115910.bv.util.isKeyDown
+import dev.aaa1115910.bv.util.isKeyUp
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -80,9 +81,16 @@ fun LeftNaviContent(
         modifier = modifier
             .fillMaxHeight()
             .onPreviewKeyEvent { keyEvent ->
-                if (keyEvent.isDpadRight() && keyEvent.isKeyDown()) {
-                    onFocusToContent()
-                    return@onPreviewKeyEvent true
+                if (keyEvent.isDpadRight()) {
+                    if (keyEvent.isKeyDown()) {
+                        // KeyDown 先吞掉，避免和焦点系统同拍竞争
+                        return@onPreviewKeyEvent true
+                    }
+                    if (keyEvent.isKeyUp()) {
+                        // KeyUp 再触发进内容区
+                        onFocusToContent()
+                        return@onPreviewKeyEvent true
+                    }
                 }
                 false
             },
