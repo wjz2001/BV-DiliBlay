@@ -39,7 +39,7 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
-import dev.aaa1115910.bv.component.TvLazyVerticalGrid
+import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.pgc.IndexFilter
 import dev.aaa1115910.bv.component.videocard.SeasonCard
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
@@ -135,7 +135,7 @@ fun PgcIndexScreen(
             }
         }
     ) { innerPadding ->
-        TvLazyVerticalGrid(
+        SmallVideoCardGridHost(
             modifier = Modifier.padding(innerPadding),
             columns = GridCells.Fixed(6),
             contentPadding = PaddingValues(24.dp),

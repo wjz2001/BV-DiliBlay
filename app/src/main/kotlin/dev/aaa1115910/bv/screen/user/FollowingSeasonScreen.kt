@@ -36,7 +36,7 @@ import dev.aaa1115910.biliapi.entity.season.FollowingSeasonStatus
 import dev.aaa1115910.biliapi.entity.season.FollowingSeasonType
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
-import dev.aaa1115910.bv.component.TvLazyVerticalGrid
+import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SeasonCard
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
@@ -100,7 +100,7 @@ fun FollowingSeasonScreen(
             text = stringResource(R.string.filter_dialog_open_tip),
             color = Color.White.copy(alpha = 0.6f)
         )
-        TvLazyVerticalGrid(
+        SmallVideoCardGridHost(
             modifier = Modifier,
             state = lazyGridState,
             columns = GridCells.Fixed(6),
