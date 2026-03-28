@@ -1,7 +1,6 @@
 package dev.aaa1115910.bv.viewmodel.user
 
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
@@ -14,11 +13,10 @@ import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.util.Prefs
-import dev.aaa1115910.bv.util.addWithMainContext
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.fWarn
 import dev.aaa1115910.bv.util.formatHourMinSec
-import dev.aaa1115910.bv.util.swapList
+import dev.aaa1115910.bv.viewmodel.common.DebouncedActivationController
 import dev.aaa1115910.bv.viewmodel.common.LoadState
 import dev.aaa1115910.bv.viewmodel.common.canAutoLoad
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -31,9 +29,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.koin.android.annotation.KoinViewModel
-import kotlin.inc
 import kotlin.random.Random
-import kotlin.times
 
 @KoinViewModel
 class FavoriteViewModel(
@@ -85,8 +81,28 @@ class FavoriteViewModel(
     var lastFailureWasAuth by mutableStateOf(false)
         private set
 
-    @Volatile private var requestGeneration = 0L
+    @Volatile
+    private var requestGeneration = 0L
     private var pendingRestoreFolderId: Long? = null
+
+    private val folderActivation = DebouncedActivationController<Long?>(
+        initial = null,
+        scope = viewModelScope,
+    )
+
+    val focusedFolderId get() = folderActivation.focused
+    val activeFolderId get() = folderActivation.active
+
+    fun onFolderFocused(target: Long) = folderActivation.onFocused(target)
+    fun onFolderClicked(target: Long) = folderActivation.onClicked(target)
+
+    private fun alignFolderActivation(target: Long?) {
+        folderActivation.onClicked(target)
+    }
+
+    fun syncFolderActivationToCurrent() {
+        alignFolderActivation(currentFavoriteFolderMetadata?.id)
+    }
 
     fun ensureLoaded() {
         if (!initialLoadState.canAutoLoad()) return
@@ -108,6 +124,7 @@ class FavoriteViewModel(
         favoriteFolderMetadataList = emptyList()
         favorites = emptyList()
         currentFavoriteFolderMetadata = null
+        alignFolderActivation(null)
         updatingFolders = false
         updatingFolderItems = false
         initialLoadState = LoadState.Loading
@@ -125,10 +142,15 @@ class FavoriteViewModel(
         updateFoldersJob?.cancel()
         updateItemsJob?.cancel()
         autoLoadJob?.cancel()
+        updateFoldersJob = null
+        updateItemsJob = null
+        autoLoadJob = null
         pendingRestoreFolderId = null
+
         favoriteFolderMetadataList = emptyList()
         favorites = emptyList()
         currentFavoriteFolderMetadata = null
+        alignFolderActivation(null)
         updatingFolders = false
         updatingFolderItems = false
         initialLoadState = LoadState.Idle
@@ -194,6 +216,8 @@ class FavoriteViewModel(
                             ?: folderList.firstOrNull()
                     pendingRestoreFolderId = null
                     lastFailureWasAuth = false
+
+                    syncFolderActivationToCurrent()
                 }
                 logger.fInfo { "Update favorite folders success: ${folderList.map { it.id }}" }
                 updateFolderItems(force = true)
@@ -297,6 +321,7 @@ class FavoriteViewModel(
         pageNumber = 1
         hasMore = true
     }
+
     private suspend fun loadNextPage(
         expectedFolderId: Long,
         expectedGeneration: Long
@@ -393,5 +418,10 @@ class FavoriteViewModel(
                 updatingFolderItems = false
             }
         }
+    }
+
+    override fun onCleared() {
+        folderActivation.cancel()
+        super.onCleared()
     }
 }
