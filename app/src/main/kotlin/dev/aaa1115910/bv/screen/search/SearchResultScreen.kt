@@ -53,7 +53,7 @@ import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.SearchTypeTopNavItem
 import dev.aaa1115910.bv.component.TopNav
-import dev.aaa1115910.bv.component.TvLazyVerticalGrid
+import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SeasonCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
@@ -279,7 +279,7 @@ fun SearchResultScreen(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            TvLazyVerticalGrid(
+            SmallVideoCardGridHost(
                 modifier = Modifier
                     .onFocusChanged { focusOnContent = it.hasFocus },
                 state = gridState,

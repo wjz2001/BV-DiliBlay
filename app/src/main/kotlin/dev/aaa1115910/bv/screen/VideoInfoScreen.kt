@@ -113,7 +113,7 @@ import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.activities.video.TagActivity
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
-import dev.aaa1115910.bv.component.TvLazyVerticalGrid
+import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.component.buttons.CoinButton
 import dev.aaa1115910.bv.component.buttons.FavoriteButton
@@ -283,16 +283,16 @@ fun VideoInfoScreen(
         // 更新播放列表
         val newVideoList = mutableListOf<VideoListItem>()
         if (videoDetailState.ugcSeason != null) {
-            val currentSection = videoDetailState.ugcSeason?.sections?.find { section ->
+            val currentSection = videoDetailState.ugcSeason.sections?.find { section ->
                 section.episodes.any { it.cid == targetCid || it.aid == videoDetailState.aid }
-            } ?: videoDetailState.ugcSeason?.sections?.firstOrNull()
+            } ?: videoDetailState.ugcSeason.sections?.firstOrNull()
 
             currentSection?.episodes?.forEach { episode ->
                     newVideoList.add(
                         VideoListItem(
                             aid = episode.aid,
                             cid = episode.cid,
-                            seasonId = videoDetailState.ugcSeason!!.id,
+                            seasonId = videoDetailState.ugcSeason.id,
                             title = episode.title
                         )
                     )
@@ -407,7 +407,6 @@ fun VideoInfoScreen(
 
                         // 视频信息
                         val videoDetailState = uiState.videoDetailState ?: return@Column
-                        if (videoDetailState != null) {
                             VideoInfoData(
                                 defaultFocusRequester = defaultFocusRequester,
                                 videoDetail = videoDetailState,
@@ -455,7 +454,6 @@ fun VideoInfoScreen(
                                     videoDetailViewModel.sendVideoOneClickTripleAction()
                                 }
                             )
-                        }
 
                         FollowGroupSelectDialog(
                             show = showFollowGroupDialog,
@@ -1513,7 +1511,7 @@ fun VideoPartButton(
                             }
 
                             // ✅ 视频列表网格
-                            TvLazyVerticalGrid(
+                            SmallVideoCardGridHost(
                                 state = listState,
                                 modifier = Modifier.fillMaxSize(),  // ✅ 填充剩余空间
                                 columns = GridCells.Fixed(5),  // ✅ 从2列增加到5列
@@ -1594,7 +1592,7 @@ fun VideoPartButton(
                         }
                     }
 
-                    TvLazyVerticalGrid(
+                    SmallVideoCardGridHost(
                         state = listState,
                         columns = GridCells.Fixed(2),
                         contentPadding = PaddingValues(8.dp),
@@ -1742,7 +1740,7 @@ fun VideoPartButton(
                             }
 
                             // 视频列表
-                            TvLazyVerticalGrid(
+                            SmallVideoCardGridHost(
                                 state = listState,
                                 modifier = Modifier.fillMaxSize(),
                                 columns = GridCells.Fixed(5),
@@ -1822,7 +1820,7 @@ fun VideoPartButton(
                         }
                     }
 
-                    TvLazyVerticalGrid(
+                    SmallVideoCardGridHost(
                         state = listState,
                         columns = GridCells.Fixed(2),
                         contentPadding = PaddingValues(8.dp),

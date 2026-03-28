@@ -42,7 +42,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
-import dev.aaa1115910.bv.component.TvLazyVerticalGrid
+import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.tv.component.TvAlertDialog
@@ -125,7 +125,7 @@ fun HistoryScreen(
             false
         }
     ) {
-        TvLazyVerticalGrid(
+        SmallVideoCardGridHost(
         modifier = modifier,
         state = gridState,
         columns = GridCells.Fixed(4),

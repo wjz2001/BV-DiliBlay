@@ -65,7 +65,7 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
-import dev.aaa1115910.bv.component.TvLazyVerticalGrid
+import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.tv.component.TvAlertDialog
@@ -394,7 +394,7 @@ fun FavoriteScreen(
             }
         }
         Spacer(modifier = Modifier.height(6.dp))
-        TvLazyVerticalGrid(
+        SmallVideoCardGridHost(
             modifier = modifier,
             state = lazyGridState,
             columns = GridCells.Fixed(4),

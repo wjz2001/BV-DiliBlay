@@ -97,7 +97,7 @@ import dev.aaa1115910.biliapi.entity.video.season.SeasonDetail
 import dev.aaa1115910.biliapi.repositories.UserRepository
 import dev.aaa1115910.biliapi.repositories.VideoDetailRepository
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.component.TvLazyVerticalGrid
+import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.buttons.SeasonInfoButtons
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.VideoListItem
@@ -840,7 +840,7 @@ fun SeasonEpisodesDialog(
                         }
                     }
 
-                    TvLazyVerticalGrid(
+                    SmallVideoCardGridHost(
                         state = listState,
                         columns = GridCells.Fixed(2),
                         contentPadding = PaddingValues(8.dp),

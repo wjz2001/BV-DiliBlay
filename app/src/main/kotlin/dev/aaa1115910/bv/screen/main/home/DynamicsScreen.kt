@@ -30,7 +30,7 @@ import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.LoadingTip
-import dev.aaa1115910.bv.component.TvLazyVerticalGrid
+import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
@@ -121,7 +121,7 @@ fun DynamicsScreen(
     }
 
     if (dynamicViewModel.isLogin) {
-        TvLazyVerticalGrid(
+        SmallVideoCardGridHost(
             modifier = modifier,
             state = gridState,
             columns = GridCells.Fixed(4),

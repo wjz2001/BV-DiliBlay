@@ -45,7 +45,7 @@ import coil.compose.AsyncImage
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.LoadingTip
-import dev.aaa1115910.bv.component.TvLazyVerticalGrid
+import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.viewmodel.user.FollowViewModel
@@ -100,7 +100,7 @@ fun FollowScreen(
             }
         }
     ) { innerPadding ->
-        TvLazyVerticalGrid(
+        SmallVideoCardGridHost(
             modifier = Modifier.padding(innerPadding),
             columns = GridCells.Fixed(3),
             contentPadding = PaddingValues(24.dp),
