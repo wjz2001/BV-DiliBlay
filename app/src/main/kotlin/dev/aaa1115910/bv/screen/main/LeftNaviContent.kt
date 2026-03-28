@@ -17,18 +17,18 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -38,20 +38,19 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import coil.compose.AsyncImage
 import dev.aaa1115910.bv.ui.theme.BVTheme
-import dev.aaa1115910.bv.util.isDpadRight
-import dev.aaa1115910.bv.util.isKeyUp
-import dev.aaa1115910.bv.util.isKeyDown
 import dev.aaa1115910.bv.util.isDpadDown
+import dev.aaa1115910.bv.util.isDpadRight
 import dev.aaa1115910.bv.util.isDpadUp
-import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.util.isKeyDown
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -70,37 +69,40 @@ fun LeftNaviContent(
     val scope = rememberCoroutineScope()
 
     val userFocusRequester = remember { FocusRequester() }
-    val searchFocusRequester = remember { FocusRequester() }
-    val homeFocusRequester = remember { FocusRequester() }
-    val personalFocusRequester = remember { FocusRequester() }
-    val ugcFocusRequester = remember { FocusRequester() }
-    val pgcFocusRequester = remember { FocusRequester() }
     val settingsFocusRequester = remember { FocusRequester() }
+
+    // 恢复原代码行为：selectedItem 改变时通知外部
+    LaunchedEffect(selectedItem) {
+        onLeftNaviItemChanged(selectedItem)
+    }
 
     NavigationRail(
         modifier = modifier
             .fillMaxHeight()
             .onPreviewKeyEvent { keyEvent ->
-                if (keyEvent.isDpadRight()) {
-                    if (keyEvent.isKeyDown()) {
-                        // KeyDown 先吞掉，避免和焦点系统同拍竞争
-                        return@onPreviewKeyEvent true
-                    }
-                    if (keyEvent.isKeyUp()) {
-                        // KeyUp 再触发进内容区
-                        onFocusToContent()
-                        return@onPreviewKeyEvent true
-                    }
+                if (keyEvent.isDpadRight() && keyEvent.isKeyDown()) {
+                    onFocusToContent()
+                    return@onPreviewKeyEvent true
                 }
                 false
             },
         containerColor = Color.White.copy(alpha = 0.05f),
     ) {
+        // 顶部用户按钮
         var userIsFocused by remember { mutableStateOf(false) }
         NavigationRailItem(
-            modifier = Modifier.onFocusChanged {
-                userIsFocused = it.hasFocus
-            },
+            modifier = Modifier
+                .focusRequester(userFocusRequester)
+                .onFocusChanged {
+                    userIsFocused = it.hasFocus
+                }
+                .onPreviewKeyEvent { keyEvent ->
+                    if (keyEvent.isDpadUp() && keyEvent.isKeyDown()) {
+                        settingsFocusRequester.requestFocus()
+                        return@onPreviewKeyEvent true
+                    }
+                    false
+                },
             onClick = {
                 if (isLogin) {
                     onShowUserPanel()
@@ -136,6 +138,7 @@ fun LeftNaviContent(
                 }
             }
         )
+
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.Center
@@ -147,47 +150,46 @@ fun LeftNaviContent(
                 LeftNaviItem.UGC,
                 LeftNaviItem.PGC,
             ).forEach { item ->
-                var isFocused by remember { mutableStateOf(false) }
+                var isFocused by remember(item) { mutableStateOf(false) }
                 var preloadJob by remember(item) { mutableStateOf<Job?>(null) }
+
                 val indicatorColor by animateColorAsState(
                     targetValue = if (item == selectedItem) {
                         MaterialTheme.colorScheme.border
-                    } else Color.Transparent,
+                    } else {
+                        Color.Transparent
+                    },
                     label = "selectionIndicatorColor"
                 )
 
-                val itemFocusRequester = when (item) {
-                    LeftNaviItem.Search -> searchFocusRequester
-                    LeftNaviItem.Home -> homeFocusRequester
-                    LeftNaviItem.Personal -> personalFocusRequester
-                    LeftNaviItem.UGC -> ugcFocusRequester
-                    LeftNaviItem.PGC -> pgcFocusRequester
-                    else -> error("Unexpected item: $item")
-                }
-
                 NavigationRailItem(
                     modifier = Modifier
-                        .focusRequester(userFocusRequester)
-                        .onFocusChanged {
-                            userIsFocused = it.hasFocus
-                        }
-                        .onPreviewKeyEvent { keyEvent ->
-                            if (keyEvent.isDpadUp()) {
-                                if (keyEvent.isKeyDown()) {
-                                    settingsFocusRequester.requestFocus(scope)
+                        .onFocusChanged { focusState ->
+                            isFocused = focusState.hasFocus
+
+                            // 预热
+                            preloadJob?.cancel()
+                            preloadJob = if (focusState.hasFocus) {
+                                scope.launch {
+                                    delay(200)
+                                    if (isFocused) {
+                                        onLeftNaviItemPreload(item)
+                                    }
                                 }
-                                return@onPreviewKeyEvent true
+                            } else {
+                                null
                             }
-                            false
-                        },
+                        }
+                        // 左侧激活指示条
+                        .selectionIndicator(indicatorColor),
                     onClick = {
-                        if (isLogin) {
-                            onShowUserPanel()
-                        } else {
-                            onLogin()
+                        // “点击才切换页面”
+                        if (selectedItem != item) {
+                            selectedItem = item
                         }
                     },
-                    selected = userIsFocused,
+                    // 焦点高亮看 focus，左边条看 selectedItem
+                    selected = isFocused,
                     icon = {
                         Icon(
                             imageVector = item.displayIcon,
@@ -197,6 +199,8 @@ fun LeftNaviContent(
                 )
             }
         }
+
+        // 底部设置按钮
         var settingsIsFocused by remember { mutableStateOf(false) }
         NavigationRailItem(
             modifier = Modifier
@@ -205,10 +209,8 @@ fun LeftNaviContent(
                     settingsIsFocused = it.hasFocus
                 }
                 .onPreviewKeyEvent { keyEvent ->
-                    if (keyEvent.isDpadDown()) {
-                        if (keyEvent.isKeyDown()) {
-                            userFocusRequester.requestFocus(scope)
-                        }
+                    if (keyEvent.isDpadDown() && keyEvent.isKeyDown()) {
+                        userFocusRequester.requestFocus()
                         return@onPreviewKeyEvent true
                     }
                     false
@@ -234,7 +236,7 @@ enum class LeftNaviItem(
     Home(displayIcon = Icons.Default.Home),
     UGC(displayIcon = Icons.Default.OndemandVideo),
     PGC(displayIcon = Icons.Default.Movie),
-    Settings(displayIcon = Icons.Default.Settings), ;
+    Settings(displayIcon = Icons.Default.Settings),
 }
 
 fun Modifier.selectionIndicator(color: Color): Modifier {
