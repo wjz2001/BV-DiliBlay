@@ -115,7 +115,7 @@ class BVApp : Application(), KoinComponent {
         BiliAppConf.osVersion = Build.VERSION.RELEASE
         BiliAppConf.model = Build.MODEL
         BiliWebConf.webViewVersion = runCatching {
-            WebViewCompat.getCurrentLoadedWebViewPackage()?.versionName
+            WebViewCompat.getCurrentWebViewPackage(applicationContext)?.versionName
                 ?.substringBefore(".")?.toInt()
         }.getOrDefault(144) ?: 144
     }
