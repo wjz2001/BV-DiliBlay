@@ -299,6 +299,8 @@
     <string name="settings_storage_others_cache">其他缓存</string>
     <string name="settings_ui_density_text">更改整个应用的大小缩放</string>
     <string name="settings_ui_density_title">界面缩放</string>
+    <string name="settings_ui_focus_always_center_title">视频列表滚动行为</string>
+    <string name="settings_ui_focus_always_center_text">开启后，选中的内容始终保持在屏幕中间；关闭后，只有移动到边缘时才滚动（更流畅）</string>
     <string name="settings_ui_show_video_info_text">是否显示视频详情页</string>
     <string name="settings_ui_show_video_info_title">显示视频详情页</string>
     <string name="settings_ui_show_persistent_seek_text">是否常显迷你进度条</string>

@@ -63,6 +63,7 @@ fun UISetting(
 
     var showVideoInfo by remember { mutableStateOf(Prefs.showVideoInfo) }
     var showPersistentSeek by remember { mutableStateOf(Prefs.showPersistentSeek) }
+    var focusAlwaysCenter by remember { mutableStateOf(Prefs.focusAlwaysCenter) }
 
     val density by Prefs.densityFlow.collectAsState(context.resources.displayMetrics.widthPixels / 960f)
     var selectedFirstHomeTopNavItem by remember { mutableStateOf(Prefs.firstHomeTopNavItem) }
@@ -109,6 +110,17 @@ fun UISetting(
                         onCheckedChange = {
                             showPersistentSeek = it
                             Prefs.showPersistentSeek = it
+                        }
+                    )
+                }
+                item {
+                    SettingSwitchListItem(
+                        title = stringResource(R.string.settings_ui_focus_always_center_title),
+                        supportText = stringResource(R.string.settings_ui_focus_always_center_text),
+                        checked = focusAlwaysCenter,
+                        onCheckedChange = {
+                            focusAlwaysCenter = it
+                            Prefs.focusAlwaysCenter = it
                         }
                     )
                 }
