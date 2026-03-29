@@ -312,6 +312,7 @@ object Prefs {
 
     var showVideoInfo by pref(PrefKeys.prefShowVideoInfoKey, true)
     var showPersistentSeek by pref(PrefKeys.prefShowPersistentSeekKey, false)
+    var focusAlwaysCenter by pref(PrefKeys.prefFocusAlwaysCenterKey, false)
     var showHotword by pref(PrefKeys.prefShowHotwordKey, true)
     var accessToken by pref(PrefKeys.prefAccessTokenKey, "")
     var refreshToken by pref(PrefKeys.prefRefreshTokenKey, "")
@@ -473,6 +474,7 @@ private object PrefKeys {
     val prefFirstHomeTopNavItemKey = intPreferencesKey("first_home_top_nav")
     val prefShowVideoInfoKey = booleanPreferencesKey("show_video_info")
     val prefShowPersistentSeekKey = booleanPreferencesKey("show_persistent_seek")
+    val prefFocusAlwaysCenterKey = booleanPreferencesKey("focus_always_center")
     val prefShowHotwordKey = booleanPreferencesKey("shw")
     val prefAccessTokenKey = stringPreferencesKey("access_token")
     val prefRefreshTokenKey = stringPreferencesKey("refresh_token")

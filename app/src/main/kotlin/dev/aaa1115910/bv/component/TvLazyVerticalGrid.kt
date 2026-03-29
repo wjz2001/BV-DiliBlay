@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.aaa1115910.bv.util.Prefs
 import kotlin.math.abs
 
 enum class TvGridBringIntoViewMode {
@@ -53,8 +54,11 @@ fun TvLazyVerticalGrid(
     verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(0.dp),
     horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(0.dp),
 
-    // 可选 KeepVisible,Pivot
-    mode: TvGridBringIntoViewMode = TvGridBringIntoViewMode.KeepVisible,
+    mode: TvGridBringIntoViewMode = if (Prefs.focusAlwaysCenter) {
+        TvGridBringIntoViewMode.Pivot
+    } else {
+        TvGridBringIntoViewMode.KeepVisible
+    },
     // Pivot 模式用
     pivotFraction: Float = 0.45f,
     // Pivot 与 KeepVisible 模式共用
