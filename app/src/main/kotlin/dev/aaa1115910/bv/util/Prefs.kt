@@ -160,14 +160,11 @@ object Prefs {
         }
     )
 
-    // following 总数缓存（用于隐藏“全量分组”）
+    // following 总数缓存
     var followingTotalCache by pref(PrefKeys.prefFollowingTotalCacheKey, 0)
 
-    // 分组列表缓存（JSON，已排除全量分组）
+    // 统一关系快照缓存（JSON，包含 groups/users/resolvedApiType 等）
     var followTagsCacheJson by pref(PrefKeys.prefFollowTagsCacheJsonKey, "")
-
-    // 分组成员缓存（JSON map）
-    var followTagMembersCacheJson by pref(PrefKeys.prefFollowTagMembersCacheJsonKey, "")
 
     // 汇总屏蔽 mid（CSV，用于快速启动恢复）
     var blockedMidsCsv by pref(PrefKeys.prefBlockedMidsCsvKey, "")
@@ -491,6 +488,5 @@ private object PrefKeys {
     val prefBlockEnabledPagesKey = stringPreferencesKey("block_enabled_pages")
     val prefFollowingTotalCacheKey = intPreferencesKey("following_total_cache")
     val prefFollowTagsCacheJsonKey = stringPreferencesKey("follow_tags_cache_json")
-    val prefFollowTagMembersCacheJsonKey = stringPreferencesKey("follow_tag_members_cache_json")
     val prefBlockedMidsCsvKey = stringPreferencesKey("blocked_mids_csv")
 }
