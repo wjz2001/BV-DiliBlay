@@ -4,7 +4,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskSegment
+import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMask
 import dev.aaa1115910.biliapi.entity.video.Subtitle
 import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.bilisubtitle.entity.SubtitleItem
@@ -67,7 +67,7 @@ data class PlayerUiState(
 
     // 弹幕状态
     val danmakuState: DanmakuState = DanmakuState(),
-    val danmakuMasks: List<DanmakuMaskSegment> = emptyList(),
+    val danmakuMask: DanmakuMask? = null,
 
     // 字幕状态
     val subtitleState: SubtitleState = SubtitleState(),

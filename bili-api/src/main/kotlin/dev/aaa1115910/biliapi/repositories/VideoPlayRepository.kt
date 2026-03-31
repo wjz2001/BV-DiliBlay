@@ -276,7 +276,7 @@ class VideoPlayRepository(
         aid: Long,
         cid: Long,
         preferApiType: ApiType = ApiType.Web
-    ): List<DanmakuMaskSegment> {
+    ): DanmakuMask? {
         val danmakuMaskUrl = when (preferApiType) {
             ApiType.Web -> {
                 val response = BiliHttpApi.getVideoMoreInfo(
@@ -298,19 +298,19 @@ class VideoPlayRepository(
                 }.onFailure { handleGrpcException(it) }.getOrThrow()
                 dmViewReply?.mask?.maskUrl
             }
-        } ?: return emptyList()
+        } ?: return null
 
-        val maskBinary = BiliHttpApi.download(danmakuMaskUrl.apply {
-            when (preferApiType) {
-                ApiType.Web -> replace("mobmask", "webmask")
-                ApiType.App -> replace("webmask", "mobmask")
-            }
-        })
+        val maskUrl = when (preferApiType) {
+            ApiType.Web -> danmakuMaskUrl.replace("mobmask", "webmask")
+            ApiType.App -> danmakuMaskUrl.replace("webmask", "mobmask")
+        }
         val danmakuMaskType = when (preferApiType) {
             ApiType.Web -> DanmakuMaskType.WebMask
             ApiType.App -> DanmakuMaskType.MobMask
         }
-        return DanmakuMask.fromBinary(maskBinary, danmakuMaskType).segments
+        // 直接拿流，不缓冲到 ByteArray
+        val maskStream = BiliHttpApi.downloadAsStream(maskUrl)
+        return DanmakuMask.fromStream(maskStream, danmakuMaskType)
     }
 
     suspend fun getVideoShot(

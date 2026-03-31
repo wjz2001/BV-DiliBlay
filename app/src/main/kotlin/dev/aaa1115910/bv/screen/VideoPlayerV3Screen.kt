@@ -92,8 +92,8 @@ fun VideoPlayerV3Screen(
     }
 
     // 弹幕防遮挡蒙版更新
-    LaunchedEffect(uiState.danmakuState.maskEnabled, uiState.danmakuMasks) {
-        if (!uiState.danmakuState.maskEnabled || uiState.danmakuMasks.isEmpty()) {
+    LaunchedEffect(uiState.danmakuState.maskEnabled, uiState.danmakuMask) {
+        if (!uiState.danmakuState.maskEnabled || uiState.danmakuMask == null) {
             currentDanmakuMaskFrame = null
             return@LaunchedEffect
         }
@@ -101,7 +101,8 @@ fun VideoPlayerV3Screen(
         // 当 mask 列表变化（如切集）或开关变化时，重置查找器缓存
         maskFinder.reset()
 
-        val masks = uiState.danmakuMasks
+        val mask = uiState.danmakuMask ?: return@LaunchedEffect
+
         var lastCheckTime = -1L
 
         while (isActive) {
@@ -114,7 +115,7 @@ fun VideoPlayerV3Screen(
             // 2. 只有在播放中或刚刚发生 Seek 时才进行计算，否则低频休眠
             if (isPlaying || isTimeJumping) {
                 // 使用工具类查找 Frame
-                val foundFrame = maskFinder.findFrame(masks, currentTime)
+                val foundFrame = maskFinder.findFrame(mask, currentTime)
 
                 // 状态去重更新
                 if (currentDanmakuMaskFrame != foundFrame) {

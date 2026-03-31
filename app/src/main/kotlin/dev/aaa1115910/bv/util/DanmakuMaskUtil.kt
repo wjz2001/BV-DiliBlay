@@ -1,63 +1,35 @@
 package dev.aaa1115910.bv.util
 
+import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMask
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskFrame
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskSegment
 
-// 1. 查找器类：封装了 "缓存 -> 顺序检查 -> 二分查找" 的复杂逻辑
 class DanmakuMaskFinder {
-    // 内部状态：记录上一次命中的 Segment 索引
-    private var lastSegmentIndex = 0
 
-    fun findFrame(masks: List<DanmakuMaskSegment>, currentTime: Long): DanmakuMaskFrame? {
-        if (masks.isEmpty()) return null
+    private var cachedSegment: DanmakuMaskSegment? = null
 
-        // A. 快速路径：检查缓存 (当前段)
-        val currentSegment = masks.getOrNull(lastSegmentIndex)
-        if (currentSegment != null && currentTime in currentSegment.range) {
-            return findFrameInSegment(currentSegment, currentTime)
-        }
-
-        // B. 快速路径：检查下一段 (顺序播放优化)
-        val nextSegment = masks.getOrNull(lastSegmentIndex + 1)
-        if (nextSegment != null && currentTime in nextSegment.range) {
-            lastSegmentIndex++
-            return findFrameInSegment(nextSegment, currentTime)
-        }
-
-        // C. 慢速路径：二分查找 (Seek 后定位)
-        val foundIndex = binarySearchSegment(masks, currentTime)
-        return if (foundIndex >= 0) {
-            lastSegmentIndex = foundIndex
-            findFrameInSegment(masks[foundIndex], currentTime)
-        } else {
-            null
-        }
-    }
-
-    // 重置缓存 (当视频源更换时调用)
+    /** 收到新 mask（切集、开关切换）时调用，清除缓存 */
     fun reset() {
-        lastSegmentIndex = 0
+        cachedSegment = null
     }
 
-    // 内部工具：二分查找 Segment
-    private fun binarySearchSegment(masks: List<DanmakuMaskSegment>, time: Long): Int {
-        var low = 0
-        var high = masks.lastIndex
-        while (low <= high) {
-            val mid = (low + high) ushr 1
-            val segment = masks[mid]
-            when {
-                time < segment.range.first -> high = mid - 1
-                time > segment.range.last -> low = mid + 1
-                else -> return mid
-            }
+    /**
+     * 根据当前播放时间查找对应帧。
+     *
+     * @param mask       从 [uiState.danmakuMask] 取得的 [DanmakuMask] 对象
+     * @param currentTime 当前播放时间（毫秒）
+     * @return 当前应渲染的 [DanmakuMaskFrame]，无则返回 null
+     */
+    fun findFrame(mask: DanmakuMask, currentTime: Long): DanmakuMaskFrame? {
+        // 1. 当前缓存的 segment 是否仍然覆盖此时间点
+        val cached = cachedSegment
+        if (cached == null || currentTime !in cached.range) {
+            // 2. 需要切换 segment：按需解压，旧 segment 自动失去引用可被 GC
+            cachedSegment = mask.getSegmentAt(currentTime)
         }
-        return -1
-    }
 
-    // 内部工具：在 Segment 内查找 Frame (这里简单用 firstOrNull，因为通常段内帧数极少)
-    private fun findFrameInSegment(segment: DanmakuMaskSegment, time: Long): DanmakuMaskFrame? {
-        return segment.frames.firstOrNull { time in it.range }
+        // 3. 在当前 segment 内线性查找帧
+        return cachedSegment?.frames?.lastOrNull { currentTime in it.range }
     }
 }
 
