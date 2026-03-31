@@ -1071,16 +1071,15 @@ class VideoPlayerV3ViewModel(
         val state = _uiState.value
 
         runCatching {
-            val masks = videoPlayRepository.getDanmakuMask(
+            val mask = videoPlayRepository.getDanmakuMask(
                 aid = state.aid,
                 cid = state.cid,
                 preferApiType = Prefs.apiType
             )
 
-            _uiState.update { it.copy(danmakuMasks = masks) }
+            _uiState.update { it.copy(danmakuMask = mask) }
 
-            logger.fInfo { "Load danmaku mask size: ${masks.size}" }
-
+            logger.fInfo { "Load danmaku mask segments: ${mask?.segmentCount ?: 0}" }
         }.onFailure {
             logger.fWarn { "Load danmaku mask failed: ${it.stackTraceToString()}" }
         }
