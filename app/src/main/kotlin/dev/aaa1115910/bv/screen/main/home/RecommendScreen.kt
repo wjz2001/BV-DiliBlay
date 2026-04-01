@@ -97,6 +97,7 @@ fun RecommendScreen(
                         avid = item.aid,
                         title = item.title,
                         cover = item.cover,
+                        upMid = item.authorMid,
                         playString = item.play.takeIf { it != -1 }.toWanString(),
                         danmakuString = item.danmaku.takeIf { it != -1 }.toWanString(),
                         timeString = (item.duration * 1000L).formatHourMinSec(),

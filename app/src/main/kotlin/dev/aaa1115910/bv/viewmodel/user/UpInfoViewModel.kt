@@ -98,6 +98,7 @@ class UpInfoViewModel(
         spaceVideos.clear()
         loadedAvids.clear()
     }
+
     fun onQueryChange(newText: String) {
         rawQuery = newText
         pauseAutoLoad()
@@ -211,6 +212,7 @@ class UpInfoViewModel(
                     // TODO 这里在改造 app 端接口时，没找到在空间内显示为合集样式封面的UP,没法进一步测试接口
                     cover = spaceVideoItem.cover,
                     upName = spaceVideoItem.author,
+                    upMid = upMid,
                     playString = spaceVideoItem.play.takeIf { it != -1 }.toWanString(),
                     danmakuString = spaceVideoItem.danmaku.takeIf { it != -1 }.toWanString(),
                     timeString = (spaceVideoItem.duration * 1000L).formatHourMinSec(),

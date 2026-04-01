@@ -144,6 +144,7 @@ fun TagScreen(
                             avid = video.aid,
                             title = video.title,
                             cover = video.pic,
+                            upMid = video.owner.mid,
                             upName = video.owner.name,
                             playString = video.stat.view.toWanString(),
                             danmakuString = video.stat.danmaku.toWanString(),
