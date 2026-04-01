@@ -87,7 +87,7 @@ fun Modifier.bitmapMask(
     bitmap: Bitmap,
     videoAspectRatio: Float, // 视频的宽高比 (例如 1920/1080 ≈ 1.77, 21/9 ≈ 2.33)
 ): Modifier = composed {
-    val imageBitmap = bitmap.asImageBitmap()
+    val imageBitmap = remember(bitmap) { bitmap.asImageBitmap() }
 
     drawWithContent {
         drawIntoCanvas { canvas ->
@@ -133,16 +133,19 @@ fun Modifier.danmakuWebMask(
     frame: DanmakuWebMaskFrame,
     aspectRatio: Float,
 ): Modifier = composed {
-    val svgObj = runCatching {
-        SVG.getFromString(frame.svg)
-    }.getOrNull() ?: return@composed this
+    // remember(frame) 保证 SVG 解析和 Bitmap 创建只在帧变化时执行一次
+    val bitmap = remember(frame) {
+        val svgObj = runCatching { SVG.getFromString(frame.svg) }.getOrNull()
+            ?: return@remember null
 
-    val svgWidth = svgObj.documentWidth.toInt()
-    val svgHeight = svgObj.documentHeight.toInt()
+        val svgWidth = svgObj.documentWidth.toInt().coerceAtLeast(1)
+        val svgHeight = svgObj.documentHeight.toInt().coerceAtLeast(1)
 
-    val bitmap = Bitmap.createBitmap(svgWidth, svgHeight, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-    svgObj.renderToCanvas(canvas)
+        val bmp = Bitmap.createBitmap(svgWidth, svgHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        svgObj.renderToCanvas(canvas)
+        bmp
+    } ?: return@composed this
 
     bitmapMask(bitmap, aspectRatio)
 }
@@ -151,20 +154,25 @@ fun Modifier.danmakuMobMask(
     frame: DanmakuMobMaskFrame,
     aspectRatio: Float,
 ): Modifier = composed {
-    val width = frame.width
-    val height = frame.height
-    val binaryBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    // remember(frame) 保证像素解码和 Bitmap 创建只在帧变化时执行一次，
+    // 避免每次 recompose 都重建 Bitmap（对长视频是显著的内存和 CPU 压力）
+    val bitmap = remember(frame) {
+        val width = frame.width
+        val height = frame.height
+        val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
 
-    // 1bpp 连续 bit 流，MSB first
-    val pixels = IntArray(width * height) { i ->
-        val byteIndex = i / 8
-        val bitOffset = 7 - (i % 8)
-        val bit = (frame.image[byteIndex].toInt() shr bitOffset) and 1
-        if (bit == 0) android.graphics.Color.TRANSPARENT else android.graphics.Color.BLACK
+        // 1bpp 连续 bit 流，MSB first
+        val pixels = IntArray(width * height) { i ->
+            val byteIndex = i / 8
+            val bitOffset = 7 - (i % 8)
+            val bit = (frame.image[byteIndex].toInt() shr bitOffset) and 1
+            if (bit == 1) android.graphics.Color.TRANSPARENT else android.graphics.Color.BLACK
+        }
+        bmp.setPixels(pixels, 0, width, 0, 0, width, height)
+        bmp
     }
-    binaryBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
 
-    bitmapMask(binaryBitmap, aspectRatio)
+    bitmapMask(bitmap, aspectRatio)
 }
 
 fun Modifier.danmakuMask(
@@ -173,7 +181,7 @@ fun Modifier.danmakuMask(
 ): Modifier = composed {
     if (frame == null) return@composed this
 
-    when(frame){
+    when (frame) {
         is DanmakuWebMaskFrame -> danmakuWebMask(frame, aspectRatio)
         is DanmakuMobMaskFrame -> danmakuMobMask(frame, aspectRatio)
     }

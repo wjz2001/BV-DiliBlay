@@ -9,6 +9,7 @@ import dev.aaa1115910.biliapi.http.util.generateBuvid
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertDoesNotThrow
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import java.io.File
 import java.nio.file.Paths
@@ -31,6 +32,14 @@ internal class BiliHttpApiTest {
             runCatching { localProperties.getProperty("test.access_token") }.getOrNull() ?: ""
         val BUVID: String =
             runCatching { localProperties.getProperty("test.buvid") }.getOrNull() ?: ""
+
+        @JvmStatic
+        @BeforeAll
+        fun setup() {
+            // 在这里执行初始化
+            BiliHttpApi.init(BUVID)
+            println("BiliHttpApi initialized with BUVID: $BUVID")
+        }
     }
 
     @Test
