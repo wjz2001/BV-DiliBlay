@@ -36,7 +36,9 @@ import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.entity.VideoAspectRatio
+import dev.aaa1115910.bv.entity.VideoFlip
 import dev.aaa1115910.bv.entity.VideoListItem
+import dev.aaa1115910.bv.entity.VideoRotation
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.ui.state.PlayerState
@@ -83,6 +85,9 @@ fun VideoPlayerController(
     //menu events
     onMediaProfileSettingChange: (MediaProfileSettingAction) -> Unit,
     onAspectRatioChange: (VideoAspectRatio) -> Unit,
+    onVideoTransformReset: () -> Unit,
+    onVideoRotationChange: (VideoRotation?) -> Unit,
+    onVideoFlipChange: (VideoFlip?) -> Unit,
     onPlaySpeedChange: (Float) -> Unit,
     onTempPlaySpeedChange: (Float) -> Unit,
     onDanmakuSettingChange: (DanmakuSettingAction) -> Unit,
@@ -528,6 +533,9 @@ fun VideoPlayerController(
                     )
                 },
                 onAspectRatioChange = onAspectRatioChange,
+                onVideoTransformReset = onVideoTransformReset,
+                onVideoRotationChange = onVideoRotationChange,
+                onVideoFlipChange = onVideoFlipChange,
                 onPlaySpeedChange = onPlaySpeedChange,
                 onDanmakuSwitchChange = {
                     onDanmakuSettingChange(

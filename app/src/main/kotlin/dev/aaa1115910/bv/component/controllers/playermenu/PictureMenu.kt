@@ -31,11 +31,14 @@ import dev.aaa1115910.bv.component.controllers.MenuFocusState
 import dev.aaa1115910.bv.component.controllers.VideoPlayerPictureMenuItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.MenuListItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.RadioMenuList
+import dev.aaa1115910.bv.component.controllers.playermenu.component.VideoTransformMenuList
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
+import dev.aaa1115910.bv.entity.VideoFlip
+import dev.aaa1115910.bv.entity.VideoRotation
 
 @Composable
 fun PictureMenuList(
@@ -46,10 +49,15 @@ fun PictureMenuList(
     currentResolution: Int?,
     currentVideoCodec: VideoCodec,
     currentVideoAspectRatio: VideoAspectRatio,
+    currentVideoRotation: VideoRotation?,
+    currentVideoFlip: VideoFlip?,
     currentAudio: Audio,
     onResolutionChange: (Int) -> Unit,
     onCodecChange: (VideoCodec) -> Unit,
     onAspectRatioChange: (VideoAspectRatio) -> Unit,
+    onVideoTransformReset: () -> Unit,
+    onVideoRotationChange: (VideoRotation?) -> Unit,
+    onVideoFlipChange: (VideoFlip?) -> Unit,
     onAudioChange: (Audio) -> Unit,
     onFocusStateChange: (MenuFocusState) -> Unit
 ) {
@@ -86,6 +94,19 @@ fun PictureMenuList(
                     },
                     selected = qualityIdList.indexOf(currentResolution),
                     onSelectedChanged = { onResolutionChange(qualityIdList[it]) },
+                    onFocusBackToParent = {
+                        onFocusStateChange(MenuFocusState.Menu)
+                        focusRequester.requestFocus()
+                    }
+                )
+
+                VideoPlayerPictureMenuItem.Rotation -> VideoTransformMenuList(
+                    modifier = menuItemsModifier,
+                    currentVideoRotation = currentVideoRotation,
+                    currentVideoFlip = currentVideoFlip,
+                    onVideoTransformReset = onVideoTransformReset,
+                    onVideoRotationChange = onVideoRotationChange,
+                    onVideoFlipChange = onVideoFlipChange,
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)
                         focusRequester.requestFocus()
@@ -133,10 +154,7 @@ fun PictureMenuList(
                 .padding(horizontal = 8.dp)
                 .onPreviewKeyEvent {
                     if (it.type == KeyEventType.KeyUp) {
-                        if (listOf(Key.Enter, Key.DirectionCenter).contains(it.key)) {
-                            return@onPreviewKeyEvent false
-                        }
-                        return@onPreviewKeyEvent true
+                        return@onPreviewKeyEvent !listOf(Key.Enter, Key.DirectionCenter).contains(it.key)
                     }
                     when (it.key) {
                         Key.DirectionRight -> onFocusStateChange(MenuFocusState.MenuNav)

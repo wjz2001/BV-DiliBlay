@@ -60,6 +60,8 @@ import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedMenuList
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
+import dev.aaa1115910.bv.entity.VideoFlip
+import dev.aaa1115910.bv.entity.VideoRotation
 import dev.aaa1115910.bv.ui.state.PlayerUiState
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.swapList
@@ -72,6 +74,9 @@ fun MenuController(
     onResolutionChange: (Int) -> Unit = {},
     onCodecChange: (VideoCodec) -> Unit = {},
     onAspectRatioChange: (VideoAspectRatio) -> Unit,
+    onVideoTransformReset: () -> Unit,
+    onVideoRotationChange: (VideoRotation?) -> Unit,
+    onVideoFlipChange: (VideoFlip?) -> Unit,
     onPlaySpeedChange: (Float) -> Unit = {},
     onAudioChange: (Audio) -> Unit,
     onDanmakuSwitchChange: (List<DanmakuType>) -> Unit,
@@ -108,6 +113,9 @@ fun MenuController(
                 onResolutionChange = onResolutionChange,
                 onCodecChange = onCodecChange,
                 onAspectRatioChange = onAspectRatioChange,
+                onVideoTransformReset = onVideoTransformReset,
+                onVideoRotationChange = onVideoRotationChange,
+                onVideoFlipChange = onVideoFlipChange,
                 onPlaySpeedChange = onPlaySpeedChange,
                 onAudioChange = onAudioChange,
                 onDanmakuSwitchChange = onDanmakuSwitchChange,
@@ -132,6 +140,9 @@ fun MenuController(
     onResolutionChange: (Int) -> Unit = {},
     onCodecChange: (VideoCodec) -> Unit = {},
     onAspectRatioChange: (VideoAspectRatio) -> Unit,
+    onVideoTransformReset: () -> Unit,
+    onVideoRotationChange: (VideoRotation?) -> Unit,
+    onVideoFlipChange: (VideoFlip?) -> Unit,
     onPlaySpeedChange: (Float) -> Unit,
     onAudioChange: (Audio) -> Unit,
     onDanmakuSwitchChange: (List<DanmakuType>) -> Unit,
@@ -171,6 +182,9 @@ fun MenuController(
                     onCodecChange = onCodecChange,
                     onPlaySpeedChange = onPlaySpeedChange,
                     onAspectRatioChange = onAspectRatioChange,
+                    onVideoTransformReset = onVideoTransformReset,
+                    onVideoRotationChange = onVideoRotationChange,
+                    onVideoFlipChange = onVideoFlipChange,
                     onAudioChange = onAudioChange,
                     onDanmakuSwitchChange = onDanmakuSwitchChange,
                     onDanmakuSizeChange = onDanmakuSizeChange,
@@ -188,10 +202,7 @@ fun MenuController(
                     modifier = Modifier
                         .onPreviewKeyEvent {
                             if (it.type == KeyEventType.KeyUp) {
-                                if (listOf(Key.Enter, Key.DirectionCenter).contains(it.key)) {
-                                    return@onPreviewKeyEvent false
-                                }
-                                return@onPreviewKeyEvent true
+                                return@onPreviewKeyEvent !listOf(Key.Enter, Key.DirectionCenter).contains(it.key)
                             }
                             if (it.key == Key.DirectionLeft) focusState = MenuFocusState.Menu
                             false
@@ -213,6 +224,9 @@ private fun MenuList(
     onResolutionChange: (Int) -> Unit,
     onCodecChange: (VideoCodec) -> Unit,
     onAspectRatioChange: (VideoAspectRatio) -> Unit,
+    onVideoTransformReset: () -> Unit,
+    onVideoRotationChange: (VideoRotation?) -> Unit,
+    onVideoFlipChange: (VideoFlip?) -> Unit,
     onPlaySpeedChange: (Float) -> Unit,
     onAudioChange: (Audio) -> Unit,
     onDanmakuSwitchChange: (List<DanmakuType>) -> Unit,
@@ -240,10 +254,15 @@ private fun MenuList(
                     currentResolution = uiState.mediaProfileState.qualityId,
                     currentVideoCodec = uiState.mediaProfileState.videoCodec,
                     currentVideoAspectRatio = uiState.aspectRatio,
+                    currentVideoRotation = uiState.videoRotation,
+                    currentVideoFlip = uiState.videoFlip,
                     currentAudio = uiState.mediaProfileState.audio,
                     onResolutionChange = onResolutionChange,
                     onCodecChange = onCodecChange,
                     onAspectRatioChange = onAspectRatioChange,
+                    onVideoTransformReset = onVideoTransformReset,
+                    onVideoRotationChange = onVideoRotationChange,
+                    onVideoFlipChange = onVideoFlipChange,
                     onAudioChange = onAudioChange,
                     onFocusStateChange = onFocusStateChange,
                 )
@@ -305,6 +324,7 @@ enum class VideoPlayerMenuNavItem(private val strRes: Int, val icon: ImageVector
 
 enum class VideoPlayerPictureMenuItem(private val strRes: Int) {
     Resolution(R.string.video_player_menu_picture_resolution),
+    Rotation(R.string.video_player_menu_picture_rotation),
     Codec(R.string.video_player_menu_picture_codec),
     AspectRatio(R.string.video_player_menu_picture_aspect_ratio),
 
@@ -351,6 +371,8 @@ fun MenuControllerPreview() {
     var currentResolution by remember { mutableIntStateOf(1) }
     var currentCodec by remember { mutableStateOf(VideoCodec.HEVC) }
     var currentVideoAspectRatio by remember { mutableStateOf(VideoAspectRatio.Default) }
+    var currentVideoRotation by remember { mutableStateOf<VideoRotation?>(null) }
+    var currentVideoFlip by remember { mutableStateOf<VideoFlip?>(null) }
     var currentPlaySpeed by remember { mutableFloatStateOf(1f) }
     var currentSelectedPlaySpeedItem by remember { mutableStateOf(PlaySpeedItem.x1) }
     var currentAudio by remember { mutableStateOf(Audio.A192K) }
@@ -423,10 +445,19 @@ fun MenuControllerPreview() {
                 MenuController(
                     modifier = Modifier
                         .align(Alignment.CenterEnd),
-                    uiState = PlayerUiState(),
+                    uiState = PlayerUiState(
+                        videoRotation = currentVideoRotation,
+                        videoFlip = currentVideoFlip
+                    ),
                     onResolutionChange = { currentResolution = it },
                     onCodecChange = { currentCodec = it },
                     onAspectRatioChange = { currentVideoAspectRatio = it },
+                    onVideoTransformReset = {
+                        currentVideoRotation = null
+                        currentVideoFlip = null
+                    },
+                    onVideoRotationChange = { currentVideoRotation = it },
+                    onVideoFlipChange = { currentVideoFlip = it },
                     onPlaySpeedChange = { currentPlaySpeed = it },
                     onAudioChange = { currentAudio = it },
                     onDanmakuSwitchChange = {

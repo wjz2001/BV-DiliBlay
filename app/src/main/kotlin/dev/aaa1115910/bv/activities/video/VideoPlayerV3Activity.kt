@@ -26,6 +26,8 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
 class VideoPlayerV3Activity : ComponentActivity() {
     private val playerViewModel: VideoPlayerV3ViewModel by viewModel()
 
+    private var initialLoadDispatched = false
+
     companion object {
         private val logger = KotlinLogging.logger { }
         private var currentInstance: VideoPlayerV3Activity? = null
@@ -88,8 +90,8 @@ class VideoPlayerV3Activity : ComponentActivity() {
             }
         }
 
-        // 5. 显式加载资源并开始播放（方案 B）
-        playerViewModel.loadVideoWithResources()
+        // 5. 显式加载资源并开始播放
+        //playerViewModel.loadVideoWithResources()
     }
 
     override fun onStart() {
@@ -114,12 +116,25 @@ class VideoPlayerV3Activity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
 
-        // 视频全屏播放，隐藏状态栏
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior =
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+
+        if (!initialLoadDispatched) {
+            initialLoadDispatched = true
+            Log.i("BugDebug", "VideoPlayerV3Activity onResume: schedule initial load")
+
+            window.decorView.post {
+                window.decorView.post {
+                    if (!isFinishing && !isDestroyed) {
+                        Log.i("BugDebug", "VideoPlayerV3Activity: initial loadVideoWithResources()")
+                        playerViewModel.loadVideoWithResources()
+                    }
+                }
+            }
         }
     }
 

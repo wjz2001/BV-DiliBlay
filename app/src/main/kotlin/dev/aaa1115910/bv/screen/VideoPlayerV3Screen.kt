@@ -2,7 +2,9 @@ package dev.aaa1115910.bv.screen
 
 import android.app.Activity
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,7 +20,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskFrame
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.CoAuthorsDialogHost
@@ -207,6 +211,15 @@ fun VideoPlayerV3Screen(
         onAspectRatioChange = { aspectRadio ->
             playerViewModel.updateVideoAspectRatio(aspectRadio)
         },
+        onVideoTransformReset = {
+            playerViewModel.resetVideoTransform()
+        },
+        onVideoRotationChange = { rotation ->
+            playerViewModel.updateVideoRotation(rotation)
+        },
+        onVideoFlipChange = { flip ->
+            playerViewModel.updateVideoFlip(flip)
+        },
         onPlaySpeedChange = { speed ->
             logger.info { "Set default play speed: $speed" }
             playerViewModel.updatePlaySpeed(speed)
@@ -239,32 +252,66 @@ fun VideoPlayerV3Screen(
         },
         onEnsureUgcPagesLoaded = playerViewModel::ensureUgcPagesLoaded,
     ) {
-        Box(
-            modifier = Modifier.background(Color.Black),
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black),
             contentAlignment = Alignment.Center
         ) {
             LaunchedEffect(videoPlayer) {
                 videoPlayer.setOptions()
             }
 
-            val aspectRatio = when (uiState.aspectRatio) {
+            val actualVideoWidth = videoPlayer.videoWidth
+            val actualVideoHeight = videoPlayer.videoHeight
+
+            val baseAspectRatio = when (uiState.aspectRatio) {
                 VideoAspectRatio.Default -> {
-                    if (uiState.videoHeight > 0 && uiState.videoWidth > 0) {
-                        uiState.videoWidth / uiState.videoHeight.toFloat()
-                    } else {
-                        16 / 9f
+                    when {
+                        actualVideoWidth > 0 && actualVideoHeight > 0 -> {
+                            actualVideoWidth / actualVideoHeight.toFloat()
+                        }
+
+                        uiState.videoHeight > 0 && uiState.videoWidth > 0 -> {
+                            uiState.videoWidth / uiState.videoHeight.toFloat()
+                        }
+
+                        else -> 16 / 9f
                     }
                 }
 
                 VideoAspectRatio.FourToThree -> 4 / 3f
                 VideoAspectRatio.SixteenToNine -> 16 / 9f
+            }.takeIf { it > 0f } ?: (16 / 9f)
+
+            val displayAspectRatio = if (uiState.videoRotation?.isQuarterTurn == true) {
+                1f / baseAspectRatio
+            } else {
+                baseAspectRatio
+            }
+
+            val screenAspectRatio = if (maxHeight.value > 0f) {
+                maxWidth.value / maxHeight.value
+            } else {
+                16 / 9f
+            }
+
+            val playerModifier = if (displayAspectRatio > screenAspectRatio) {
+                Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(displayAspectRatio)
+            } else {
+                Modifier
+                    .fillMaxHeight()
+                    .aspectRatio(displayAspectRatio)
             }
 
             BvVideoPlayer(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .aspectRatio(aspectRatio)
-                    .align(Alignment.Center),
+                modifier = playerModifier
+                    .align(Alignment.Center)
+                    .onGloballyPositioned { coordinates ->
+                        val size = coordinates.size
+                    },
                 videoPlayer = videoPlayer,
             )
 
@@ -274,7 +321,7 @@ fun VideoPlayerV3Screen(
                     .alpha(uiState.danmakuState.opacity)
                     .ifElse(
                         { Prefs.defaultDanmakuMask },
-                        Modifier.danmakuMask(currentDanmakuMaskFrame, aspectRatio)
+                        Modifier.danmakuMask(currentDanmakuMaskFrame, displayAspectRatio)
                     ),
                 danmakuPlayer = danmakuPlayer,
             )
