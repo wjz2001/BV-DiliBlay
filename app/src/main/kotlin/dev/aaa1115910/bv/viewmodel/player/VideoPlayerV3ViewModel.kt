@@ -99,7 +99,6 @@ import java.util.Calendar
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.cancellation.CancellationException
-import kotlin.math.absoluteValue
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 private fun media3Slashy(): String = androidx.media3.common.MediaLibraryInfo.VERSION_SLASHY
@@ -146,6 +145,9 @@ class VideoPlayerV3ViewModel(
 
     @Volatile
     private var oneShotApiOverride: OneShotApiOverride? = null
+
+    @Volatile
+    private var tempPlaySpeedOverride: Float? = null
 
     @Volatile
     private var currentPlayApiType: ApiType = Prefs.apiType
@@ -264,15 +266,10 @@ class VideoPlayerV3ViewModel(
             logger.info { "onReady" }
             _uiState.update { it.copy(playerState = PlayerState.Ready) }
 
-            val currentUiSpeed = _uiState.value.playSpeed
-            val actualPlayerSpeed = videoPlayer?.speed ?: currentUiSpeed
-
-            if ((actualPlayerSpeed - currentUiSpeed).absoluteValue > 0.001f) {
-                // 当前播放器速度和 UI 记录的默认速度不一致，
-                // 说明大概率处于“长按中键临时倍速”状态。
-                // 这时不要在 READY 时把播放器速度强制写回默认值，
-                // 只同步弹幕速度，避免长按期间自动恢复正常速度。
-                withDanmakuPlayerLocked { danmakuPlayer?.updatePlaySpeed(actualPlayerSpeed) }
+            val tempSpeed = tempPlaySpeedOverride
+            if (tempSpeed != null) {
+                videoPlayer?.speed = tempSpeed
+                withDanmakuPlayerLocked { danmakuPlayer?.updatePlaySpeed(tempSpeed) }
             } else {
                 updatePlaySpeed(forceUpdate = true)
             }
@@ -792,6 +789,7 @@ class VideoPlayerV3ViewModel(
         withDanmakuPlayerLocked { danmakuPlayer?.updatePlaySpeed(targetSpeed) }
 
         if (speed != null) {
+            tempPlaySpeedOverride = null
             Prefs.defaultPlaySpeed = PlaySpeedItem.fromSpeedNearest(targetSpeed)
         }
     }
@@ -1000,8 +998,17 @@ class VideoPlayerV3ViewModel(
             true
         }
 
-    fun safeUpdateDanmakuPlaySpeedTemp(speed: Float) =
+    fun startTempPlaySpeed(speed: Float) {
+        tempPlaySpeedOverride = speed
+        videoPlayer?.speed = speed
         withDanmakuPlayerLocked { danmakuPlayer?.updatePlaySpeed(speed) }
+    }
+
+    fun endTempPlaySpeed(speed: Float) {
+        tempPlaySpeedOverride = null
+        videoPlayer?.speed = speed
+        withDanmakuPlayerLocked { danmakuPlayer?.updatePlaySpeed(speed) }
+    }
 
     fun updateSubtitleState(action: SubtitleSettingAction) {
         val old = _uiState.value.subtitleState
@@ -2133,8 +2140,8 @@ class VideoPlayerV3ViewModel(
 
         runCatching {
             val mask = videoPlayRepository.getDanmakuMask(
-                aid = state.aid,
-                cid = state.cid,
+                aid = aid,
+                cid = cid,
                 preferApiType = Prefs.apiType
             )
 

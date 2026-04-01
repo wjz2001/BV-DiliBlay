@@ -228,9 +228,11 @@ fun VideoPlayerV3Screen(
             logger.info { "Set default play speed: $speed" }
             playerViewModel.updatePlaySpeed(speed)
         },
-        onTempPlaySpeedChange = { speed ->
-            videoPlayer.speed = speed
-            playerViewModel.safeUpdateDanmakuPlaySpeedTemp(speed)
+        onTempPlaySpeedStart = { speed ->
+            playerViewModel.startTempPlaySpeed(speed)
+        },
+        onTempPlaySpeedEnd = { speed ->
+            playerViewModel.endTempPlaySpeed(speed)
         },
         onDanmakuSettingChange = { action ->
             playerViewModel.updateDanmakuState(action)
