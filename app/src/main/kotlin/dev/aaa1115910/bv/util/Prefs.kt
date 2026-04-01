@@ -311,7 +311,7 @@ object Prefs {
     )
 
     var showVideoInfo by pref(PrefKeys.prefShowVideoInfoKey, true)
-    var showPersistentSeek by pref(PrefKeys.prefShowPersistentSeekKey, false)
+    var showPersistentSeek by pref(PrefKeys.prefShowPersistentSeekKey, true)
     var focusAlwaysCenter by pref(PrefKeys.prefFocusAlwaysCenterKey, false)
     var showHotword by pref(PrefKeys.prefShowHotwordKey, true)
     var accessToken by pref(PrefKeys.prefAccessTokenKey, "")

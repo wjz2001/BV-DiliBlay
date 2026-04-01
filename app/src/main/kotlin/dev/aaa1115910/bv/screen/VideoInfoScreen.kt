@@ -407,53 +407,46 @@ fun VideoInfoScreen(
 
                         // 视频信息
                         val videoDetailState = uiState.videoDetailState ?: return@Column
-                            VideoInfoData(
-                                defaultFocusRequester = defaultFocusRequester,
-                                videoDetail = videoDetailState,
-                                isFollowing = uiState.isFollowingUp,
-                                tags = videoDetailState.tags,
-                                isFavorite = videoDetailState.isFavorite,
-                                isLiked = videoDetailState.isLiked,
-                                isCoined = videoDetailState.isCoined,
-                                userFavoriteFolders = uiState.favoriteFolders,
-                                favoriteFolderIds = uiState.videoFavoriteFolderIds.toList(),
-                                onClickCover = {
-                                    logger.fInfo { "Click video cover" }
-                                    // 点击封面播放当前视频
-                                    playCurrentVideo(videoDetailState.lastPlayedCid.takeIf { it != 0L })
-                                },
-                                onClickUp = {
-                                    UpInfoActivity.actionStart(
-                                        context,
-                                        mid = videoDetailState.author.mid,
-                                        name = videoDetailState.author.name
-                                    )
-                                },
-                                onAddFollow = { openFollowGroupDialog() },
-                                onDelFollow = { openFollowGroupDialog() },
-                                onClickTip = { tag ->
-                                    TagActivity.actionStart(
-                                        context = context,
-                                        tagId = tag.id,
-                                        tagName = tag.name
-                                    )
-                                },
-                                onAddToDefaultFavoriteFolder = {
-                                    videoDetailViewModel.addVideoToDefaultFavoriteFolder()
-                                },
-                                onUpdateFavoriteFolders = {
-                                    videoDetailViewModel.updateVideoFavoriteData(it)
-                                },
-                                onUpdateLiked = { liked ->
-                                    videoDetailViewModel.updateVideoLiked(liked)
-                                },
-                                onSendVideoCoin = {
-                                    videoDetailViewModel.sendVideoCoin()
-                                },
-                                onSendVideoOneClickTripleAction = {
-                                    videoDetailViewModel.sendVideoOneClickTripleAction()
-                                }
-                            )
+                        VideoInfoData(
+                            defaultFocusRequester = defaultFocusRequester,
+                            videoDetail = videoDetailState,
+                            isFollowing = uiState.isFollowingUp,
+                            tags = videoDetailState.tags,
+                            isFavorite = videoDetailState.isFavorite,
+                            isLiked = videoDetailState.isLiked,
+                            isCoined = videoDetailState.isCoined,
+                            userFavoriteFolders = uiState.favoriteFolders,
+                            favoriteFolderIds = uiState.videoFavoriteFolderIds.toList(),
+                            onClickCover = {
+                                logger.fInfo { "Click video cover" }
+                                // 点击封面播放当前视频
+                                playCurrentVideo(videoDetailState.lastPlayedCid.takeIf { it != 0L }) },
+                            onClickUp = {
+                                UpInfoActivity.actionStart(
+                                    context,
+                                    mid = videoDetailState.author.mid,
+                                    name = videoDetailState.author.name
+                                ) },
+                            onAddFollow = { openFollowGroupDialog() },
+                            onDelFollow = { openFollowGroupDialog() },
+                            onClickTip = { tag ->
+                                TagActivity.actionStart(
+                                    context = context,
+                                    tagId = tag.id,
+                                    tagName = tag.name
+                                ) },
+                            onAddToDefaultFavoriteFolder = {
+                                videoDetailViewModel.addVideoToDefaultFavoriteFolder() },
+                            onUpdateFavoriteFolders = {
+                                videoDetailViewModel.updateVideoFavoriteData(it) },
+                            onUpdateLiked = { liked ->
+                                videoDetailViewModel.updateVideoLiked(liked) },
+                            onSendVideoCoin = {
+                                videoDetailViewModel.sendVideoCoin() },
+                            onSendVideoOneClickTripleAction = {
+                                videoDetailViewModel.sendVideoOneClickTripleAction()
+                            }
+                        )
 
                         FollowGroupSelectDialog(
                             show = showFollowGroupDialog,
@@ -475,19 +468,19 @@ fun VideoInfoScreen(
                             }
                         )
 
-                            // 视频分P
-                            VideoPartRow(
-                                pages = videoDetailState.pages,
-                                lastPlayedCid = videoDetailState.lastPlayedCid,
-                                lastPlayedTime = videoDetailState.lastPlayedTime,
-                                enablePartListDialog =
-                                    (videoDetailState.pages.size > 5),
-                                onClick = { cid ->
-                                    logger.fInfo { "Click video part: [av:${videoDetailState.aid}, bv:${videoDetailState.bvid}, cid:$cid]" }
-                                    // 播放当前视频的对应分P
-                                    playCurrentVideo(cid)
-                                }
-                            )
+                        // 视频分P
+                        VideoPartRow(
+                            pages = videoDetailState.pages,
+                            lastPlayedCid = videoDetailState.lastPlayedCid,
+                            lastPlayedTime = videoDetailState.lastPlayedTime,
+                            enablePartListDialog =
+                                (videoDetailState.pages.size > 5),
+                            onClick = { cid ->
+                                logger.fInfo { "Click video part: [av:${videoDetailState.aid}, bv:${videoDetailState.bvid}, cid:$cid]" }
+                                // 播放当前视频的对应分P
+                                playCurrentVideo(cid)
+                            }
+                        )
 
 // 合集
                         videoDetailState.ugcSeason?.let { season ->

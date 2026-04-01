@@ -26,6 +26,10 @@ import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -38,6 +42,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.PlayCircleOutline
 import androidx.compose.ui.focus.FocusRequester.Companion.Default
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,6 +75,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
@@ -225,6 +232,7 @@ private suspend fun resolveVideoLink(token: VideoLinkToken): ResolvedVideoLink? 
 }
 
 private enum class Page { Main, Replies }
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun VideoCommentsDialog(
     show: Boolean,
@@ -236,6 +244,29 @@ fun VideoCommentsDialog(
     val commentRepository: CommentRepository = getKoin().get()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    val currentDensity = LocalDensity.current.density
+    val currentFontScale = LocalConfiguration.current.fontScale
+    val dialogDensity = remember(currentDensity, currentFontScale) {
+        Density(
+            density = currentDensity * 1.25f,
+            fontScale = currentFontScale * 1.25f,
+        )
+    }
+
+    val dialogBringIntoViewSpec = remember {
+        object : BringIntoViewSpec {
+            override fun calculateScrollDistance(
+                offset: Float,
+                size: Float,
+                containerSize: Float
+            ): Float {
+                val targetPosition = containerSize * 0.3f
+                return offset - targetPosition
+            }
+        }
+    }
+
     var gatePassed by remember(aid) { mutableStateOf(false) }
     var page by remember { mutableStateOf(Page.Main) }
 
@@ -488,182 +519,200 @@ fun VideoCommentsDialog(
                 usePlatformDefaultWidth = false
             )
         ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .focusRequester(rootFocusRequester)
-                    .focusable()
-                    .onPreviewKeyEvent {
-                        if (it.type == KeyEventType.KeyDown && it.key == Key.Back) {
-                            goBackLayer()
-                            true
-                        } else false
-                    },
-                shape = RoundedCornerShape(0.dp),
-                colors = androidx.tv.material3.SurfaceDefaults.colors(
-                    containerColor = CommentsBg,
-                    contentColor = CommentsText
-                )
+            CompositionLocalProvider(
+                LocalDensity provides dialogDensity,
+                LocalBringIntoViewSpec provides dialogBringIntoViewSpec
             ) {
-                Column(
+                Surface(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 28.dp, vertical = 18.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                        .focusRequester(rootFocusRequester)
+                        .focusable()
+                        .onPreviewKeyEvent {
+                            if (it.type == KeyEventType.KeyDown && it.key == Key.Back) {
+                                goBackLayer()
+                                true
+                            } else false
+                        },
+                    shape = RoundedCornerShape(0.dp),
+                    colors = androidx.tv.material3.SurfaceDefaults.colors(
+                        containerColor = CommentsBg,
+                        contentColor = CommentsText
+                    )
                 ) {
-                    when (page) {
-                        Page.Main -> {
-                            if (commentsError != null) {
-                                InlineErrorText(text = commentsError ?: "加载失败")
-                            }
-
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                state = commentsListState,
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                itemsIndexed(comments, key = { _, c -> c.rpid }) { index, comment ->
-                                    val bodyFr =
-                                        mainItemFocusRequesters.getOrPut(comment.rpid) { FocusRequester() }
-                                    val prevBodyFr = comments
-                                        .getOrNull(index - 1)
-                                        ?.let { mainItemFocusRequesters.getOrPut(it.rpid) { FocusRequester() } }
-                                    val nextBodyFr = comments
-                                        .getOrNull(index + 1)
-                                        ?.let { mainItemFocusRequesters.getOrPut(it.rpid) { FocusRequester() } }
-
-                                    LightCommentItem(
-                                        modifier = Modifier.onFocusChanged {
-                                            if (it.hasFocus) {
-                                                lastMainFocusedRpid = comment.rpid
-                                            }
-                                        },
-                                        bodyFocusRequester = bodyFr,
-                                        previousBodyFocusRequester = prevBodyFr,
-                                        nextBodyFocusRequester = nextBodyFr,
-                                        comment = comment,
-                                        showRepliesHint = comment.repliesCount > 0,
-                                        onClick = {
-                                            if (comment.repliesCount <= 0) return@LightCommentItem
-
-                                            // 进入回复页前，明确记录“从哪条评论进入”
-                                            lastMainFocusedRpid = comment.rpid
-
-                                            rootComment = comment
-                                            page = Page.Replies
-
-                                            replies.clear()
-                                            replyPage = CommentReplyPage()
-                                            repliesHasNext = true
-                                            repliesError = null
-                                            replyItemFocusRequesters.clear()
-                                            loadReplies(reset = true)
-                                        },
-                                        onImageClick = { imgIndex ->
-                                            openPreview(comment.pictures, imgIndex)
-                                        },
-                                        onVideoLinkClick = { link ->
-                                            if (Prefs.showVideoInfo) {
-                                                VideoInfoActivity.actionStart(context, link.aid)
-                                            } else {
-                                                launchPlayerActivity(
-                                                    context = context,
-                                                    avid = link.aid,
-                                                    cid = link.cid,
-                                                    title = link.title,
-                                                    partTitle = "",
-                                                    played = 0,
-                                                    fromSeason = false
-                                                )
-                                            }
-                                        }
-                                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 28.dp, vertical = 18.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        when (page) {
+                            Page.Main -> {
+                                if (commentsError != null) {
+                                    InlineErrorText(text = commentsError ?: "加载失败")
                                 }
 
-                                item {
-                                    BottomStateLight(
-                                        loading = commentsLoading,
-                                        hasNext = commentsHasNext,
-                                        empty = comments.isEmpty(),
-                                        emptyText = "暂无评论"
-                                    )
-                                }
-                            }
-                        }
-
-                        Page.Replies -> {
-                            val root = rootComment
-                            if (root == null) {
-                                Text(
-                                    text = "未选择根评论",
-                                    color = CommentsText.copy(alpha = 0.70f),
-                                    fontSize = 20.sp,
-                                    modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp)
-                                )
-                            } else {
-                                Column(
+                                LazyColumn(
                                     modifier = Modifier.fillMaxSize(),
+                                    state = commentsListState,
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    RootCommentHeader(comment = root)
+                                    itemsIndexed(
+                                        comments,
+                                        key = { _, c -> c.rpid }) { index, comment ->
+                                        val bodyFr =
+                                            mainItemFocusRequesters.getOrPut(comment.rpid) { FocusRequester() }
+                                        val prevBodyFr = comments
+                                            .getOrNull(index - 1)
+                                            ?.let { mainItemFocusRequesters.getOrPut(it.rpid) { FocusRequester() } }
+                                        val nextBodyFr = comments
+                                            .getOrNull(index + 1)
+                                            ?.let { mainItemFocusRequesters.getOrPut(it.rpid) { FocusRequester() } }
 
-                                    if (repliesError != null) {
-                                        InlineErrorText(text = repliesError ?: "加载失败")
+                                        LightCommentItem(
+                                            modifier = Modifier.onFocusChanged {
+                                                if (it.hasFocus) {
+                                                    lastMainFocusedRpid = comment.rpid
+                                                }
+                                            },
+                                            bodyFocusRequester = bodyFr,
+                                            previousBodyFocusRequester = prevBodyFr,
+                                            nextBodyFocusRequester = nextBodyFr,
+                                            comment = comment,
+                                            showRepliesHint = comment.repliesCount > 0,
+                                            onClick = {
+                                                if (comment.repliesCount <= 0) return@LightCommentItem
+
+                                                lastMainFocusedRpid = comment.rpid
+
+                                                rootComment = comment
+                                                page = Page.Replies
+
+                                                replies.clear()
+                                                replyPage = CommentReplyPage()
+                                                repliesHasNext = true
+                                                repliesError = null
+                                                replyItemFocusRequesters.clear()
+                                                loadReplies(reset = true)
+                                            },
+                                            onImageClick = { imgIndex ->
+                                                openPreview(comment.pictures, imgIndex)
+                                            },
+                                            onVideoLinkClick = { link ->
+                                                if (Prefs.showVideoInfo) {
+                                                    VideoInfoActivity.actionStart(context, link.aid)
+                                                } else {
+                                                    launchPlayerActivity(
+                                                        context = context,
+                                                        avid = link.aid,
+                                                        cid = link.cid,
+                                                        title = link.title,
+                                                        partTitle = "",
+                                                        played = 0,
+                                                        fromSeason = false
+                                                    )
+                                                }
+                                            }
+                                        )
                                     }
 
-                                    LazyColumn(
+                                    item {
+                                        BottomStateLight(
+                                            loading = commentsLoading,
+                                            hasNext = commentsHasNext,
+                                            empty = comments.isEmpty(),
+                                            emptyText = "暂无评论"
+                                        )
+                                    }
+                                }
+                            }
+
+                            Page.Replies -> {
+                                val root = rootComment
+                                if (root == null) {
+                                    Text(
+                                        text = "未选择根评论",
+                                        color = CommentsText.copy(alpha = 0.70f),
+                                        fontSize = 20.sp,
+                                        modifier = Modifier.padding(
+                                            horizontal = 2.dp,
+                                            vertical = 2.dp
+                                        )
+                                    )
+                                } else {
+                                    Column(
                                         modifier = Modifier.fillMaxSize(),
-                                        state = repliesListState,
                                         verticalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
-                                        itemsIndexed(
-                                            replies,
-                                            key = { _, c -> c.rpid }
-                                        ) { index, reply ->
-                                            val bodyFr =
-                                                replyItemFocusRequesters.getOrPut(reply.rpid) { FocusRequester() }
-                                            val prevBodyFr = replies
-                                                .getOrNull(index - 1)
-                                                ?.let { replyItemFocusRequesters.getOrPut(it.rpid) { FocusRequester() } }
-                                            val nextBodyFr = replies
-                                                .getOrNull(index + 1)
-                                                ?.let { replyItemFocusRequesters.getOrPut(it.rpid) { FocusRequester() } }
+                                        RootCommentHeader(comment = root)
 
-                                            LightCommentItem(
-                                                bodyFocusRequester = bodyFr,
-                                                previousBodyFocusRequester = prevBodyFr,
-                                                nextBodyFocusRequester = nextBodyFr,
-                                                comment = reply,
-                                                showRepliesHint = false,
-                                                onClick = {},
-                                                onImageClick = { imgIndex ->
-                                                    openPreview(reply.pictures, imgIndex)
-                                                },
-                                                onVideoLinkClick = { link ->
-                                                    if (Prefs.showVideoInfo) {
-                                                        VideoInfoActivity.actionStart(context, link.aid)
-                                                    } else {
-                                                        launchPlayerActivity(
-                                                            context = context,
-                                                            avid = link.aid,
-                                                            cid = link.cid,
-                                                            title = link.title,
-                                                            partTitle = "",
-                                                            played = 0,
-                                                            fromSeason = false
-                                                        )
-                                                    }
-                                                }
-                                            )
+                                        if (repliesError != null) {
+                                            InlineErrorText(text = repliesError ?: "加载失败")
                                         }
 
-                                        item {
-                                            BottomStateLight(
-                                                loading = repliesLoading,
-                                                hasNext = repliesHasNext,
-                                                empty = replies.isEmpty(),
-                                                emptyText = "暂无回复"
-                                            )
+                                        LazyColumn(
+                                            modifier = Modifier.fillMaxSize(),
+                                            state = repliesListState,
+                                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            itemsIndexed(
+                                                replies,
+                                                key = { _, c -> c.rpid }
+                                            ) { index, reply ->
+                                                val bodyFr =
+                                                    replyItemFocusRequesters.getOrPut(reply.rpid) { FocusRequester() }
+                                                val prevBodyFr = replies
+                                                    .getOrNull(index - 1)
+                                                    ?.let {
+                                                        replyItemFocusRequesters.getOrPut(it.rpid)
+                                                        { FocusRequester() }
+                                                    }
+                                                val nextBodyFr = replies
+                                                    .getOrNull(index + 1)
+                                                    ?.let {
+                                                        replyItemFocusRequesters.getOrPut(it.rpid)
+                                                        { FocusRequester() }
+                                                    }
+
+                                                LightCommentItem(
+                                                    bodyFocusRequester = bodyFr,
+                                                    previousBodyFocusRequester = prevBodyFr,
+                                                    nextBodyFocusRequester = nextBodyFr,
+                                                    comment = reply,
+                                                    showRepliesHint = false,
+                                                    onClick = {},
+                                                    onImageClick = { imgIndex ->
+                                                        openPreview(reply.pictures, imgIndex)
+                                                    },
+                                                    onVideoLinkClick = { link ->
+                                                        if (Prefs.showVideoInfo) {
+                                                            VideoInfoActivity.actionStart(
+                                                                context,
+                                                                link.aid
+                                                            )
+                                                        } else {
+                                                            launchPlayerActivity(
+                                                                context = context,
+                                                                avid = link.aid,
+                                                                cid = link.cid,
+                                                                title = link.title,
+                                                                partTitle = "",
+                                                                played = 0,
+                                                                fromSeason = false
+                                                            )
+                                                        }
+                                                    }
+                                                )
+                                            }
+
+                                            item {
+                                                BottomStateLight(
+                                                    loading = repliesLoading,
+                                                    hasNext = repliesHasNext,
+                                                    empty = replies.isEmpty(),
+                                                    emptyText = "暂无回复"
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -671,15 +720,16 @@ fun VideoCommentsDialog(
                         }
                     }
                 }
+
+                if (previewPictures.isNotEmpty()) {
+                    CommentImagePreviewDialog(
+                        pictures = previewPictures,
+                        currentIndex = previewIndex,
+                        onDismissRequest = { closePreview() },
+                        onSwitch = { delta -> switchPreview(delta) }
+                    )
+                }
             }
-        }
-        if (previewPictures.isNotEmpty()) {
-            CommentImagePreviewDialog(
-                pictures = previewPictures,
-                currentIndex = previewIndex,
-                onDismissRequest = { closePreview() },
-                onSwitch = { delta -> switchPreview(delta) }
-            )
         }
     }
 }
