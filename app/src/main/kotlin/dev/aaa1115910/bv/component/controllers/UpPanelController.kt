@@ -124,7 +124,9 @@ fun UpPanelController(
         chapters = uiState.availableChapters,
         currentTimeMs = currentTimeMs
     )
-    val collectionBuilt = buildCollectionParents(uiState)
+    val collectionBuilt = buildCollectionParents(
+        uiState = uiState
+    )
     val videoPageProgress = buildVideoPageProgress(
         videoList = uiState.availableVideoList,
         currentAid = uiState.aid,
@@ -143,7 +145,7 @@ fun UpPanelController(
     }
     val collectionProgressText = formatProgressText(
         selectedIndex = collectionBuilt.selectedIndex,
-        total = collectionBuilt.parents.size
+        total = collectionBuilt.totalCount
     )
 
     Box(
@@ -440,11 +442,22 @@ private fun buildChapterParents(
     currentTimeMs: Long
 ): BuiltChapterParents {
     val currentSec = (currentTimeMs / 1000L).toInt()
-    val selectedIndex = chapters.indexOfFirst { ch ->
+
+    val exactIndex = chapters.indexOfFirst { ch ->
         val from = ch.fromSec
         val to = ch.toSec
         if (to > 0) currentSec in from until to else currentSec >= from
-    }.takeIf { it >= 0 }
+    }
+
+    val fallbackIndex = chapters.indexOfLast { ch ->
+        currentSec >= ch.fromSec
+    }
+
+    val selectedIndex = when {
+        exactIndex >= 0 -> exactIndex
+        fallbackIndex >= 0 -> fallbackIndex
+        else -> null
+    }
 
     return BuiltChapterParents(
         parents = chapters.mapIndexed { index, ch ->
@@ -464,12 +477,14 @@ private data class BuiltCollectionParents(
     val parents: List<CollectionParentItem>,
     val selectedParentKey: Long?,
     val selectedChildKey: Long?,
-    val selectedIndex: Int?
+    val selectedIndex: Int?,
+    val totalCount: Int
 )
 
 private fun buildCollectionParents(uiState: PlayerUiState): BuiltCollectionParents {
     val sections = uiState.ugcSeason?.sections.orEmpty()
     val currentAid = uiState.aid
+    val currentCid = uiState.cid
 
     val parents = sections.mapIndexed { sectionIndex, section ->
         CollectionParentItem(
@@ -493,14 +508,25 @@ private fun buildCollectionParents(uiState: PlayerUiState): BuiltCollectionParen
         )
     }
 
-    val selectedParentIndex = sections.indexOfFirst { s -> s.episodes.any { it.aid == currentAid } }
-        .takeIf { it >= 0 }
+    val selectedParentIndex = sections.indexOfFirst { section ->
+        section.episodes.any { ep -> ep.aid == currentAid || ep.cid == currentCid }
+    }.takeIf { it >= 0 }
+
+    val flatEpisodes = sections.flatMap { it.episodes }
+    val selectedEpisodeIndex = flatEpisodes.indexOfFirst { ep ->
+        ep.aid == currentAid || ep.cid == currentCid
+    }.takeIf { it >= 0 }
+
+    val selectedChildKey = flatEpisodes.firstOrNull { ep ->
+        ep.aid == currentAid || ep.cid == currentCid
+    }?.aid ?: currentAid.takeIf { it != 0L }
 
     return BuiltCollectionParents(
         parents = parents,
         selectedParentKey = selectedParentIndex?.toLong(),
-        selectedChildKey = currentAid.takeIf { it != 0L },
-        selectedIndex = selectedParentIndex
+        selectedChildKey = selectedChildKey,
+        selectedIndex = selectedEpisodeIndex,
+        totalCount = flatEpisodes.size
     )
 }
 
@@ -514,12 +540,27 @@ private fun buildVideoPageProgress(
     currentAid: Long,
     currentCid: Long
 ): VideoPageProgress? {
+    if (videoList.isEmpty()) return null
+
+    val topLevelIndex = videoList.indexOfFirst { video ->
+        video.aid == currentAid || video.cid == currentCid
+    }
+
+    if (videoList.size > 1 && topLevelIndex >= 0) {
+        return VideoPageProgress(
+            total = videoList.size,
+            selectedIndex = topLevelIndex
+        )
+    }
+
     val parent = videoList.firstOrNull { it.aid == currentAid }
         ?: videoList.firstOrNull { it.cid == currentCid }
-        ?: videoList.firstOrNull { video -> video.ugcPages?.any { it.cid == currentCid } == true }
+        ?: videoList.firstOrNull { video ->
+            video.ugcPages?.any { page -> page.cid == currentCid } == true
+        }
 
     val pages = parent?.ugcPages ?: return null
-    val selectedIndex = pages.indexOfFirst { it.cid == currentCid }
+    val selectedIndex = pages.indexOfFirst { page -> page.cid == currentCid }
         .takeIf { it >= 0 }
 
     return VideoPageProgress(
