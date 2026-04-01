@@ -106,6 +106,7 @@ fun VideoPlayerV3Screen(
         delay(5000)
         while (isActive) {
             if (uiState.playerState == PlayerState.Playing) playerViewModel.trySendHeartbeat()
+            // 周期延迟
             delay(15000)
         }
     }
@@ -119,15 +120,17 @@ fun VideoPlayerV3Screen(
     }
 
     // 弹幕防遮挡蒙版更新
-    LaunchedEffect(uiState.danmakuState.maskEnabled, uiState.danmakuMasks) {
-        if (!uiState.danmakuState.maskEnabled || uiState.danmakuMasks.isEmpty()) {
+    LaunchedEffect(uiState.danmakuState.maskEnabled, uiState.danmakuMask) {
+        if (!uiState.danmakuState.maskEnabled || uiState.danmakuMask == null) {
             currentDanmakuMaskFrame = null
             return@LaunchedEffect
         }
 
+        // 当 mask 列表变化（如切集）或开关变化时，重置查找器缓存
         maskFinder.reset()
 
-        val masks = uiState.danmakuMasks
+        val mask = uiState.danmakuMask ?: return@LaunchedEffect
+
         var lastCheckTime = -1L
 
         while (isActive) {
@@ -136,7 +139,8 @@ fun VideoPlayerV3Screen(
             val isTimeJumping = (currentTime - lastCheckTime).absoluteValue > 200
 
             if (isPlaying || isTimeJumping) {
-                val foundFrame = maskFinder.findFrame(masks, currentTime)
+                // 使用工具类查找 Frame
+                val foundFrame = maskFinder.findFrame(mask, currentTime)
 
                 if (currentDanmakuMaskFrame != foundFrame) {
                     currentDanmakuMaskFrame = foundFrame

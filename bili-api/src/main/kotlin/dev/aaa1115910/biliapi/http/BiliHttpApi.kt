@@ -97,6 +97,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
 import org.jsoup.nodes.Document
+import java.io.InputStream
 import javax.xml.parsers.DocumentBuilderFactory
 
 object BiliHttpApi {
@@ -1824,6 +1825,10 @@ object BiliHttpApi {
 
     suspend fun download(url: String): ByteArray {
         return client.get(url).readRawBytes()
+    }
+
+    suspend fun downloadAsStream(url: String): InputStream {
+        return client.get(url).bodyAsChannel().toInputStream()
     }
 
     suspend fun getWebVideoShot(

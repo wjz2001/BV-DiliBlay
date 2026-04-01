@@ -901,6 +901,7 @@ class VideoPlayerV3ViewModel(
 
         _uiState.update { it.copy(danmakuState = new) }
 
+        // ===== 副作用处理 =====
         if (new.enabledTypes != old.enabledTypes) {
             updateDanmakuConfigTypeFilter(new.enabledTypes)
             Prefs.defaultDanmakuTypes = new.enabledTypes
@@ -1014,6 +1015,7 @@ class VideoPlayerV3ViewModel(
 
         _uiState.update { it.copy(subtitleState = new) }
 
+        // ===== 持久化副作用 =====
         if (new.fontSize != old.fontSize) {
             Prefs.defaultSubtitleFontSize = new.fontSize
         }
@@ -1027,6 +1029,9 @@ class VideoPlayerV3ViewModel(
         }
     }
 
+    /**
+     * 触发播放结束后的检查逻辑
+     */
     fun checkAndPlayNext() {
         when (Prefs.actionAfterPlay) {
             ActionAfterPlayItems.Pause -> return
@@ -1046,12 +1051,14 @@ class VideoPlayerV3ViewModel(
                         title = firstRelatedVideo.title
                     )
                     playNewVideo(newVideo = nextVideo)
+
+                    // 因为番剧无相关视频，需要继续播放，所以在这里return
                     return
                 }
             }
 
             ActionAfterPlayItems.PlayNext -> {
-                /* continue */
+                /* 继续执行 */
             }
         }
 
@@ -1059,11 +1066,14 @@ class VideoPlayerV3ViewModel(
         val videoList = currentState.availableVideoList
         val currentCid = currentState.cid
 
+        // 1. 查找当前视频在列表中的位置
         val videoListIndex = videoList.indexOfFirst { it.aid == currentState.aid }
         val currentVideoItem = videoList.getOrNull(videoListIndex)
 
+        // 2. 预计算下一个播放项 (NextTarget)
         var nextTarget: NextPlayTarget? = null
 
+        // 逻辑 A: 检查是否有下一个分 P (UGC Page)
         if (currentVideoItem?.ugcPages?.isNotEmpty() == true) {
             val currentInnerIndex = currentVideoItem.ugcPages.indexOfFirst { it.cid == currentCid }
             if (currentInnerIndex != -1 && currentInnerIndex + 1 < currentVideoItem.ugcPages.size) {
@@ -1072,14 +1082,17 @@ class VideoPlayerV3ViewModel(
             }
         }
 
+        // 逻辑 B: 如果没有分 P，检查是否有下一个视频
         if (nextTarget == null && videoListIndex + 1 < videoList.size) {
             val nextVideo = videoList[videoListIndex + 1]
             nextTarget = NextPlayTarget.VideoItem(nextVideo)
         }
 
+        // 3. 根据查找结果执行操作
         if (nextTarget != null) {
             startNextEpisodeCountdown(nextTarget)
         } else {
+            // 没有下一集了，发送事件关闭页面
             viewModelScope.launch {
                 _uiEffect.emit(PlayerUiEffect.FinishActivity)
             }
@@ -1100,7 +1113,11 @@ class VideoPlayerV3ViewModel(
         withDanmakuPlayerLocked { danmakuPlayer?.pause() }
     }
 
+    /**
+     * 开始周期性更新播放进度
+     */
     fun startSeekerUpdater() {
+        // 防止重复启动
         if (seekerUpdateJob?.isActive == true) return
 
         seekerUpdateJob = viewModelScope.launch(Dispatchers.Main) {
@@ -1129,16 +1146,19 @@ class VideoPlayerV3ViewModel(
         val shouldUpdateVideoDetail = state.aid != newVideo.aid
         val shouldUpdateVideoList = !state.availableVideoList.any { it.aid == newVideo.aid }
 
+        // 切换视频时更新detail
         if (shouldUpdateVideoDetail) {
             viewModelScope.launch(Dispatchers.IO) {
                 videoInfoRepository.loadVideoDetail(newVideo.aid, Prefs.apiType)
             }
         }
 
+        // 新视频不在当前视频列表时更新列表
         if (shouldUpdateVideoList) {
             videoInfoRepository.updateVideoList(listOf(newVideo))
         }
 
+        // 更新播放历史并上传
         syncProgress(viewModelScope)
 
         _uiState.update {
@@ -1553,6 +1573,7 @@ class VideoPlayerV3ViewModel(
                 }
             logger.fInfo { "Video available resolution: $resolutionMap" }
 
+            // 解析并去重可用的音质 (使用 buildList 和 distinct 替代 forEach + mutableList)
             val availableAudioList = buildList {
                 addAll(localPlayData.dashAudios.map { Audio.fromCode(it.codecId) })
                 localPlayData.dolby?.let { add(Audio.fromCode(it.codecId)) }
@@ -1570,6 +1591,7 @@ class VideoPlayerV3ViewModel(
                 defaultAudio = Prefs.defaultAudio
             )
 
+            // 统一批量更新 UI State (避免多次触发重组)
             _uiState.update {
                 it.copy(
                     availableQuality = resolutionMap,
@@ -1682,6 +1704,7 @@ class VideoPlayerV3ViewModel(
     ): Audio {
         if (availableAudio.contains(defaultAudio)) return defaultAudio
 
+        // Fallback 逻辑
         return when {
             defaultAudio == Audio.ADolbyAtoms && availableAudio.contains(Audio.AHiRes) -> Audio.AHiRes
             defaultAudio == Audio.AHiRes && availableAudio.contains(Audio.ADolbyAtoms) -> Audio.ADolbyAtoms
@@ -1821,10 +1844,12 @@ class VideoPlayerV3ViewModel(
         logger.fInfo { "all video hosts: ${videoUrls.mapNotNull { it?.let { u -> with(URI(u)) { "$scheme://$authority" } } }}" }
         logger.fInfo { "all audio hosts: ${audioUrls.map { with(URI(it)) { "$scheme://$authority" } }}" }
 
+        //replace cdn
         if (Prefs.enableProxy && state.proxyArea != ProxyArea.MainLand) {
             videoUrl = videoUrl.replaceUrlDomainWithAliCdn()
             audioUrl = audioUrl?.replaceUrlDomainWithAliCdn()
         } else {
+            // 如果未通过网络代理获得播放地址，才判断是否应该替换为官方 cdn
             videoUrl = selectOfficialCdnUrl(videoUrls.filterNotNull())
             audioUrl = if (audioUrls.isNotEmpty()) selectOfficialCdnUrl(audioUrls) else null
         }
@@ -2107,17 +2132,17 @@ class VideoPlayerV3ViewModel(
         if (!isCurrentLoadRequest(generation, aid, cid, expectedEpid)) return
 
         runCatching {
-            val masks = videoPlayRepository.getDanmakuMask(
-                aid = aid,
-                cid = cid,
+            val mask = videoPlayRepository.getDanmakuMask(
+                aid = state.aid,
+                cid = state.cid,
                 preferApiType = Prefs.apiType
             )
 
+            _uiState.update { it.copy(danmakuMask = mask) }
+
             if (!isCurrentLoadRequest(generation, aid, cid, expectedEpid)) return@runCatching
 
-            _uiState.update { it.copy(danmakuMasks = masks) }
-
-            logger.fInfo { "Load danmaku mask size: ${masks.size}" }
+            logger.fInfo { "Load danmaku mask segments: ${mask?.segmentCount ?: 0}" }
         }.onFailure {
             if (it is CancellationException) throw it
             logger.fWarn { "Load danmaku mask failed: ${it.stackTraceToString()}" }
