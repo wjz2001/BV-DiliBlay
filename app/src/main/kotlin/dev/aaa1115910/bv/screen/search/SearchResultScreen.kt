@@ -351,6 +351,7 @@ private fun SearchResultListItem(
                     avid = searchResult.aid,
                     title = searchResult.title.removeHtmlTags(),
                     cover = searchResult.cover,
+                    upMid = searchResult.mid,
                     playString = searchResult.play.takeIf { it != -1 }.toWanString(),
                     danmakuString = searchResult.danmaku.takeIf { it != -1 }.toWanString(),
                     timeString = (searchResult.duration * 1000L).formatHourMinSec(),

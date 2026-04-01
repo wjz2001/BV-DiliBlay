@@ -141,6 +141,7 @@ fun DynamicsScreen(
                             avid = item.aid,
                             title = item.title,
                             cover = item.cover,
+                            upMid = item.authorMid,
                             playString = if (isRefreshPlaceholder) "" else item.play.takeIf { it != -1 }.toWanString(),
                             danmakuString = if (isRefreshPlaceholder) "" else item.danmaku.takeIf { it != -1 }.toWanString(),
                             upName = item.author,
