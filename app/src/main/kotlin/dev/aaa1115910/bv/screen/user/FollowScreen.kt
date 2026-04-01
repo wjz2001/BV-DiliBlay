@@ -7,13 +7,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
@@ -27,6 +25,7 @@ import androidx.compose.material.icons.rounded.FolderSpecial
 import androidx.compose.material.icons.rounded.QuestionMark
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -40,12 +39,19 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
+import kotlin.math.max
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
@@ -124,84 +130,91 @@ fun FollowScreen(
         }
     }
 
-    Scaffold(
-        modifier = modifier,
-        topBar = {
-            Box(
-                modifier = Modifier.padding(
-                    start = 48.dp,
-                    top = 24.dp,
-                    bottom = 8.dp,
-                    end = 48.dp
-                )
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = title,
-                        fontSize = 24.sp
-                    )
-                    Text(
-                        text = stringResource(R.string.load_data_count, count),
-                        color = Color.White.copy(alpha = 0.6f)
-                    )
-                }
-            }
-        }
-    ) { innerPadding ->
-        when {
-            followViewModel.groupCards.isEmpty() && followViewModel.updating -> {
+    CompositionLocalProvider(
+        LocalDensity provides Density(
+            density = LocalDensity.current.density * 1.25f,
+            fontScale = LocalDensity.current.fontScale * 1.25f
+        )
+    ) {
+        Scaffold(
+            modifier = modifier,
+            topBar = {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                    contentAlignment = Alignment.Center
+                    modifier = Modifier.padding(
+                        start = 48.dp,
+                        top = 24.dp,
+                        bottom = 8.dp,
+                        end = 48.dp
+                    )
                 ) {
-                    LoadingTip()
-                }
-            }
-
-            followViewModel.groupCards.isEmpty() -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    EmptyTip()
-                }
-            }
-
-            selectedGroupId == null -> {
-                FollowGroupGrid(
-                    modifier = Modifier.padding(innerPadding),
-                    state = groupGridState,
-                    groups = followViewModel.groupCards,
-                    focusGroupId = followViewModel.preferredGroupFocusId,
-                    focusRequester = groupFocusRequester,
-                    onGroupFocused = followViewModel::onGroupFocused,
-                    onGroupClick = followViewModel::enterGroup
-                )
-            }
-
-            else -> {
-                FollowUserGrid(
-                    modifier = Modifier.padding(innerPadding),
-                    state = detailGridState,
-                    users = currentUsers,
-                    focusUserKey = followViewModel.preferredDetailUserKey,
-                    focusRequester = detailFocusRequester,
-                    onUserClick = { user ->
-                        UpInfoActivity.actionStart(
-                            context = context,
-                            mid = user.mid,
-                            name = user.name
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = title,
+                            fontSize = 24.sp
+                        )
+                        Text(
+                            text = stringResource(R.string.load_data_count, count),
+                            color = Color.White.copy(alpha = 0.6f)
                         )
                     }
-                )
+                }
+            }
+        ) { innerPadding ->
+            when {
+                followViewModel.groupCards.isEmpty() && followViewModel.updating -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        LoadingTip()
+                    }
+                }
+
+                followViewModel.groupCards.isEmpty() -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        EmptyTip()
+                    }
+                }
+
+                selectedGroupId == null -> {
+                    FollowGroupGrid(
+                        modifier = Modifier.padding(innerPadding),
+                        state = groupGridState,
+                        groups = followViewModel.groupCards,
+                        focusGroupId = followViewModel.preferredGroupFocusId,
+                        focusRequester = groupFocusRequester,
+                        onGroupFocused = followViewModel::onGroupFocused,
+                        onGroupClick = followViewModel::enterGroup
+                    )
+                }
+
+                else -> {
+                    FollowUserGrid(
+                        modifier = Modifier.padding(innerPadding),
+                        state = detailGridState,
+                        users = currentUsers,
+                        focusUserKey = followViewModel.preferredDetailUserKey,
+                        focusRequester = detailFocusRequester,
+                        onUserClick = { user ->
+                            UpInfoActivity.actionStart(
+                                context = context,
+                                mid = user.mid,
+                                name = user.name
+                            )
+                        }
+                    )
+                }
             }
         }
     }
@@ -346,48 +359,142 @@ private fun FollowGroupCard(
 
 @Composable
 private fun FollowGroupCardContent(group: FollowGroupCardUi) {
-    Row(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 18.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .width(40.dp)
-                .fillMaxHeight(),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                modifier = Modifier.size(28.dp),
-                imageVector = relationGroupIcon(group),
-                contentDescription = null
-            )
-        }
+    val subtitle = when (group.state) {
+        FollowGroupCardState.NORMAL -> "${group.count} 位UP主"
+        FollowGroupCardState.EMPTY -> "空"
+    }
 
-        Column(
-            modifier = Modifier
-                .fillMaxHeight()
-                .weight(1f),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
+    val titleStyle = MaterialTheme.typography.titleLarge.copy(
+        fontSize = 24.sp,
+        platformStyle = PlatformTextStyle(includeFontPadding = false)
+    )
+    val subtitleStyle = MaterialTheme.typography.bodyLarge.copy(
+        fontSize = 18.sp,
+        platformStyle = PlatformTextStyle(includeFontPadding = false)
+    )
+
+    SubcomposeLayout(
+        modifier = Modifier.fillMaxSize()
+    ) { constraints ->
+        val maxTextWidth = 220.dp.roundToPx()
+        val iconTextGap = 42.dp.roundToPx()
+
+        val looseMaxWidth = minOf(maxTextWidth, constraints.maxWidth)
+
+        // 先测实际文字宽度
+        val looseTitle = subcompose("title_loose") {
             Text(
                 text = group.title,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Text(
-                text = when (group.state) {
-                    FollowGroupCardState.NORMAL -> "${group.count} 位UP主"
-                    FollowGroupCardState.EMPTY -> "空"
-                },
-                color = Color.White.copy(alpha = 0.6f),
+                style = titleStyle,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+        }.first().measure(
+            Constraints(
+                minWidth = 0,
+                maxWidth = looseMaxWidth
+            )
+        )
+
+        val looseSubtitle = subcompose("subtitle_loose") {
+            Text(
+                text = subtitle,
+                style = subtitleStyle,
+                color = Color.White.copy(alpha = 0.68f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }.first().measure(
+            Constraints(
+                minWidth = 0,
+                maxWidth = looseMaxWidth
+            )
+        )
+
+        var textBlockWidth = max(looseTitle.width, looseSubtitle.width).coerceAtLeast(1)
+
+        // 先根据单行文字高度估算图标高度
+        val equalSpace = ((constraints.maxHeight - looseTitle.height - looseSubtitle.height) / 3)
+            .coerceAtLeast(0)
+
+        var iconSize = (looseTitle.height + equalSpace + looseSubtitle.height)
+            .coerceAtLeast(1)
+
+        // 避免整体超宽
+        val availableTextWidth = (constraints.maxWidth - iconSize - iconTextGap).coerceAtLeast(1)
+        textBlockWidth = minOf(textBlockWidth, maxTextWidth, availableTextWidth)
+
+        // 正式测量两行文字：同宽，文字居中
+        val titlePlaceable = subcompose("title_final") {
+            Text(
+                text = group.title,
+                style = titleStyle,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+        }.first().measure(
+            Constraints(
+                minWidth = textBlockWidth,
+                maxWidth = textBlockWidth
+            )
+        )
+
+        val subtitlePlaceable = subcompose("subtitle_final") {
+            Text(
+                text = subtitle,
+                style = subtitleStyle,
+                color = Color.White.copy(alpha = 0.68f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+        }.first().measure(
+            Constraints(
+                minWidth = textBlockWidth,
+                maxWidth = textBlockWidth
+            )
+        )
+
+        // 上边距 = 行间距 = 下边距
+        val desiredLineGap = 6.dp.roundToPx() // 这里改小一点，两行就更近
+        val maxAvailableGap = (
+                constraints.maxHeight - titlePlaceable.height - subtitlePlaceable.height
+                ).coerceAtLeast(0)
+        val lineGap = minOf(desiredLineGap, maxAvailableGap)
+
+        // 图标高度仍然和两行文字整体高度对齐
+        iconSize = (titlePlaceable.height + lineGap + subtitlePlaceable.height)
+            .coerceAtLeast(1)
+
+        val iconPlaceable = subcompose("icon") {
+            Icon(
+                modifier = Modifier.fillMaxSize(),
+                imageVector = relationGroupIcon(group),
+                contentDescription = null
+            )
+        }.first().measure(
+            Constraints.fixed(iconSize, iconSize)
+        )
+
+        // 整组内容水平居中：保证图标左边距 = 文字右边距
+        val sidePadding = 10.dp.roundToPx()
+        val contentWidth = iconPlaceable.width + iconTextGap + textBlockWidth
+        val availableWidth = (constraints.maxWidth - sidePadding * 2).coerceAtLeast(0)
+        val startX = sidePadding + ((availableWidth - contentWidth) / 2).coerceAtLeast(0)
+
+        val iconX = startX
+        val textX = iconX + iconPlaceable.width + iconTextGap
+
+        val textBlockHeight = titlePlaceable.height + lineGap + subtitlePlaceable.height
+        val titleY = ((constraints.maxHeight - textBlockHeight) / 2).coerceAtLeast(0)
+        val subtitleY = titleY + titlePlaceable.height + lineGap
+        val iconY = titleY - 5.dp.roundToPx()
+
+        layout(constraints.maxWidth, constraints.maxHeight) {
+            iconPlaceable.placeRelative(iconX, iconY)
+            titlePlaceable.placeRelative(textX, titleY)
+            subtitlePlaceable.placeRelative(textX, subtitleY)
         }
     }
 }
@@ -463,7 +570,7 @@ fun UpCard(
                 )
                 Text(
                     text = sign,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
             }

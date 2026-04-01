@@ -16,8 +16,6 @@ import dev.aaa1115910.biliapi.http.entity.user.RelationType
 import dev.aaa1115910.biliapi.http.entity.relation.RelationTag
 import dev.aaa1115910.biliapi.http.entity.user.Relation
 import dev.aaa1115910.biliapi.http.entity.user.RelationData
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Single
 
 @Single
