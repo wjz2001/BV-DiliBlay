@@ -89,7 +89,8 @@ fun VideoPlayerController(
     onVideoRotationChange: (VideoRotation?) -> Unit,
     onVideoFlipChange: (VideoFlip?) -> Unit,
     onPlaySpeedChange: (Float) -> Unit,
-    onTempPlaySpeedChange: (Float) -> Unit,
+    onTempPlaySpeedStart: (Float) -> Unit,
+    onTempPlaySpeedEnd: (Float) -> Unit,
     onDanmakuSettingChange: (DanmakuSettingAction) -> Unit,
     onSubtitleChange: (Subtitle) -> Unit,
     onSubtitleSettingChange: (SubtitleSettingAction) -> Unit,
@@ -218,7 +219,7 @@ fun VideoPlayerController(
         ) {
             if (event.type == KeyEventType.KeyUp) {
                 val originSpeed = confirmLongPressOriginSpeed ?: uiState.playSpeed
-                onTempPlaySpeedChange(originSpeed)
+                onTempPlaySpeedEnd(originSpeed)
                 confirmLongPressOriginSpeed = null
                 confirmLongPressGuard = false
             }
@@ -296,7 +297,7 @@ fun VideoPlayerController(
                                 val boostedSpeed = (originSpeed * 2.0f).coerceAtMost(5f)
                                 // 只在临时倍速“生效时”提示一次
                                 "播放速度：${boostedSpeed}倍".toast(context)
-                                onTempPlaySpeedChange(boostedSpeed)
+                                onTempPlaySpeedStart(boostedSpeed)
 
                                 // 打开 guard，让后续事件（包括 KeyUp）被上面的 guard 分支吞掉
                                 confirmLongPressGuard = true
