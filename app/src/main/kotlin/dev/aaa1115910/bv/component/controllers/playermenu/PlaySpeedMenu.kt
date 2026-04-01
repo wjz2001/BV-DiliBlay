@@ -28,7 +28,6 @@ import dev.aaa1115910.bv.component.controllers.MenuFocusState
 import dev.aaa1115910.bv.component.controllers.playermenu.component.MenuListItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.StepLessMenuItem
 import dev.aaa1115910.bv.component.ifElse
-import dev.aaa1115910.bv.util.Prefs
 import kotlin.math.roundToInt
 
 @Composable
@@ -55,14 +54,8 @@ fun PlaySpeedMenuList(
             range = 0.25f..5f,
             text = "${(currentSelectedPlaySpeedItem.speed * 100).roundToInt() / 100f}倍",
             onValueChange = { speed ->
-                onPlaySpeedChange(speed)
                 val speedItem = PlaySpeedItem.fromSpeedNearest(speed)
                 onPlaySpeedChange(speedItem.speed)
-                /*
-                val speedItem = PlaySpeedItem.fromSpeed(speed)
-                onSelectedPlaySpeedItemChange(speedItem)
-                Prefs.defaultPlaySpeed = speedItem
-                 */
             },
             onFocusBackToParent = { onFocusStateChange(MenuFocusState.MenuNav) }
         )

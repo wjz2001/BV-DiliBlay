@@ -13,9 +13,11 @@ import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.entity.VideoListItem
+import dev.aaa1115910.bv.entity.VideoRotation
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.biliapi.entity.video.season.UgcSeason
+import dev.aaa1115910.bv.entity.VideoFlip
 
 // 1. 核心 UI 状态 (低频更新)
 data class PlayerUiState(
@@ -68,9 +70,13 @@ data class PlayerUiState(
     // 媒体格式
     val mediaProfileState: MediaProfileState = MediaProfileState(),
 
-    // 播放速度和宽高比
+    // 播放速度、宽高比
     val playSpeed: Float = 1f,
     val aspectRatio: VideoAspectRatio = VideoAspectRatio.Default,
+
+    // 手动画面变换
+    val videoRotation: VideoRotation? = null,
+    val videoFlip: VideoFlip? = null,
 
     // 弹幕状态
     val danmakuState: DanmakuState = DanmakuState(),

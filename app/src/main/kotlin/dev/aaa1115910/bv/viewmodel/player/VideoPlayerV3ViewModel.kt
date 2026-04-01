@@ -38,12 +38,15 @@ import dev.aaa1115910.bv.entity.PlayerType
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
+import dev.aaa1115910.bv.entity.VideoFlip
 import dev.aaa1115910.bv.entity.VideoListItem
+import dev.aaa1115910.bv.entity.VideoRotation
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.player.AbstractVideoPlayer
 import dev.aaa1115910.bv.player.VideoPlayerListener
 import dev.aaa1115910.bv.player.VideoPlayerOptions
 import dev.aaa1115910.bv.player.impl.exo.ExoPlayerFactory
+import dev.aaa1115910.bv.player.impl.exo.ExoMediaPlayer
 import dev.aaa1115910.bv.repository.VideoInfoRepository
 import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
 import dev.aaa1115910.bv.ui.effect.PlayerUiEffect
@@ -427,6 +430,8 @@ class VideoPlayerV3ViewModel(
                     audio = Prefs.defaultAudio
                 ),
                 playSpeed = Prefs.defaultPlaySpeed.speed,
+                videoRotation = null,
+                videoFlip = null,
                 danmakuState = DanmakuState(
                     scale = Prefs.defaultDanmakuScale,
                     opacity = Prefs.defaultDanmakuOpacity,
@@ -524,6 +529,7 @@ class VideoPlayerV3ViewModel(
     fun attachPlayer(player: AbstractVideoPlayer) {
         videoPlayer = player
         videoPlayer?.setPlayerEventListener(videoPlayerListener)
+        applyVideoTransformToPlayer()
     }
 
     fun detachPlayer() {
@@ -558,7 +564,7 @@ class VideoPlayerV3ViewModel(
         )
 
         runCatching {
-            (player as? dev.aaa1115910.bv.player.impl.exo.ExoMediaPlayer)
+            (player as? ExoMediaPlayer)
                 ?.mPlayer
                 ?.clearVideoSurface()
         }
@@ -597,6 +603,8 @@ class VideoPlayerV3ViewModel(
                     }
                     return
                 }
+
+            applyVideoTransformToPlayer()
 
             if (!envLogged) {
                 envLogged = true
@@ -778,6 +786,53 @@ class VideoPlayerV3ViewModel(
         _uiState.update {
             it.copy(aspectRatio = aspectRatio)
         }
+    }
+
+    fun resetVideoTransform() {
+        if (_uiState.value.videoRotation == null && _uiState.value.videoFlip == null) return
+
+        _uiState.update {
+            it.copy(
+                videoRotation = null,
+                videoFlip = null
+            )
+        }
+
+        applyVideoTransformToPlayer(
+            rotation = null,
+            flip = null
+        )
+    }
+
+    fun updateVideoRotation(rotation: VideoRotation?) {
+        if (_uiState.value.videoRotation == rotation) return
+
+        _uiState.update {
+            it.copy(videoRotation = rotation)
+        }
+
+        applyVideoTransformToPlayer(rotation = rotation)
+    }
+
+    fun updateVideoFlip(flip: VideoFlip?) {
+        if (_uiState.value.videoFlip == flip) return
+
+        _uiState.update {
+            it.copy(videoFlip = flip)
+        }
+
+        applyVideoTransformToPlayer(flip = flip)
+    }
+
+    private fun applyVideoTransformToPlayer(
+        rotation: VideoRotation? = _uiState.value.videoRotation,
+        flip: VideoFlip? = _uiState.value.videoFlip
+    ) {
+        (videoPlayer as? ExoMediaPlayer)?.applyVideoTransform(
+            scaleX = flip?.scaleX ?: 1f,
+            scaleY = flip?.scaleY ?: 1f,
+            rotationDegrees = rotation?.effectDegreesCounterClockwise ?: 0f
+        )
     }
 
     fun updateMediaProfile(action: MediaProfileSettingAction) {
@@ -1079,9 +1134,13 @@ class VideoPlayerV3ViewModel(
                 cid = newVideo.cid,
                 epid = newVideo.epid,
                 seasonId = newVideo.seasonId ?: 0,
-                title = newVideo.title
+                title = newVideo.title,
+                videoRotation = null,
+                videoFlip = null
             )
         }
+
+        applyVideoTransformToPlayer(rotation = null, flip = null)
 
         val immediatePartTitle = partTitleOverride
             ?.trim()
@@ -1764,6 +1823,9 @@ class VideoPlayerV3ViewModel(
 
         logger.info { "Video url: $videoUrl" }
         logger.info { "Audio url: $audioUrl" }
+
+        // 必须发生在 prepare 之前
+        applyVideoTransformToPlayer()
 
         val playbackHeaders = buildPlaybackHeaders(apiType)
         player.setHeader(playbackHeaders)
