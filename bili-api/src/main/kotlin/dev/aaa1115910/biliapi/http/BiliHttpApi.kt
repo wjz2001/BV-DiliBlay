@@ -1944,6 +1944,36 @@ object BiliHttpApi {
         parameter("plat", plat)
         sessData?.let { header("Cookie", "SESSDATA=$it;") }
     }.body()
+
+    /**
+     * 移动用户到关注分组
+     *
+     * POST https://api.bilibili.com/x/relation/tags/moveUsers
+     * FormData：fids, beforeTagids, afterTagids
+     * 认证：Cookie(SESSDATA)+csrf 或 access_key
+     */
+    suspend fun moveUsersToRelationTags(
+        fids: List<Long>,
+        beforeTagIds: List<Int>,
+        afterTagIds: List<Int>,
+        accessKey: String? = null,
+        csrf: String? = null,
+        sessData: String? = null
+    ): BiliResponseWithoutData = client.post("/x/relation/tags/moveUsers") {
+        checkToken(accessKey, sessData)
+        setBody(
+            FormDataContent(
+                Parameters.build {
+                    append("fids", fids.joinToString(","))
+                    append("beforeTagids", beforeTagIds.joinToString(","))
+                    append("afterTagids", afterTagIds.joinToString(","))
+                    accessKey?.let { append("access_key", it) }
+                    csrf?.let { append("csrf", it) }
+                }
+            )
+        )
+        sessData?.let { header("Cookie", "SESSDATA=$it;") }
+    }.body()
 }
 
 enum class SeasonIndexType(val id: Int) {

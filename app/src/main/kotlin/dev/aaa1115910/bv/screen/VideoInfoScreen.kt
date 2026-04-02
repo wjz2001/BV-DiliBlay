@@ -283,9 +283,9 @@ fun VideoInfoScreen(
         // 更新播放列表
         val newVideoList = mutableListOf<VideoListItem>()
         if (videoDetailState.ugcSeason != null) {
-            val currentSection = videoDetailState.ugcSeason.sections?.find { section ->
+            val currentSection = videoDetailState.ugcSeason.sections.find { section ->
                 section.episodes.any { it.cid == targetCid || it.aid == videoDetailState.aid }
-            } ?: videoDetailState.ugcSeason.sections?.firstOrNull()
+            } ?: videoDetailState.ugcSeason.sections.firstOrNull()
 
             currentSection?.episodes?.forEach { episode ->
                     newVideoList.add(
@@ -463,6 +463,7 @@ fun VideoInfoScreen(
 
                                 videoDetailViewModel.submitFollowGroupSelection(
                                     wasFollowing = followGroupDialogWasFollowing,
+                                    initialSelectedTagIds = initialSelected,
                                     selectedTagIds = finalSelected
                                 )
                             }

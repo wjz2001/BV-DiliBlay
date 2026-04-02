@@ -208,41 +208,22 @@ class VideoDetailViewModel(
 
     fun submitFollowGroupSelection(
         wasFollowing: Boolean,
+        initialSelectedTagIds: List<Int>,
         selectedTagIds: List<Int>
     ) {
         val upMid = _uiState.value.videoDetailState?.author?.mid ?: return
-        // 兜底保证：0（默认/未分组）与其它分组互斥
-        val dedup = selectedTagIds.distinct().sorted()
-        val finalSelected = if (dedup.contains(0) && dedup.size > 1) listOf(0) else dedup
 
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
-                when {
-                    finalSelected.isEmpty() -> {
-                        // 空选退出：仅当进入面板前已关注才取关；否则不做事
-                        if (wasFollowing) {
-                            userRepository.unfollowUser(
-                                mid = upMid,
-                                preferApiType = Prefs.apiType
-                            )
-                        }
-                    }
-
-                    else -> {
-                        // 非空：确保已关注，然后在面板关闭后再一次性提交分组
-                        if (!wasFollowing) {
-                            userRepository.followUser(
-                                mid = upMid,
-                                preferApiType = Prefs.apiType
-                            )
-                        }
-
-                        userRepository.addUserToFollowTags(
-                            mid = upMid,
-                            tagIds = finalSelected,
-                            preferApiType = Prefs.apiType
-                        )
-                    }
+                val success = userRepository.submitFollowGroupSelection(
+                    mid = upMid,
+                    wasFollowing = wasFollowing,
+                    beforeTagIds = initialSelectedTagIds,
+                    afterTagIds = selectedTagIds,
+                    preferApiType = Prefs.apiType
+                )
+                if (!success) {
+                    logger.fWarn { "Submit follow group selection failed: repository returned false" }
                 }
             }.onFailure { t ->
                 logger.fWarn { "Submit follow group selection failed: ${t.message}" }
@@ -401,7 +382,6 @@ class VideoDetailViewModel(
         val isVideoNotFound = when (Prefs.apiType) {
             ApiType.Web -> errorMessage == "啥都木有"
             ApiType.App -> errorMessage == "访问权限不足"
-            else -> false
         }
 
         if (!isVideoNotFound || !Prefs.enableProxy) {

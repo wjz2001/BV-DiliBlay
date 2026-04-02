@@ -186,33 +186,17 @@ class FollowViewModel(
 
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
-                when {
-                    finalSelected.isEmpty() -> {
-                        if (wasFollowing) {
-                            userRepository.unfollowUser(
-                                mid = upMid,
-                                preferApiType = Prefs.apiType
-                            )
-                        }
-                    }
+                val success = userRepository.submitFollowGroupSelection(
+                    mid = upMid,
+                    wasFollowing = wasFollowing,
+                    beforeTagIds = initialSelected,
+                    afterTagIds = finalSelected,
+                    preferApiType = Prefs.apiType
+                )
+                check(success) { "submit follow group selection failed" }
 
-                    else -> {
-                        if (!wasFollowing) {
-                            userRepository.followUser(
-                                mid = upMid,
-                                preferApiType = Prefs.apiType
-                            )
-                        }
-                        userRepository.addUserToFollowTags(
-                            mid = upMid,
-                            tagIds = finalSelected,
-                            preferApiType = Prefs.apiType
-                        )
-                    }
-                }
-
-                val result = RelationGroupsDataSource.refresh(RelationRefreshTrigger.FollowScreen)
-                result.snapshot?.let { refreshedSnapshot ->
+                val refreshResult = RelationGroupsDataSource.refresh(RelationRefreshTrigger.FollowScreen)
+                refreshResult.snapshot?.let { refreshedSnapshot ->
                     applySnapshot(refreshedSnapshot)
                     BlockManager.rebuildBlockedMidsFromSnapshot(refreshedSnapshot)
                 }

@@ -10,12 +10,12 @@ import dev.aaa1115910.biliapi.entity.user.SpaceVideoOrder
 import dev.aaa1115910.biliapi.entity.user.SpaceVideoPage
 import dev.aaa1115910.biliapi.grpc.utils.handleGrpcException
 import dev.aaa1115910.biliapi.http.BiliHttpApi
+import dev.aaa1115910.biliapi.http.entity.relation.RelationTag
 import dev.aaa1115910.biliapi.http.entity.user.FollowAction
 import dev.aaa1115910.biliapi.http.entity.user.FollowActionSource
-import dev.aaa1115910.biliapi.http.entity.user.RelationType
-import dev.aaa1115910.biliapi.http.entity.relation.RelationTag
 import dev.aaa1115910.biliapi.http.entity.user.Relation
 import dev.aaa1115910.biliapi.http.entity.user.RelationData
+import dev.aaa1115910.biliapi.http.entity.user.RelationType
 import org.koin.core.annotation.Single
 
 @Single
@@ -27,6 +27,11 @@ class UserRepository(
         get() = runCatching {
             DynamicGrpcKt.DynamicCoroutineStub(channelRepository.defaultChannel!!)
         }.getOrNull()
+
+    private fun normalizeFollowTagIds(ids: List<Int>): List<Int> {
+        val dedup = ids.distinct().sorted()
+        return if (dedup.contains(0) && dedup.size > 1) listOf(0) else dedup
+    }
 
     private suspend fun modifyFollow(
         mid: Long,
@@ -112,6 +117,129 @@ class UserRepository(
             }
         }
         return response.code == 0
+    }
+
+    suspend fun moveUserToFollowTags(
+        mid: Long,
+        beforeTagIds: List<Int>,
+        afterTagIds: List<Int>,
+        preferApiType: ApiType = ApiType.Web
+    ): Boolean {
+        if (authRepository.sessionData == null && authRepository.accessToken == null) return false
+
+        val normalizedBefore = normalizeFollowTagIds(beforeTagIds).ifEmpty { listOf(0) }
+        val normalizedAfter = normalizeFollowTagIds(afterTagIds)
+        if (normalizedAfter.isEmpty()) return true
+
+        val response = when (preferApiType) {
+            ApiType.Web -> {
+                BiliHttpApi.moveUsersToRelationTags(
+                    fids = listOf(mid),
+                    beforeTagIds = normalizedBefore,
+                    afterTagIds = normalizedAfter,
+                    csrf = authRepository.biliJct,
+                    sessData = authRepository.sessionData
+                )
+            }
+
+            ApiType.App -> {
+                BiliHttpApi.moveUsersToRelationTags(
+                    fids = listOf(mid),
+                    beforeTagIds = normalizedBefore,
+                    afterTagIds = normalizedAfter,
+                    accessKey = authRepository.accessToken
+                )
+            }
+        }
+        return response.code == 0
+    }
+
+    /**
+     * 提交“关注 + 关注分组选择”的高层业务编排。
+     *
+     * 规则：
+     * - `afterTagIds` 为空：
+     *   - 原本已关注 -> 取关
+     *   - 原本未关注 -> 不做任何事
+     * - `afterTagIds` 非空：
+     *   - 原本未关注 -> 先关注；若目标为默认分组 0，仅关注即可；否则追加到目标分组
+     *   - 原本已关注：
+     *     - 前后分组一致 -> 不做任何事
+     *     - 默认分组 0 -> 其它分组：追加到目标分组
+     *     - 其它分组 -> 默认分组 0：调用 addUsers(tagids=0)
+     *     - 其它分组 -> 其它分组：调用 moveUsers
+     */
+    suspend fun submitFollowGroupSelection(
+        mid: Long,
+        wasFollowing: Boolean,
+        beforeTagIds: List<Int>,
+        afterTagIds: List<Int>,
+        preferApiType: ApiType = ApiType.Web
+    ): Boolean {
+        if (authRepository.sessionData == null && authRepository.accessToken == null) return false
+
+        val normalizedBefore = if (wasFollowing) {
+            normalizeFollowTagIds(beforeTagIds).ifEmpty { listOf(0) }
+        } else {
+            emptyList()
+        }
+        val normalizedAfter = normalizeFollowTagIds(afterTagIds)
+
+        return when {
+            !wasFollowing && normalizedAfter.isEmpty() -> true
+
+            wasFollowing && normalizedBefore == normalizedAfter -> true
+
+            normalizedAfter.isEmpty() -> {
+                unfollowUser(
+                    mid = mid,
+                    preferApiType = preferApiType
+                )
+            }
+
+            !wasFollowing -> {
+                val followed = followUser(
+                    mid = mid,
+                    preferApiType = preferApiType
+                )
+                if (!followed) return false
+
+                if (normalizedAfter == listOf(0)) {
+                    true
+                } else {
+                    addUserToFollowTags(
+                        mid = mid,
+                        tagIds = normalizedAfter,
+                        preferApiType = preferApiType
+                    )
+                }
+            }
+
+            normalizedBefore == listOf(0) -> {
+                addUserToFollowTags(
+                    mid = mid,
+                    tagIds = normalizedAfter,
+                    preferApiType = preferApiType
+                )
+            }
+
+            normalizedAfter == listOf(0) -> {
+                addUserToFollowTags(
+                    mid = mid,
+                    tagIds = listOf(0),
+                    preferApiType = preferApiType
+                )
+            }
+
+            else -> {
+                moveUserToFollowTags(
+                    mid = mid,
+                    beforeTagIds = normalizedBefore,
+                    afterTagIds = normalizedAfter,
+                    preferApiType = preferApiType
+                )
+            }
+        }
     }
 
     suspend fun checkIsFollowing(
