@@ -7,21 +7,21 @@ import dev.aaa1115910.bv.viewmodel.pgc.PgcAnimeViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcWarmUpOptions
 import dev.aaa1115910.bv.viewmodel.search.SearchInputViewModel
 import dev.aaa1115910.bv.viewmodel.ugc.UgcViewModel
-import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
+import dev.aaa1115910.bv.viewmodel.user.FollowViewModel
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun MainDrawerPreloadHost(
     preloadSearch: Boolean,
-    preloadPersonal: Boolean,
+    preloadFollow: Boolean,
     preloadUgc: Boolean,
     preloadPgc: Boolean
 ) {
     if (preloadSearch) {
         SearchDrawerPreloader()
     }
-    if (preloadPersonal) {
-        PersonalDrawerPreloader()
+    if (preloadFollow) {
+        FollowDrawerPreloader()
     }
     if (preloadUgc) {
         UgcDrawerPreloader()
@@ -41,11 +41,10 @@ private fun SearchDrawerPreloader(
 }
 
 @Composable
-private fun PersonalDrawerPreloader(
-    toViewViewModel: ToViewViewModel = koinViewModel()
+private fun FollowDrawerPreloader(
+    followViewModel: FollowViewModel = koinViewModel()
 ) {
-    LaunchedEffect(toViewViewModel) {
-        toViewViewModel.warmUp()
+    LaunchedEffect(followViewModel) {
     }
 }
 

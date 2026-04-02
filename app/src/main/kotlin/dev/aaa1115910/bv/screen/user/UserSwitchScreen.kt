@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -33,7 +34,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -55,7 +55,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewModelScope
 import androidx.tv.material3.Button
@@ -74,12 +73,12 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.activities.user.UserLockSettingsActivity
 import dev.aaa1115910.bv.component.ifElse
-import dev.aaa1115910.bv.dao.AppDatabase
 import dev.aaa1115910.bv.entity.db.UserDB
 import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.screen.user.lock.UnlockSwitchUserContent
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.viewmodel.UserViewModel
 import dev.aaa1115910.bv.viewmodel.user.UserSwitchViewModel
 import io.github.g0dkar.qrcode.QRCode
 import kotlinx.coroutines.Dispatchers
@@ -93,6 +92,7 @@ import java.io.ByteArrayOutputStream
 @Composable
 fun UserSwitchScreen(
     modifier: Modifier = Modifier,
+    userViewModel: UserViewModel = koinViewModel(),
     userSwitchViewModel: UserSwitchViewModel = koinViewModel(),
     userRepository: UserRepository = getKoin().get()
 ) {
@@ -105,11 +105,15 @@ fun UserSwitchScreen(
     var showUnlock by remember { mutableStateOf(false) }
     var unlockUser: UserDB? by remember { mutableStateOf(null) }
 
+    LaunchedEffect(Unit) {
+        userViewModel.updateUserInfo()
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 scope.launch {
-                    //userSwitchViewModel.updateUserDbList()
+                    userViewModel.updateUserInfo()
                     userSwitchViewModel.updateData()
                 }
             }
@@ -136,6 +140,7 @@ fun UserSwitchScreen(
             UserSwitchContent(
                 userList = userList,
                 currentUid = userRepository.uid,
+                currentUserLevel = userViewModel.responseData?.level,
                 loadingUserList = userSwitchViewModel.loading,
                 onAddUser = {
                     context.startActivity(Intent(context, LoginActivity::class.java))
@@ -187,6 +192,7 @@ private fun UserSwitchContent(
     modifier: Modifier = Modifier,
     userList: List<UserDB> = emptyList(),
     currentUid: Long,
+    currentUserLevel: Int?,
     loadingUserList: Boolean,
     onSwitchUser: (UserDB) -> Unit,
     onDeleteUser: (UserDB) -> Unit,
@@ -247,6 +253,7 @@ private fun UserSwitchContent(
                     UserItem(
                         avatar = user.avatar,
                         username = user.username,
+                        level = if (user.uid == currentUid) currentUserLevel else null,
                         lockEnabled = user.lock.isNotBlank(),
                         onClick = {
                             if (isInManagerMode) {
@@ -514,6 +521,7 @@ fun UserItem(
     modifier: Modifier = Modifier,
     avatar: String,
     username: String,
+    level: Int? = null,
     lockEnabled: Boolean = false,
     onClick: (() -> Unit)? = null
 ) {
@@ -582,15 +590,39 @@ fun UserItem(
             modifier = Modifier.height(26.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .basicMarquee(),
-                text = username,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                textAlign = TextAlign.Center
-            )
+            if (level == null) {
+                Text(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .basicMarquee(),
+                    text = username,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    textAlign = TextAlign.Center
+                )
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        modifier = Modifier
+                            .weight(1f)
+                            .basicMarquee(),
+                        text = username,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        textAlign = TextAlign.End
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Lv.$level",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1
+                    )
+                }
+            }
         }
     }
 }
@@ -658,6 +690,7 @@ fun UserItemPreview() {
         UserItem(
             avatar = "",
             username = "This is a user name",
+            level = 6,
             onClick = {},
             lockEnabled = true
         )
@@ -701,6 +734,7 @@ fun UserSwitchContentPreview() {
                 )
             ),
             currentUid = 0L,
+            currentUserLevel = 6,
             loadingUserList = false,
             onSwitchUser = {},
             onDeleteUser = {},

@@ -95,29 +95,25 @@ fun TopNav(
         horizontalArrangement = Arrangement.Center
     ) {
         TabRow(
-            modifier = Modifier
-                .focusRestorer(entryFocusRequester),
+            modifier = Modifier.focusRestorer(entryFocusRequester),
             selectedTabIndex = selectedTabIndex,
             separator = { Spacer(modifier = Modifier.width(12.dp)) },
         ) {
             items.forEachIndexed { index, tab ->
-                val isHistoryTab =
-                    (tab is HomeTopNavItem && tab == HomeTopNavItem.History) ||
-                            (tab is PersonalTopNavItem && tab == PersonalTopNavItem.History)
+                val isHistoryTab = tab is HomeTopNavItem && tab == HomeTopNavItem.History
 
                 NavItemTab(
-                    modifier = Modifier
-                        .ifElse(
-                            index == focusTargetIndex,
-                            Modifier
-                                .focusRequester(entryFocusRequester)
-                                .onGloballyPositioned {
-                                    if (!defaultFocusReadyNotified) {
-                                        defaultFocusReadyNotified = true
-                                        onDefaultFocusReady?.invoke()
-                                    }
+                    modifier = Modifier.ifElse(
+                        index == focusTargetIndex,
+                        Modifier
+                            .focusRequester(entryFocusRequester)
+                            .onGloballyPositioned {
+                                if (!defaultFocusReadyNotified) {
+                                    defaultFocusReadyNotified = true
+                                    onDefaultFocusReady?.invoke()
                                 }
-                        ),
+                            }
+                    ),
                     topNavItem = tab,
                     selected = index == selectedTabIndex,
                     showHistorySearchIcon = isHistoryTab && isHistorySearching,
@@ -134,7 +130,6 @@ fun TopNav(
                 )
             }
         }
-
     }
 }
 
@@ -238,6 +233,7 @@ private fun TabRowScope.NavItemTab(
                         }
                     }
                 }
+
                 else -> false
             }
         },
@@ -292,7 +288,6 @@ interface TopNavItem {
     fun getDisplayName(context: Context = BVApp.context): String
 }
 
-
 enum class HomeTopNavItem(val code: Int, private val displayName: String) : TopNavItem {
     Dynamics(0, "动态"),
     History(1, "历史"),
@@ -302,7 +297,7 @@ enum class HomeTopNavItem(val code: Int, private val displayName: String) : TopN
     Popular(5, "热门"),
     FollowingSeason(6, "我追的番");
 
-    companion object{
+    companion object {
         fun fromCode(code: Int): HomeTopNavItem {
             return HomeTopNavItem.entries.find { it.code == code } ?: Dynamics
         }
@@ -349,27 +344,12 @@ enum class PgcTopNavItem(private val pgcType: PgcType) : TopNavItem {
     }
 }
 
-enum class PersonalTopNavItem : TopNavItem {
-    ToView,
-    History,
-    Favorite,
-    FollowingSeason;
-
-    override fun getDisplayName(context: Context): String {
-        return when (this) {
-            ToView -> "稍后再看"
-            History -> "历史"
-            Favorite -> "收藏"
-            FollowingSeason -> "我追的番"
-        }
-    }
-}
-
-enum class SearchTypeTopNavItem: TopNavItem {
+enum class SearchTypeTopNavItem : TopNavItem {
     Video,
     MediaBangumi,
     MediaFt,
     BiliUser;
+
     override fun getDisplayName(context: Context): String {
         return when (this) {
             Video -> "视频"

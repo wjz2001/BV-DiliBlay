@@ -1,4 +1,4 @@
-package dev.aaa1115910.bv.screen.user
+package dev.aaa1115910.bv.screen.main
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -43,15 +43,13 @@ import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
-import kotlin.math.max
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
@@ -65,25 +63,93 @@ import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.relation.RelationGroupKind
-import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
+import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
+import dev.aaa1115910.bv.screen.main.common.mainContentHorizontalExit
+import dev.aaa1115910.bv.screen.user.EmptyTip
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.viewmodel.user.FollowGroupCardState
 import dev.aaa1115910.bv.viewmodel.user.FollowGroupCardUi
 import dev.aaa1115910.bv.viewmodel.user.FollowUserUi
 import dev.aaa1115910.bv.viewmodel.user.FollowViewModel
+import kotlin.math.max
 import org.koin.androidx.compose.koinViewModel
 
+private data class GridHorizontalFocusLink(
+    val leftIndex: Int?,
+    val rightIndex: Int?
+)
+
+private fun buildGridHorizontalFocusLinks(
+    itemCount: Int,
+    columns: Int,
+    isFocusable: (Int) -> Boolean
+): Map<Int, GridHorizontalFocusLink> {
+    if (itemCount <= 0 || columns <= 0) return emptyMap()
+
+    val result = mutableMapOf<Int, GridHorizontalFocusLink>()
+
+    fun findPreviousFocusable(index: Int): Int? {
+        val rowStart = (index / columns) * columns
+        for (i in index - 1 downTo rowStart) {
+            if (isFocusable(i)) return i
+        }
+
+        var previousRowEnd = rowStart - 1
+        while (previousRowEnd >= 0) {
+            val previousRowStart = maxOf(0, previousRowEnd - columns + 1)
+            for (i in previousRowEnd downTo previousRowStart) {
+                if (isFocusable(i)) return i
+            }
+            previousRowEnd = previousRowStart - 1
+        }
+        return null
+    }
+
+    fun findNextFocusable(index: Int): Int? {
+        val rowStart = (index / columns) * columns
+        val rowEnd = minOf(rowStart + columns - 1, itemCount - 1)
+
+        for (i in index + 1..rowEnd) {
+            if (isFocusable(i)) return i
+        }
+
+        var nextRowStart = rowEnd + 1
+        while (nextRowStart < itemCount) {
+            val nextRowEnd = minOf(nextRowStart + columns - 1, itemCount - 1)
+            for (i in nextRowStart..nextRowEnd) {
+                if (isFocusable(i)) return i
+            }
+            nextRowStart = nextRowEnd + 1
+        }
+        return null
+    }
+
+    for (index in 0 until itemCount) {
+        if (!isFocusable(index)) continue
+
+        result[index] = GridHorizontalFocusLink(
+            leftIndex = findPreviousFocusable(index),
+            rightIndex = findNextFocusable(index)
+        )
+    }
+
+    return result
+}
+
 @Composable
-fun FollowScreen(
-    modifier: Modifier = Modifier,
+fun FollowContent(
+    navFocusRequester: FocusRequester,
+    drawerFocusRequester: FocusRequester,
+    pendingDrawerEntryRequest: MainContentEntryRequest? = null,
+    onDrawerEntryConsumed: (Long) -> Unit = {},
+    onDefaultFocusReady: (() -> Unit)? = null,
     followViewModel: FollowViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val groupGridState = rememberLazyGridState()
     val detailGridState = rememberLazyGridState()
-    val groupFocusRequester = remember { FocusRequester() }
-    val detailFocusRequester = remember { FocusRequester() }
 
     val selectedGroupId = followViewModel.selectedGroupId
     val title = if (selectedGroupId == null) {
@@ -98,6 +164,45 @@ fun FollowScreen(
     }
     val currentUsers = followViewModel.currentUsers
 
+    val focusableGroups = remember(followViewModel.groupCards) {
+        followViewModel.groupCards.filter { it.state == FollowGroupCardState.NORMAL }
+    }
+    val focusableGroupIds = remember(focusableGroups) {
+        focusableGroups.map { it.groupId }
+    }
+    val requestedGroupFocusId = remember(
+        pendingDrawerEntryRequest?.id,
+        focusableGroupIds,
+        followViewModel.preferredGroupFocusId
+    ) {
+        when (pendingDrawerEntryRequest?.target) {
+            MainContentFocusTarget.LeftEntry -> focusableGroupIds.firstOrNull()
+            MainContentFocusTarget.RightEntry -> focusableGroupIds.lastOrNull()
+            null -> when {
+                followViewModel.preferredGroupFocusId in focusableGroupIds -> {
+                    followViewModel.preferredGroupFocusId
+                }
+
+                else -> focusableGroupIds.firstOrNull()
+            }
+        }
+    }
+
+    val focusableUserKeys = remember(currentUsers) {
+        currentUsers.map { it.stableKey }
+    }
+    val requestedUserFocusKey = remember(
+        pendingDrawerEntryRequest?.id,
+        focusableUserKeys,
+        followViewModel.preferredDetailUserKey
+    ) {
+        when (pendingDrawerEntryRequest?.target) {
+            MainContentFocusTarget.LeftEntry -> focusableUserKeys.firstOrNull()
+            MainContentFocusTarget.RightEntry -> focusableUserKeys.lastOrNull()
+            null -> followViewModel.preferredDetailUserKey ?: focusableUserKeys.firstOrNull()
+        }
+    }
+
     BackHandler(enabled = selectedGroupId != null) {
         followViewModel.exitGroupDetail()
     }
@@ -105,22 +210,26 @@ fun FollowScreen(
     LaunchedEffect(
         followViewModel.updating,
         selectedGroupId,
-        followViewModel.preferredGroupFocusId
+        requestedGroupFocusId
     ) {
-        val preferredGroupFocusId = followViewModel.preferredGroupFocusId
-        if (!followViewModel.updating && selectedGroupId == null && preferredGroupFocusId != null) {
-            groupFocusRequester.requestFocus(scope)
+        if (!followViewModel.updating &&
+            selectedGroupId == null &&
+            requestedGroupFocusId != null
+        ) {
+            navFocusRequester.requestFocus(scope)
         }
     }
 
     LaunchedEffect(
         followViewModel.updating,
         selectedGroupId,
-        followViewModel.preferredDetailUserKey
+        requestedUserFocusKey
     ) {
-        val preferredDetailUserKey = followViewModel.preferredDetailUserKey
-        if (!followViewModel.updating && selectedGroupId != null && preferredDetailUserKey != null) {
-            detailFocusRequester.requestFocus(scope)
+        if (!followViewModel.updating &&
+            selectedGroupId != null &&
+            requestedUserFocusKey != null
+        ) {
+            navFocusRequester.requestFocus(scope)
         }
     }
 
@@ -130,6 +239,39 @@ fun FollowScreen(
         }
     }
 
+    LaunchedEffect(
+        selectedGroupId,
+        requestedGroupFocusId,
+        requestedUserFocusKey
+    ) {
+        val ready = if (selectedGroupId == null) {
+            requestedGroupFocusId != null
+        } else {
+            requestedUserFocusKey != null
+        }
+        if (ready) {
+            onDefaultFocusReady?.invoke()
+        }
+    }
+
+    LaunchedEffect(
+        pendingDrawerEntryRequest?.id,
+        selectedGroupId,
+        requestedGroupFocusId,
+        requestedUserFocusKey
+    ) {
+        val request = pendingDrawerEntryRequest ?: return@LaunchedEffect
+        val ready = if (selectedGroupId == null) {
+            requestedGroupFocusId != null
+        } else {
+            requestedUserFocusKey != null
+        }
+        if (!ready) return@LaunchedEffect
+
+        navFocusRequester.requestFocus(scope)
+        onDrawerEntryConsumed(request.id)
+    }
+
     CompositionLocalProvider(
         LocalDensity provides Density(
             density = LocalDensity.current.density * 1.25f,
@@ -137,7 +279,6 @@ fun FollowScreen(
         )
     ) {
         Scaffold(
-            modifier = modifier,
             topBar = {
                 Box(
                     modifier = Modifier.padding(
@@ -192,8 +333,9 @@ fun FollowScreen(
                         modifier = Modifier.padding(innerPadding),
                         state = groupGridState,
                         groups = followViewModel.groupCards,
-                        focusGroupId = followViewModel.preferredGroupFocusId,
-                        focusRequester = groupFocusRequester,
+                        requestedFocusGroupId = requestedGroupFocusId,
+                        navFocusRequester = navFocusRequester,
+                        drawerFocusRequester = drawerFocusRequester,
                         onGroupFocused = followViewModel::onGroupFocused,
                         onGroupClick = followViewModel::enterGroup
                     )
@@ -204,8 +346,9 @@ fun FollowScreen(
                         modifier = Modifier.padding(innerPadding),
                         state = detailGridState,
                         users = currentUsers,
-                        focusUserKey = followViewModel.preferredDetailUserKey,
-                        focusRequester = detailFocusRequester,
+                        requestedFocusUserKey = requestedUserFocusKey,
+                        navFocusRequester = navFocusRequester,
+                        drawerFocusRequester = drawerFocusRequester,
                         onUserClick = { user ->
                             UpInfoActivity.actionStart(
                                 context = context,
@@ -225,39 +368,78 @@ private fun FollowGroupGrid(
     modifier: Modifier = Modifier,
     state: LazyGridState,
     groups: List<FollowGroupCardUi>,
-    focusGroupId: Int?,
-    focusRequester: FocusRequester,
+    requestedFocusGroupId: Int?,
+    navFocusRequester: FocusRequester,
+    drawerFocusRequester: FocusRequester,
     onGroupFocused: (Int) -> Unit,
     onGroupClick: (Int) -> Unit
 ) {
+    val groupRequesters = remember(groups) {
+        groups
+            .filter { it.state == FollowGroupCardState.NORMAL }
+            .associate { it.groupId to FocusRequester() }
+    }
+    val focusLinks = remember(groups) {
+        buildGridHorizontalFocusLinks(
+            itemCount = groups.size,
+            columns = 4
+        ) { index ->
+            groups[index].state == FollowGroupCardState.NORMAL
+        }
+    }
+
+    fun requesterForIndex(index: Int): FocusRequester {
+        val groupId = groups[index].groupId
+        return if (groupId == requestedFocusGroupId) {
+            navFocusRequester
+        } else {
+            groupRequesters.getValue(groupId)
+        }
+    }
+
     TvLazyVerticalGrid(
-        modifier = modifier,
+        modifier = modifier.mainContentHorizontalExit(drawerFocusRequester),
         state = state,
         columns = GridCells.Fixed(4),
         contentPadding = PaddingValues(24.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        items(
+        itemsIndexed(
             items = groups,
-            key = { it.groupId }
-        ) { group ->
-            val cardModifier = if (group.groupId == focusGroupId) {
-                Modifier.focusRequester(focusRequester)
-            } else {
-                Modifier
+            key = { _, item -> item.groupId }
+        ) { index, group ->
+            val enabled = group.state == FollowGroupCardState.NORMAL
+            val focusLink = focusLinks[index]
+
+            val cardModifier = when {
+                !enabled -> Modifier.focusProperties { canFocus = false }
+                else -> Modifier
+                    .focusRequester(
+                        if (group.groupId == requestedFocusGroupId) {
+                            navFocusRequester
+                        } else {
+                            groupRequesters.getValue(group.groupId)
+                        }
+                    )
+                    .focusProperties {
+                        left = focusLink?.leftIndex?.let(::requesterForIndex) ?: drawerFocusRequester
+                        right = focusLink?.rightIndex?.let(::requesterForIndex) ?: drawerFocusRequester
+                    }
             }
 
             FollowGroupCard(
                 modifier = cardModifier,
                 group = group,
                 onFocusChange = { hasFocus ->
-                    if (hasFocus) {
+                    if (hasFocus && enabled) {
                         onGroupFocused(group.groupId)
                     }
                 },
                 onClick = {
-                    onGroupClick(group.groupId)
+                    if (enabled) {
+                        onGroupClick(group.groupId)
+                    }
                 }
             )
         }
@@ -269,12 +451,32 @@ private fun FollowUserGrid(
     modifier: Modifier = Modifier,
     state: LazyGridState,
     users: List<FollowUserUi>,
-    focusUserKey: String?,
-    focusRequester: FocusRequester,
+    requestedFocusUserKey: String?,
+    navFocusRequester: FocusRequester,
+    drawerFocusRequester: FocusRequester,
     onUserClick: (FollowUserUi) -> Unit
 ) {
+    val userRequesters = remember(users) {
+        users.associate { it.stableKey to FocusRequester() }
+    }
+    val focusLinks = remember(users) {
+        buildGridHorizontalFocusLinks(
+            itemCount = users.size,
+            columns = 3
+        ) { true }
+    }
+
+    fun requesterForIndex(index: Int): FocusRequester {
+        val userKey = users[index].stableKey
+        return if (userKey == requestedFocusUserKey) {
+            navFocusRequester
+        } else {
+            userRequesters.getValue(userKey)
+        }
+    }
+
     TvLazyVerticalGrid(
-        modifier = modifier,
+        modifier = modifier.mainContentHorizontalExit(drawerFocusRequester),
         state = state,
         columns = GridCells.Fixed(3),
         contentPadding = PaddingValues(24.dp),
@@ -286,15 +488,24 @@ private fun FollowUserGrid(
                 EmptyTip(text = "该分组暂无UP主")
             }
         } else {
-            items(
+            itemsIndexed(
                 items = users,
-                key = { it.stableKey }
-            ) { user ->
-                val cardModifier = if (user.stableKey == focusUserKey) {
-                    Modifier.focusRequester(focusRequester)
-                } else {
-                    Modifier
-                }
+                key = { _, item -> item.stableKey }
+            ) { index, user ->
+                val focusLink = focusLinks[index]
+
+                val cardModifier = Modifier
+                    .focusRequester(
+                        if (user.stableKey == requestedFocusUserKey) {
+                            navFocusRequester
+                        } else {
+                            userRequesters.getValue(user.stableKey)
+                        }
+                    )
+                    .focusProperties {
+                        left = focusLink?.leftIndex?.let(::requesterForIndex) ?: drawerFocusRequester
+                        right = focusLink?.rightIndex?.let(::requesterForIndex) ?: drawerFocusRequester
+                    }
 
                 UpCard(
                     modifier = cardModifier,
@@ -321,7 +532,6 @@ private fun FollowGroupCard(
     val enabled = group.state == FollowGroupCardState.NORMAL
     val cardModifier = modifier
         .onFocusChanged { onFocusChange(it.hasFocus) }
-        .focusProperties { canFocus = enabled }
         .fillMaxWidth()
         .height(148.dp)
 
@@ -381,7 +591,6 @@ private fun FollowGroupCardContent(group: FollowGroupCardUi) {
 
         val looseMaxWidth = minOf(maxTextWidth, constraints.maxWidth)
 
-        // 先测实际文字宽度
         val looseTitle = subcompose("title_loose") {
             Text(
                 text = group.title,
@@ -413,18 +622,15 @@ private fun FollowGroupCardContent(group: FollowGroupCardUi) {
 
         var textBlockWidth = max(looseTitle.width, looseSubtitle.width).coerceAtLeast(1)
 
-        // 先根据单行文字高度估算图标高度
         val equalSpace = ((constraints.maxHeight - looseTitle.height - looseSubtitle.height) / 3)
             .coerceAtLeast(0)
 
         var iconSize = (looseTitle.height + equalSpace + looseSubtitle.height)
             .coerceAtLeast(1)
 
-        // 避免整体超宽
         val availableTextWidth = (constraints.maxWidth - iconSize - iconTextGap).coerceAtLeast(1)
         textBlockWidth = minOf(textBlockWidth, maxTextWidth, availableTextWidth)
 
-        // 正式测量两行文字：同宽，文字居中
         val titlePlaceable = subcompose("title_final") {
             Text(
                 text = group.title,
@@ -456,14 +662,12 @@ private fun FollowGroupCardContent(group: FollowGroupCardUi) {
             )
         )
 
-        // 上边距 = 行间距 = 下边距
-        val desiredLineGap = 6.dp.roundToPx() // 这里改小一点，两行就更近
+        val desiredLineGap = 6.dp.roundToPx()
         val maxAvailableGap = (
                 constraints.maxHeight - titlePlaceable.height - subtitlePlaceable.height
                 ).coerceAtLeast(0)
         val lineGap = minOf(desiredLineGap, maxAvailableGap)
 
-        // 图标高度仍然和两行文字整体高度对齐
         iconSize = (titlePlaceable.height + lineGap + subtitlePlaceable.height)
             .coerceAtLeast(1)
 
@@ -477,7 +681,6 @@ private fun FollowGroupCardContent(group: FollowGroupCardUi) {
             Constraints.fixed(iconSize, iconSize)
         )
 
-        // 整组内容水平居中：保证图标左边距 = 文字右边距
         val sidePadding = 10.dp.roundToPx()
         val contentWidth = iconPlaceable.width + iconTextGap + textBlockWidth
         val availableWidth = (constraints.maxWidth - sidePadding * 2).coerceAtLeast(0)
@@ -513,7 +716,7 @@ private fun relationGroupIcon(group: FollowGroupCardUi): ImageVector {
 }
 
 @Composable
-fun UpCard(
+private fun UpCard(
     modifier: Modifier = Modifier,
     face: String,
     sign: String,
@@ -575,19 +778,5 @@ fun UpCard(
                 )
             }
         }
-    }
-}
-
-@Preview
-@Composable
-fun UpCardPreview() {
-    BVTheme {
-        UpCard(
-            face = "",
-            sign = "一只业余做翻译的Klei迷，动态区UP（自称），缺氧官中反馈可私信",
-            username = "username",
-            onFocusChange = {},
-            onClick = {}
-        )
     }
 }
