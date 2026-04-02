@@ -13,6 +13,13 @@ import dev.aaa1115910.bv.relation.RelationGroupSnapshot
 import dev.aaa1115910.bv.relation.RelationGroupUser
 import dev.aaa1115910.bv.relation.RelationGroupsDataSource
 import dev.aaa1115910.bv.relation.RelationRefreshTrigger
+import dev.aaa1115910.biliapi.repositories.UserRepository
+import dev.aaa1115910.biliapi.http.entity.relation.RelationTag
+import dev.aaa1115910.bv.ui.effect.UiEffect
+import dev.aaa1115910.bv.util.Prefs
+import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -47,7 +54,9 @@ data class FollowUserUi(
 }
 
 @KoinViewModel
-class FollowViewModel : ViewModel() {
+class FollowViewModel(
+    private val userRepository: UserRepository
+) : ViewModel() {
     var groupCards by mutableStateOf<List<FollowGroupCardUi>>(emptyList())
         private set
 
@@ -81,6 +90,26 @@ class FollowViewModel : ViewModel() {
     val preferredDetailUserKey: String?
         get() = currentUsers.firstOrNull()?.stableKey
 
+    private val logger = KotlinLogging.logger { }
+
+    var showFollowGroupDialog by mutableStateOf(false)
+        private set
+
+    var followTags by mutableStateOf<List<RelationTag>>(emptyList())
+        private set
+
+    var followGroupDialogWasFollowing by mutableStateOf(false)
+        private set
+
+    var followGroupDialogInitialSelectedTagIds by mutableStateOf<List<Int>>(emptyList())
+        private set
+
+    var followGroupDialogTargetMid by mutableStateOf<Long?>(null)
+        private set
+
+    private val _uiEffect = MutableSharedFlow<UiEffect>()
+    val uiEvent = _uiEffect.asSharedFlow()
+
     init {
         viewModelScope.launch(Dispatchers.IO) {
             initFollowedUsers()
@@ -104,6 +133,100 @@ class FollowViewModel : ViewModel() {
         if (preferredGroupFocusId != groupId) {
             preferredGroupFocusId = groupId
         }
+    }
+
+    fun hideFollowGroupDialog() {
+        showFollowGroupDialog = false
+    }
+
+    fun openFollowGroupDialog(user: FollowUserUi) {
+        if (showFollowGroupDialog) return
+
+        viewModelScope.launch {
+            val tagsOk = runCatching { loadFollowTagsIfNeeded() }.getOrDefault(false)
+            if (!tagsOk) {
+                _uiEffect.emit(UiEffect.ShowToast("未获取到关注分组列表，已取消打开以避免误操作"))
+                return@launch
+            }
+
+            val tagsSnapshot = followTags
+            val (wasFollowing, initialSelected) = runCatching {
+                getUpFollowStateAndTagIds(user.mid)
+            }.getOrElse {
+                true to listOf(user.groupId)
+            }
+
+            val presentIds = tagsSnapshot.map { it.tagid }.toSet()
+            val normalizedInitial = normalizeTagIds(initialSelected)
+            val filteredInitial = normalizedInitial.filter { presentIds.contains(it) }
+
+            val safeInitial = when {
+                wasFollowing && filteredInitial.isEmpty() && presentIds.contains(0) -> listOf(0)
+                else -> filteredInitial
+            }
+            if (wasFollowing && safeInitial.isEmpty()) {
+                _uiEffect.emit(UiEffect.ShowToast("未能解析当前关注分组，已取消打开以避免误操作"))
+                return@launch
+            }
+
+            followGroupDialogTargetMid = user.mid
+            followGroupDialogWasFollowing = wasFollowing
+            followGroupDialogInitialSelectedTagIds = safeInitial
+            showFollowGroupDialog = true
+        }
+    }
+
+    fun submitFollowGroupSelection(selectedTagIds: List<Int>) {
+        val upMid = followGroupDialogTargetMid ?: return
+        val wasFollowing = followGroupDialogWasFollowing
+        val finalSelected = normalizeTagIds(selectedTagIds)
+        val initialSelected = normalizeTagIds(followGroupDialogInitialSelectedTagIds)
+
+        if (finalSelected == initialSelected && wasFollowing) return
+
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                when {
+                    finalSelected.isEmpty() -> {
+                        if (wasFollowing) {
+                            userRepository.unfollowUser(
+                                mid = upMid,
+                                preferApiType = Prefs.apiType
+                            )
+                        }
+                    }
+
+                    else -> {
+                        if (!wasFollowing) {
+                            userRepository.followUser(
+                                mid = upMid,
+                                preferApiType = Prefs.apiType
+                            )
+                        }
+                        userRepository.addUserToFollowTags(
+                            mid = upMid,
+                            tagIds = finalSelected,
+                            preferApiType = Prefs.apiType
+                        )
+                    }
+                }
+
+                val result = RelationGroupsDataSource.refresh(RelationRefreshTrigger.FollowScreen)
+                result.snapshot?.let { refreshedSnapshot ->
+                    applySnapshot(refreshedSnapshot)
+                    BlockManager.rebuildBlockedMidsFromSnapshot(refreshedSnapshot)
+                }
+            }.onFailure {
+                viewModelScope.launch {
+                    _uiEffect.emit(UiEffect.ShowToast("更新关注分组失败"))
+                }
+            }
+        }
+    }
+
+    private fun normalizeTagIds(ids: List<Int>): List<Int> {
+        val dedup = ids.distinct().sorted()
+        return if (dedup.contains(0) && dedup.size > 1) listOf(0) else dedup
     }
 
     private suspend fun initFollowedUsers() {
@@ -164,6 +287,26 @@ class FollowViewModel : ViewModel() {
             usersByGroupId = newUsersByGroupId
             selectedGroupId = resolvedSelectedGroupId
             preferredGroupFocusId = resolvedPreferredGroupFocusId
+        }
+    }
+
+    private suspend fun loadFollowTagsIfNeeded(): Boolean {
+        if (!Prefs.isLogin) return false
+        if (followTags.isNotEmpty()) return true
+
+        val tags = withContext(Dispatchers.IO) {
+            userRepository.getFollowTags(preferApiType = Prefs.apiType)
+        }
+        followTags = tags
+        return tags.isNotEmpty()
+    }
+
+    private suspend fun getUpFollowStateAndTagIds(upMid: Long): Pair<Boolean, List<Int>> {
+        return withContext(Dispatchers.IO) {
+            userRepository.getUpFollowStateAndTagIds(
+                mid = upMid,
+                preferApiType = Prefs.apiType
+            )
         }
     }
 

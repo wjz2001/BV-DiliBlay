@@ -62,11 +62,15 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
+import dev.aaa1115910.bv.component.BlockTagItem
+import dev.aaa1115910.bv.component.FollowGroupSelectDialog
 import dev.aaa1115910.bv.relation.RelationGroupKind
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
 import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
 import dev.aaa1115910.bv.screen.main.common.mainContentHorizontalExit
 import dev.aaa1115910.bv.screen.user.EmptyTip
+import dev.aaa1115910.bv.ui.effect.UiEffect
+import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.viewmodel.user.FollowGroupCardState
 import dev.aaa1115910.bv.viewmodel.user.FollowGroupCardUi
@@ -164,6 +168,14 @@ fun FollowContent(
     }
     val currentUsers = followViewModel.currentUsers
 
+    LaunchedEffect(Unit) {
+        followViewModel.uiEvent.collect { event ->
+            when (event) {
+                is UiEffect.ShowToast -> event.message.toast(context)
+            }
+        }
+    }
+
     val focusableGroups = remember(followViewModel.groupCards) {
         followViewModel.groupCards.filter { it.state == FollowGroupCardState.NORMAL }
     }
@@ -203,7 +215,7 @@ fun FollowContent(
         }
     }
 
-    BackHandler(enabled = selectedGroupId != null) {
+    BackHandler(enabled = selectedGroupId != null && !followViewModel.showFollowGroupDialog) {
         followViewModel.exitGroupDetail()
     }
 
@@ -355,11 +367,26 @@ fun FollowContent(
                                 mid = user.mid,
                                 name = user.name
                             )
+                        },
+                        onUserLongClick = { user ->
+                            followViewModel.openFollowGroupDialog(user)
                         }
                     )
                 }
             }
         }
+
+        FollowGroupSelectDialog(
+            show = followViewModel.showFollowGroupDialog,
+            title = "选择关注分组",
+            tags = followViewModel.followTags.map { BlockTagItem(it.tagid, it.name, it.count) },
+            initialSelectedTagIds = followViewModel.followGroupDialogInitialSelectedTagIds,
+            onHideDialog = { followViewModel.hideFollowGroupDialog() },
+            onSubmit = { selectedTagIds ->
+                followViewModel.submitFollowGroupSelection(selectedTagIds)
+            }
+        )
+
     }
 }
 
@@ -454,7 +481,8 @@ private fun FollowUserGrid(
     requestedFocusUserKey: String?,
     navFocusRequester: FocusRequester,
     drawerFocusRequester: FocusRequester,
-    onUserClick: (FollowUserUi) -> Unit
+    onUserClick: (FollowUserUi) -> Unit,
+    onUserLongClick: (FollowUserUi) -> Unit
 ) {
     val userRequesters = remember(users) {
         users.associate { it.stableKey to FocusRequester() }
@@ -515,6 +543,9 @@ private fun FollowUserGrid(
                     onFocusChange = {},
                     onClick = {
                         onUserClick(user)
+                    },
+                    onLongClick = {
+                        onUserLongClick(user)
                     }
                 )
             }
