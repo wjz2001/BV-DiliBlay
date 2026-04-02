@@ -9,15 +9,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.HowToReg
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.OndemandVideo
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,24 +31,25 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.key
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import coil.compose.AsyncImage
+import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.isDpadDown
-import dev.aaa1115910.bv.util.isDpadRight
 import dev.aaa1115910.bv.util.isDpadUp
 import dev.aaa1115910.bv.util.isKeyDown
 import dev.aaa1115910.bv.util.isKeyUp
-import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -65,13 +63,13 @@ fun LeftNaviContent(
     selectedItem: LeftNaviItem,
     searchFocusRequester: FocusRequester,
     homeFocusRequester: FocusRequester,
-    personalFocusRequester: FocusRequester,
+    followFocusRequester: FocusRequester,
     ugcFocusRequester: FocusRequester,
     pgcFocusRequester: FocusRequester,
     onLeftNaviItemChanged: (LeftNaviItem) -> Unit,
     onLeftNaviItemPreload: (LeftNaviItem) -> Unit = {},
     onOpenSettings: () -> Unit,
-    onShowUserPanel: () -> Unit,
+    onOpenUserSwitch: () -> Unit,
     onFocusToContent: (MainContentFocusTarget) -> Unit,
     onLogin: () -> Unit
 ) {
@@ -86,7 +84,7 @@ fun LeftNaviContent(
     val contentItems = listOf(
         LeftNaviItem.Search,
         LeftNaviItem.Home,
-        LeftNaviItem.Personal,
+        LeftNaviItem.Follow,
         LeftNaviItem.UGC,
         LeftNaviItem.PGC
     )
@@ -95,7 +93,6 @@ fun LeftNaviContent(
         modifier = modifier.fillMaxHeight(),
         containerColor = Color.White.copy(alpha = 0.05f),
     ) {
-        // 顶部用户按钮
         var userIsFocused by remember { mutableStateOf(false) }
         NavigationRailItem(
             modifier = Modifier
@@ -160,7 +157,7 @@ fun LeftNaviContent(
                     }
                 },
             onClick = {
-                if (isLogin) onShowUserPanel() else onLogin()
+                if (isLogin) onOpenUserSwitch() else onLogin()
             },
             selected = userIsFocused,
             icon = {
@@ -199,7 +196,7 @@ fun LeftNaviContent(
                 val itemFocusRequester = when (item) {
                     LeftNaviItem.Search -> searchFocusRequester
                     LeftNaviItem.Home -> homeFocusRequester
-                    LeftNaviItem.Personal -> personalFocusRequester
+                    LeftNaviItem.Follow -> followFocusRequester
                     LeftNaviItem.UGC -> ugcFocusRequester
                     LeftNaviItem.PGC -> pgcFocusRequester
                     else -> error("Unexpected item: $item")
@@ -381,8 +378,8 @@ enum class LeftNaviItem(
 ) {
     User(displayIcon = Icons.Default.AccountCircle),
     Search(displayIcon = Icons.Default.Search),
-    Personal(displayIcon = Icons.Default.Person),
     Home(displayIcon = Icons.Default.Home),
+    Follow(displayIcon = Icons.Default.HowToReg),
     UGC(displayIcon = Icons.Default.OndemandVideo),
     PGC(displayIcon = Icons.Default.Movie),
     Settings(displayIcon = Icons.Default.Settings),
@@ -407,13 +404,13 @@ private fun LeftNaviContentPreview() {
             selectedItem = LeftNaviItem.Home,
             searchFocusRequester = remember { FocusRequester() },
             homeFocusRequester = remember { FocusRequester() },
-            personalFocusRequester = remember { FocusRequester() },
+            followFocusRequester = remember { FocusRequester() },
             ugcFocusRequester = remember { FocusRequester() },
             pgcFocusRequester = remember { FocusRequester() },
             onLeftNaviItemChanged = {},
             onLeftNaviItemPreload = {},
             onOpenSettings = {},
-            onShowUserPanel = {},
+            onOpenUserSwitch = {},
             onFocusToContent = {},
             onLogin = {}
         )

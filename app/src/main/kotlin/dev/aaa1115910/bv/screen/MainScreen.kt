@@ -3,42 +3,32 @@ package dev.aaa1115910.bv.screen
 import android.app.Activity
 import android.content.Intent
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import androidx.tv.material3.DrawerValue
 import androidx.tv.material3.NavigationDrawer
 import androidx.tv.material3.rememberDrawerState
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.settings.SettingsActivity
-import dev.aaa1115910.bv.activities.user.FollowActivity
 import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.activities.user.UserSwitchActivity
-import dev.aaa1115910.bv.component.UserPanel
 import dev.aaa1115910.bv.component.BlackoutSwitch
+import dev.aaa1115910.bv.repository.UserRepository
+import dev.aaa1115910.bv.screen.main.FollowContent
 import dev.aaa1115910.bv.screen.main.HomeContent
 import dev.aaa1115910.bv.screen.main.LeftNaviContent
 import dev.aaa1115910.bv.screen.main.LeftNaviItem
-import dev.aaa1115910.bv.screen.main.PersonalContent
 import dev.aaa1115910.bv.screen.main.PgcContent
 import dev.aaa1115910.bv.screen.main.UgcContent
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
@@ -50,7 +40,6 @@ import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.toast
-import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.viewmodel.UserViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.androidx.compose.koinViewModel
@@ -68,15 +57,14 @@ fun MainScreen(
     userViewModel: UserViewModel = koinViewModel(),
     userRepository: UserRepository = getKoin().get()
 ) {
-    val context = LocalContext.current
+    val context = androidx.compose.ui.platform.LocalContext.current
     val logger = KotlinLogging.logger("MainScreen")
-    var showUserPanel by remember { mutableStateOf(false) }
     var lastPressBack: Long by remember { mutableLongStateOf(0L) }
 
     val initialDrawerItem = LeftNaviItem.Home
     var requestedDrawerItem by remember { mutableStateOf(initialDrawerItem) }
     val preloadedDrawerItems = remember { mutableStateMapOf<LeftNaviItem, Boolean>() }
-    val personalPreloadSessionKey = if (!userRepository.isLogin) {
+    val followPreloadSessionKey = if (!userRepository.isLogin) {
         "logout"
     } else {
         "${userRepository.uid}:${userRepository.uidCkMd5}:${userRepository.sessData}"
@@ -84,7 +72,7 @@ fun MainScreen(
 
     val scope = rememberCoroutineScope()
 
-    val personalFocusRequester = remember { FocusRequester() }
+    val followFocusRequester = remember { FocusRequester() }
     val mainFocusRequester = remember { FocusRequester() }
     val ugcFocusRequester = remember { FocusRequester() }
     val pgcFocusRequester = remember { FocusRequester() }
@@ -92,7 +80,7 @@ fun MainScreen(
 
     val searchDrawerFocusRequester = remember { FocusRequester() }
     val homeDrawerFocusRequester = remember { FocusRequester() }
-    val personalDrawerFocusRequester = remember { FocusRequester() }
+    val followDrawerFocusRequester = remember { FocusRequester() }
     val ugcDrawerFocusRequester = remember { FocusRequester() }
     val pgcDrawerFocusRequester = remember { FocusRequester() }
     val searchRightEntryFocusRequester = remember { FocusRequester() }
@@ -143,7 +131,7 @@ fun MainScreen(
                     LeftNaviItem.Home -> mainFocusRequester.requestFocus(scope)
                     LeftNaviItem.UGC -> ugcFocusRequester.requestFocus(scope)
                     LeftNaviItem.PGC -> pgcFocusRequester.requestFocus(scope)
-                    LeftNaviItem.Personal -> personalFocusRequester.requestFocus(scope)
+                    LeftNaviItem.Follow -> followFocusRequester.requestFocus(scope)
                     LeftNaviItem.Search -> {
                         val requester = when {
                             entryTarget == MainContentFocusTarget.RightEntry &&
@@ -274,7 +262,7 @@ fun MainScreen(
             }
 
             LeftNaviItem.Home,
-            LeftNaviItem.Personal,
+            LeftNaviItem.Follow,
             LeftNaviItem.UGC,
             LeftNaviItem.PGC -> {
                 pendingContentFocus = newPendingContentFocus(
@@ -293,7 +281,7 @@ fun MainScreen(
             LeftNaviItem.User,
             LeftNaviItem.Settings -> Unit
 
-            LeftNaviItem.Personal -> {
+            LeftNaviItem.Follow -> {
                 if (userViewModel.isLogin) {
                     preloadedDrawerItems[item] = true
                 }
@@ -314,8 +302,8 @@ fun MainScreen(
         pendingContentFocus = pendingContentFocus?.takeIf { it.item == requestedDrawerItem }
     }
 
-    LaunchedEffect(personalPreloadSessionKey) {
-        preloadedDrawerItems.remove(LeftNaviItem.Personal)
+    LaunchedEffect(followPreloadSessionKey) {
+        preloadedDrawerItems.remove(LeftNaviItem.Follow)
     }
 
     BackHandler {
@@ -324,8 +312,8 @@ fun MainScreen(
 
     MainDrawerPreloadHost(
         preloadSearch = preloadedDrawerItems[LeftNaviItem.Search] == true,
-        preloadPersonal = userViewModel.isLogin &&
-                preloadedDrawerItems[LeftNaviItem.Personal] == true,
+        preloadFollow = userViewModel.isLogin &&
+                preloadedDrawerItems[LeftNaviItem.Follow] == true,
         preloadUgc = preloadedDrawerItems[LeftNaviItem.UGC] == true,
         preloadPgc = preloadedDrawerItems[LeftNaviItem.PGC] == true
     )
@@ -339,7 +327,7 @@ fun MainScreen(
                 selectedItem = requestedDrawerItem,
                 searchFocusRequester = searchDrawerFocusRequester,
                 homeFocusRequester = homeDrawerFocusRequester,
-                personalFocusRequester = personalDrawerFocusRequester,
+                followFocusRequester = followDrawerFocusRequester,
                 ugcFocusRequester = ugcDrawerFocusRequester,
                 pgcFocusRequester = pgcDrawerFocusRequester,
                 onLeftNaviItemChanged = { requestedDrawerItem = it },
@@ -348,8 +336,8 @@ fun MainScreen(
                     context.startActivity(Intent(context, SettingsActivity::class.java))
                 },
                 onFocusToContent = onFocusToContent,
-                onShowUserPanel = {
-                    showUserPanel = true
+                onOpenUserSwitch = {
+                    context.startActivity(Intent(context, UserSwitchActivity::class.java))
                 },
                 onLogin = {
                     context.startActivity(Intent(context, LoginActivity::class.java))
@@ -391,13 +379,13 @@ fun MainScreen(
                             onRightEntryFocusReady = onSearchRightEntryReady
                         )
 
-                        LeftNaviItem.Personal -> PersonalContent(
-                            navFocusRequester = personalFocusRequester,
-                            drawerFocusRequester = personalDrawerFocusRequester,
+                        LeftNaviItem.Follow -> FollowContent(
+                            navFocusRequester = followFocusRequester,
+                            drawerFocusRequester = followDrawerFocusRequester,
                             pendingDrawerEntryRequest = drawerEntryRequest,
                             onDrawerEntryConsumed = consumeDrawerEntryRequest,
                             onDefaultFocusReady = {
-                                onContentDefaultFocusReady(LeftNaviItem.Personal)
+                                onContentDefaultFocusReady(LeftNaviItem.Follow)
                             }
                         )
 
@@ -433,45 +421,6 @@ fun MainScreen(
 
                         else -> Unit
                     }
-                }
-            }
-
-            AnimatedVisibility(
-                visible = showUserPanel,
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.6f))
-                ) {
-                    UserPanel(
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .padding(12.dp),
-                        username = userViewModel.username,
-                        face = userViewModel.face,
-                        level = userViewModel.responseData?.level ?: 0,
-                        currentExp = userViewModel.responseData?.levelExp?.currentExp ?: 0,
-                        nextLevelExp = with(userViewModel.responseData?.levelExp?.nextExp) {
-                            if (this == null) {
-                                1
-                            } else if (this <= 0) {
-                                userViewModel.responseData?.levelExp?.currentExp ?: 1
-                            } else {
-                                (userViewModel.responseData?.levelExp?.currentExp ?: 1) +
-                                        (userViewModel.responseData?.levelExp?.nextExp ?: 0)
-                            }
-                        },
-                        onHide = { showUserPanel = false },
-                        onGoUserSwitch = {
-                            context.startActivity(Intent(context, UserSwitchActivity::class.java))
-                        },
-                        onGoFollowingUp = {
-                            context.startActivity(Intent(context, FollowActivity::class.java))
-                        },
-                    )
                 }
             }
         }

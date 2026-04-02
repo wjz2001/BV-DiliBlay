@@ -86,11 +86,6 @@
             android:label="@string/title_activity_search_input"
             android:theme="@style/Theme.BV" />
         <activity
-            android:name=".activities.user.FollowActivity"
-            android:exported="false"
-            android:label="@string/title_activity_follow"
-            android:theme="@style/Theme.BV" />
-        <activity
             android:name=".activities.video.SeasonInfoActivity"
             android:exported="false"
             android:label="@string/title_activity_season_info"

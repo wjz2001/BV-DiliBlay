@@ -319,7 +319,6 @@
 
     <string name="title_activity_anime_timeline">番剧放送时间表</string>
     <string name="title_activity_favorite">个人收藏</string>
-    <string name="title_activity_follow">已关注</string>
     <string name="title_activity_following_season">正在追</string>
     <string name="title_activity_history">历史记录</string>
     <string name="title_activity_login">登录</string>
@@ -719,7 +718,7 @@
     <string name="user_homepage_user_switch">账户管理</string>
     <string name="user_info_Incognito_mode_off">未开启</string>
     <string name="user_info_Incognito_mode_on">已开启</string>
-    <string name="user_info_Incognito_mode_title">隐身模式</string>
+    <string name="user_info_Incognito_mode_title">不上传历史记录（隐身模式）</string>
     <string name="user_info_level">Lv%1$s</string>
     <string name="user_info_uid">UID: %1$s</string>
     <string name="user_lock_input_tip">方向键输入密码 / Center 键确认输入 / 返回键退格</string>

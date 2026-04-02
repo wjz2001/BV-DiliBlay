@@ -170,7 +170,7 @@ private fun BaseMultiSelectChip(
 /**
  * 通用“简单多选弹框”。
  *
- * 它适合那些逻辑比较轻的场景：
+ * 适合那些逻辑比较轻的场景：
  * - 收藏夹多选框
  * - 黑名单生效页多选框
  * - 关注分组多选框
@@ -288,8 +288,6 @@ private fun <T, ID> SimpleMultiSelectDialog(
  * 收藏夹多选框：
  * - 点击一个收藏夹后，立刻把当前选中收藏夹列表回调给外部
  * - 关闭 dialog 时不再额外提交
- *
- * 这是最典型的“简单多选 + 点击即提交”场景。
  */
 @Composable
 internal fun FavoriteDialog(
@@ -351,17 +349,12 @@ internal fun BlockPageSelectDialog(
 /**
  * 关注分组多选框：
  *
- * 这是一个独立的轻量业务，和黑名单分组选择已经彻底分开。
  *
  * 规则：
  * 1. 只做本地选中/取消选中
  * 2. 不拉取成员，不跑队列，不读写成员缓存
  * 3. 0（默认/未分组）和其它分组互斥
  * 4. dismiss 时：先关闭弹框，再把结果提交给外部
- *
- * 为什么也用 SimpleMultiSelectDialog：
- * - 因为它本质仍然只是“简单多选”
- * - 唯一特殊点只是 onToggle 规则不同
  */
 @Composable
 internal fun FollowGroupSelectDialog(

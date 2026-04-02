@@ -42,6 +42,7 @@ fun OtherSetting(
     var showPreferedApiDialog by remember { mutableStateOf(false) }
 
     var showFps by remember { mutableStateOf(Prefs.showFps) }
+    var inIncognitoMode by remember { mutableStateOf(Prefs.incognitoMode) }
     var selectedApi by remember { mutableStateOf(Prefs.apiType) }
 
     Column(
@@ -63,21 +64,25 @@ fun OtherSetting(
             supportText = "当前：${selectedApi.name}",
             onClick = { showPreferedApiDialog = true }
         )
-//        SettingSwitchListItem(
-//            title = stringResource(R.string.settings_other_firebase_title),
-//            supportText = stringResource(R.string.settings_other_firebase_text),
-//            checked = Prefs.enableFirebaseCollection,
-//            onCheckedChange = {
-//                Prefs.enableFirebaseCollection = it
-//                FirebaseUtil.setCrashlyticsCollectionEnabled(it)
-//            }
-//        )
-
 
         SettingListItem(
             title = stringResource(R.string.settings_other_cookies_title),
             supportText = stringResource(R.string.settings_other_cookies_text),
             onClick = { showCookiesDialog = true }
+        )
+
+        SettingSwitchListItem(
+            title = stringResource(R.string.user_info_Incognito_mode_title),
+            supportText = if (inIncognitoMode) {
+                stringResource(R.string.user_info_Incognito_mode_on)
+            } else {
+                stringResource(R.string.user_info_Incognito_mode_off)
+            },
+            checked = inIncognitoMode,
+            onCheckedChange = {
+                inIncognitoMode = it
+                Prefs.incognitoMode = it
+            }
         )
 
         SettingSwitchListItem(
@@ -106,7 +111,6 @@ fun OtherSetting(
                     throw Exception("Boom!")
                 }
             )
-
         }
     }
     CookiesDialog(
