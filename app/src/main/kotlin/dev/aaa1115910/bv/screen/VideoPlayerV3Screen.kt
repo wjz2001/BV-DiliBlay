@@ -2,7 +2,6 @@ package dev.aaa1115910.bv.screen
 
 import android.app.Activity
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.aspectRatio
@@ -15,6 +14,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,7 +22,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskFrame
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.CoAuthorsDialogHost
@@ -34,7 +33,6 @@ import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.rememberCoAuthorsDialogState
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoListItem
-import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.player.BvVideoPlayer
 import dev.aaa1115910.bv.ui.effect.PlayerUiEffect
 import dev.aaa1115910.bv.ui.state.PlayerState
@@ -62,6 +60,7 @@ fun VideoPlayerV3Screen(
 
     val uiState by playerViewModel.uiState.collectAsState()
     val seekerState = playerViewModel.seekerState.collectAsState()
+    val latestPlayerState by rememberUpdatedState(uiState.playerState)
 
     val coAuthorsDialogState = rememberCoAuthorsDialogState()
     var lastCoAuthorsDialogVisible by remember { mutableStateOf(false) }
@@ -101,12 +100,13 @@ fun VideoPlayerV3Screen(
         }
     }
 
-    // 循环发送心跳
+    // 循环发送心跳，避免捕获陈旧 uiState
     LaunchedEffect(Unit) {
         delay(5000)
         while (isActive) {
-            if (uiState.playerState == PlayerState.Playing) playerViewModel.trySendHeartbeat()
-            // 周期延迟
+            if (latestPlayerState == PlayerState.Playing) {
+                playerViewModel.trySendHeartbeat()
+            }
             delay(15000)
         }
     }
@@ -120,8 +120,15 @@ fun VideoPlayerV3Screen(
     }
 
     // 弹幕防遮挡蒙版更新
-    LaunchedEffect(uiState.danmakuState.maskEnabled, uiState.danmakuMask) {
-        if (!uiState.danmakuState.maskEnabled || uiState.danmakuMask == null) {
+    LaunchedEffect(
+        uiState.danmakuState.danmakuEnabled,
+        uiState.danmakuState.maskEnabled,
+        uiState.danmakuMask
+    ) {
+        if (!uiState.danmakuState.danmakuEnabled ||
+            !uiState.danmakuState.maskEnabled ||
+            uiState.danmakuMask == null
+        ) {
             currentDanmakuMaskFrame = null
             return@LaunchedEffect
         }
@@ -130,12 +137,11 @@ fun VideoPlayerV3Screen(
         maskFinder.reset()
 
         val mask = uiState.danmakuMask ?: return@LaunchedEffect
-
         var lastCheckTime = -1L
 
         while (isActive) {
             val currentTime = seekerState.value.currentTime
-            val isPlaying = uiState.playerState == PlayerState.Playing
+            val isPlaying = latestPlayerState == PlayerState.Playing
             val isTimeJumping = (currentTime - lastCheckTime).absoluteValue > 200
 
             if (isPlaying || isTimeJumping) {
@@ -160,7 +166,7 @@ fun VideoPlayerV3Screen(
         modifier = modifier,
         aid = uiState.aid,
         fromSeason = uiState.fromSeason,
-        proxyArea = ProxyArea.MainLand,
+        proxyArea = uiState.proxyArea,
         isLooping = isLooping,
         isPlaying = videoPlayer.isPlaying,
         videoShotCache = videoShotCache,
@@ -315,22 +321,22 @@ fun VideoPlayerV3Screen(
             BvVideoPlayer(
                 modifier = playerModifier
                     .align(Alignment.Center)
-                    .onGloballyPositioned { coordinates ->
-                        val size = coordinates.size
-                    },
+                    .onGloballyPositioned { _ -> },
                 videoPlayer = videoPlayer,
             )
 
-            DanmakuPlayerCompose(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .alpha(uiState.danmakuState.opacity)
-                    .ifElse(
-                        { Prefs.defaultDanmakuMask },
-                        Modifier.danmakuMask(currentDanmakuMaskFrame, displayAspectRatio)
-                    ),
-                danmakuPlayer = danmakuPlayer,
-            )
+            if (uiState.danmakuState.danmakuEnabled && danmakuPlayer != null) {
+                DanmakuPlayerCompose(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(uiState.danmakuState.opacity)
+                        .ifElse(
+                            { uiState.danmakuState.maskEnabled },
+                            Modifier.danmakuMask(currentDanmakuMaskFrame, displayAspectRatio)
+                        ),
+                    danmakuPlayer = danmakuPlayer,
+                )
+            }
 
             if (Prefs.showPersistentSeek) {
                 VideoProgressSeek(

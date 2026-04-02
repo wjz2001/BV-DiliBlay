@@ -18,12 +18,15 @@ fun DanmakuPlayerCompose(
             DanmakuView(context)
         },
         update = { danmakuView ->
-            danmakuPlayer?.bindView(danmakuView)
+            if (danmakuPlayer == null) {
+                danmakuView.danmakuPlayer = null
+            } else if (danmakuView.danmakuPlayer !== danmakuPlayer) {
+                danmakuView.danmakuPlayer = null
+                danmakuPlayer.bindView(danmakuView)
+            }
         },
         onRelease = { danmakuView ->
-            if (danmakuView.danmakuPlayer === danmakuPlayer) {
-                danmakuView.danmakuPlayer = null
-            }
+            danmakuView.danmakuPlayer = null
         }
     )
 }

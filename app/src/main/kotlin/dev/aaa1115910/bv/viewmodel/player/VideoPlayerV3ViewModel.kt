@@ -899,7 +899,6 @@ class VideoPlayerV3ViewModel(
 
         _uiState.update { it.copy(danmakuState = new) }
 
-        // ===== 副作用处理 =====
         if (new.enabledTypes != old.enabledTypes) {
             updateDanmakuConfigTypeFilter(new.enabledTypes)
             Prefs.defaultDanmakuTypes = new.enabledTypes
@@ -921,12 +920,31 @@ class VideoPlayerV3ViewModel(
         }
         if (new.maskEnabled != old.maskEnabled) {
             Prefs.defaultDanmakuMask = new.maskEnabled
+
+            if (!new.maskEnabled) {
+                _uiState.update { it.copy(danmakuMask = null) }
+            } else if (new.danmakuEnabled) {
+                val aid = _uiState.value.aid
+                val cid = _uiState.value.cid
+                val epid = _uiState.value.epid
+                val generation = activeLoadGeneration
+
+                viewModelScope.launch(Dispatchers.IO) {
+                    updateDanmakuMask(
+                        aid = aid,
+                        cid = cid,
+                        expectedEpid = epid,
+                        generation = generation
+                    )
+                }
+            }
         }
         if (new.danmakuEnabled != old.danmakuEnabled) {
             Prefs.defaultDanmakuEnabled = new.danmakuEnabled
         }
 
         if (wasEnabled && !isEnabled) {
+            _uiState.update { it.copy(danmakuMask = null) }
             viewModelScope.launch {
                 stopDanmakuHard()
             }
@@ -946,35 +964,27 @@ class VideoPlayerV3ViewModel(
 
                 updatePlaySpeed(forceUpdate = true)
 
-                val cid = _uiState.value.cid
                 val aid = _uiState.value.aid
+                val cid = _uiState.value.cid
+                val epid = _uiState.value.epid
                 val generation = activeLoadGeneration
                 val currentPlayer = withDanmakuPlayerLocked { danmakuPlayer } ?: return@launch
 
-                val danmakuParseDispatcher = Dispatchers.IO.limitedParallelism(1)
-                danmakuLoadJob = viewModelScope.launch(danmakuParseDispatcher) {
-                    loadDanmaku(
+                startDanmakuLoadJob(
+                    aid = aid,
+                    cid = cid,
+                    expectedEpid = epid,
+                    generation = generation,
+                    currentPlayer = currentPlayer
+                )
+
+                if (_uiState.value.danmakuState.maskEnabled) {
+                    updateDanmakuMask(
+                        aid = aid,
                         cid = cid,
-                        expectedPlayer = currentPlayer,
-                        expectedAid = aid,
-                        expectedGeneration = generation
+                        expectedEpid = epid,
+                        generation = generation
                     )
-
-                    withContext(Dispatchers.Main) {
-                        withDanmakuPlayerLocked {
-                            if (!_uiState.value.danmakuState.danmakuEnabled) return@withDanmakuPlayerLocked
-                            if (danmakuPlayer !== currentPlayer) return@withDanmakuPlayerLocked
-                            if (!isCurrentLoadRequest(generation, aid, cid, _uiState.value.epid)) return@withDanmakuPlayerLocked
-
-                            val latestPos = videoPlayer?.currentPosition ?: 0L
-                            currentPlayer.seekTo(latestPos)
-                            currentPlayer.pause()
-
-                            if (_uiState.value.playerState == PlayerState.Playing) {
-                                currentPlayer.start()
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -1417,15 +1427,20 @@ class VideoPlayerV3ViewModel(
                 launch {
                     val danmakuEnabled = _uiState.value.danmakuState.danmakuEnabled
                     if (danmakuEnabled) {
+                        danmakuLoadJob?.cancelAndJoin()
+                        danmakuLoadJob = null
+
                         val currentPlayer = withDanmakuPlayerLocked { danmakuPlayer }
                         if (currentPlayer != null) {
-                            loadDanmaku(
+                            startDanmakuLoadJob(
+                                aid = avid,
                                 cid = cid,
-                                expectedPlayer = currentPlayer,
-                                expectedAid = avid,
-                                expectedGeneration = generation
+                                expectedEpid = normalizedEpid,
+                                generation = generation,
+                                currentPlayer = currentPlayer
                             )
                         }
+
                         if (_uiState.value.danmakuState.maskEnabled) {
                             updateDanmakuMask(
                                 aid = avid,
@@ -1433,11 +1448,15 @@ class VideoPlayerV3ViewModel(
                                 expectedEpid = normalizedEpid,
                                 generation = generation
                             )
+                        } else {
+                            _uiState.update { it.copy(danmakuMask = null) }
                         }
                     } else {
                         stopDanmakuLoadOnly()
+                        _uiState.update { it.copy(danmakuMask = null) }
                     }
                 }
+
 
                 launch {
                     updateSubtitle(
@@ -2189,6 +2208,47 @@ class VideoPlayerV3ViewModel(
         danmakuPlayer = null
     }
 
+    private fun startDanmakuLoadJob(
+        aid: Long,
+        cid: Long,
+        expectedEpid: Int?,
+        generation: Long,
+        currentPlayer: DanmakuPlayer
+    ) {
+        val dispatcher = Dispatchers.IO.limitedParallelism(1)
+        val job = viewModelScope.launch(dispatcher) {
+            loadDanmaku(
+                cid = cid,
+                expectedPlayer = currentPlayer,
+                expectedAid = aid,
+                expectedGeneration = generation
+            )
+
+            withContext(Dispatchers.Main) {
+                withDanmakuPlayerLocked {
+                    if (!_uiState.value.danmakuState.danmakuEnabled) return@withDanmakuPlayerLocked
+                    if (danmakuPlayer !== currentPlayer) return@withDanmakuPlayerLocked
+                    if (!isCurrentLoadRequest(generation, aid, cid, expectedEpid)) return@withDanmakuPlayerLocked
+
+                    val latestPos = videoPlayer?.currentPosition ?: 0L
+                    currentPlayer.seekTo(latestPos)
+                    currentPlayer.pause()
+
+                    if (_uiState.value.playerState == PlayerState.Playing) {
+                        currentPlayer.start()
+                    }
+                }
+            }
+        }
+
+        danmakuLoadJob = job
+        job.invokeOnCompletion {
+            if (danmakuLoadJob === job) {
+                danmakuLoadJob = null
+            }
+        }
+    }
+
     private suspend fun updateVideoShot(
         aid: Long,
         cid: Long,
@@ -2230,10 +2290,11 @@ class VideoPlayerV3ViewModel(
     }
 
     private fun initDanmakuConfig() {
-        val danmakuTypes = Prefs.defaultDanmakuTypes
-        val area = Prefs.defaultDanmakuArea
-        val scale = Prefs.defaultDanmakuScale
-        val factor = Prefs.defaultDanmakuSpeedFactor
+        val danmakuState = _uiState.value.danmakuState
+        val danmakuTypes = danmakuState.enabledTypes
+        val area = danmakuState.area
+        val scale = danmakuState.scale
+        val factor = danmakuState.speedFactor
 
         danmakuTypeFilter.clear()
         if (!danmakuTypes.contains(DanmakuType.All)) {
@@ -2307,7 +2368,6 @@ class VideoPlayerV3ViewModel(
 
     private fun updateDanmakuSpeedFactor(factor: Float) {
         logger.info { "Update danmaku rolling speed factor: $factor" }
-        _uiState.update { it.copy(danmakuState = it.danmakuState.copy(speedFactor = factor)) }
         withDanmakuPlayerLocked { danmakuPlayer?.setDanmakuRollingSpeed(factor) }
     }
 
