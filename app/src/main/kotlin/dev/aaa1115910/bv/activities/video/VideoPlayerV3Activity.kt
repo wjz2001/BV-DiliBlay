@@ -80,7 +80,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
 
         // 3. 初始化弹幕播放器
         if (Prefs.defaultDanmakuEnabled) {
-            playerViewModel.initDanmakuPlayer()
+            playerViewModel.safeInitDanmakuPlayer()
         }
 
         // 4. 设置 UI
@@ -175,7 +175,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (isFinishing) {
             playerViewModel.detachPlayer()
-            playerViewModel.releaseDanmakuPlayer()
+            playerViewModel.safeReleaseDanmakuPlayer()
         }
     }
 
