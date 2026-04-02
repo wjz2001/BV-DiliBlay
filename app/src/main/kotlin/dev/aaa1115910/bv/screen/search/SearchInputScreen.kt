@@ -41,6 +41,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -69,13 +71,123 @@ import dev.aaa1115910.bv.tv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.viewmodel.search.SearchInputViewModel
+import dev.aaa1115910.bv.screen.main.common.mainContentLeftExit
+import dev.aaa1115910.bv.screen.main.common.mainContentRightExit
 import org.koin.androidx.compose.koinViewModel
+
+data class SearchRightEntryToken(
+    val slot: Slot,
+    val keyword: String,
+    val historyCount: Int,
+    val hotwordCount: Int,
+    val suggestCount: Int,
+    val showHotword: Boolean,
+    val firstItemIdentity: String
+) {
+    enum class Slot {
+        History,
+        Hotword,
+        Suggest
+    }
+}
+
+private fun resolveSearchRightEntryToken(
+    keyword: String,
+    histories: List<SearchHistoryDB>,
+    hotwords: List<Hotword>,
+    suggests: List<String>,
+    showHotword: Boolean
+): SearchRightEntryToken? {
+    histories.firstOrNull()?.let { history ->
+        return SearchRightEntryToken(
+            slot = SearchRightEntryToken.Slot.History,
+            keyword = keyword,
+            historyCount = histories.size,
+            hotwordCount = hotwords.size,
+            suggestCount = suggests.size,
+            showHotword = showHotword,
+            firstItemIdentity = history.keyword
+        )
+    }
+
+    if (keyword.isEmpty() && showHotword) {
+        hotwords.firstOrNull()?.let { hotword ->
+            return SearchRightEntryToken(
+                slot = SearchRightEntryToken.Slot.Hotword,
+                keyword = keyword,
+                historyCount = histories.size,
+                hotwordCount = hotwords.size,
+                suggestCount = suggests.size,
+                showHotword = showHotword,
+                firstItemIdentity = hotword.showName
+            )
+        }
+    }
+
+    if (keyword.isNotEmpty()) {
+        suggests.firstOrNull()?.let { suggest ->
+            return SearchRightEntryToken(
+                slot = SearchRightEntryToken.Slot.Suggest,
+                keyword = keyword,
+                historyCount = histories.size,
+                hotwordCount = hotwords.size,
+                suggestCount = suggests.size,
+                showHotword = showHotword,
+                firstItemIdentity = suggest
+            )
+        }
+    }
+
+    return null
+}
 
 @Composable
 fun SearchInputScreen(
     modifier: Modifier = Modifier,
     defaultFocusRequester: FocusRequester,
     onDefaultFocusReady: (() -> Unit)? = null,
+    searchInputViewModel: SearchInputViewModel = koinViewModel()
+) {
+    SearchInputRoute(
+        modifier = modifier,
+        defaultFocusRequester = defaultFocusRequester,
+        onDefaultFocusReady = onDefaultFocusReady,
+        searchInputViewModel = searchInputViewModel
+    )
+}
+
+@Composable
+fun MainDrawerSearchInputScreen(
+    modifier: Modifier = Modifier,
+    defaultFocusRequester: FocusRequester,
+    drawerFocusRequester: FocusRequester,
+    rightEntryFocusRequester: FocusRequester,
+    onDefaultFocusReady: (() -> Unit)? = null,
+    onCurrentRightEntryTokenChanged: ((SearchRightEntryToken?) -> Unit)? = null,
+    onRightEntryFocusReady: ((SearchRightEntryToken) -> Unit)? = null,
+    searchInputViewModel: SearchInputViewModel = koinViewModel()
+) {
+    SearchInputRoute(
+        modifier = modifier,
+        defaultFocusRequester = defaultFocusRequester,
+        drawerFocusRequester = drawerFocusRequester,
+        rightEntryFocusRequester = rightEntryFocusRequester,
+        onDefaultFocusReady = onDefaultFocusReady,
+        onCurrentRightEntryTokenChanged = onCurrentRightEntryTokenChanged,
+        onRightEntryFocusReady = onRightEntryFocusReady,
+        searchInputViewModel = searchInputViewModel
+    )
+}
+
+@Composable
+private fun SearchInputRoute(
+    modifier: Modifier = Modifier,
+    defaultFocusRequester: FocusRequester,
+    drawerFocusRequester: FocusRequester = FocusRequester.Default,
+    rightEntryFocusRequester: FocusRequester? = null,
+    onDefaultFocusReady: (() -> Unit)? = null,
+    onCurrentRightEntryTokenChanged: ((SearchRightEntryToken?) -> Unit)? = null,
+    onRightEntryFocusReady: ((SearchRightEntryToken) -> Unit)? = null,
     searchInputViewModel: SearchInputViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
@@ -102,7 +214,11 @@ fun SearchInputScreen(
     SearchInputScreenContent(
         modifier = modifier,
         defaultFocusRequester = defaultFocusRequester,
+        drawerFocusRequester = drawerFocusRequester,
+        rightEntryFocusRequester = rightEntryFocusRequester,
         onDefaultFocusReady = onDefaultFocusReady,
+        onCurrentRightEntryTokenChanged = onCurrentRightEntryTokenChanged,
+        onRightEntryFocusReady = onRightEntryFocusReady,
         searchKeyword = searchKeyword,
         onSearchKeywordChange = { searchInputViewModel.keyword = it },
         onSearch = onSearch,
@@ -121,7 +237,11 @@ fun SearchInputScreen(
 private fun SearchInputScreenContent(
     modifier: Modifier = Modifier,
     defaultFocusRequester: FocusRequester,
+    drawerFocusRequester: FocusRequester = FocusRequester.Default,
+    rightEntryFocusRequester: FocusRequester? = null,
     onDefaultFocusReady: (() -> Unit)? = null,
+    onCurrentRightEntryTokenChanged: ((SearchRightEntryToken?) -> Unit)? = null,
+    onRightEntryFocusReady: ((SearchRightEntryToken) -> Unit)? = null,
     searchKeyword: String,
     onSearchKeywordChange: (String) -> Unit,
     onSearch: (String) -> Unit,
@@ -134,78 +254,105 @@ private fun SearchInputScreenContent(
     onDeleteHistory: (SearchHistoryDB) -> Unit,
     onDeleteAllHistories: () -> Unit
 ) {
+    var showHotword by remember { mutableStateOf(Prefs.showHotword) }
+    val currentRightEntryToken = remember(
+        searchKeyword,
+        histories,
+        hotwords,
+        suggests,
+        showHotword
+    ) {
+        resolveSearchRightEntryToken(
+            keyword = searchKeyword,
+            histories = histories,
+            hotwords = hotwords,
+            suggests = suggests,
+            showHotword = showHotword
+        )
+    }
+
+    LaunchedEffect(currentRightEntryToken) {
+        onCurrentRightEntryTokenChanged?.invoke(currentRightEntryToken)
+    }
+
     CompositionLocalProvider(
         LocalDensity provides Density(
             density = LocalDensity.current.density * 1.5f,
             fontScale = LocalDensity.current.fontScale * 1.5f
         )
     ) {
-    Scaffold(
-        modifier = modifier,
-        /*
-        topBar = {
-            Box(
-                modifier = Modifier.padding(start = 48.dp, top = 24.dp, bottom = 8.dp, end = 48.dp)
+        Scaffold(
+            modifier = modifier
+        ) { innerPadding ->
+            Row(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .padding(vertical = 8.dp)
+                    .padding(start = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                Box(
+                    modifier = Modifier.mainContentLeftExit(drawerFocusRequester)
                 ) {
-                    Text(
-                        text = stringResource(R.string.search_input_title),
-                        fontSize = 48.sp
+                    SearchInput(
+                        firstButtonFocusRequester = defaultFocusRequester,
+                        onDefaultFocusReady = onDefaultFocusReady,
+                        searchKeyword = searchKeyword,
+                        onSearchKeywordChange = onSearchKeywordChange,
+                        onSearch = { onSearch(searchKeyword) },
+                        showProxyOptions = showProxyOptions,
+                        enableProxy = enableProxy,
+                        onEnableProxyChange = onEnableProxyChange
                     )
                 }
-            }
-        }
-         */
-    ) { innerPadding ->
-        Row(
-            modifier = Modifier
-                .padding(innerPadding)
-                .padding(vertical = 8.dp)
-                .padding(start = 24.dp),
-                // .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            SearchInput(
-                firstButtonFocusRequester = defaultFocusRequester,
-                onDefaultFocusReady = onDefaultFocusReady,
-                searchKeyword = searchKeyword,
-                onSearchKeywordChange = onSearchKeywordChange,
-                onSearch = { onSearch(searchKeyword) },
-                showProxyOptions = showProxyOptions,
-                enableProxy = enableProxy,
-                onEnableProxyChange = onEnableProxyChange
-            )
 
-            if (searchKeyword.isEmpty()) {
-                SearchHotwords(
-                    modifier = Modifier.weight(1f),
-                    hotwords = hotwords,
-                    onSearch = onSearch
-                )
-            } else {
-                SearchSuggestion(
-                    modifier = Modifier.weight(1f),
-                    suggests = suggests,
-                    onSearch = onSearch
+                if (searchKeyword.isEmpty()) {
+                    SearchHotwords(
+                        modifier = Modifier.weight(1f),
+                        hotwords = hotwords,
+                        showHotword = showHotword,
+                        onToggleShowHotword = {
+                            showHotword = !showHotword
+                            Prefs.showHotword = showHotword
+                        },
+                        firstItemReadyToken = currentRightEntryToken?.takeIf {
+                            it.slot == SearchRightEntryToken.Slot.Hotword
+                        },
+                        firstItemFocusRequester = rightEntryFocusRequester,
+                        onFirstItemPlaced = onRightEntryFocusReady,
+                        onSearch = onSearch
+                    )
+                } else {
+                    SearchSuggestion(
+                        modifier = Modifier.weight(1f),
+                        suggests = suggests,
+                        firstItemReadyToken = currentRightEntryToken?.takeIf {
+                            it.slot == SearchRightEntryToken.Slot.Suggest
+                        },
+                        firstItemFocusRequester = rightEntryFocusRequester,
+                        onFirstItemPlaced = onRightEntryFocusReady,
+                        onSearch = onSearch
+                    )
+                }
+
+                SearchHistory(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 10.dp),
+                    drawerFocusRequester = drawerFocusRequester,
+                    histories = histories,
+                    firstItemReadyToken = currentRightEntryToken?.takeIf {
+                        it.slot == SearchRightEntryToken.Slot.History
+                    },
+                    firstItemFocusRequester = rightEntryFocusRequester,
+                    onFirstItemPlaced = onRightEntryFocusReady,
+                    onSearch = onSearch,
+                    onDelete = onDeleteHistory,
+                    onDeleteAll = onDeleteAllHistories
                 )
             }
-
-            SearchHistory(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(end = 10.dp),
-                histories = histories,
-                onSearch = onSearch,
-                onDelete = onDeleteHistory,
-                onDeleteAll = onDeleteAllHistories
-            )
         }
     }
-}
 }
 
 @Composable
@@ -297,14 +444,13 @@ private fun SearchInput(
 private fun SearchHotwords(
     modifier: Modifier = Modifier,
     hotwords: List<Hotword>,
+    showHotword: Boolean,
+    onToggleShowHotword: () -> Unit,
+    firstItemReadyToken: SearchRightEntryToken? = null,
+    firstItemFocusRequester: FocusRequester? = null,
+    onFirstItemPlaced: ((SearchRightEntryToken) -> Unit)? = null,
     onSearch: (String) -> Unit
 ) {
-    var showHotword by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        showHotword = Prefs.showHotword
-    }
-
     Column(
         modifier = modifier
             .width(250.dp)
@@ -322,10 +468,7 @@ private fun SearchHotwords(
                 style = MaterialTheme.typography.titleLarge
             )
             IconButton(
-                onClick = {
-                    showHotword = !showHotword
-                    Prefs.showHotword = showHotword
-                },
+                onClick = onToggleShowHotword,
                 colors = ButtonDefaults.colors(
                     containerColor = MaterialTheme.colorScheme.surface,
                 )
@@ -357,8 +500,22 @@ private fun SearchHotwords(
                 contentPadding = PaddingValues(vertical = 4.dp)
             ) {
                 itemsIndexed(hotwords) { index, hotword ->
+                    val itemModifier =
+                        if (index == 0 &&
+                            firstItemReadyToken != null &&
+                            firstItemFocusRequester != null
+                        ) {
+                            Modifier
+                                .focusRequester(firstItemFocusRequester)
+                                .onGloballyPositioned {
+                                    onFirstItemPlaced?.invoke(firstItemReadyToken)
+                                }
+                        } else {
+                            Modifier
+                        }
+
                     SearchKeyword(
-                        modifier = Modifier,
+                        modifier = itemModifier,
                         keyword = hotword.showName,
                         leadingIcon = hotword.icon ?: "",
                         onClick = { onSearch(hotword.showName) }
@@ -374,6 +531,9 @@ private fun SearchHotwords(
 private fun SearchSuggestion(
     modifier: Modifier = Modifier,
     suggests: List<String>,
+    firstItemReadyToken: SearchRightEntryToken? = null,
+    firstItemFocusRequester: FocusRequester? = null,
+    onFirstItemPlaced: ((SearchRightEntryToken) -> Unit)? = null,
     onSearch: (String) -> Unit
 ) {
     Column(
@@ -392,8 +552,22 @@ private fun SearchSuggestion(
             contentPadding = PaddingValues(vertical = 4.dp)
         ) {
             itemsIndexed(suggests) { index, suggest ->
+                val itemModifier =
+                    if (index == 0 &&
+                        firstItemReadyToken != null &&
+                        firstItemFocusRequester != null
+                    ) {
+                        Modifier
+                            .focusRequester(firstItemFocusRequester)
+                            .onGloballyPositioned {
+                                onFirstItemPlaced?.invoke(firstItemReadyToken)
+                            }
+                    } else {
+                        Modifier
+                    }
+
                 SearchKeyword(
-                    modifier = Modifier,
+                    modifier = itemModifier,
                     keyword = suggest,
                     leadingIcon = "",
                     onClick = { onSearch(suggest) }
@@ -406,7 +580,11 @@ private fun SearchSuggestion(
 @Composable
 private fun SearchHistory(
     modifier: Modifier = Modifier,
+    drawerFocusRequester: FocusRequester = FocusRequester.Default,
     histories: List<SearchHistoryDB>,
+    firstItemReadyToken: SearchRightEntryToken? = null,
+    firstItemFocusRequester: FocusRequester? = null,
+    onFirstItemPlaced: ((SearchRightEntryToken) -> Unit)? = null,
     onSearch: (String) -> Unit,
     onDelete: (SearchHistoryDB) -> Unit,
     onDeleteAll: () -> Unit
@@ -418,6 +596,7 @@ private fun SearchHistory(
 
     Column(
         modifier = modifier
+            .mainContentRightExit(drawerFocusRequester)
             .width(250.dp)
             .fillMaxHeight()
             .focusGroup(),
@@ -463,8 +642,22 @@ private fun SearchHistory(
             contentPadding = PaddingValues(vertical = 4.dp)
         ) {
             itemsIndexed(histories) { index, searchHistory ->
+                val itemModifier =
+                    if (index == 0 &&
+                        firstItemReadyToken != null &&
+                        firstItemFocusRequester != null
+                    ) {
+                        Modifier
+                            .focusRequester(firstItemFocusRequester)
+                            .onGloballyPositioned {
+                                onFirstItemPlaced?.invoke(firstItemReadyToken)
+                            }
+                    } else {
+                        Modifier
+                    }
+
                 SearchKeyword(
-                    modifier = Modifier,
+                    modifier = itemModifier,
                     keyword = searchHistory.keyword,
                     leadingIcon = "",
                     onClick = {

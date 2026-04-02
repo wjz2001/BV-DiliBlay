@@ -29,6 +29,8 @@ import dev.aaa1115910.bv.screen.main.pgc.GuoChuangContent
 import dev.aaa1115910.bv.screen.main.pgc.MovieContent
 import dev.aaa1115910.bv.screen.main.pgc.TvContent
 import dev.aaa1115910.bv.screen.main.pgc.VarietyContent
+import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
+import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
 import dev.aaa1115910.bv.viewmodel.main.PgcContentViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcAnimeViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcDocumentaryViewModel
@@ -41,6 +43,9 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun PgcContent(
     navFocusRequester: FocusRequester,
+    drawerFocusRequester: FocusRequester,
+    pendingDrawerEntryRequest: MainContentEntryRequest? = null,
+    onDrawerEntryConsumed: (Long) -> Unit = {},
     onDefaultFocusReady: (() -> Unit)? = null,
     pgcContentViewModel: PgcContentViewModel = koinViewModel(),
     pgcAnimeViewModel: PgcAnimeViewModel = koinViewModel(),
@@ -91,6 +96,58 @@ fun PgcContent(
     val focusedTab = pgcContentViewModel.focusedTab
     val activeTab = pgcContentViewModel.activeTab
     var focusOnContent by remember { mutableStateOf(false) }
+    var topNavReadyTab by remember { mutableStateOf<PgcTopNavItem?>(null) }
+
+    val desiredDrawerEntryTab = remember(pendingDrawerEntryRequest?.id) {
+        when (pendingDrawerEntryRequest?.target) {
+            MainContentFocusTarget.LeftEntry -> PgcTopNavItem.entries.firstOrNull()
+            MainContentFocusTarget.RightEntry -> PgcTopNavItem.entries.lastOrNull()
+            null -> null
+        }
+    }
+
+    LaunchedEffect(pendingDrawerEntryRequest?.id, desiredDrawerEntryTab) {
+        val desired = desiredDrawerEntryTab ?: return@LaunchedEffect
+        if (topNavReadyTab != desired) {
+            topNavReadyTab = null
+        }
+    }
+
+    LaunchedEffect(
+        pendingDrawerEntryRequest?.id,
+        desiredDrawerEntryTab,
+        activeTab,
+        focusedTab
+    ) {
+        val desired = desiredDrawerEntryTab ?: return@LaunchedEffect
+        if (activeTab != desired || focusedTab != desired) {
+            pgcContentViewModel.onTabClicked(desired)
+        }
+    }
+
+    LaunchedEffect(
+        pendingDrawerEntryRequest?.id,
+        desiredDrawerEntryTab,
+        activeTab,
+        focusedTab,
+        topNavReadyTab
+    ) {
+        val request = pendingDrawerEntryRequest ?: return@LaunchedEffect
+        val desired = desiredDrawerEntryTab ?: return@LaunchedEffect
+
+        if (activeTab == desired &&
+            focusedTab == desired &&
+            topNavReadyTab == desired
+        ) {
+            navFocusRequester.requestFocus()
+            onDrawerEntryConsumed(request.id)
+        }
+    }
+
+    val handleDefaultFocusReady: () -> Unit = {
+        topNavReadyTab = focusedTab
+        onDefaultFocusReady?.invoke()
+    }
 
     LaunchedEffect(activeTab) {
         when (activeTab) {
@@ -129,7 +186,9 @@ fun PgcContent(
                 isLargePadding = !focusOnContent && currentListOnTop,
                 selectedItem = focusedTab,
                 defaultFocusRequester = navFocusRequester,
-                onDefaultFocusReady = onDefaultFocusReady,
+                onDefaultFocusReady = handleDefaultFocusReady,
+                onLeftBoundaryExit = { drawerFocusRequester.requestFocus() },
+                onRightBoundaryExit = { drawerFocusRequester.requestFocus() },
                 onSelectedChanged = { nav ->
                     pgcContentViewModel.onTabFocused(nav as PgcTopNavItem)
                 },
@@ -166,18 +225,17 @@ fun PgcContent(
                         navFocusRequester.requestFocus()
                         return@onPreviewKeyEvent true
                     }
-                    return@onPreviewKeyEvent false
+                    false
                 }
         ) {
-
-                when (activeTab) {
-                    PgcTopNavItem.Anime -> AnimeContent(lazyListState = animeState)
-                    PgcTopNavItem.GuoChuang -> GuoChuangContent(lazyListState = guoChuangState)
-                    PgcTopNavItem.Movie -> MovieContent(lazyListState = movieState)
-                    PgcTopNavItem.Documentary -> DocumentaryContent(lazyListState = documentaryState)
-                    PgcTopNavItem.Tv -> TvContent(lazyListState = tvState)
-                    PgcTopNavItem.Variety -> VarietyContent(lazyListState = varietyState)
-                }
+            when (activeTab) {
+                PgcTopNavItem.Anime -> AnimeContent(lazyListState = animeState)
+                PgcTopNavItem.GuoChuang -> GuoChuangContent(lazyListState = guoChuangState)
+                PgcTopNavItem.Movie -> MovieContent(lazyListState = movieState)
+                PgcTopNavItem.Documentary -> DocumentaryContent(lazyListState = documentaryState)
+                PgcTopNavItem.Tv -> TvContent(lazyListState = tvState)
+                PgcTopNavItem.Variety -> VarietyContent(lazyListState = varietyState)
+            }
         }
     }
 }

@@ -29,6 +29,8 @@ import dev.aaa1115910.bv.component.rememberRestoredLazyGridState
 import dev.aaa1115910.bv.entity.state.GridViewportState
 import dev.aaa1115910.bv.screen.main.ugc.UgcRegionScaffold
 import dev.aaa1115910.bv.screen.main.ugc.UgcScaffoldState
+import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
+import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.ugc.UgcViewModel
@@ -38,6 +40,9 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun UgcContent(
     navFocusRequester: FocusRequester,
+    drawerFocusRequester: FocusRequester,
+    pendingDrawerEntryRequest: MainContentEntryRequest? = null,
+    onDrawerEntryConsumed: (Long) -> Unit = {},
     onDefaultFocusReady: (() -> Unit)? = null,
     ugcViewModel: UgcViewModel = koinViewModel(),
     toViewViewModel: ToViewViewModel = koinViewModel(),
@@ -48,6 +53,58 @@ fun UgcContent(
     val activeTab = ugcViewModel.activeTab
     var focusOnContent by remember { mutableStateOf(false) }
     val ugcTopNavItems = UgcTopNavItem.entries
+    var topNavReadyTab by remember { mutableStateOf<UgcTopNavItem?>(null) }
+
+    val desiredDrawerEntryTab = remember(pendingDrawerEntryRequest?.id) {
+        when (pendingDrawerEntryRequest?.target) {
+            MainContentFocusTarget.LeftEntry -> ugcTopNavItems.firstOrNull()
+            MainContentFocusTarget.RightEntry -> ugcTopNavItems.lastOrNull()
+            null -> null
+        }
+    }
+
+    LaunchedEffect(pendingDrawerEntryRequest?.id, desiredDrawerEntryTab) {
+        val desired = desiredDrawerEntryTab ?: return@LaunchedEffect
+        if (topNavReadyTab != desired) {
+            topNavReadyTab = null
+        }
+    }
+
+    LaunchedEffect(
+        pendingDrawerEntryRequest?.id,
+        desiredDrawerEntryTab,
+        activeTab,
+        focusedTab
+    ) {
+        val desired = desiredDrawerEntryTab ?: return@LaunchedEffect
+        if (activeTab != desired || focusedTab != desired) {
+            ugcViewModel.onTabClicked(desired)
+        }
+    }
+
+    LaunchedEffect(
+        pendingDrawerEntryRequest?.id,
+        desiredDrawerEntryTab,
+        activeTab,
+        focusedTab,
+        topNavReadyTab
+    ) {
+        val request = pendingDrawerEntryRequest ?: return@LaunchedEffect
+        val desired = desiredDrawerEntryTab ?: return@LaunchedEffect
+
+        if (activeTab == desired &&
+            focusedTab == desired &&
+            topNavReadyTab == desired
+        ) {
+            navFocusRequester.requestFocus()
+            onDrawerEntryConsumed(request.id)
+        }
+    }
+
+    val handleDefaultFocusReady: () -> Unit = {
+        topNavReadyTab = focusedTab
+        onDefaultFocusReady?.invoke()
+    }
 
     LaunchedEffect(activeTab) {
         if (activeTab !in ugcViewModel.ugcScaffoldStateMap) {
@@ -71,6 +128,7 @@ fun UgcContent(
     }
 
     Scaffold(
+        modifier = Modifier,
         topBar = {
             TopNav(
                 modifier = Modifier.padding(horizontal = 10.dp),
@@ -78,10 +136,12 @@ fun UgcContent(
                 isLargePadding = !focusOnContent,
                 selectedItem = focusedTab,
                 defaultFocusRequester = navFocusRequester,
-                onDefaultFocusReady = onDefaultFocusReady,
+                onDefaultFocusReady = handleDefaultFocusReady,
+                onLeftBoundaryExit = { drawerFocusRequester.requestFocus() },
+                onRightBoundaryExit = { drawerFocusRequester.requestFocus() },
                 onSelectedChanged = { nav ->
                     ugcViewModel.onTabFocused(nav as UgcTopNavItem)
-                                    },
+                },
                 onClick = { nav ->
                     val target = nav as UgcTopNavItem
                     ugcViewModel.onTabClicked(target)
@@ -101,7 +161,7 @@ fun UgcContent(
                         navFocusRequester.requestFocus()
                         return@onPreviewKeyEvent true
                     }
-                    return@onPreviewKeyEvent false
+                    false
                 },
         ) {
             val screen = activeTab

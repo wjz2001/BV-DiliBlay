@@ -41,8 +41,11 @@ import dev.aaa1115910.bv.screen.main.LeftNaviItem
 import dev.aaa1115910.bv.screen.main.PersonalContent
 import dev.aaa1115910.bv.screen.main.PgcContent
 import dev.aaa1115910.bv.screen.main.UgcContent
-import dev.aaa1115910.bv.screen.search.SearchInputScreen
+import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
+import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
 import dev.aaa1115910.bv.screen.main.common.MainDrawerPreloadHost
+import dev.aaa1115910.bv.screen.search.MainDrawerSearchInputScreen
+import dev.aaa1115910.bv.screen.search.SearchRightEntryToken
 import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.requestFocus
@@ -52,6 +55,12 @@ import dev.aaa1115910.bv.viewmodel.UserViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.getKoin
+
+private data class PendingContentFocus(
+    val id: Long,
+    val item: LeftNaviItem,
+    val entryTarget: MainContentFocusTarget? = null
+)
 
 @Composable
 fun MainScreen(
@@ -81,8 +90,37 @@ fun MainScreen(
     val pgcFocusRequester = remember { FocusRequester() }
     val searchFocusRequester = remember { FocusRequester() }
 
-    var pendingFocusTargetItem by remember { mutableStateOf<LeftNaviItem?>(initialDrawerItem) }
+    val searchDrawerFocusRequester = remember { FocusRequester() }
+    val homeDrawerFocusRequester = remember { FocusRequester() }
+    val personalDrawerFocusRequester = remember { FocusRequester() }
+    val ugcDrawerFocusRequester = remember { FocusRequester() }
+    val pgcDrawerFocusRequester = remember { FocusRequester() }
+    val searchRightEntryFocusRequester = remember { FocusRequester() }
+
+    var contentFocusRequestSerial by remember { mutableLongStateOf(0L) }
+    var pendingContentFocus by remember {
+        mutableStateOf<PendingContentFocus?>(
+            PendingContentFocus(
+                id = 0L,
+                item = initialDrawerItem
+            )
+        )
+    }
     var currentReadyItem by remember { mutableStateOf<LeftNaviItem?>(null) }
+    var searchCurrentRightEntryToken by remember { mutableStateOf<SearchRightEntryToken?>(null) }
+    var searchRightEntryReadyToken by remember { mutableStateOf<SearchRightEntryToken?>(null) }
+
+    fun newPendingContentFocus(
+        item: LeftNaviItem,
+        entryTarget: MainContentFocusTarget?
+    ): PendingContentFocus {
+        contentFocusRequestSerial += 1
+        return PendingContentFocus(
+            id = contentFocusRequestSerial,
+            item = item,
+            entryTarget = entryTarget
+        )
+    }
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val fade = 0
@@ -98,37 +136,154 @@ fun MainScreen(
         }
     }
 
-    val requestFocusForItem: (LeftNaviItem) -> Unit = { item ->
-        runCatching {
-            when (item) {
-                LeftNaviItem.Home -> mainFocusRequester.requestFocus(scope)
-                LeftNaviItem.UGC -> ugcFocusRequester.requestFocus(scope)
-                LeftNaviItem.PGC -> pgcFocusRequester.requestFocus(scope)
-                LeftNaviItem.Search -> searchFocusRequester.requestFocus(scope)
-                LeftNaviItem.Personal -> personalFocusRequester.requestFocus(scope)
-                else -> {}
+    val requestFocusForContent: (LeftNaviItem, MainContentFocusTarget?) -> Unit =
+        { item, entryTarget ->
+            runCatching {
+                when (item) {
+                    LeftNaviItem.Home -> mainFocusRequester.requestFocus(scope)
+                    LeftNaviItem.UGC -> ugcFocusRequester.requestFocus(scope)
+                    LeftNaviItem.PGC -> pgcFocusRequester.requestFocus(scope)
+                    LeftNaviItem.Personal -> personalFocusRequester.requestFocus(scope)
+                    LeftNaviItem.Search -> {
+                        val requester = when {
+                            entryTarget == MainContentFocusTarget.RightEntry &&
+                                    searchCurrentRightEntryToken != null &&
+                                    searchCurrentRightEntryToken == searchRightEntryReadyToken -> {
+                                searchRightEntryFocusRequester
+                            }
+
+                            else -> searchFocusRequester
+                        }
+                        requester.requestFocus(scope)
+                    }
+
+                    else -> Unit
+                }
+            }.onFailure {
+                logger.fException(it) { "request focus to content failed: $item / $entryTarget" }
             }
-        }.onFailure {
-            logger.fException(it) { "request focus to content failed: $item" }
         }
-    }
 
     val onContentDefaultFocusReady: (LeftNaviItem) -> Unit = { item ->
         if (requestedDrawerItem == item) {
             currentReadyItem = item
-            if (pendingFocusTargetItem == item) {
-                requestFocusForItem(item)
-                pendingFocusTargetItem = null
+
+            val pending = pendingContentFocus
+            if (pending != null && pending.item == item) {
+                when {
+                    pending.entryTarget == null -> {
+                        requestFocusForContent(item, null)
+                        pendingContentFocus = null
+                    }
+
+                    item == LeftNaviItem.Search &&
+                            pending.entryTarget == MainContentFocusTarget.LeftEntry -> {
+                        requestFocusForContent(item, MainContentFocusTarget.LeftEntry)
+                        pendingContentFocus = null
+                    }
+
+                    item == LeftNaviItem.Search &&
+                            pending.entryTarget == MainContentFocusTarget.RightEntry &&
+                            searchCurrentRightEntryToken == null -> {
+                        requestFocusForContent(item, null)
+                        pendingContentFocus = null
+                    }
+
+                    item == LeftNaviItem.Search &&
+                            pending.entryTarget == MainContentFocusTarget.RightEntry &&
+                            searchCurrentRightEntryToken != null &&
+                            searchCurrentRightEntryToken == searchRightEntryReadyToken -> {
+                        requestFocusForContent(item, MainContentFocusTarget.RightEntry)
+                        pendingContentFocus = null
+                    }
+                }
             }
         }
     }
 
-    val onFocusToContent: () -> Unit = {
-        val target = requestedDrawerItem
-        if (currentReadyItem == target) {
-            requestFocusForItem(target)
-        } else {
-            pendingFocusTargetItem = target
+    val onSearchCurrentRightEntryTokenChanged: (SearchRightEntryToken?) -> Unit = { token ->
+        searchCurrentRightEntryToken = token
+
+        val pending = pendingContentFocus
+        if (requestedDrawerItem == LeftNaviItem.Search &&
+            currentReadyItem == LeftNaviItem.Search &&
+            pending?.item == LeftNaviItem.Search &&
+            pending.entryTarget == MainContentFocusTarget.RightEntry
+        ) {
+            if (token == null) {
+                requestFocusForContent(LeftNaviItem.Search, null)
+                pendingContentFocus = null
+            } else if (token == searchRightEntryReadyToken) {
+                requestFocusForContent(LeftNaviItem.Search, MainContentFocusTarget.RightEntry)
+                pendingContentFocus = null
+            }
+        }
+    }
+
+    val onSearchRightEntryReady: (SearchRightEntryToken) -> Unit = { token ->
+        searchRightEntryReadyToken = token
+
+        val pending = pendingContentFocus
+        if (requestedDrawerItem == LeftNaviItem.Search &&
+            currentReadyItem == LeftNaviItem.Search &&
+            pending?.item == LeftNaviItem.Search &&
+            pending.entryTarget == MainContentFocusTarget.RightEntry &&
+            searchCurrentRightEntryToken == token
+        ) {
+            requestFocusForContent(LeftNaviItem.Search, MainContentFocusTarget.RightEntry)
+            pendingContentFocus = null
+        }
+    }
+
+    val onFocusToContent: (MainContentFocusTarget) -> Unit = { entryTarget ->
+        val item = requestedDrawerItem
+
+        when (item) {
+            LeftNaviItem.Search -> {
+                if (currentReadyItem == LeftNaviItem.Search) {
+                    when (entryTarget) {
+                        MainContentFocusTarget.LeftEntry -> {
+                            requestFocusForContent(
+                                LeftNaviItem.Search,
+                                MainContentFocusTarget.LeftEntry
+                            )
+                        }
+
+                        MainContentFocusTarget.RightEntry -> {
+                            if (searchCurrentRightEntryToken == null) {
+                                requestFocusForContent(LeftNaviItem.Search, null)
+                            } else if (searchCurrentRightEntryToken == searchRightEntryReadyToken) {
+                                requestFocusForContent(
+                                    LeftNaviItem.Search,
+                                    MainContentFocusTarget.RightEntry
+                                )
+                            } else {
+                                pendingContentFocus = newPendingContentFocus(
+                                    item = LeftNaviItem.Search,
+                                    entryTarget = MainContentFocusTarget.RightEntry
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    pendingContentFocus = newPendingContentFocus(
+                        item = LeftNaviItem.Search,
+                        entryTarget = entryTarget
+                    )
+                }
+            }
+
+            LeftNaviItem.Home,
+            LeftNaviItem.Personal,
+            LeftNaviItem.UGC,
+            LeftNaviItem.PGC -> {
+                pendingContentFocus = newPendingContentFocus(
+                    item = item,
+                    entryTarget = entryTarget
+                )
+            }
+
+            else -> Unit
         }
     }
 
@@ -154,6 +309,9 @@ fun MainScreen(
 
     LaunchedEffect(requestedDrawerItem) {
         currentReadyItem = null
+        searchCurrentRightEntryToken = null
+        searchRightEntryReadyToken = null
+        pendingContentFocus = pendingContentFocus?.takeIf { it.item == requestedDrawerItem }
     }
 
     LaunchedEffect(personalPreloadSessionKey) {
@@ -178,6 +336,12 @@ fun MainScreen(
             LeftNaviContent(
                 isLogin = userViewModel.isLogin,
                 avatar = userViewModel.face,
+                selectedItem = requestedDrawerItem,
+                searchFocusRequester = searchDrawerFocusRequester,
+                homeFocusRequester = homeDrawerFocusRequester,
+                personalFocusRequester = personalDrawerFocusRequester,
+                ugcFocusRequester = ugcDrawerFocusRequester,
+                pgcFocusRequester = pgcDrawerFocusRequester,
                 onLeftNaviItemChanged = { requestedDrawerItem = it },
                 onLeftNaviItemPreload = onLeftNaviItemPreload,
                 onOpenSettings = {
@@ -200,17 +364,38 @@ fun MainScreen(
                 fadeInMillis = fade,
                 fadeOutMillis = fade
             ) { currentItem ->
+                val drawerEntryRequest = pendingContentFocus
+                    ?.takeIf { it.item == currentItem && it.entryTarget != null }
+                    ?.let { request ->
+                        MainContentEntryRequest(
+                            id = request.id,
+                            target = request.entryTarget!!
+                        )
+                    }
+                val consumeDrawerEntryRequest: (Long) -> Unit = { requestId ->
+                    if (pendingContentFocus?.id == requestId) {
+                        pendingContentFocus = null
+                    }
+                }
+
                 Box(modifier = Modifier.fillMaxSize()) {
                     when (currentItem) {
-                        LeftNaviItem.Search -> SearchInputScreen(
+                        LeftNaviItem.Search -> MainDrawerSearchInputScreen(
                             defaultFocusRequester = searchFocusRequester,
+                            drawerFocusRequester = searchDrawerFocusRequester,
+                            rightEntryFocusRequester = searchRightEntryFocusRequester,
                             onDefaultFocusReady = {
                                 onContentDefaultFocusReady(LeftNaviItem.Search)
-                            }
+                            },
+                            onCurrentRightEntryTokenChanged = onSearchCurrentRightEntryTokenChanged,
+                            onRightEntryFocusReady = onSearchRightEntryReady
                         )
 
                         LeftNaviItem.Personal -> PersonalContent(
                             navFocusRequester = personalFocusRequester,
+                            drawerFocusRequester = personalDrawerFocusRequester,
+                            pendingDrawerEntryRequest = drawerEntryRequest,
+                            onDrawerEntryConsumed = consumeDrawerEntryRequest,
                             onDefaultFocusReady = {
                                 onContentDefaultFocusReady(LeftNaviItem.Personal)
                             }
@@ -218,6 +403,9 @@ fun MainScreen(
 
                         LeftNaviItem.Home -> HomeContent(
                             navFocusRequester = mainFocusRequester,
+                            drawerFocusRequester = homeDrawerFocusRequester,
+                            pendingDrawerEntryRequest = drawerEntryRequest,
+                            onDrawerEntryConsumed = consumeDrawerEntryRequest,
                             onDefaultFocusReady = {
                                 onContentDefaultFocusReady(LeftNaviItem.Home)
                             }
@@ -225,6 +413,9 @@ fun MainScreen(
 
                         LeftNaviItem.UGC -> UgcContent(
                             navFocusRequester = ugcFocusRequester,
+                            drawerFocusRequester = ugcDrawerFocusRequester,
+                            pendingDrawerEntryRequest = drawerEntryRequest,
+                            onDrawerEntryConsumed = consumeDrawerEntryRequest,
                             onDefaultFocusReady = {
                                 onContentDefaultFocusReady(LeftNaviItem.UGC)
                             }
@@ -232,6 +423,9 @@ fun MainScreen(
 
                         LeftNaviItem.PGC -> PgcContent(
                             navFocusRequester = pgcFocusRequester,
+                            drawerFocusRequester = pgcDrawerFocusRequester,
+                            pendingDrawerEntryRequest = drawerEntryRequest,
+                            onDrawerEntryConsumed = consumeDrawerEntryRequest,
                             onDefaultFocusReady = {
                                 onContentDefaultFocusReady(LeftNaviItem.PGC)
                             }

@@ -56,6 +56,8 @@ fun TopNav(
     onDefaultFocusReady: (() -> Unit)? = null,
     isHistorySearching: Boolean = false,
     onHistoryTabDirectionUp: (isLongPress: Boolean) -> Unit = {},
+    onLeftBoundaryExit: (() -> Unit)? = null,
+    onRightBoundaryExit: (() -> Unit)? = null,
     onSelectedChanged: (TopNavItem) -> Unit = {},
     onClick: (TopNavItem) -> Unit = {}
 ) {
@@ -120,6 +122,8 @@ fun TopNav(
                     selected = index == selectedTabIndex,
                     showHistorySearchIcon = isHistoryTab && isHistorySearching,
                     onHistoryTabDirectionUp = if (isHistoryTab) onHistoryTabDirectionUp else null,
+                    onLeftBoundaryExit = onLeftBoundaryExit.takeIf { index == 0 },
+                    onRightBoundaryExit = onRightBoundaryExit.takeIf { index == items.lastIndex },
                     onFocus = {
                         if (selectedTabIndex != index) {
                             selectedTabIndex = index
@@ -141,6 +145,8 @@ private fun TabRowScope.NavItemTab(
     selected: Boolean,
     showHistorySearchIcon: Boolean = false,
     onHistoryTabDirectionUp: ((isLongPress: Boolean) -> Unit)? = null,
+    onLeftBoundaryExit: (() -> Unit)? = null,
+    onRightBoundaryExit: (() -> Unit)? = null,
     onClick: () -> Unit,
     onFocus: () -> Unit
 ) {
@@ -154,76 +160,86 @@ private fun TabRowScope.NavItemTab(
     var confirmLongPressTriggered by remember(topNavItem) { mutableStateOf(false) }
 
     Tab(
-        modifier = if (onHistoryTabDirectionUp != null) {
-            modifier.onPreviewKeyEvent { event ->
-                val isDirectionUp = event.key == Key.DirectionUp
-                val isConfirmKey =
-                    event.key == Key.DirectionCenter ||
-                            event.key == Key.Enter ||
-                            event.key == Key.Spacebar
+        modifier = modifier.onPreviewKeyEvent { event ->
+            val isDirectionLeft = event.key == Key.DirectionLeft
+            val isDirectionRight = event.key == Key.DirectionRight
+            val isDirectionUp = event.key == Key.DirectionUp
+            val isConfirmKey =
+                event.key == Key.DirectionCenter ||
+                        event.key == Key.Enter ||
+                        event.key == Key.Spacebar
 
-                if (!isDirectionUp && !isConfirmKey) return@onPreviewKeyEvent false
+            if (event.type == KeyEventType.KeyDown) {
+                if (isDirectionLeft && onLeftBoundaryExit != null) {
+                    onLeftBoundaryExit()
+                    return@onPreviewKeyEvent true
+                }
 
-                when (event.type) {
-                    KeyEventType.KeyDown -> {
-                        if (isDirectionUp) {
-                            // 记录：这一轮上键按下确实发生在当前 Tab
-                            directionUpPressedOnThisTab = true
-                        }
-
-                        if (event.nativeKeyEvent.isLongPress) {
-                            if (isDirectionUp) {
-                                if (!directionUpLongPressTriggered) {
-                                    directionUpLongPressTriggered = true
-                                    onHistoryTabDirectionUp(true)
-                                }
-                            } else {
-                                if (!confirmLongPressTriggered) {
-                                    confirmLongPressTriggered = true
-                                    onHistoryTabDirectionUp(true)
-                                }
-                            }
-                            return@onPreviewKeyEvent true
-                        }
-
-                        if (isDirectionUp) {
-                            // 上键短按延迟到 KeyUp 决定，避免与长按冲突
-                            return@onPreviewKeyEvent true
-                        }
-                        false
-                    }
-
-                    KeyEventType.KeyUp -> {
-                        if (isDirectionUp) {
-                            // 没有匹配到本 Tab 的 KeyDown，说明多半是“回焦点”带来的 KeyUp，忽略
-                            if (!directionUpPressedOnThisTab) {
-                                return@onPreviewKeyEvent true
-                            }
-
-                            directionUpPressedOnThisTab = false
-
-                            if (directionUpLongPressTriggered) {
-                                directionUpLongPressTriggered = false
-                                true
-                            } else {
-                                onHistoryTabDirectionUp(false)
-                                true
-                            }
-                        } else {
-                            if (confirmLongPressTriggered) {
-                                confirmLongPressTriggered = false
-                                true
-                            } else {
-                                false
-                            }
-                        }
-                    }
-
-                    else -> false
+                if (isDirectionRight && onRightBoundaryExit != null) {
+                    onRightBoundaryExit()
+                    return@onPreviewKeyEvent true
                 }
             }
-        } else {
-            modifier
+
+            if (onHistoryTabDirectionUp == null) {
+                return@onPreviewKeyEvent false
+            }
+
+            if (!isDirectionUp && !isConfirmKey) return@onPreviewKeyEvent false
+
+            when (event.type) {
+                KeyEventType.KeyDown -> {
+                    if (isDirectionUp) {
+                        directionUpPressedOnThisTab = true
+                    }
+
+                    if (event.nativeKeyEvent.isLongPress) {
+                        if (isDirectionUp) {
+                            if (!directionUpLongPressTriggered) {
+                                directionUpLongPressTriggered = true
+                                onHistoryTabDirectionUp(true)
+                            }
+                        } else {
+                            if (!confirmLongPressTriggered) {
+                                confirmLongPressTriggered = true
+                                onHistoryTabDirectionUp(true)
+                            }
+                        }
+                        return@onPreviewKeyEvent true
+                    }
+
+                    if (isDirectionUp) {
+                        return@onPreviewKeyEvent true
+                    }
+                    false
+                }
+
+                KeyEventType.KeyUp -> {
+                    if (isDirectionUp) {
+                        if (!directionUpPressedOnThisTab) {
+                            return@onPreviewKeyEvent true
+                        }
+
+                        directionUpPressedOnThisTab = false
+
+                        if (directionUpLongPressTriggered) {
+                            directionUpLongPressTriggered = false
+                            true
+                        } else {
+                            onHistoryTabDirectionUp(false)
+                            true
+                        }
+                    } else {
+                        if (confirmLongPressTriggered) {
+                            confirmLongPressTriggered = false
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                }
+                else -> false
+            }
         },
         selected = selected,
         onFocus = {
