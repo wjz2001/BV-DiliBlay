@@ -38,6 +38,8 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
@@ -49,6 +51,7 @@ import dev.aaa1115910.bv.util.isDpadRight
 import dev.aaa1115910.bv.util.isDpadUp
 import dev.aaa1115910.bv.util.isKeyDown
 import dev.aaa1115910.bv.util.isKeyUp
+import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -59,41 +62,37 @@ fun LeftNaviContent(
     modifier: Modifier = Modifier,
     isLogin: Boolean = false,
     avatar: String = "",
+    selectedItem: LeftNaviItem,
+    searchFocusRequester: FocusRequester,
+    homeFocusRequester: FocusRequester,
+    personalFocusRequester: FocusRequester,
+    ugcFocusRequester: FocusRequester,
+    pgcFocusRequester: FocusRequester,
     onLeftNaviItemChanged: (LeftNaviItem) -> Unit,
     onLeftNaviItemPreload: (LeftNaviItem) -> Unit = {},
     onOpenSettings: () -> Unit,
     onShowUserPanel: () -> Unit,
-    onFocusToContent: () -> Unit,
+    onFocusToContent: (MainContentFocusTarget) -> Unit,
     onLogin: () -> Unit
 ) {
-    var selectedItem by remember { mutableStateOf(LeftNaviItem.Home) }
     val scope = rememberCoroutineScope()
 
     val userFocusRequester = remember { FocusRequester() }
     val settingsFocusRequester = remember { FocusRequester() }
 
-    // 恢复原代码行为：selectedItem 改变时通知外部
-    LaunchedEffect(selectedItem) {
-        onLeftNaviItemChanged(selectedItem)
-    }
+    var userArmedEntryTarget by remember { mutableStateOf<MainContentFocusTarget?>(null) }
+    var settingsArmedEntryTarget by remember { mutableStateOf<MainContentFocusTarget?>(null) }
+
+    val contentItems = listOf(
+        LeftNaviItem.Search,
+        LeftNaviItem.Home,
+        LeftNaviItem.Personal,
+        LeftNaviItem.UGC,
+        LeftNaviItem.PGC
+    )
 
     NavigationRail(
-        modifier = modifier
-            .fillMaxHeight()
-            .onPreviewKeyEvent { keyEvent ->
-                if (keyEvent.isDpadRight()) {
-                    if (keyEvent.isKeyDown()) {
-                        // KeyDown 先吞掉，避免和焦点系统同拍竞争
-                        return@onPreviewKeyEvent true
-                    }
-                    if (keyEvent.isKeyUp()) {
-                        // KeyUp 再触发进内容区
-                        onFocusToContent()
-                        return@onPreviewKeyEvent true
-                    }
-                }
-                false
-            },
+        modifier = modifier.fillMaxHeight(),
         containerColor = Color.White.copy(alpha = 0.05f),
     ) {
         // 顶部用户按钮
@@ -103,20 +102,65 @@ fun LeftNaviContent(
                 .focusRequester(userFocusRequester)
                 .onFocusChanged {
                     userIsFocused = it.hasFocus
+                    if (!it.hasFocus) {
+                        userArmedEntryTarget = null
+                    }
                 }
                 .onPreviewKeyEvent { keyEvent ->
-                    if (keyEvent.isDpadUp() && keyEvent.isKeyDown()) {
-                        settingsFocusRequester.requestFocus()
-                        return@onPreviewKeyEvent true
+                    when {
+                        keyEvent.isDpadUp() -> {
+                            if (keyEvent.isKeyDown()) {
+                                settingsFocusRequester.requestFocus()
+                                return@onPreviewKeyEvent true
+                            }
+                            true
+                        }
+
+                        keyEvent.key == Key.DirectionRight -> {
+                            when {
+                                keyEvent.isKeyDown() -> {
+                                    userArmedEntryTarget = MainContentFocusTarget.LeftEntry
+                                    true
+                                }
+
+                                keyEvent.isKeyUp() -> {
+                                    val armed = userArmedEntryTarget
+                                    userArmedEntryTarget = null
+                                    if (armed == MainContentFocusTarget.LeftEntry) {
+                                        onFocusToContent(MainContentFocusTarget.LeftEntry)
+                                    }
+                                    true
+                                }
+
+                                else -> false
+                            }
+                        }
+
+                        keyEvent.key == Key.DirectionLeft -> {
+                            when {
+                                keyEvent.isKeyDown() -> {
+                                    userArmedEntryTarget = MainContentFocusTarget.RightEntry
+                                    true
+                                }
+
+                                keyEvent.isKeyUp() -> {
+                                    val armed = userArmedEntryTarget
+                                    userArmedEntryTarget = null
+                                    if (armed == MainContentFocusTarget.RightEntry) {
+                                        onFocusToContent(MainContentFocusTarget.RightEntry)
+                                    }
+                                    true
+                                }
+
+                                else -> false
+                            }
+                        }
+
+                        else -> false
                     }
-                    false
                 },
             onClick = {
-                if (isLogin) {
-                    onShowUserPanel()
-                } else {
-                    onLogin()
-                }
+                if (isLogin) onShowUserPanel() else onLogin()
             },
             selected = userIsFocused,
             icon = {
@@ -151,15 +195,19 @@ fun LeftNaviContent(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.Center
         ) {
-            listOf(
-                LeftNaviItem.Search,
-                LeftNaviItem.Home,
-                LeftNaviItem.Personal,
-                LeftNaviItem.UGC,
-                LeftNaviItem.PGC,
-            ).forEach { item ->
+            contentItems.forEach { item ->
+                val itemFocusRequester = when (item) {
+                    LeftNaviItem.Search -> searchFocusRequester
+                    LeftNaviItem.Home -> homeFocusRequester
+                    LeftNaviItem.Personal -> personalFocusRequester
+                    LeftNaviItem.UGC -> ugcFocusRequester
+                    LeftNaviItem.PGC -> pgcFocusRequester
+                    else -> error("Unexpected item: $item")
+                }
+
                 var isFocused by remember(item) { mutableStateOf(false) }
                 var preloadJob by remember(item) { mutableStateOf<Job?>(null) }
+                var armedEntryTarget by remember(item) { mutableStateOf<MainContentFocusTarget?>(null) }
 
                 val indicatorColor by animateColorAsState(
                     targetValue = if (item == selectedItem) {
@@ -172,10 +220,14 @@ fun LeftNaviContent(
 
                 NavigationRailItem(
                     modifier = Modifier
+                        .focusRequester(itemFocusRequester)
                         .onFocusChanged { focusState ->
                             isFocused = focusState.hasFocus
 
-                            // 预热
+                            if (!focusState.hasFocus) {
+                                armedEntryTarget = null
+                            }
+
                             preloadJob?.cancel()
                             preloadJob = if (focusState.hasFocus) {
                                 scope.launch {
@@ -188,15 +240,55 @@ fun LeftNaviContent(
                                 null
                             }
                         }
-                        // 左侧激活指示条
+                        .onPreviewKeyEvent { keyEvent ->
+                            when (keyEvent.key) {
+                                Key.DirectionRight -> {
+                                    when {
+                                        keyEvent.isKeyDown() -> {
+                                            armedEntryTarget = MainContentFocusTarget.LeftEntry
+                                            true
+                                        }
+
+                                        keyEvent.isKeyUp() -> {
+                                            val armed = armedEntryTarget
+                                            armedEntryTarget = null
+                                            if (armed == MainContentFocusTarget.LeftEntry) {
+                                                onFocusToContent(MainContentFocusTarget.LeftEntry)
+                                            }
+                                            true
+                                        }
+
+                                        else -> false
+                                    }
+                                }
+
+                                Key.DirectionLeft -> {
+                                    when {
+                                        keyEvent.isKeyDown() -> {
+                                            armedEntryTarget = MainContentFocusTarget.RightEntry
+                                            true
+                                        }
+
+                                        keyEvent.isKeyUp() -> {
+                                            val armed = armedEntryTarget
+                                            armedEntryTarget = null
+                                            if (armed == MainContentFocusTarget.RightEntry) {
+                                                onFocusToContent(MainContentFocusTarget.RightEntry)
+                                            }
+                                            true
+                                        }
+
+                                        else -> false
+                                    }
+                                }
+
+                                else -> false
+                            }
+                        }
                         .selectionIndicator(indicatorColor),
                     onClick = {
-                        // “点击才切换页面”
-                        if (selectedItem != item) {
-                            selectedItem = item
-                        }
+                        onLeftNaviItemChanged(item)
                     },
-                    // 焦点高亮看 focus，左边条看 selectedItem
                     selected = isFocused,
                     icon = {
                         Icon(
@@ -215,13 +307,62 @@ fun LeftNaviContent(
                 .focusRequester(settingsFocusRequester)
                 .onFocusChanged {
                     settingsIsFocused = it.hasFocus
+                    if (!it.hasFocus) {
+                        settingsArmedEntryTarget = null
+                    }
                 }
                 .onPreviewKeyEvent { keyEvent ->
-                    if (keyEvent.isDpadDown() && keyEvent.isKeyDown()) {
-                        userFocusRequester.requestFocus()
-                        return@onPreviewKeyEvent true
+                    when {
+                        keyEvent.isDpadDown() -> {
+                            if (keyEvent.isKeyDown()) {
+                                userFocusRequester.requestFocus()
+                                return@onPreviewKeyEvent true
+                            }
+                            true
+                        }
+
+                        keyEvent.key == Key.DirectionRight -> {
+                            when {
+                                keyEvent.isKeyDown() -> {
+                                    settingsArmedEntryTarget = MainContentFocusTarget.LeftEntry
+                                    true
+                                }
+
+                                keyEvent.isKeyUp() -> {
+                                    val armed = settingsArmedEntryTarget
+                                    settingsArmedEntryTarget = null
+                                    if (armed == MainContentFocusTarget.LeftEntry) {
+                                        onFocusToContent(MainContentFocusTarget.LeftEntry)
+                                    }
+                                    true
+                                }
+
+                                else -> false
+                            }
+                        }
+
+                        keyEvent.key == Key.DirectionLeft -> {
+                            when {
+                                keyEvent.isKeyDown() -> {
+                                    settingsArmedEntryTarget = MainContentFocusTarget.RightEntry
+                                    true
+                                }
+
+                                keyEvent.isKeyUp() -> {
+                                    val armed = settingsArmedEntryTarget
+                                    settingsArmedEntryTarget = null
+                                    if (armed == MainContentFocusTarget.RightEntry) {
+                                        onFocusToContent(MainContentFocusTarget.RightEntry)
+                                    }
+                                    true
+                                }
+
+                                else -> false
+                            }
+                        }
+
+                        else -> false
                     }
-                    false
                 },
             onClick = onOpenSettings,
             selected = settingsIsFocused,
@@ -263,6 +404,12 @@ fun Modifier.selectionIndicator(color: Color): Modifier {
 private fun LeftNaviContentPreview() {
     BVTheme {
         LeftNaviContent(
+            selectedItem = LeftNaviItem.Home,
+            searchFocusRequester = remember { FocusRequester() },
+            homeFocusRequester = remember { FocusRequester() },
+            personalFocusRequester = remember { FocusRequester() },
+            ugcFocusRequester = remember { FocusRequester() },
+            pgcFocusRequester = remember { FocusRequester() },
             onLeftNaviItemChanged = {},
             onLeftNaviItemPreload = {},
             onOpenSettings = {},

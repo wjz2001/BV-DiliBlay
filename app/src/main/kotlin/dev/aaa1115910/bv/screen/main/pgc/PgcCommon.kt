@@ -166,16 +166,7 @@ fun PgcFeedVideoRow(
         horizontalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         data.forEachIndexed { index, feedItem ->
-            val cardModifier = if (index == data.lastIndex) {
-                Modifier.onPreviewKeyEvent {
-                    when (it.key) {
-                        Key.DirectionRight -> return@onPreviewKeyEvent true
-                    }
-                    false
-                }
-            } else {
-                Modifier
-            }
+            val cardModifier = Modifier
 
             item {
                 SeasonCard(
@@ -282,16 +273,7 @@ fun PgcFeedRankRow(
                 horizontalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 data.items.forEachIndexed { index, feedItem ->
-                    val cardModifier = if (index == data.items.lastIndex) {
-                        Modifier.onPreviewKeyEvent {
-                            when (it.nativeKeyEvent.keyCode) {
-                                KeyEvent.KEYCODE_DPAD_RIGHT -> return@onPreviewKeyEvent true
-                            }
-                            false
-                        }
-                    } else {
-                        Modifier
-                    }
+                    val cardModifier = Modifier
 
                     item {
                         SeasonCard(
