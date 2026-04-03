@@ -15,13 +15,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.CoAuthorsDialogHost
-import dev.aaa1115910.bv.component.TvGridBringIntoViewMode
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.buttons.FavoriteDialog
 import dev.aaa1115910.bv.component.handleUpHomeClick
@@ -40,6 +41,57 @@ import org.koin.androidx.compose.koinViewModel
  */
 val LocalSmallVideoCardGridViewModel =
     compositionLocalOf<SmallVideoCardGridViewModel?> { null }
+
+private class GridRowWrapController(
+    private val columnCount: Int
+) {
+    private val requesters = mutableMapOf<Int, FocusRequester>()
+
+    var enabled: Boolean = true
+    var itemCount: Int = 0
+
+    private fun requesterFor(index: Int): FocusRequester {
+        return requesters.getOrPut(index) { FocusRequester() }
+    }
+
+    fun Modifier.modifierFor(index: Int): Modifier {
+        if (!enabled || itemCount <= 1 || index !in 0 until itemCount) return this
+
+        val rowStart = (index / columnCount) * columnCount
+        val rowEnd = minOf(rowStart + columnCount - 1, itemCount - 1)
+
+        if (rowStart == rowEnd) return this
+
+        return this
+            .focusRequester(requesterFor(index))
+            .focusProperties {
+                left = if (index == rowStart) {
+                    requesterFor(rowEnd)
+                } else {
+                    requesterFor(index - 1)
+                }
+
+                right = if (index == rowEnd) {
+                    requesterFor(rowStart)
+                } else {
+                    requesterFor(index + 1)
+                }
+            }
+    }
+}
+
+private val LocalGridRowWrapController =
+    compositionLocalOf<GridRowWrapController?> { null }
+
+@Composable
+fun rememberGridRowWrapModifier(index: Int): Modifier {
+    val controller = LocalGridRowWrapController.current
+    return if (controller != null) {
+        with(controller) { Modifier.modifierFor(index) }
+    } else {
+        Modifier
+    }
+}
 
 /**
  * SmallVideoCard 的页面级宿主（Host）。
@@ -97,7 +149,9 @@ fun SmallVideoCardGridHost(
      * UpInfoActivity.actionStart(context, mid, name)
      */
     onNavigateUp: ((Long, String) -> Unit)? = null,
-
+    enableRowHorizontalWrap: Boolean = true,
+    horizontalWrapItemCount: Int = 0,
+    horizontalWrapColumnCount: Int = 4,
     content: LazyGridScope.() -> Unit
 ) {
     val viewModel: SmallVideoCardGridViewModel = koinViewModel()
@@ -122,9 +176,15 @@ fun SmallVideoCardGridHost(
     val favoriteFolders = remember { mutableStateListOf<FavoriteFolderMetadata>() }
     val selectedFolderIds = remember { mutableStateListOf<Long>() }
 
-    /**
-     * 某些能力状态依赖 Prefs，页面进入时主动刷新一次。
-     */
+    val rowWrapController = remember(horizontalWrapColumnCount) {
+        horizontalWrapColumnCount.let(::GridRowWrapController)
+    }.apply {
+        enabled = enableRowHorizontalWrap &&
+                horizontalWrapItemCount > 1 &&
+                horizontalWrapColumnCount > 0
+        itemCount = horizontalWrapItemCount
+    }
+
     LaunchedEffect(Unit) {
         viewModel.refreshCapabilities()
     }
@@ -193,7 +253,8 @@ fun SmallVideoCardGridHost(
      * 所有 SmallVideoCard 都可以通过 CompositionLocal 拿到同一个 VM。
      */
     CompositionLocalProvider(
-        LocalSmallVideoCardGridViewModel provides viewModel
+        LocalSmallVideoCardGridViewModel provides viewModel,
+        LocalGridRowWrapController provides rowWrapController
     ) {
         TvLazyVerticalGrid(
             columns = columns,

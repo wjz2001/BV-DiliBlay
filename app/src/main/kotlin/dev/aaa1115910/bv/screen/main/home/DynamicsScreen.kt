@@ -32,6 +32,7 @@ import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
+import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.ui.effect.UiEffect
@@ -121,13 +122,22 @@ fun DynamicsScreen(
     }
 
     if (dynamicViewModel.isLogin) {
+        val focusableWrapIndexMap = buildMap<Long, Int> {
+            dynamicViewModel.dynamicList.forEach { video ->
+                if (video.aid != DynamicViewModel.REFRESH_PLACEHOLDER_AID) {
+                    put(video.aid, size)
+                }
+            }
+        }
+
         SmallVideoCardGridHost(
             modifier = modifier,
             state = gridState,
             columns = GridCells.Fixed(4),
             contentPadding = PaddingValues(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalWrapItemCount = focusableWrapIndexMap.size
         ) {
             itemsIndexed(
                 items = dynamicViewModel.dynamicList,
@@ -136,6 +146,9 @@ fun DynamicsScreen(
                 val isRefreshPlaceholder = item.aid == DynamicViewModel.REFRESH_PLACEHOLDER_AID
 
                 SmallVideoCard(
+                    frameModifier = focusableWrapIndexMap[item.aid]
+                        ?.let { rememberGridRowWrapModifier(it) }
+                        ?: Modifier,
                     data = remember(item, isRefreshPlaceholder) {
                         VideoCardData(
                             avid = item.aid,

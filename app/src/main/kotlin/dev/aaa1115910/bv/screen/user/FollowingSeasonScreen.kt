@@ -38,6 +38,7 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SeasonCard
+import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.util.ImageSize
@@ -106,11 +107,14 @@ fun FollowingSeasonScreen(
             columns = GridCells.Fixed(6),
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
-            horizontalArrangement = Arrangement.spacedBy(24.dp)
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
+            horizontalWrapItemCount = followingSeasons.size,
+            horizontalWrapColumnCount = 6
         ) {
             if (followingSeasons.isNotEmpty()) {
                 itemsIndexed(items = followingSeasons) { index, followingSeason ->
                     SeasonCard(
+                        modifier = rememberGridRowWrapModifier(index),
                         data = SeasonCardData(
                             seasonId = followingSeason.seasonId,
                             title = followingSeason.title,

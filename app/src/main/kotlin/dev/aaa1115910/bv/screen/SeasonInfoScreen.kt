@@ -845,6 +845,7 @@ fun SeasonEpisodesDialog(
                         columns = GridCells.Fixed(2),
                         contentPadding = PaddingValues(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalWrapColumnCount = 2,
                     ) {
                         itemsIndexed(
                             items = selectedEpisodes,

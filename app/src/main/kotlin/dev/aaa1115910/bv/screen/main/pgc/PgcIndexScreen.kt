@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -42,11 +41,13 @@ import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.pgc.IndexFilter
 import dev.aaa1115910.bv.component.videocard.SeasonCard
+import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.getDisplayName
 import dev.aaa1115910.bv.viewmodel.index.PgcIndexViewModel
+import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -140,10 +141,13 @@ fun PgcIndexScreen(
             columns = GridCells.Fixed(6),
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
-            horizontalArrangement = Arrangement.spacedBy(24.dp)
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
+            horizontalWrapItemCount = pgcItems.size,
+            horizontalWrapColumnCount = 6
         ) {
             itemsIndexed(items = pgcItems) { index, pgcItem ->
                 SeasonCard(
+                    modifier = rememberGridRowWrapModifier(index),
                     data = SeasonCardData.fromPgcItem(pgcItem),
                     onFocus = {
                         currentSeasonIndex = index
@@ -161,10 +165,9 @@ fun PgcIndexScreen(
                     }
                 )
             }
+
             if (pgcItems.isEmpty() && noMore) {
-                item(
-                    span = { GridItemSpan(6) }
-                ) {
+                item(span = { GridItemSpan(6) }) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center

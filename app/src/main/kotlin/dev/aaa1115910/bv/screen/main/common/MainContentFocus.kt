@@ -15,19 +15,6 @@ data class MainContentEntryRequest(
     val target: MainContentFocusTarget
 )
 
-fun Modifier.mainContentHorizontalExit(
-    drawerFocusRequester: FocusRequester
-): Modifier {
-    return this.focusProperties {
-        onExit = {
-            when (requestedFocusDirection) {
-                FocusDirection.Left,
-                FocusDirection.Right -> drawerFocusRequester.requestFocus()
-            }
-        }
-    }
-}
-
 fun Modifier.mainContentLeftExit(
     drawerFocusRequester: FocusRequester
 ): Modifier {

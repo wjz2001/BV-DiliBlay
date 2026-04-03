@@ -8,10 +8,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -25,6 +24,7 @@ import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
+import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.toWanString
@@ -61,11 +61,16 @@ fun UgcRegionScaffold(
         columns = GridCells.Fixed(4),
         contentPadding = PaddingValues(24.dp),
         horizontalArrangement = Arrangement.spacedBy(24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalWrapItemCount = state.ugcItems.size
     ) {
         // 用index的话快速刷新有概率闪退
-        items(state.ugcItems) {item ->
+        itemsIndexed(
+            items = state.ugcItems,
+            key = { _, item -> item.aid }
+        ) { index, item ->
             SmallVideoCard(
+                frameModifier = rememberGridRowWrapModifier(index),
                 data = remember(item) {         // `VideoCardData` 只在 item 变动时重建
                     VideoCardData(
                         avid = item.aid,

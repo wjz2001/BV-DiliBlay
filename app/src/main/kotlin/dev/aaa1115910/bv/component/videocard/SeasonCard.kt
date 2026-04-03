@@ -156,7 +156,10 @@ fun SeasonCard(
 @Composable
 private fun SeasonCardPreview() {
     BVTheme {
-        SmallVideoCardGridHost(columns = GridCells.Fixed(6)) {
+        SmallVideoCardGridHost(
+            columns = GridCells.Fixed(6),
+            horizontalWrapColumnCount = 6
+        ) {
             repeat(6) {
                 item {
                     SeasonCard(
