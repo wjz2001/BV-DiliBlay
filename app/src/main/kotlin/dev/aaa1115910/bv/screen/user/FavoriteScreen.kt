@@ -319,8 +319,8 @@ fun FavoriteScreen(
 
         if (!inSearchMode) {
             clearExplicitSearchAutoLoadGate()
+            favoriteViewModel.allowAutoLoad = false
             favoriteViewModel.updateLoadingPaused(false)
-            favoriteViewModel.stopAutoLoad()
             return@LaunchedEffect
         }
 
@@ -331,7 +331,8 @@ fun FavoriteScreen(
         }
 
         if (focusOnTabs) {
-            favoriteViewModel.stopAutoLoad()
+            favoriteViewModel.allowAutoLoad = false
+            favoriteViewModel.updateLoadingPaused(false)
             return@LaunchedEffect
         }
 
