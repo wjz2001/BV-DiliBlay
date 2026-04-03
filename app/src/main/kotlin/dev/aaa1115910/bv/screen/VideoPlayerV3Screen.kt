@@ -335,6 +335,7 @@ fun VideoPlayerV3Screen(
                             Modifier.danmakuMask(currentDanmakuMaskFrame, displayAspectRatio)
                         ),
                     danmakuPlayer = danmakuPlayer,
+                    onPlayerBoundStateChanged = playerViewModel::notifyDanmakuPlayerBound
                 )
             }
 

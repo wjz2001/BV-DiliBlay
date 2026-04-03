@@ -10,7 +10,8 @@ import com.kuaishou.akdanmaku.ui.DanmakuView
 @Composable
 fun DanmakuPlayerCompose(
     modifier: Modifier = Modifier,
-    danmakuPlayer: DanmakuPlayer?
+    danmakuPlayer: DanmakuPlayer?,
+    onPlayerBoundStateChanged: (DanmakuPlayer?) -> Unit = {}
 ) {
     AndroidView(
         modifier = modifier.fillMaxSize(),
@@ -18,15 +19,26 @@ fun DanmakuPlayerCompose(
             DanmakuView(context)
         },
         update = { danmakuView ->
-            if (danmakuPlayer == null) {
-                danmakuView.danmakuPlayer = null
-            } else if (danmakuView.danmakuPlayer !== danmakuPlayer) {
-                danmakuView.danmakuPlayer = null
-                danmakuPlayer.bindView(danmakuView)
+            when {
+                danmakuPlayer == null -> {
+                    danmakuView.danmakuPlayer = null
+                    onPlayerBoundStateChanged(null)
+                }
+
+                danmakuView.danmakuPlayer !== danmakuPlayer -> {
+                    danmakuView.danmakuPlayer = null
+                    danmakuPlayer.bindView(danmakuView)
+                    onPlayerBoundStateChanged(danmakuPlayer)
+                }
+
+                else -> {
+                    onPlayerBoundStateChanged(danmakuPlayer)
+                }
             }
         },
         onRelease = { danmakuView ->
             danmakuView.danmakuPlayer = null
+            onPlayerBoundStateChanged(null)
         }
     )
 }
