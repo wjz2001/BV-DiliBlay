@@ -940,27 +940,28 @@ private fun UpButton(
                 // .padding(horizontal = 50.dp),
             ) {
                 Text(
+                    modifier = Modifier.padding(top = 3.dp),
                     text = stringResource(R.string.video_info_description_title),
                     fontSize = titleFontSize.sp,
                     color = titleColor
                 )
                 Box(
                     modifier = Modifier
-                        .padding(top = 15.dp)
+                        .padding(top = 3.dp)
                         .fillMaxWidth()
                         .weight(1f)
                         .onFocusChanged { hasFocus = it.hasFocus }
                         .clip(MaterialTheme.shapes.medium)
                         .focusedBorder(MaterialTheme.shapes.medium)
-                        .padding(8.dp)
-                        .padding(8.dp)
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
                         .clickable { showDescriptionDialog = true }
                 ) {
                     Text(
                         modifier = Modifier.fillMaxSize(),
                         text = normalizedDescription,
-                        maxLines = 5,
+                        maxLines = 10,
                         fontSize = 22.sp,
+                        lineHeight = 26.sp,
                         overflow = TextOverflow.Ellipsis,
                         color = Color.White
                     )
@@ -1234,6 +1235,7 @@ fun VideoPartButton(
                 if (matchedPage != null && pages.size > 1) {
                     item {
                         // 分P历史播放按钮
+                        /*
                         VideoPartRowButton(
                             onClick = { onClick(matchedPage.cid) }
                         ) {
@@ -1243,6 +1245,7 @@ fun VideoPartButton(
                                 contentDescription = null
                             )
                         }
+                        */
                     }
                 }
 
@@ -1331,6 +1334,7 @@ fun VideoPartButton(
                 if (matchedEp != null && episodes.size > 1) {
                     item {
                         // ugc分季历史播放按钮
+                        /*
                         VideoPartRowButton(
                             onClick = { onClick(matchedEp.aid, matchedEp.cid) }
                         ) {
@@ -1340,6 +1344,7 @@ fun VideoPartButton(
                                 contentDescription = null
                             )
                         }
+                        */
                     }
                 }
 
