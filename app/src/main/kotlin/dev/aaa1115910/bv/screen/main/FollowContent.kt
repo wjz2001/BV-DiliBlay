@@ -29,6 +29,15 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -153,6 +162,7 @@ fun FollowContent(
     val scope = rememberCoroutineScope()
     val groupGridState = rememberLazyGridState()
     val detailGridState = rememberLazyGridState()
+    var focusOnContent by remember { mutableStateOf(false) }
 
     val selectedGroupId = followViewModel.selectedGroupId
     val title = if (selectedGroupId == null) {
@@ -316,59 +326,69 @@ fun FollowContent(
                 }
             }
         ) { innerPadding ->
-            when {
-                followViewModel.groupCards.isEmpty() && followViewModel.updating -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        LoadingTip()
-                    }
-                }
-
-                followViewModel.groupCards.isEmpty() -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        EmptyTip()
-                    }
-                }
-
-                selectedGroupId == null -> {
-                    FollowGroupGrid(
-                        modifier = Modifier.padding(innerPadding),
-                        state = groupGridState,
-                        groups = followViewModel.groupCards,
-                        requestedFocusGroupId = requestedGroupFocusId,
-                        navFocusRequester = navFocusRequester,
-                        onGroupFocused = followViewModel::onGroupFocused,
-                        onGroupClick = followViewModel::enterGroup
-                    )
-                }
-
-                else -> {
-                    FollowUserGrid(
-                        modifier = Modifier.padding(innerPadding),
-                        state = detailGridState,
-                        users = currentUsers,
-                        requestedFocusUserKey = requestedUserFocusKey,
-                        navFocusRequester = navFocusRequester,
-                        onUserClick = { user ->
-                            UpInfoActivity.actionStart(
-                                context = context,
-                                mid = user.mid,
-                                name = user.name
-                            )
-                        },
-                        onUserLongClick = { user ->
-                            followViewModel.openFollowGroupDialog(user)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .onFocusChanged { focusOnContent = it.hasFocus }
+                    .onPreviewKeyEvent {
+                        if (it.key == Key.Back) {
+                            if (it.type == KeyEventType.KeyUp && focusOnContent) {
+                                drawerFocusRequester.requestFocus()
+                                return@onPreviewKeyEvent true
+                            }
                         }
-                    )
+                        false
+                    }
+            ) {
+                when {
+                    followViewModel.groupCards.isEmpty() && followViewModel.updating -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            LoadingTip()
+                        }
+                    }
+
+                    followViewModel.groupCards.isEmpty() -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            EmptyTip()
+                        }
+                    }
+
+                    selectedGroupId == null -> {
+                        FollowGroupGrid(
+                            state = groupGridState,
+                            groups = followViewModel.groupCards,
+                            requestedFocusGroupId = requestedGroupFocusId,
+                            navFocusRequester = navFocusRequester,
+                            onGroupFocused = followViewModel::onGroupFocused,
+                            onGroupClick = followViewModel::enterGroup
+                        )
+                    }
+
+                    else -> {
+                        FollowUserGrid(
+                            state = detailGridState,
+                            users = currentUsers,
+                            requestedFocusUserKey = requestedUserFocusKey,
+                            navFocusRequester = navFocusRequester,
+                            onUserClick = { user ->
+                                UpInfoActivity.actionStart(
+                                    context = context,
+                                    mid = user.mid,
+                                    name = user.name
+                                )
+                            },
+                            onUserLongClick = { user ->
+                                followViewModel.openFollowGroupDialog(user)
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -383,7 +403,6 @@ fun FollowContent(
                 followViewModel.submitFollowGroupSelection(selectedTagIds)
             }
         )
-
     }
 }
 
