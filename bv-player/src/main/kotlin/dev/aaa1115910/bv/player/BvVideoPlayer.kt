@@ -30,7 +30,7 @@ fun BvVideoPlayer(
         var reapplyPostScheduled by remember(videoPlayer) { mutableStateOf(false) }
 
         // 控制当前是否允许把 Player 重新挂到 PlayerView 上
-        // 避免 onPause/onStop 已经解绑后，又因为一次重组被 update 重新绑回去
+        // 保持首次未进入 STARTED 前不绑定，进入前台后再恢复挂载
         var shouldAttachPlayer by remember(lifecycleOwner) {
             mutableStateOf(
                 lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
@@ -82,10 +82,7 @@ fun BvVideoPlayer(
                 when (event) {
                     Lifecycle.Event.ON_PAUSE,
                     Lifecycle.Event.ON_STOP -> {
-                        shouldAttachPlayer = false
                         reapplyPostScheduled = false
-                        Log.d("BvVideoPlayer", "detach player on $event")
-                        runCatching { playerView?.player = null }
                     }
 
                     Lifecycle.Event.ON_START,
@@ -103,9 +100,7 @@ fun BvVideoPlayer(
 
             onDispose {
                 lifecycleOwner.lifecycle.removeObserver(observer)
-                shouldAttachPlayer = false
                 reapplyPostScheduled = false
-                runCatching { playerView?.player = null }
                 playerView = null
             }
         }
