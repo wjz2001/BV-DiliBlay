@@ -69,6 +69,7 @@ import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SeasonCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
+import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
@@ -292,6 +293,13 @@ fun SearchResultScreen(
 
             Spacer(modifier = Modifier.height(6.dp))
 
+            val currentItems: List<SearchTypeResult.SearchTypeResultItem> = when (searchResult.type) {
+                SearchType.Video -> searchResult.videos
+                SearchType.MediaBangumi -> searchResult.mediaBangumis
+                SearchType.MediaFt -> searchResult.mediaFts
+                SearchType.BiliUser -> searchResult.biliUsers
+            }
+
             SmallVideoCardGridHost(
                 modifier = Modifier
                     .onFocusChanged { focusOnContent = it.hasFocus },
@@ -299,19 +307,25 @@ fun SearchResultScreen(
                 columns = GridCells.Fixed(rowSize),
                 contentPadding = PaddingValues(24.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp),
-                horizontalArrangement = Arrangement.spacedBy(24.dp)
+                horizontalArrangement = Arrangement.spacedBy(24.dp),
+                horizontalWrapItemCount = currentItems.size,
+                horizontalWrapColumnCount = rowSize
             ) {
                 itemsIndexed(
-                    items = when (searchResult.type) {
-                        SearchType.Video -> searchResult.videos
-                        SearchType.MediaBangumi -> searchResult.mediaBangumis
-                        SearchType.MediaFt -> searchResult.mediaFts
-                        SearchType.BiliUser -> searchResult.biliUsers
+                    items = currentItems,
+                    key = { _, item ->
+                        when (item) {
+                            is SearchTypeResult.Video -> "video_${item.aid}"
+                            is SearchTypeResult.Pgc -> "pgc_${item.seasonId}"
+                            is SearchTypeResult.User -> "user_${item.mid}"
+                            else -> item.hashCode().toString()
+                        }
                     }
-                ) { index, searchResultItem ->
+                ) { index, item ->
                     SearchResultListItem(
-                        searchResult = searchResultItem,
-                        onClick = { onClickResult(searchResultItem) },
+                        modifier = rememberGridRowWrapModifier(index),
+                        searchResult = item,
+                        onClick = { onClickResult(item) },
                         onAddWatchLater = { aid ->
                             toViewViewModel.addToView(aid)
                         },
@@ -425,7 +439,7 @@ private fun SearchResultListItem(
     when (searchResult) {
         is SearchTypeResult.Video -> {
             SmallVideoCard(
-                modifier = modifier,
+                frameModifier = modifier,
                 data = VideoCardData(
                     avid = searchResult.aid,
                     title = searchResult.title.removeHtmlTags(),
@@ -464,14 +478,12 @@ private fun SearchResultListItem(
                 face = searchResult.avatar,
                 sign = searchResult.sign,
                 username = searchResult.name,
-                onFocusChange = { },
+                onFocusChange = {},
                 onClick = onClick
             )
         }
 
-        else -> {
-
-        }
+        else -> Unit
     }
 }
 

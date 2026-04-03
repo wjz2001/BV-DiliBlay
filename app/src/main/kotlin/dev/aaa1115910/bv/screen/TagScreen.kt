@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -33,6 +33,7 @@ import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
+import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.formatHourMinSec
@@ -130,16 +131,18 @@ fun TagScreen(
             state = gridState,
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
-            horizontalArrangement = Arrangement.spacedBy(24.dp)
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
+            horizontalWrapItemCount = uiState.value.videoList.size
         ) {
-            items(
+            itemsIndexed(
                 items = uiState.value.videoList,
-                key = { video -> video.aid }
-            ) { video ->
+                key = { _, video -> video.aid }
+            ) { index, video ->
                 Box(
                     contentAlignment = Alignment.Center
                 ) {
                     SmallVideoCard(
+                        frameModifier = rememberGridRowWrapModifier(index),
                         data = VideoCardData(
                             avid = video.aid,
                             title = video.title,

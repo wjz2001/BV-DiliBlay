@@ -107,6 +107,7 @@ private val SmallVideoCardTransformOrigin = TransformOrigin(0.5f, 0.45f)
 @Composable
 fun SmallVideoCard(
     modifier: Modifier = Modifier,
+    frameModifier: Modifier = Modifier,
     data: VideoCardData,
     delToView: Boolean = false,
     onClick: () -> Unit,
@@ -122,6 +123,7 @@ fun SmallVideoCard(
 ) {
     SmallVideoCardCore(
         modifier = modifier,
+        frameModifier = frameModifier,
         data = data,
         onClick = onClick,
         onAddWatchLater = onAddWatchLater,
@@ -138,6 +140,7 @@ fun SmallVideoCard(
 @Composable
 private fun SmallVideoCardCore(
     modifier: Modifier = Modifier,
+    frameModifier: Modifier = Modifier,
     data: VideoCardData,
     onClick: () -> Unit,
     onAddWatchLater: (() -> Unit)? = null,
@@ -153,7 +156,8 @@ private fun SmallVideoCardCore(
     val context = LocalContext.current
     val hostVm = LocalSmallVideoCardGridViewModel.current
 
-    val hostUiState by hostVm?.uiState?.collectAsState() ?: remember { mutableStateOf(SmallVideoCardGridUiState()) }
+    val hostUiState by hostVm?.uiState?.collectAsState()
+        ?: remember { mutableStateOf(SmallVideoCardGridUiState()) }
 
     val itemUiState by hostVm?.cardUiFlow(data.avid)?.collectAsState()
         ?: remember(data.avid) { mutableStateOf(SmallVideoCardItemUiState()) }
@@ -172,11 +176,6 @@ private fun SmallVideoCardCore(
     val isFavorite = itemUiState.isFavorite
     val hasMultipleCoAuthors = itemUiState.hasMultipleCoAuthors
 
-    /**
-     * 最终版 Host 逻辑：
-     * - Host 模式下：只认 data.upMid / data.upName
-     * - 非 Host 模式下：兼容 legacyOnGoToUpPage
-     */
     val canGoToUpPage = if (isHostMode) {
         data.upMid != null
     } else {
@@ -191,11 +190,6 @@ private fun SmallVideoCardCore(
         UpInfoActivity.actionStart(context, mid = mid, name = name)
     }
 
-    /**
-     * 仅用于非 Host 模式兜底：
-     * - 有 legacyOnGoToUpPage 就走旧回调
-     * - 没有则尝试 data.upMid
-     */
     fun navigateToUpFallback() {
         if (legacyOnGoToUpPage != null) {
             legacyOnGoToUpPage()
@@ -228,6 +222,7 @@ private fun SmallVideoCardCore(
 
     Column(modifier = modifier.fillMaxWidth()) {
         BvSmallVideoCardFrame(
+            modifier = frameModifier,
             interactive = interactive,
             showActions = showActions,
             allowDismissActionsOnFocusLoss = allowDismissActionsOnFocusLoss,
@@ -269,11 +264,6 @@ private fun SmallVideoCardCore(
                         if (!canGoToUpPage) return@BvSmallVideoCardActions
 
                         if (isHostMode) {
-                            /**
-                             * Host 模式下：
-                             * 统一走 VM -> Host -> onNavigateUp
-                             * 不再直接依赖 legacyOnGoToUpPage
-                             */
                             val fallbackMid = data.upMid
                             val fallbackName = data.upName
 
@@ -285,10 +275,6 @@ private fun SmallVideoCardCore(
                                 )
                             }
                         } else {
-                            /**
-                             * 非 Host 模式下：
-                             * 继续兼容旧逻辑
-                             */
                             navigateToUpFallback()
                         }
                     },
@@ -328,6 +314,7 @@ private fun SmallVideoCardCore(
 
 @Composable
 private fun BvSmallVideoCardFrame(
+    modifier: Modifier = Modifier,
     interactive: Boolean,
     showActions: Boolean,
     allowDismissActionsOnFocusLoss: Boolean,
@@ -361,7 +348,7 @@ private fun BvSmallVideoCardFrame(
         Card(
             onClick = { if (interactive && !showActions) onClick() },
             onLongClick = { if (interactive) onLongClick() },
-            modifier = Modifier
+            modifier = modifier
                 .then(
                     if (!interactive) {
                         Modifier.focusProperties { canFocus = false }
@@ -398,7 +385,8 @@ private fun BvSmallVideoCardFrame(
                         modifier = Modifier
                             .matchParentSize()
                             .border(
-                                border = BorderStroke(3.dp, MaterialTheme.colorScheme.border),
+                                width = 3.dp,
+                                color = MaterialTheme.colorScheme.border,
                                 shape = MaterialTheme.shapes.large
                             )
                     )

@@ -1513,7 +1513,8 @@ fun VideoPartButton(
                                 // verticalArrangement = Arrangement.spacedBy(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(20.dp),
                                 // horizontalArrangement = Arrangement.spacedBy(16.dp)
-                                horizontalArrangement = Arrangement.spacedBy(20.dp)
+                                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                                horizontalWrapColumnCount = 5
                             ) {
                                 itemsIndexed(
                                     items = selectedVideoPart,
@@ -1591,7 +1592,8 @@ fun VideoPartButton(
                         columns = GridCells.Fixed(2),
                         contentPadding = PaddingValues(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalWrapColumnCount = 2
                     ) {
                         itemsIndexed(
                             items = selectedVideoPart,
@@ -1742,7 +1744,8 @@ fun VideoPartButton(
                                 // verticalArrangement = Arrangement.spacedBy(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(20.dp),
                                 // horizontalArrangement = Arrangement.spacedBy(16.dp)
-                                horizontalArrangement = Arrangement.spacedBy(20.dp)
+                                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                                horizontalWrapColumnCount = 5
                             ) {
                                 itemsIndexed(
                                     items = selectedVideoPart,
@@ -1819,7 +1822,8 @@ fun VideoPartButton(
                         columns = GridCells.Fixed(2),
                         contentPadding = PaddingValues(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalWrapColumnCount = 2
                     ) {
                         itemsIndexed(
                             items = selectedVideoPart,
