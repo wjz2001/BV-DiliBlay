@@ -1,5 +1,6 @@
 package dev.aaa1115910.bv.screen
 
+import java.util.Locale
 import android.app.Activity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -59,6 +60,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -147,6 +149,7 @@ import dev.aaa1115910.bv.viewmodel.video.VideoInfoState
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import org.koin.androidx.compose.koinViewModel
 import kotlin.math.ceil
 
@@ -224,11 +227,6 @@ fun VideoInfoScreen(
 
 
     var lastPlayedAid by remember { mutableLongStateOf(0L) }
-    val containsVerticalScreenVideo by remember(uiState.videoDetailState) {
-        derivedStateOf {
-            uiState.videoDetailState?.pages?.any { it.dimension.isVertical } ?: false
-        }
-    }
 
     val bringIntoViewSpec = remember {
         object : BringIntoViewSpec {
@@ -389,7 +387,7 @@ fun VideoInfoScreen(
                             .padding(innerPadding)
                             .fillMaxSize()
                             .verticalScroll(scrollState)
-                            .padding(top = 16.dp, bottom = 64.dp),
+                            .padding(top = 16.dp, bottom = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         // 视频提示
@@ -940,14 +938,14 @@ private fun UpButton(
                 // .padding(horizontal = 50.dp),
             ) {
                 Text(
-                    modifier = Modifier.padding(top = 3.dp),
+                    modifier = Modifier.padding(top = 4.dp),
                     text = stringResource(R.string.video_info_description_title),
                     fontSize = titleFontSize.sp,
                     color = titleColor
                 )
                 Box(
                     modifier = Modifier
-                        .padding(top = 3.dp)
+                        .padding(top = 2.dp)
                         .fillMaxWidth()
                         .weight(1f)
                         .onFocusChanged { hasFocus = it.hasFocus }
@@ -1075,8 +1073,8 @@ fun DurationUnitText(
     }
     // 2. 在调用 Text 组件时，将 Int 转换为 .sp
     Text(
-        text = String.format("%02d", value),
-        fontSize = fontSize.sp, // <-- 关键修改：在这里进行单位转换
+        text = String.format(Locale.getDefault(), "%02d", value),
+        fontSize = fontSize.sp,
         fontWeight = FontWeight.Bold
     )
 }
@@ -1264,13 +1262,22 @@ fun VideoPartButton(
             }
         }
 
-        VideoPartListDialog(
+        PagedVideoInfinityListDialog(
             show = showPartListDialog,
             onHideDialog = { showPartListDialog = false },
-            pages = pages,
+            items = pages,
             title = "分 P 列表",
-            onClick = onClick
-        )
+            itemKey = { it.cid }
+        ) { itemModifier, absoluteIndex, page ->
+            VideoPartButton(
+                modifier = itemModifier,
+                index = absoluteIndex + 1,
+                title = page.title,
+                played = 0,
+                duration = page.duration,
+                onClick = { onClick(page.cid) }
+            )
+        }
     }
 
     @Composable
@@ -1377,483 +1384,470 @@ fun VideoPartButton(
             }
         }
 
-        VideoUgcListDialog(
+        PagedVideoInfinityListDialog(
             show = showUgcListDialog,
             onHideDialog = { showUgcListDialog = false },
-            episodes = episodes,
+            items = episodes,
             title = "合集列表",
-            onClick = onClick
-        )
+            itemKey = { it.cid }
+        ) { itemModifier, absoluteIndex, episode ->
+            VideoPartButton(
+                modifier = itemModifier,
+                index = absoluteIndex + 1,
+                title = episode.title,
+                played = 0,
+                duration = episode.duration,
+                onClick = { onClick(episode.aid, episode.cid) }
+            )
+        }
     }
 
-    @Composable
-    private fun VideoPartListDialog(
-        modifier: Modifier = Modifier,
-        show: Boolean,
-        title: String,
-        pages: List<VideoPage>,
-        onHideDialog: () -> Unit,
-        onClick: (cid: Long) -> Unit
-    ) {
-        val scope = rememberCoroutineScope()
+private data class PendingFocusTarget(
+    val tabIndex: Int,
+    val itemIndex: Int
+)
 
-        var selectedTabIndex by remember { mutableIntStateOf(0) }
-        val tabCount by remember { mutableIntStateOf(ceil(pages.size / 35.0).toInt()) }
-        val selectedVideoPart = remember { mutableStateListOf<VideoPage>() }
+private enum class DialogFocusArea {
+    Tabs,
+    Grid
+}
 
-        fun normalizeTagIds(ids: List<Int>): List<Int> {
-            val dedup = ids.distinct().sorted()
-            return if (dedup.contains(0) && dedup.size > 1) listOf(0) else dedup
+@Composable
+fun <T> PagedVideoInfinityListDialog(
+    modifier: Modifier = Modifier,
+    show: Boolean,
+    title: String,
+    items: List<T>,
+    onHideDialog: () -> Unit,
+    itemKey: (T) -> Any,
+    pageSize: Int = 35,
+    columnCount: Int = 5,
+    contentPadding: PaddingValues = PaddingValues(16.dp),
+    verticalSpacing: Int = 20,
+    horizontalSpacing: Int = 20,
+    tabTextBuilder: (startIndex: Int, endIndex: Int) -> String = { startIndex, endIndex ->
+        if (startIndex == endIndex) "P$startIndex" else "P$startIndex-$endIndex"
+    },
+    itemContent: @Composable (modifier: Modifier, absoluteIndex: Int, item: T) -> Unit
+) {
+    // 这些状态必须放在 if (!show) return 前面，这样关闭 Dialog 后还能保留焦点恢复信息
+    val listState = rememberLazyGridState()
+
+    val tabFocusRequesters = remember { mutableMapOf<Int, FocusRequester>() }
+    // 这里改成“绝对索引 -> FocusRequester”，避免不同页的同位置 item 共用 requester
+    val itemFocusRequesters = remember { mutableMapOf<Int, FocusRequester>() }
+
+    // 每页记住上次聚焦到哪个 item（页内索引）
+    val lastFocusedItemIndexByPage = remember { mutableMapOf<Int, Int>() }
+
+    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    var pendingFocus by remember { mutableStateOf<PendingFocusTarget?>(null) }
+    var lastFocusedArea by remember { mutableStateOf(DialogFocusArea.Tabs) }
+
+    if (!show) return
+
+    val tabCount = remember(items.size, pageSize) {
+        if (items.isEmpty()) 0 else ceil(items.size / pageSize.toDouble()).toInt()
+    }
+
+    val selectedItems = remember(items, selectedTabIndex, pageSize, tabCount) {
+        if (tabCount == 0 || selectedTabIndex !in 0 until tabCount) {
+            emptyList()
+        } else {
+            val fromIndex = selectedTabIndex * pageSize
+            val toIndex = minOf(fromIndex + pageSize, items.size)
+            items.subList(fromIndex, toIndex)
+        }
+    }
+
+    fun tabRequesterFor(index: Int): FocusRequester {
+        return tabFocusRequesters.getOrPut(index) { FocusRequester() }
+    }
+
+    fun itemRequesterFor(absoluteIndex: Int): FocusRequester {
+        return itemFocusRequesters.getOrPut(absoluteIndex) { FocusRequester() }
+    }
+
+    fun pageItemCount(tabIndex: Int): Int {
+        val fromIndex = tabIndex * pageSize
+        if (fromIndex >= items.size) return 0
+        val toIndex = minOf(fromIndex + pageSize, items.size)
+        return toIndex - fromIndex
+    }
+
+    fun restoredItemIndex(tabIndex: Int): Int {
+        val count = pageItemCount(tabIndex)
+        if (count <= 0) return -1
+        return (lastFocusedItemIndexByPage[tabIndex] ?: 0).coerceIn(0, count - 1)
+    }
+
+    fun topIndexForColumn(itemCount: Int, column: Int): Int {
+        if (itemCount <= 0) return -1
+        return minOf(column, itemCount - 1)
+    }
+
+    fun bottomIndexForColumn(itemCount: Int, column: Int): Int {
+        if (itemCount <= 0) return -1
+        val lastIndex = itemCount - 1
+        val lastRowStart = (lastIndex / columnCount) * columnCount
+        return minOf(lastRowStart + column, lastIndex)
+    }
+
+    fun focusItemOnPage(tabIndex: Int, itemIndex: Int) {
+        if (itemIndex < 0) return
+        pendingFocus = PendingFocusTarget(
+            tabIndex = tabIndex,
+            itemIndex = itemIndex
+        )
+        if (selectedTabIndex != tabIndex) {
+            selectedTabIndex = tabIndex
+        }
+    }
+
+    fun moveHorizontallyFromEdge(currentIndex: Int, moveRight: Boolean): Boolean {
+        val row = currentIndex / columnCount
+        val currentPageCount = pageItemCount(selectedTabIndex)
+        if (currentPageCount <= 0) return false
+
+        // 单页：同行左右循环
+        if (tabCount <= 1) {
+            val rowStart = row * columnCount
+            val rowEnd = minOf(rowStart + columnCount - 1, currentPageCount - 1)
+            val targetIndex = if (moveRight) rowStart else rowEnd
+            lastFocusedArea = DialogFocusArea.Grid
+            focusItemOnPage(selectedTabIndex, targetIndex)
+            return true
         }
 
-        val tabRowFocusRequester = remember { FocusRequester() }
-        val videoListFocusRequester = remember { FocusRequester() }
-        val listState = rememberLazyGridState()
+        // 多页：跨页同行跳转
+        val targetTabIndex = if (moveRight) {
+            (selectedTabIndex + 1) % tabCount
+        } else {
+            (selectedTabIndex - 1 + tabCount) % tabCount
+        }
 
-        LaunchedEffect(selectedTabIndex) {
-            val fromIndex = selectedTabIndex * 35
-            var toIndex = (selectedTabIndex + 1) * 35
-            if (toIndex >= pages.size) {
-                toIndex = pages.size
+        val targetCount = pageItemCount(targetTabIndex)
+        if (targetCount <= 0) return false
+
+        val targetRowStart = row * columnCount
+        val targetIndex = when {
+            targetRowStart >= targetCount -> {
+                // 目标页没有对应行，聚焦最后一个
+                targetCount - 1
             }
-            selectedVideoPart.swapListWithMainContext(pages.subList(fromIndex, toIndex))
+
+            moveRight -> {
+                // 下一页同行最左
+                targetRowStart
+            }
+
+            else -> {
+                // 上一页同行最右；该行不满则取该行最后一个
+                minOf(targetRowStart + columnCount - 1, targetCount - 1)
+            }
         }
 
-        LaunchedEffect(show) {
-            if (show && tabCount > 1) tabRowFocusRequester.requestFocus(scope)
-            if (show && tabCount == 1) videoListFocusRequester.requestFocus(scope)
+        lastFocusedArea = DialogFocusArea.Grid
+        focusItemOnPage(targetTabIndex, targetIndex)
+        return true
+    }
+
+    // items/pageSize 变化时修正 selectedTabIndex
+    LaunchedEffect(tabCount) {
+        if (tabCount == 0) {
+            pendingFocus = null
+            return@LaunchedEffect
+        }
+        if (selectedTabIndex >= tabCount) {
+            selectedTabIndex = tabCount - 1
+        }
+    }
+
+    // Dialog 打开时恢复焦点
+    LaunchedEffect(tabCount) {
+        if (!show || tabCount == 0) return@LaunchedEffect
+
+        val safeTab = selectedTabIndex.coerceIn(0, tabCount - 1)
+        if (safeTab != selectedTabIndex) {
+            selectedTabIndex = safeTab
         }
 
-        // ✅ 在 Dialog 外部获取当前正确的 Density
-        val currentDensity = LocalDensity.current
+        val restoreIndex = restoredItemIndex(safeTab)
+        pendingFocus = null
 
-        if (show) {
-            Dialog(
-                onDismissRequest = onHideDialog,
-                properties = DialogProperties(
-                    usePlatformDefaultWidth = false,  // 不使用默认宽度
-                    dismissOnBackPress = true,        // 返回键关闭
-                    dismissOnClickOutside = false     // 点击外部不关闭（TV端建议）
-                )
+        when {
+            // 单页没有 TabRow，直接恢复到上次 item
+            tabCount == 1 && restoreIndex >= 0 -> {
+                lastFocusedArea = DialogFocusArea.Grid
+                focusItemOnPage(safeTab, restoreIndex)
+            }
+
+            // 上次焦点在 Grid，则恢复到上次 item
+            lastFocusedArea == DialogFocusArea.Grid && restoreIndex >= 0 -> {
+                lastFocusedArea = DialogFocusArea.Grid
+                focusItemOnPage(safeTab, restoreIndex)
+            }
+
+            // 否则恢复到 Tab
+            else -> {
+                lastFocusedArea = DialogFocusArea.Tabs
+                tabRequesterFor(safeTab).requestFocus()
+            }
+        }
+    }
+
+    // 正常切页但不是“指定跳到某个 item”时，把列表滚回顶部
+    LaunchedEffect(selectedTabIndex, tabCount, pendingFocus) {
+        if (!show || tabCount == 0) return@LaunchedEffect
+        if (pendingFocus == null) {
+            listState.scrollToItem(0)
+        }
+    }
+
+    // 统一处理 item 聚焦：先滚动到目标，再等目标可见，再 requestFocus
+    LaunchedEffect(selectedTabIndex, selectedItems.size, pendingFocus) {
+        if (!show || selectedItems.isEmpty()) return@LaunchedEffect
+
+        val focus = pendingFocus
+        if (focus != null && focus.tabIndex == selectedTabIndex) {
+            val localIndex = focus.itemIndex.coerceIn(0, selectedItems.lastIndex)
+            val absoluteIndex = focus.tabIndex * pageSize + localIndex
+
+            listState.scrollToItem(localIndex)
+
+            snapshotFlow {
+                listState.layoutInfo.visibleItemsInfo.any { it.index == localIndex }
+            }.first { it }
+
+            itemRequesterFor(absoluteIndex).requestFocus()
+            pendingFocus = null
+            return@LaunchedEffect
+        }
+
+        // 单页场景下，如果没有 pendingFocus，仍然尝试恢复到上次 item
+        if (tabCount == 1) {
+            val restoreIndex = restoredItemIndex(selectedTabIndex).coerceAtLeast(0)
+            val absoluteIndex = selectedTabIndex * pageSize + restoreIndex
+
+            listState.scrollToItem(restoreIndex)
+
+            snapshotFlow {
+                listState.layoutInfo.visibleItemsInfo.any { it.index == restoreIndex }
+            }.first { it }
+
+            itemRequesterFor(absoluteIndex).requestFocus()
+        }
+    }
+
+    val currentDensity = LocalDensity.current
+
+    Dialog(
+        onDismissRequest = onHideDialog,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = false
+        )
+    ) {
+        CompositionLocalProvider(LocalDensity provides currentDensity) {
+            Surface(
+                modifier = modifier
+                    .fillMaxSize()
+                    .background(Color.Black),
+                color = MaterialTheme.colorScheme.surface,
+                shape = MaterialTheme.shapes.extraLarge
             ) {
-                // 使用 CompositionLocalProvider 将正确的 Density 应用到 Dialog 的内容中
-                CompositionLocalProvider(LocalDensity provides currentDensity) {
-                    // ✅ 使用 Surface 创建全屏背景
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxSize()              // ✅ 全屏
-                            .background(Color.Black),  // 半透明背景
-                        color = MaterialTheme.colorScheme.surface,
-                        shape = MaterialTheme.shapes.extraLarge
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(48.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(48.dp),  // ✅ 调整内边距
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            // ✅ 标题栏
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = title,
-                                    style = MaterialTheme.typography.headlineMedium,  // ✅ 更大的标题
-                                    color = Color.White
-                                )
-                            }
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = Color.White
+                        )
+                    }
 
-                            // ✅ 标签页
-                            if (tabCount > 1) {
-                                TabRow(
+                    if (tabCount > 1) {
+                        TabRow(
+                            selectedTabIndex = selectedTabIndex,
+                            separator = { Spacer(modifier = Modifier.width(12.dp)) },
+                        ) {
+                            for (i in 0 until tabCount) {
+                                Tab(
                                     modifier = Modifier
-                                        .onFocusChanged {
-                                            if (it.hasFocus) {
-                                                scope.launch(Dispatchers.Main) {
-                                                    listState.scrollToItem(0)
+                                        .focusRequester(tabRequesterFor(i))
+                                        .onPreviewKeyEvent { event ->
+                                            if (event.type != KeyEventType.KeyDown) {
+                                                return@onPreviewKeyEvent false
+                                            }
+
+                                            val count = pageItemCount(i)
+                                            if (count <= 0) {
+                                                return@onPreviewKeyEvent false
+                                            }
+
+                                            val rememberedIndex = restoredItemIndex(i)
+                                            val column =
+                                                if (rememberedIndex >= 0) rememberedIndex % columnCount else 0
+
+                                            when (event.key) {
+                                                Key.DirectionDown -> {
+                                                    val target = topIndexForColumn(count, column)
+                                                    lastFocusedArea = DialogFocusArea.Grid
+                                                    focusItemOnPage(i, target)
+                                                    true
                                                 }
+
+                                                Key.DirectionUp -> {
+                                                    val target = bottomIndexForColumn(count, column)
+                                                    lastFocusedArea = DialogFocusArea.Grid
+                                                    focusItemOnPage(i, target)
+                                                    true
+                                                }
+
+                                                else -> false
                                             }
                                         },
-                                    selectedTabIndex = selectedTabIndex,
-                                    separator = { Spacer(modifier = Modifier.width(12.dp)) },
+                                    selected = i == selectedTabIndex,
+                                    onFocus = {
+                                        // 跨页恢复 Grid 焦点时，Tab 可能会短暂抢到焦点，这里忽略掉
+                                        if (pendingFocus == null) {
+                                            lastFocusedArea = DialogFocusArea.Tabs
+                                            selectedTabIndex = i
+                                        }
+                                    },
                                 ) {
-                                    for (i in 0 until tabCount) {
-                                        Tab(
-                                            modifier = if (i == 0) Modifier.focusRequester(
-                                                tabRowFocusRequester
-                                            ) else Modifier,
-                                            selected = i == selectedTabIndex,
-                                            onFocus = { selectedTabIndex = i },
-                                        ) {
-                                            val startIndex = i * 35 + 1
-                                            val endIndex = minOf((i + 1) * 35, pages.size)
-                                            val tabText = if (startIndex == endIndex) {
-                                                "P$startIndex"
-                                            } else {
-                                                "P$startIndex-$endIndex"
-                                            }
-                                            Text(
-                                                // text = "P${i * 20 + 1}-${(i + 1) * 20}",
-                                                text = tabText,
-                                                fontSize = 16.sp,  // ✅ 更大的标签字号
-                                                color = LocalContentColor.current,
-                                                modifier = Modifier.padding(
-                                                    horizontal = 20.dp,
-                                                    vertical = 10.dp
-                                                )
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            // ✅ 视频列表网格
-                            SmallVideoCardGridHost(
-                                state = listState,
-                                modifier = Modifier.fillMaxSize(),  // ✅ 填充剩余空间
-                                columns = GridCells.Fixed(5),  // ✅ 从2列增加到5列
-                                contentPadding = PaddingValues(16.dp),
-                                // verticalArrangement = Arrangement.spacedBy(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(20.dp),
-                                // horizontalArrangement = Arrangement.spacedBy(16.dp)
-                                horizontalArrangement = Arrangement.spacedBy(20.dp),
-                                horizontalWrapColumnCount = 5
-                            ) {
-                                itemsIndexed(
-                                    items = selectedVideoPart,
-                                    key = { _, video -> video.cid }
-                                ) { index, page ->
-                                    val buttonModifier =
-                                        if (index == 0 && tabCount == 1) {
-                                            Modifier.focusRequester(videoListFocusRequester)
-                                        } else Modifier
-
-                                    VideoPartButton(
-                                        modifier = buttonModifier,
-                                        // index = selectedTabIndex * 20 + index + 1,  //  显示正确的索引
-                                        index = selectedTabIndex * 35 + index + 1,
-                                        title = page.title,
-                                        played = 0,
-                                        duration = page.duration,
-                                        onClick = {
-                                            onClick(page.cid)
-                                        }
+                                    val startIndex = i * pageSize + 1
+                                    val endIndex = minOf((i + 1) * pageSize, items.size)
+                                    Text(
+                                        text = tabTextBuilder(startIndex, endIndex),
+                                        fontSize = 16.sp,
+                                        color = LocalContentColor.current,
+                                        modifier = Modifier.padding(
+                                            horizontal = 20.dp,
+                                            vertical = 10.dp
+                                        )
                                     )
                                 }
-                            }
-                        }
-                    }
-                }
-            }
-            /*
-        AlertDialog(
-            modifier = modifier,
-            title = { Text(text = title) },
-            onDismissRequest = { onHideDialog() },
-            confirmButton = {},
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-            text = {
-                Column(
-                    modifier = Modifier.size(600.dp, 330.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    TabRow(
-                        modifier = Modifier
-                            .onFocusChanged {
-                                if (it.hasFocus) {
-                                    scope.launch(Dispatchers.Main) {
-                                        listState.scrollToItem(0)
-                                    }
-                                }
-                            },
-                        selectedTabIndex = selectedTabIndex,
-                        separator = { Spacer(modifier = Modifier.width(12.dp)) },
-                    ) {
-                        for (i in 0 until tabCount) {
-                            Tab(
-                                modifier = if (i == 0) Modifier.focusRequester(
-                                    tabRowFocusRequester
-                                ) else Modifier,
-                                selected = i == selectedTabIndex,
-                                onFocus = { selectedTabIndex = i },
-                            ) {
-                                Text(
-                                    text = "P${i * 20 + 1}-${(i + 1) * 20}",
-                                    fontSize = 12.sp,
-                                    color = LocalContentColor.current,
-                                    modifier = Modifier.padding(
-                                        horizontal = 16.dp,
-                                        vertical = 6.dp
-                                    )
-                                )
                             }
                         }
                     }
 
                     SmallVideoCardGridHost(
                         state = listState,
-                        columns = GridCells.Fixed(2),
-                        contentPadding = PaddingValues(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalWrapColumnCount = 2
+                        modifier = Modifier.fillMaxSize(),
+                        columns = GridCells.Fixed(columnCount),
+                        contentPadding = contentPadding,
+                        verticalArrangement = Arrangement.spacedBy(verticalSpacing.dp),
+                        horizontalArrangement = Arrangement.spacedBy(horizontalSpacing.dp),
+                        horizontalWrapColumnCount = columnCount
                     ) {
                         itemsIndexed(
-                            items = selectedVideoPart,
-                            key = { _, video -> video.cid }
-                        ) { index, page ->
-                            val buttonModifier =
-                                if (index == 0) Modifier.focusRequester(videoListFocusRequester) else Modifier
+                            items = selectedItems,
+                            key = { _, item -> itemKey(item) }
+                        ) { index, item ->
+                            val absoluteIndex = selectedTabIndex * pageSize + index
+                            val itemCount = selectedItems.size
+                            val rowStart = (index / columnCount) * columnCount
+                            val rowEnd = minOf(rowStart + columnCount - 1, itemCount - 1)
+                            val column = index % columnCount
+                            val lastRowStart = ((itemCount - 1) / columnCount) * columnCount
 
-                            VideoPartButton(
-                                modifier = buttonModifier,
-                                index = index + 1,
-                                title = page.title,
-                                played = 0,
-                                duration = page.duration,
-                                onClick = { onClick(page.cid) }
-                            )
-                        }
-                    }
-                }
-            }
-        )
-        */
-        }
-    }
+                            val topTarget = topIndexForColumn(itemCount, column)
+                            val bottomTarget = bottomIndexForColumn(itemCount, column)
 
-    @Composable
-    private fun VideoUgcListDialog(
-        modifier: Modifier = Modifier,
-        show: Boolean,
-        title: String,
-        episodes: List<Episode>,
-        onHideDialog: () -> Unit,
-        onClick: (avid: Long, cid: Long) -> Unit
-    ) {
-        val scope = rememberCoroutineScope()
+                            itemContent(
+                                Modifier
+                                    .focusRequester(itemRequesterFor(absoluteIndex))
+                                    .onFocusChanged {
+                                        if (it.hasFocus) {
+                                            lastFocusedArea = DialogFocusArea.Grid
+                                            lastFocusedItemIndexByPage[selectedTabIndex] = index
+                                        }
+                                    }
+                                    .onPreviewKeyEvent { event ->
+                                        if (event.type != KeyEventType.KeyDown) {
+                                            return@onPreviewKeyEvent false
+                                        }
 
-        var selectedTabIndex by remember { mutableIntStateOf(0) }
-        val tabCount by remember { mutableIntStateOf(ceil(episodes.size / 35.0).toInt()) }
-        val selectedVideoPart = remember { mutableStateListOf<Episode>() }
-
-        val tabRowFocusRequester = remember { FocusRequester() }
-        val videoListFocusRequester = remember { FocusRequester() }
-        val listState = rememberLazyGridState()
-
-        LaunchedEffect(selectedTabIndex) {
-            val fromIndex = selectedTabIndex * 35
-            var toIndex = (selectedTabIndex + 1) * 35
-            if (toIndex >= episodes.size) {
-                toIndex = episodes.size
-            }
-            selectedVideoPart.swapListWithMainContext(episodes.subList(fromIndex, toIndex))
-        }
-
-        LaunchedEffect(show) {
-            if (show && tabCount > 1) tabRowFocusRequester.requestFocus(scope)
-            if (show && tabCount == 1) videoListFocusRequester.requestFocus(scope)
-        }
-
-        // 在 Dialog 外部获取当前正确的 Density
-        val currentDensity = LocalDensity.current
-
-        if (show) {
-            Dialog(  // ✅ 使用 Dialog
-                onDismissRequest = onHideDialog,
-                properties = DialogProperties(
-                    usePlatformDefaultWidth = false,  // 不使用默认宽度
-                    dismissOnBackPress = true,        // 返回键关闭
-                    dismissOnClickOutside = false     // 点击外部不关闭（TV端建议）
-                )
-            ) {
-                // ✅ 步骤 2: 使用 CompositionLocalProvider 将正确的 Density 应用到 Dialog 的内容中
-                CompositionLocalProvider(LocalDensity provides currentDensity) {
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black),
-                        color = MaterialTheme.colorScheme.surface,
-                        shape = MaterialTheme.shapes.extraLarge
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(48.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = title,
-                                    style = MaterialTheme.typography.headlineMedium,  // ✅ 更大的标题
-                                    color = Color.White
-                                )
-                            }
-
-                            // ✅ 标签页
-                            if (tabCount > 1) {
-                                TabRow(
-                                    modifier = Modifier
-                                        .onFocusChanged {
-                                            if (it.hasFocus) {
-                                                scope.launch(Dispatchers.Main) {
-                                                    listState.scrollToItem(0)
+                                        when (event.key) {
+                                            Key.DirectionRight -> {
+                                                if (index != rowEnd) {
+                                                    false
+                                                } else {
+                                                    moveHorizontallyFromEdge(
+                                                        currentIndex = index,
+                                                        moveRight = true
+                                                    )
                                                 }
                                             }
-                                        },
-                                    selectedTabIndex = selectedTabIndex,
-                                    separator = { Spacer(modifier = Modifier.width(12.dp)) },
-                                ) {
-                                    for (i in 0 until tabCount) {
-                                        Tab(
-                                            modifier = if (i == 0) Modifier.focusRequester(
-                                                tabRowFocusRequester
-                                            ) else Modifier,
-                                            selected = i == selectedTabIndex,
-                                            onFocus = { selectedTabIndex = i },
-                                        ) {
-                                            val startIndex = i * 35 + 1
-                                            val endIndex = minOf((i + 1) * 35, episodes.size)
-                                            val tabText = if (startIndex == endIndex) {
-                                                "P$startIndex"
-                                            } else {
-                                                "P$startIndex-$endIndex"
+
+                                            Key.DirectionLeft -> {
+                                                if (index != rowStart) {
+                                                    false
+                                                } else {
+                                                    moveHorizontallyFromEdge(
+                                                        currentIndex = index,
+                                                        moveRight = false
+                                                    )
+                                                }
                                             }
-                                            Text(
-                                                // text = "P${i * 20 + 1}-${(i + 1) * 20}",
-                                                text = tabText,
-                                                fontSize = 16.sp,  // ✅ 更大的标签字号
-                                                color = LocalContentColor.current,
-                                                modifier = Modifier.padding(
-                                                    horizontal = 20.dp,
-                                                    vertical = 10.dp
-                                                )
-                                            )
+
+                                            Key.DirectionUp -> {
+                                                if (index >= columnCount) {
+                                                    false
+                                                } else {
+                                                    if (tabCount > 1) {
+                                                        lastFocusedArea = DialogFocusArea.Tabs
+                                                        tabRequesterFor(selectedTabIndex).requestFocus()
+                                                        true
+                                                    } else {
+                                                        lastFocusedArea = DialogFocusArea.Grid
+                                                        focusItemOnPage(selectedTabIndex, bottomTarget)
+                                                        true
+                                                    }
+                                                }
+                                            }
+
+                                            Key.DirectionDown -> {
+                                                if (index < lastRowStart) {
+                                                    false
+                                                } else {
+                                                    if (tabCount > 1) {
+                                                        lastFocusedArea = DialogFocusArea.Tabs
+                                                        tabRequesterFor(selectedTabIndex).requestFocus()
+                                                        true
+                                                    } else {
+                                                        lastFocusedArea = DialogFocusArea.Grid
+                                                        focusItemOnPage(selectedTabIndex, topTarget)
+                                                        true
+                                                    }
+                                                }
+                                            }
+
+                                            else -> false
                                         }
-                                    }
-                                }
-                            }
-
-                            // 视频列表
-                            SmallVideoCardGridHost(
-                                state = listState,
-                                modifier = Modifier.fillMaxSize(),
-                                columns = GridCells.Fixed(5),
-                                contentPadding = PaddingValues(16.dp),
-                                // verticalArrangement = Arrangement.spacedBy(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(20.dp),
-                                // horizontalArrangement = Arrangement.spacedBy(16.dp)
-                                horizontalArrangement = Arrangement.spacedBy(20.dp),
-                                horizontalWrapColumnCount = 5
-                            ) {
-                                itemsIndexed(
-                                    items = selectedVideoPart,
-                                    key = { _, video -> video.cid }
-                                ) { index, episode ->
-                                    val buttonModifier =
-                                        if (index == 0 && tabCount == 1) {
-                                            Modifier.focusRequester(videoListFocusRequester)
-                                        } else Modifier
-
-                                    VideoPartButton(
-                                        modifier = buttonModifier,
-                                        // index = selectedTabIndex * 20 + index + 1,
-                                        index = selectedTabIndex * 35 + index + 1,
-                                        title = episode.title,
-                                        played = 0,
-                                        duration = episode.duration,
-                                        onClick = {
-                                            onClick(episode.aid, episode.cid)
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                /*
-        AlertDialog(
-            modifier = modifier,
-            title = { Text(text = title) },
-            onDismissRequest = { onHideDialog() },
-            confirmButton = {},
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-            text = {
-                Column(
-                    modifier = Modifier.size(600.dp, 330.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    TabRow(
-                        modifier = Modifier
-                            .onFocusChanged {
-                                if (it.hasFocus) {
-                                    scope.launch(Dispatchers.Main) {
-                                        listState.scrollToItem(0)
-                                    }
-                                }
-                            },
-                        selectedTabIndex = selectedTabIndex,
-                        separator = { Spacer(modifier = Modifier.width(12.dp)) },
-                    ) {
-                        for (i in 0 until tabCount) {
-                            Tab(
-                                modifier = if (i == 0) Modifier.focusRequester(
-                                    tabRowFocusRequester
-                                ) else Modifier,
-                                selected = i == selectedTabIndex,
-                                onFocus = { selectedTabIndex = i },
-                            ) {
-                                Text(
-                                    text = "P${i * 20 + 1}-${(i + 1) * 20}",
-                                    fontSize = 12.sp,
-                                    color = LocalContentColor.current,
-                                    modifier = Modifier.padding(
-                                        horizontal = 16.dp,
-                                        vertical = 6.dp
-                                    )
-                                )
-                            }
-                        }
-                    }
-
-                    SmallVideoCardGridHost(
-                        state = listState,
-                        columns = GridCells.Fixed(2),
-                        contentPadding = PaddingValues(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalWrapColumnCount = 2
-                    ) {
-                        itemsIndexed(
-                            items = selectedVideoPart,
-                            key = { _, video -> video.cid }
-                        ) { index, episode ->
-                            val buttonModifier =
-                                if (index == 0) Modifier.focusRequester(videoListFocusRequester) else Modifier
-
-                            VideoPartButton(
-                                modifier = buttonModifier,
-                                index = index + 1,
-                                title = episode.title,
-                                played = 0,
-                                duration = episode.duration,
-                                onClick = { onClick(episode.aid, episode.cid) }
+                                    },
+                                absoluteIndex,
+                                item
                             )
                         }
                     }
                 }
             }
-        )
-        */
-            }
         }
     }
+}
+
+
 
 
 @Preview
