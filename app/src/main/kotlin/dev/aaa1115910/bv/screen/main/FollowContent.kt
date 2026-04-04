@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.FolderOff
 import androidx.compose.material.icons.rounded.FolderShared
@@ -27,26 +26,25 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.key.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalContext
@@ -69,17 +67,17 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
-import dev.aaa1115910.bv.component.LoadingTip
-import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.BlockTagItem
 import dev.aaa1115910.bv.component.FollowGroupSelectDialog
+import dev.aaa1115910.bv.component.LoadingTip
+import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.relation.RelationGroupKind
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
 import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
 import dev.aaa1115910.bv.screen.user.EmptyTip
 import dev.aaa1115910.bv.ui.effect.UiEffect
-import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.FollowGroupCardState
 import dev.aaa1115910.bv.viewmodel.user.FollowGroupCardUi
 import dev.aaa1115910.bv.viewmodel.user.FollowUserUi
@@ -439,15 +437,9 @@ private fun FollowGroupGrid(
 
     fun requesterForGroupId(groupId: Int?): FocusRequester {
         return when (groupId) {
-            null -> {
-                navFocusRequester
-            }
-            requestedFocusGroupId -> {
-                navFocusRequester
-            }
-            else -> {
-                groupRequesters.getValue(groupId)
-            }
+            null -> navFocusRequester
+            requestedFocusGroupId -> navFocusRequester
+            else -> groupRequesters.getValue(groupId)
         }
     }
 
@@ -536,15 +528,9 @@ private fun FollowUserGrid(
 
     fun requesterForUserKey(userKey: String?): FocusRequester {
         return when (userKey) {
-            null -> {
-                navFocusRequester
-            }
-            requestedFocusUserKey -> {
-                navFocusRequester
-            }
-            else -> {
-                userRequesters.getValue(userKey)
-            }
+            null -> navFocusRequester
+            requestedFocusUserKey -> navFocusRequester
+            else -> userRequesters.getValue(userKey)
         }
     }
 
@@ -626,11 +612,11 @@ private fun FollowGroupCard(
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                 pressedContainerColor = MaterialTheme.colorScheme.surface
             ),
-            shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.large),
+            shape = ClickableSurfaceDefaults.shape(shape = RectangleShape),
             border = ClickableSurfaceDefaults.border(
                 focusedBorder = Border(
                     border = BorderStroke(width = 3.dp, color = Color.White),
-                    shape = MaterialTheme.shapes.large
+                    shape = RectangleShape
                 )
             ),
             onClick = onClick
@@ -643,7 +629,7 @@ private fun FollowGroupCard(
             colors = SurfaceDefaults.colors(
                 containerColor = MaterialTheme.colorScheme.surface
             ),
-            shape = MaterialTheme.shapes.large
+            shape = RectangleShape
         ) {
             FollowGroupCardContent(group = group)
         }
@@ -817,11 +803,11 @@ private fun UpCard(
             focusedContainerColor = MaterialTheme.colorScheme.surface,
             pressedContainerColor = MaterialTheme.colorScheme.surface
         ),
-        shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.large),
+        shape = ClickableSurfaceDefaults.shape(shape = RectangleShape),
         border = ClickableSurfaceDefaults.border(
             focusedBorder = Border(
                 border = BorderStroke(width = 3.dp, color = Color.White),
-                shape = MaterialTheme.shapes.large
+                shape = RectangleShape
             )
         ),
         onClick = onClick,
@@ -834,19 +820,18 @@ private fun UpCard(
             androidx.compose.material3.Surface(
                 modifier = Modifier
                     .padding(start = 12.dp, end = 8.dp)
-                    .size(48.dp)
-                    .clip(CircleShape),
+                    .size(48.dp),
+                shape = RectangleShape,
                 color = Color.White
             ) {
                 AsyncImage(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape),
+                    modifier = Modifier.fillMaxSize(),
                     model = face,
                     contentDescription = null,
                     contentScale = ContentScale.FillBounds
                 )
             }
+
             Column {
                 Text(
                     text = username,
