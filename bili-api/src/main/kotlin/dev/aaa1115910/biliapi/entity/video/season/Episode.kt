@@ -1,6 +1,7 @@
 package dev.aaa1115910.biliapi.entity.video.season
 
 import dev.aaa1115910.biliapi.entity.video.Dimension
+import dev.aaa1115910.biliapi.http.util.smartDate
 
 /**
  * 剧集视频
@@ -23,6 +24,11 @@ data class Episode(
     val bvid: String,
     val cid: Long,
     val epid: Int? = null,
+    val upMid: Long? = null,
+    val upName: String = "",
+    val playCount: Int = 0,
+    val danmakuCount: Int = 0,
+    val pubTime: String? = null,
     val title: String,
     val longTitle: String,
     val cover: String,
@@ -35,6 +41,11 @@ data class Episode(
             aid = episode.aid,
             bvid = episode.bvid,
             cid = episode.cid,
+            upMid = episode.author.mid,
+            upName = episode.author.name,
+            playCount = episode.stat.view,
+            danmakuCount = episode.stat.danmaku,
+            pubTime = episode.coverRightText.takeIf { it.isNotBlank() },
             title = episode.title,
             longTitle = episode.title,
             cover = episode.cover,
@@ -48,6 +59,11 @@ data class Episode(
                 aid = episode.aid,
                 bvid = episode.bvid,
                 cid = episode.cid,
+                upMid = episode.arc.author?.mid?.takeIf { it != 0L },
+                upName = episode.arc.author?.name.orEmpty(),
+                playCount = episode.arc.stat.view,
+                danmakuCount = episode.arc.stat.danmaku,
+                pubTime = episode.arc.pubDate.smartDate,
                 title = episode.title,
                 longTitle = episode.title,
                 cover = episode.arc.pic,

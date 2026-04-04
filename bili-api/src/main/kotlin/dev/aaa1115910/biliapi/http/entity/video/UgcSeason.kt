@@ -71,7 +71,7 @@ data class UgcSeason(
                 val state: Int,
                 val duration: Int,
                 val rights: VideoRights,
-                //val author: Author,
+                val author: Author? = null,
                 val stat: VideoStat,
                 val dynamic: String,
                 //val dimension: Dimension,

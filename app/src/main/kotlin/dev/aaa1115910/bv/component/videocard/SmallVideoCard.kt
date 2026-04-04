@@ -49,6 +49,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -86,6 +87,7 @@ import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.resizedImageUrl
 import dev.aaa1115910.bv.viewmodel.SmallVideoCardGridUiState
 import dev.aaa1115910.bv.viewmodel.SmallVideoCardItemUiState
+import kotlin.Int
 
 private val CoverStatIconSize = 24.dp
 private val ActionButtonSize = 60.dp
@@ -109,6 +111,7 @@ fun SmallVideoCard(
     modifier: Modifier = Modifier,
     frameModifier: Modifier = Modifier,
     data: VideoCardData,
+    titleMaxLines: Int = 3,
     delToView: Boolean = false,
     onClick: () -> Unit,
     onAddWatchLater: (() -> Unit)? = null,
@@ -125,6 +128,7 @@ fun SmallVideoCard(
         modifier = modifier,
         frameModifier = frameModifier,
         data = data,
+        titleMaxLines = titleMaxLines,
         onClick = onClick,
         onAddWatchLater = onAddWatchLater,
         legacyOnGoToUpPage = onGoToUpPage,
@@ -142,6 +146,7 @@ private fun SmallVideoCardCore(
     modifier: Modifier = Modifier,
     frameModifier: Modifier = Modifier,
     data: VideoCardData,
+    titleMaxLines: Int,
     onClick: () -> Unit,
     onAddWatchLater: (() -> Unit)? = null,
     legacyOnGoToUpPage: (() -> Unit)? = null,
@@ -303,6 +308,7 @@ private fun SmallVideoCardCore(
         CardInfo(
             modifier = Modifier.fillMaxWidth(),
             title = data.title,
+            titleMaxLines = titleMaxLines,
             upName = data.upName,
             pubTime = data.pubTime,
             hasMultipleCoAuthors = hasMultipleCoAuthors,
@@ -364,7 +370,7 @@ private fun BvSmallVideoCardFrame(
                         onDismissActions()
                     }
                 },
-            shape = CardDefaults.shape(MaterialTheme.shapes.large),
+            shape = CardDefaults.shape(RectangleShape),
             scale = CardDefaults.scale(
                 scale = 1f,
                 focusedScale = 1f,
@@ -373,7 +379,7 @@ private fun BvSmallVideoCardFrame(
             border = CardDefaults.border(
                 focusedBorder = Border(
                     border = BorderStroke(3.dp, MaterialTheme.colorScheme.border),
-                    shape = MaterialTheme.shapes.large
+                    shape = RectangleShape
                 )
             )
         ) {
@@ -387,7 +393,7 @@ private fun BvSmallVideoCardFrame(
                             .border(
                                 width = 3.dp,
                                 color = MaterialTheme.colorScheme.border,
-                                shape = MaterialTheme.shapes.large
+                                shape = RectangleShape
                             )
                     )
                 }
@@ -564,13 +570,13 @@ fun CardCover(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .clip(MaterialTheme.shapes.large),
+            .clip(RectangleShape),
         contentAlignment = Alignment.BottomCenter
     ) {
         AsyncImage(
             modifier = Modifier
                 .fillMaxSize()
-                .clip(MaterialTheme.shapes.large),
+                .clip(RectangleShape),
             model = cover.resizedImageUrl(ImageSize.SmallVideoCardCover),
             contentDescription = null,
             contentScale = ContentScale.Crop
@@ -725,6 +731,7 @@ private fun CoverStatsBar(
 fun CardInfo(
     modifier: Modifier = Modifier,
     title: String,
+    titleMaxLines: Int,
     upName: String,
     pubTime: String?,
     hasMultipleCoAuthors: Boolean = false,
@@ -743,7 +750,7 @@ fun CardInfo(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
-                maxLines = 3,
+                maxLines = titleMaxLines,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -889,7 +896,8 @@ private fun SmallVideoCardPreview() {
             SmallVideoCard(
                 modifier = Modifier.padding(20.dp),
                 onClick = {},
-                data = data
+                data = data,
+                titleMaxLines = 3,
             )
         }
     }
@@ -921,7 +929,8 @@ private fun SmallVideoCardsPreview() {
                 item(span = { GridItemSpan(1) }) {
                     SmallVideoCard(
                         onClick = {},
-                        data = data
+                        data = data,
+                        titleMaxLines = 3
                     )
                 }
             }

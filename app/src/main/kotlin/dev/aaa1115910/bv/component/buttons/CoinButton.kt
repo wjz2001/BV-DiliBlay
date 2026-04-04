@@ -25,7 +25,7 @@ fun CoinButton(
     val pillShape = RoundedCornerShape(percent = 50)
 
     Button(
-        modifier = modifier.height(52.dp),
+        modifier = modifier.height(44.dp),
         shape = ButtonDefaults.shape(
             shape = pillShape,
             focusedShape = pillShape,

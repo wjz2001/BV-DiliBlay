@@ -66,7 +66,7 @@ fun LikeButton(
 
     Button(
         modifier = modifier
-            .height(52.dp)
+            .height(44.dp)
             .onPreviewKeyEvent {
             when (it.key) {
                 Key.DirectionCenter, Key.Enter, Key.Spacebar -> {

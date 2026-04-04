@@ -5,6 +5,7 @@ import android.app.Activity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -30,6 +31,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -44,9 +46,11 @@ import androidx.compose.material.icons.rounded.Group
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.ViewModule
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material.icons.rounded.ZoomOutMap
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
+import androidx.tv.material3.SuggestionChip
+import androidx.tv.material3.SuggestionChipDefaults
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -70,6 +74,9 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -82,16 +89,23 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.platform.LocalContext
 import androidx.tv.material3.Border
+import androidx.tv.material3.Card
+import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Icon
@@ -128,6 +142,9 @@ import dev.aaa1115910.bv.component.CoAuthorsDialogHost
 import dev.aaa1115910.bv.component.rememberCoAuthorsDialogState
 import dev.aaa1115910.bv.component.BlockTagItem
 import dev.aaa1115910.bv.component.FollowGroupSelectDialog
+import dev.aaa1115910.bv.component.videocard.SmallVideoCard
+import dev.aaa1115910.bv.component.videocard.VideosRowCore
+import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.ui.effect.UiEffect
@@ -135,8 +152,10 @@ import dev.aaa1115910.bv.ui.effect.VideoDetailUiEffect
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
+import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.focusedBorder
 import dev.aaa1115910.bv.util.formatPubTimeString
+import dev.aaa1115910.bv.util.launchPlayerActivity
 import dev.aaa1115910.bv.util.launchPlayerActivity
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.swapListWithMainContext
@@ -286,15 +305,15 @@ fun VideoInfoScreen(
             } ?: videoDetailState.ugcSeason.sections.firstOrNull()
 
             currentSection?.episodes?.forEach { episode ->
-                    newVideoList.add(
-                        VideoListItem(
-                            aid = episode.aid,
-                            cid = episode.cid,
-                            seasonId = videoDetailState.ugcSeason.id,
-                            title = episode.title
-                        )
+                newVideoList.add(
+                    VideoListItem(
+                        aid = episode.aid,
+                        cid = episode.cid,
+                        seasonId = videoDetailState.ugcSeason.id,
+                        title = episode.title
                     )
-                }
+                )
+            }
         } else {
             newVideoList.add(
                 VideoListItem(
@@ -387,8 +406,8 @@ fun VideoInfoScreen(
                             .padding(innerPadding)
                             .fillMaxSize()
                             .verticalScroll(scrollState)
-                            .padding(top = 16.dp, bottom = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                            .padding(top = 8.dp, bottom = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         // 视频提示
                         /*
@@ -481,19 +500,40 @@ fun VideoInfoScreen(
                             }
                         )
 
-// 合集
+                        // 合集
                         videoDetailState.ugcSeason?.let { season ->
-                            season.sections.forEachIndexed { index, section ->
+                            season.sections.forEach { section ->
                                 VideoUgcSeasonRow(
                                     title = if (season.sections.size == 1) season.title else section.title,
                                     episodes = section.episodes,
-                                    lastPlayedCid = videoDetailState.lastPlayedCid,
-                                    lastPlayedTime = videoDetailState.lastPlayedTime,
-                                    enableUgcListDialog = section.episodes.size > 5,
-                                    // 点击直接跳转新的详情页
-                                    onClick = { aid, _ ->
-                                        logger.fInfo { "Click ugc season part, navigating to VideoInfoScreen for avid: $aid" }
-                                        VideoInfoActivity.actionStart(context, aid)
+                                    onEpisodeClick = { episode: Episode ->
+                                        logger.fInfo {
+                                            "Click ugc season part: [aid:${episode.aid}, cid:${episode.cid}]"
+                                        }
+
+                                        val episodeDisplayTitle = episode.longTitle.ifBlank { episode.title }
+
+                                        if (Prefs.showVideoInfo) {
+                                            VideoInfoActivity.actionStart(context, episode.aid)
+                                        } else {
+                                            videoDetailViewModel.updateVideoList(
+                                                section.episodes.map {
+                                                    VideoListItem(
+                                                        aid = it.aid,
+                                                        cid = it.cid,
+                                                        seasonId = season.id,
+                                                        title = it.longTitle.ifBlank { it.title }
+                                                    )
+                                                }
+                                            )
+                                            performLaunchPlayer(
+                                                targetAid = episode.aid,
+                                                targetCid = episode.cid,
+                                                targetTitle = episodeDisplayTitle,
+                                                targetPartTitle = "",
+                                                isFromSeason = true
+                                            )
+                                        }
                                     }
                                 )
                             }
@@ -502,13 +542,8 @@ fun VideoInfoScreen(
                         // 相关视频
                         val relatedVideos = videoDetailState.relatedVideos
                         if (relatedVideos.isNotEmpty()) {
-                            CompositionLocalProvider(
-                                LocalDensity provides Density(
-                                    density = LocalDensity.current.density * 1.25f,
-                                    fontScale = LocalDensity.current.fontScale * 1.25f
-                                )
-                            ) {
                             VideosRow(
+                                modifier = Modifier.padding(bottom = 2.dp),
                                 header = stringResource(R.string.video_info_related_video_title),
                                 videos = relatedVideos,
                                 onVideoClicked = { videoData ->
@@ -539,7 +574,6 @@ fun VideoInfoScreen(
                                     UpInfoActivity.actionStart(context, mid, upName)
                                 }
                             )
-                        }
                         }
                     }
                 }
@@ -575,7 +609,7 @@ fun ArgueTip(
             containerColor = Color.Yellow.copy(alpha = 0.2f),
             contentColor = Color.Yellow
         ),
-        shape = MaterialTheme.shapes.small
+        shape = RectangleShape
     ) {
         Row(
             modifier = Modifier.padding(
@@ -595,264 +629,245 @@ fun ArgueTip(
     }
 }
 
-    @OptIn(ExperimentalTvMaterial3Api::class)
-    @Composable
-    fun VideoInfoData(
-        modifier: Modifier = Modifier,
-        defaultFocusRequester: FocusRequester,
-        videoDetail: VideoDetailState,
-        isFollowing: Boolean,
-        tags: List<Tag>,
-        isFavorite: Boolean,
-        isLiked: Boolean,
-        isCoined: Boolean,
-        userFavoriteFolders: List<FavoriteFolderMetadata> = emptyList(),
-        favoriteFolderIds: List<Long> = emptyList(),
-        onClickCover: () -> Unit,
-        onClickUp: () -> Unit,
-        onAddFollow: () -> Unit,
-        onDelFollow: () -> Unit,
-        onClickTip: (Tag) -> Unit,
-        onAddToDefaultFavoriteFolder: () -> Unit,
-        onUpdateFavoriteFolders: (List<Long>) -> Unit,
-        onUpdateLiked: (Boolean) -> Unit,
-        onSendVideoCoin: () -> Unit,
-        onSendVideoOneClickTripleAction: () -> Unit
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun VideoInfoData(
+    modifier: Modifier = Modifier,
+    defaultFocusRequester: FocusRequester,
+    videoDetail: VideoDetailState,
+    isFollowing: Boolean,
+    tags: List<Tag>,
+    isFavorite: Boolean,
+    isLiked: Boolean,
+    isCoined: Boolean,
+    userFavoriteFolders: List<FavoriteFolderMetadata> = emptyList(),
+    favoriteFolderIds: List<Long> = emptyList(),
+    onClickCover: () -> Unit,
+    onClickUp: () -> Unit,
+    onAddFollow: () -> Unit,
+    onDelFollow: () -> Unit,
+    onClickTip: (Tag) -> Unit,
+    onAddToDefaultFavoriteFolder: () -> Unit,
+    onUpdateFavoriteFolders: (List<Long>) -> Unit,
+    onUpdateLiked: (Boolean) -> Unit,
+    onSendVideoCoin: () -> Unit,
+    onSendVideoOneClickTripleAction: () -> Unit
+) {
+    val localDensity = LocalDensity.current
+    val context = LocalContext.current
+    val coAuthorsDialogState = rememberCoAuthorsDialogState()
+    var heightIs by remember { mutableStateOf(0.dp) }
+
+    var showCommentsDialog by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = modifier
+            .padding(horizontal = 50.dp, vertical = 8.dp),
     ) {
-        val localDensity = LocalDensity.current
-        val context = LocalContext.current
-        val coAuthorsDialogState = rememberCoAuthorsDialogState()
-        var heightIs by remember { mutableStateOf(0.dp) }
-
-        var showCommentsDialog by remember { mutableStateOf(false) }
-
-        Row(
-            modifier = modifier
-                .padding(horizontal = 50.dp, vertical = 16.dp),
-        ) {
-            Surface(
-                modifier = Modifier
-                    .focusRequester(defaultFocusRequester)
-                    .weight(3f)
-                    .aspectRatio(1.6f)
-                    .onGloballyPositioned { coordinates ->
-                        heightIs = with(localDensity) { coordinates.size.height.toDp() }
-                    },
-                onClick = onClickCover,
-                shape = ClickableSurfaceDefaults.shape(
-                    shape = MaterialTheme.shapes.large,
-                ),
-                border = ClickableSurfaceDefaults.border(
-                    focusedBorder = Border(
-                        border = BorderStroke(
-                            width = 3.dp,
-                            color = MaterialTheme.colorScheme.border
-                        ),
-                        shape = MaterialTheme.shapes.large
-                    )
-                ),
-            ) {
-                AsyncImage(
-                    modifier = Modifier.fillMaxSize(),
-                    model = videoDetail.cover,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop
+        Surface(
+            modifier = Modifier
+                .focusRequester(defaultFocusRequester)
+                .weight(2.7f)
+                .aspectRatio(1.6f)
+                .onGloballyPositioned { coordinates ->
+                    heightIs = with(localDensity) { coordinates.size.height.toDp() }
+                },
+            onClick = onClickCover,
+            scale = ClickableSurfaceDefaults.scale(
+                focusedScale = 1.05f
+            ),
+            shape = ClickableSurfaceDefaults.shape(
+                shape = RectangleShape
+            ),
+            border = ClickableSurfaceDefaults.border(
+                focusedBorder = Border(
+                    border = BorderStroke(
+                        width = 3.dp,
+                        color = MaterialTheme.colorScheme.border
+                    ),
+                    shape = RectangleShape
                 )
-            }
-            // Spacer(modifier = Modifier.width(24.dp))
-            Spacer(modifier = Modifier.width(48.dp))
-            Column(
-                modifier = Modifier
-                    .weight(7f)
-                    .height(heightIs),
-                // verticalArrangement = Arrangement.SpaceBetween
-                verticalArrangement = Arrangement.spacedBy(3.dp)
-            ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+            ),
+        ) {
+            AsyncImage(
+                modifier = Modifier.fillMaxSize(),
+                model = videoDetail.cover,
+                contentDescription = null,
+                contentScale = ContentScale.Crop
+            )
+        }
+        Spacer(modifier = Modifier.width(48.dp))
+        Column(
+            modifier = Modifier
+                .weight(7.3f)
+                .height(heightIs),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+                Text(
+                    text = if (videoDetail.isUpowerExclusive) "充电▶ ${videoDetail.title}" else videoDetail.title,
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontSize = 40.sp,
+                        lineHeightStyle = LineHeightStyle(
+                            alignment = LineHeightStyle.Alignment.Top,
+                            trim = LineHeightStyle.Trim.Both
+                        )
+                        ),
+                    maxLines = 2,
+                    lineHeight = 46.sp,
+                    overflow = TextOverflow.Ellipsis,
+                    color = Color.White
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Text(
-                        //text = videoDetail.title,
-                        text = if (videoDetail.isUpowerExclusive) "充电▶ ${videoDetail.title}" else videoDetail.title,
-                        // style = MaterialTheme.typography.titleLarge,
-                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 44.sp),
-                        // maxLines = 1,
-                        maxLines = 2,
-                        lineHeight = 50.sp,
-                        overflow = TextOverflow.Ellipsis,
-                        color = Color.White
-                    )
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.height(IntrinsicSize.Min),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.height(IntrinsicSize.Min),
-                            verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            val coAuthorCount = remember(videoDetail.coAuthors) {
-                                videoDetail.coAuthors.distinctBy { it.mid }.size
-                            }
-                            var upButtonHeightPx by remember { mutableIntStateOf(0) }
-                            val density = LocalDensity.current
-                            val fallbackSize = 6.dp
-                            val squareSize = remember(upButtonHeightPx, density) {
-                                if (upButtonHeightPx > 0) with(density) { upButtonHeightPx.toDp() } else fallbackSize
-                            }
-                            if (coAuthorCount > 1) {
-                                Surface(
-                                    modifier = Modifier.size(squareSize)
-                                        .aspectRatio(1f),
-                                    onClick = { coAuthorsDialogState.open(videoDetail.coAuthors) },
-                                    shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.small),
-                                    colors = ClickableSurfaceDefaults.colors(
-                                        containerColor = Color.White.copy(alpha = 0.2f),
-                                        focusedContainerColor = Color.White.copy(alpha = 0.2f),
-                                        pressedContainerColor = Color.White.copy(alpha = 0.2f)
-                                    ),
-                                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
-                                    border = ClickableSurfaceDefaults.border(
-                                        focusedBorder = Border(
-                                            border = BorderStroke(width = 3.dp, color = Color.White),
-                                            shape = MaterialTheme.shapes.small
-                                        )
+                        val coAuthorCount = remember(videoDetail.coAuthors) {
+                            videoDetail.coAuthors.distinctBy { it.mid }.size
+                        }
+                        var upButtonHeightPx by remember { mutableIntStateOf(0) }
+                        val density = LocalDensity.current
+                        val fallbackSize = 6.dp
+                        val squareSize = remember(upButtonHeightPx, density) {
+                            if (upButtonHeightPx > 0) with(density) { upButtonHeightPx.toDp() } else fallbackSize
+                        }
+                        if (coAuthorCount > 1) {
+                            Surface(
+                                modifier = Modifier.size(squareSize)
+                                    .aspectRatio(1f),
+                                onClick = { coAuthorsDialogState.open(videoDetail.coAuthors) },
+                                shape = ClickableSurfaceDefaults.shape(shape = RectangleShape),
+                                colors = ClickableSurfaceDefaults.colors(
+                                    containerColor = Color.White.copy(alpha = 0.2f),
+                                    focusedContainerColor = Color.White.copy(alpha = 0.2f),
+                                    pressedContainerColor = Color.White.copy(alpha = 0.2f)
+                                ),
+                                scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+                                border = ClickableSurfaceDefaults.border(
+                                    focusedBorder = Border(
+                                        border = BorderStroke(width = 3.dp, color = Color.White),
+                                        shape = RectangleShape
                                     )
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Group,
-                                        contentDescription = "联合投稿",
-                                        tint = Color.White,
-                                        modifier = Modifier.padding(3.dp)
-                                    )
-                                }
-                            }
-
-                            Box(
-                                modifier = Modifier.onSizeChanged { upButtonHeightPx = it.height }
+                                )
                             ) {
-                                UpButton(
-                                    name = videoDetail.author.name,
-                                    followed = isFollowing,
-                                    onClickUp = onClickUp,
-                                    onAddFollow = onAddFollow,
-                                    onDelFollow = onDelFollow
+                                Icon(
+                                    imageVector = Icons.Rounded.Group,
+                                    contentDescription = "联合投稿",
+                                    tint = Color.White,
+                                    modifier = Modifier.padding(3.dp)
                                 )
                             }
                         }
-                        Row(
-                            modifier = Modifier
-                                .padding(start = 4.dp)
-                                .weight(1f),
-                            verticalAlignment = Alignment.CenterVertically
+
+                        Box(
+                            modifier = Modifier.onSizeChanged { upButtonHeightPx = it.height }
                         ) {
-                            CompositionLocalProvider(
-                                // LocalTextStyle provides MaterialTheme.typography.labelMedium
-                                LocalTextStyle provides MaterialTheme.typography.labelMedium.copy(
-                                    fontSize = 27.sp
-                                )
-                            ) {
-                                Text(text = "发布于 ${videoDetail.publishDate.formatPubTimeString()}")
-                                Text(text = "·")
-                                Text(text = "播放量 ${(videoDetail.stat.view).toWanString()}")
-                                Text(text = "·")
-                                Text(text = "弹幕 ${(videoDetail.stat.danmaku).toWanString()}")
-                                Text(text = "·")
-                                Text(text = "投币 ${videoDetail.stat.coin.toWanString()}")
-                                /*
-                                Text(text = "·")
-                                Text(text = "点赞 ${videoDetail.stat.like.toWanString()}")
-                                Text(text = "·")
-                                Text(text = "收藏 ${videoDetail.stat.favorite.toWanString()}")
-                                 */
-                            }
+                            UpButton(
+                                name = videoDetail.author.name,
+                                followed = isFollowing,
+                                onClickUp = onClickUp,
+                                onAddFollow = onAddFollow,
+                                onDelFollow = onDelFollow
+                            )
                         }
                     }
-                    /*
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                   UpButton(
-                        name = videoDetail.author.name,
-                        followed = isFollowing,
-                        onClickUp = onClickUp,
-                        onAddFollow = onAddFollow,
-                        onDelFollow = onDelFollow
-                    )
-
-                }
-*/
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.End),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    FavoriteButton(
-                        isFavorite = isFavorite,
-                        countText = videoDetail.stat.favorite.toWanString(),
-                        userFavoriteFolders = userFavoriteFolders,
-                        favoriteFolderIds = favoriteFolderIds,
-                        onAddToDefaultFavoriteFolder = onAddToDefaultFavoriteFolder,
-                        onUpdateFavoriteFolders = onUpdateFavoriteFolders
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    CommentButton(
-                        countText = videoDetail.stat.reply.toWanString(),
-                        onClick = { showCommentsDialog = true }
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    LikeButton(
-                        isLiked = isLiked,
-                        countText = videoDetail.stat.like.toWanString(),
-                        onClick = { onUpdateLiked(!isLiked) },
-                        onLongClick = { onSendVideoOneClickTripleAction() })
-                    /*
-                    CoinButton(
-                        isCoined = isCoined,
-                        countText = videoDetail.stat.coin.toWanString(),
-                        onClick = onSendVideoCoin,
-                    )
-                     */
-                    LazyRow(
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 5.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Row(
+                        modifier = Modifier
+                            .padding(start = 4.dp)
+                            .weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        items(items = tags) { tag ->
-                            SuggestionChip(onClick = {
-                                onClickTip(tag)
-                            }) {
-                                Text(text = tag.name)
-                            }
+                        CompositionLocalProvider(
+                            LocalTextStyle provides MaterialTheme.typography.labelMedium.copy(
+                                fontSize = 25.sp
+                            )
+                        ) {
+                            Text(text = "发布于 ${videoDetail.publishDate.formatPubTimeString()}")
+                            Text(text = "·")
+                            Text(text = "播放量 ${(videoDetail.stat.view).toWanString()}")
+                            Text(text = "·")
+                            Text(text = "弹幕 ${(videoDetail.stat.danmaku).toWanString()}")
                         }
                     }
                 }
-                VideoDescription(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    description = videoDetail.description
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.End)
+                    .padding(top = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                FavoriteButton(
+                    isFavorite = isFavorite,
+                    countText = videoDetail.stat.favorite.toWanString(),
+                    userFavoriteFolders = userFavoriteFolders,
+                    favoriteFolderIds = favoriteFolderIds,
+                    onAddToDefaultFavoriteFolder = onAddToDefaultFavoriteFolder,
+                    onUpdateFavoriteFolders = onUpdateFavoriteFolders
                 )
-
-                VideoCommentsDialog(
-                    show = showCommentsDialog,
-                    aid = videoDetail.aid,
-                    onDismissRequest = { showCommentsDialog = false }
+                Spacer(modifier = Modifier.width(5.dp))
+                CommentButton(
+                    countText = videoDetail.stat.reply.toWanString(),
+                    onClick = { showCommentsDialog = true }
                 )
-
-                CoAuthorsDialogHost(
-                    state = coAuthorsDialogState,
-                    onClickAuthor = { mid, name ->
-                        UpInfoActivity.actionStart(context, mid = mid, name = name)
+                Spacer(modifier = Modifier.width(5.dp))
+                LikeButton(
+                    isLiked = isLiked,
+                    countText = videoDetail.stat.like.toWanString(),
+                    onClick = { onUpdateLiked(!isLiked) },
+                    onLongClick = { onSendVideoOneClickTripleAction() })
+                Spacer(modifier = Modifier.width(5.dp))
+                CoinButton(
+                    isCoined = isCoined,
+                    countText = videoDetail.stat.coin.toWanString(),
+                    onClick = onSendVideoCoin,
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                LazyRow(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 5.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(items = tags) { tag ->
+                        SuggestionChip(
+                            onClick = { onClickTip(tag) },
+                            shape = SuggestionChipDefaults.shape(
+                                shape = RectangleShape
+                            )
+                        ) {
+                            Text(text = tag.name)
+                        }
                     }
-                )
+                }
             }
+            VideoDescription(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                description = videoDetail.description
+            )
+
+            VideoCommentsDialog(
+                show = showCommentsDialog,
+                aid = videoDetail.aid,
+                onDismissRequest = { showCommentsDialog = false }
+            )
+
+            CoAuthorsDialogHost(
+                state = coAuthorsDialogState,
+                onClickAuthor = { mid, name ->
+                    UpInfoActivity.actionStart(context, mid = mid, name = name)
+                }
+            )
         }
     }
+}
 
 @Composable
 private fun UpButton(
@@ -866,197 +881,184 @@ private fun UpButton(
     val view = LocalView.current
     val isLogin by remember { mutableStateOf(if (!view.isInEditMode) Prefs.isLogin else true) }
 
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
         Row(
-            modifier = modifier,
+            modifier = Modifier
+                .clip(RectangleShape)
+                .background(Color.White.copy(alpha = 0.2f))
+                .focusedBorder(RectangleShape)
+                .padding(4.dp)
+                .clickable { onClickUp() },
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
+            UpIcon(color = Color.White)
+            Text(text = name, color = Color.White)
+        }
+        AnimatedVisibility(visible = isLogin) {
             Row(
                 modifier = Modifier
-                    .clip(MaterialTheme.shapes.small)
+                    .clip(RectangleShape)
                     .background(Color.White.copy(alpha = 0.2f))
-                    .focusedBorder(MaterialTheme.shapes.small)
-                    .padding(4.dp)
-                    .clickable { onClickUp() },
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .focusedBorder(RectangleShape)
+                    .padding(horizontal = 4.dp, vertical = 3.dp)
+                    .clickable { if (followed) onDelFollow() else onAddFollow() }
+                    .animateContentSize()
             ) {
-                UpIcon(color = Color.White)
-                Text(text = name, color = Color.White)
-            }
-            AnimatedVisibility(visible = isLogin) {
-                Row(
-                    modifier = Modifier
-                        .clip(MaterialTheme.shapes.small)
-                        .background(Color.White.copy(alpha = 0.2f))
-                        .focusedBorder(MaterialTheme.shapes.small)
-                        .padding(horizontal = 4.dp, vertical = 3.dp)
-                        .clickable { if (followed) onDelFollow() else onAddFollow() }
-                        .animateContentSize()
-                ) {
-                    if (followed) {
-                        Icon(
-                            imageVector = Icons.Rounded.Done,
-                            contentDescription = null,
-                            tint = Color.White
-                        )
+                if (followed) {
+                    Icon(
+                        imageVector = Icons.Rounded.Done,
+                        contentDescription = null,
+                        tint = Color.White
+                    )
                     Text(
                         text = stringResource(R.string.video_info_followed),
                         color = Color.White
                     )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Rounded.Add,
-                            contentDescription = null,
-                            tint = Color.White
-                        )
-                        Text(text = stringResource(R.string.video_info_follow), color = Color.White)
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    fun VideoDescription(
-        modifier: Modifier = Modifier,
-        description: String,
-
-        ) {
-        var showDescriptionDialog by remember { mutableStateOf(false) }
-        var hasFocus by remember { mutableStateOf(false) }
-        val normalizedDescription = description.trim()
-        val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
-        val titleFontSize by animateFloatAsState(
-            //targetValue = if (hasFocus) 30f else 14f,
-            targetValue = 14f,
-            label = "title font size"
-        )
-        if (normalizedDescription.isNotEmpty() && normalizedDescription != "-") {
-            Column(
-                modifier = modifier
-                // .padding(horizontal = 50.dp),
-            ) {
-                Text(
-                    modifier = Modifier.padding(top = 4.dp),
-                    text = stringResource(R.string.video_info_description_title),
-                    fontSize = titleFontSize.sp,
-                    color = titleColor
-                )
-                Box(
-                    modifier = Modifier
-                        .padding(top = 2.dp)
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .onFocusChanged { hasFocus = it.hasFocus }
-                        .clip(MaterialTheme.shapes.medium)
-                        .focusedBorder(MaterialTheme.shapes.medium)
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                        .clickable { showDescriptionDialog = true }
-                ) {
-                    Text(
-                        modifier = Modifier.fillMaxSize(),
-                        text = normalizedDescription,
-                        maxLines = 10,
-                        fontSize = 22.sp,
-                        lineHeight = 26.sp,
-                        overflow = TextOverflow.Ellipsis,
-                        color = Color.White
+                } else {
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = null,
+                        tint = Color.White
                     )
+                    Text(text = stringResource(R.string.video_info_follow), color = Color.White)
                 }
             }
         }
-        VideoDescriptionDialog(
-            show = showDescriptionDialog,
-            onHideDialog = { showDescriptionDialog = false },
-            description = description
-        )
     }
+}
 
-    @Composable
-    fun VideoDescriptionDialog(
-        modifier: Modifier = Modifier,
-        show: Boolean,
-        onHideDialog: () -> Unit,
-        description: String
+@Composable
+fun VideoDescription(
+    modifier: Modifier = Modifier,
+    description: String,
     ) {
-        if (show) {
-            val scrollState = rememberScrollState()
-            val scope = rememberCoroutineScope()
-            val focusRequester = remember { FocusRequester() }
-
-            var viewportHeightPx by remember { mutableIntStateOf(0) }
-            val stepPx = remember(viewportHeightPx) {
-                maxOf(1, (viewportHeightPx * 0.2f).toInt())
-            }
-            val canScroll by remember {
-                derivedStateOf { scrollState.maxValue > 0 }
-            }
-
-            LaunchedEffect(canScroll) {
-                if (show && canScroll) {
-                    focusRequester.requestFocus()
-                }
-            }
-
-            AlertDialog(
-                modifier = modifier,
-                onDismissRequest = { onHideDialog() },
-                title = {
-                    Text(
-                        text = stringResource(R.string.video_info_description_title),
-                        color = Color.White
-                    )
-                },
-                text = {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(420.dp)
-                            .onSizeChanged { viewportHeightPx = it.height }
-                            .focusRequester(focusRequester)
-                            .focusable(enabled = canScroll)
-                            .onPreviewKeyEvent { event ->
-                                if (!canScroll) return@onPreviewKeyEvent false
-                                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-
-                                when (event.key) {
-                                    Key.DirectionDown -> {
-                                        val target = (scrollState.value + stepPx)
-                                            .coerceIn(0, scrollState.maxValue)
-                                        scope.launch {
-                                            scrollState.animateScrollTo(target)
-                                        }
-                                        true
-                                    }
-
-                                    Key.DirectionUp -> {
-                                        val target = (scrollState.value - stepPx)
-                                            .coerceIn(0, scrollState.maxValue)
-                                        scope.launch {
-                                            scrollState.animateScrollTo(target)
-                                        }
-                                        true
-                                    }
-
-                                    else -> false
-                                }
-                            }
-                    ) {
-                        Text(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .verticalScroll(scrollState),
-                            text = description,
-                            fontSize = 28.sp,
-                            lineHeight = 34.sp,
-                        )
+    var showDescriptionDialog by remember { mutableStateOf(false) }
+    val normalizedDescription = description.trim()
+    if (normalizedDescription.isNotEmpty() && normalizedDescription != "-") {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .clip(RectangleShape)
+                .focusedBorder(RectangleShape)
+                .padding(horizontal = 8.dp, vertical = 3.dp)
+                .clickable { showDescriptionDialog = true }
+        ) {
+            Text(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .wrapContentHeight(Alignment.CenterVertically),
+                text = buildAnnotatedString {
+                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                        append(stringResource(R.string.video_info_description_title))
+                        append("：")
                     }
+                    append(normalizedDescription)
                 },
-                confirmButton = {}
+                maxLines = 10,
+                fontSize = 22.sp,
+                lineHeight = 26.sp,
+                overflow = TextOverflow.Ellipsis,
+                color = Color.White
             )
         }
     }
+    VideoDescriptionDialog(
+        show = showDescriptionDialog,
+        onHideDialog = { showDescriptionDialog = false },
+        description = description
+    )
+}
+
+@Composable
+fun VideoDescriptionDialog(
+    modifier: Modifier = Modifier,
+    show: Boolean,
+    onHideDialog: () -> Unit,
+    description: String
+) {
+    if (show) {
+        val scrollState = rememberScrollState()
+        val scope = rememberCoroutineScope()
+        val focusRequester = remember { FocusRequester() }
+
+        var viewportHeightPx by remember { mutableIntStateOf(0) }
+        val stepPx = remember(viewportHeightPx) {
+            maxOf(1, (viewportHeightPx * 0.2f).toInt())
+        }
+        val canScroll by remember {
+            derivedStateOf { scrollState.maxValue > 0 }
+        }
+
+        LaunchedEffect(canScroll) {
+            if (show && canScroll) {
+                focusRequester.requestFocus()
+            }
+        }
+
+        AlertDialog(
+            modifier = modifier,
+            shape = RectangleShape,
+            onDismissRequest = { onHideDialog() },
+            title = {
+                Text(
+                    text = stringResource(R.string.video_info_description_title),
+                    color = Color.White
+                )
+            },
+            text = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(420.dp)
+                        .onSizeChanged { viewportHeightPx = it.height }
+                        .focusRequester(focusRequester)
+                        .focusable(enabled = canScroll)
+                        .onPreviewKeyEvent { event ->
+                            if (!canScroll) return@onPreviewKeyEvent false
+                            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+
+                            when (event.key) {
+                                Key.DirectionDown -> {
+                                    val target = (scrollState.value + stepPx)
+                                        .coerceIn(0, scrollState.maxValue)
+                                    scope.launch {
+                                        scrollState.animateScrollTo(target)
+                                    }
+                                    true
+                                }
+
+                                Key.DirectionUp -> {
+                                    val target = (scrollState.value - stepPx)
+                                        .coerceIn(0, scrollState.maxValue)
+                                    scope.launch {
+                                        scrollState.animateScrollTo(target)
+                                    }
+                                    true
+                                }
+
+                                else -> false
+                            }
+                        }
+                ) {
+                    Text(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(scrollState),
+                        text = description,
+                        fontSize = 28.sp,
+                        lineHeight = 34.sp,
+                    )
+                }
+            },
+            confirmButton = {}
+        )
+    }
+}
 
 @Composable
 fun DurationUnitText(
@@ -1095,7 +1097,7 @@ fun VideoPartButton(
             focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
             pressedContainerColor = MaterialTheme.colorScheme.inverseSurface
         ),
-        shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.medium),
+        shape = ClickableSurfaceDefaults.shape(shape = RectangleShape),
         onClick = { onClick() }
     ) {
         Box(
@@ -1116,7 +1118,6 @@ fun VideoPartButton(
                 // 左侧：标题
                 Text(
                     modifier = Modifier
-                        // weight(1f) 会让标题占据除了时长之外的所有剩余空间
                         .weight(1f)
                         .padding(start = 12.dp, end = 6.dp, top = 12.dp, bottom = 12.dp),
                     text = "P$index $title",
@@ -1153,254 +1154,308 @@ fun VideoPartButton(
     }
 }
 
-    @Composable
-    fun VideoPartRowButton(
-        modifier: Modifier = Modifier,
-        onClick: () -> Unit,
-        content: @Composable BoxScope.() -> Unit
+@Composable
+fun VideoPartRowButton(
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+    content: @Composable BoxScope.() -> Unit
+) {
+    Surface(
+        modifier = modifier.size(96.dp),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
+            pressedContainerColor = MaterialTheme.colorScheme.inverseSurface
+        ),
+        shape = ClickableSurfaceDefaults.shape(shape = RectangleShape),
+        onClick = onClick
     ) {
-        Surface(
-            //modifier = modifier.size(64.dp),
-            modifier = modifier.size(96.dp),
-            colors = ClickableSurfaceDefaults.colors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
-                pressedContainerColor = MaterialTheme.colorScheme.inverseSurface
-            ),
-            shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.medium),
-            onClick = onClick
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+            content = content
+        )
+    }
+}
+
+@Composable
+fun VideoPartRow(
+    pages: List<VideoPage>,
+    lastPlayedCid: Long = 0,
+    lastPlayedTime: Int = 0,
+    enablePartListDialog: Boolean = false,
+    onClick: (cid: Long) -> Unit
+) {
+    val focusRequester = remember { FocusRequester() }
+    var showPartListDialog by remember { mutableStateOf(false) }
+        LazyRow(
+            modifier = Modifier
+                .padding(top = 8.dp)
+                .focusRestorer(focusRequester)
+                .padding(start = 50.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .height(96.dp)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        // 确保 Column 占满 Box 的高度，这样均匀排布才能生效
+                        modifier = Modifier.fillMaxHeight(),
+                        verticalArrangement = Arrangement.SpaceBetween,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        stringResource(R.string.video_info_part_row_title)
+                            //过滤掉所有的空格/空白字符，确保只留下"视"、"频"、"分"、"P"这四个字
+                            .filterNot { it.isWhitespace() }
+                            .replace("p", "Ｐ")
+                            .forEach { ch ->
+                                Text(
+                                    text = ch.toString(),
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    lineHeight = 14.sp,
+                                    style = TextStyle(
+                                        platformStyle = PlatformTextStyle(includeFontPadding = false)
+                                    )
+                                )
+                            }
+                    }
+                }
+            }
+            if (enablePartListDialog) {
+                item {
+                    VideoPartRowButton(
+                        onClick = { showPartListDialog = true }
+                    ) {
+                        Icon(
+                            modifier = Modifier.size(54.dp),
+                            imageVector = Icons.Rounded.ViewModule,
+                            contentDescription = null
+                        )
+                    }
+                }
+            }
+
+            itemsIndexed(items = pages, key = { _, page -> page.cid }) { index, page ->
+                VideoPartButton(
+                    modifier = Modifier
+                        .ifElse(index == 0, Modifier.focusRequester(focusRequester))
+                        .width(300.dp),
+                    index = index + 1,
+                    title = page.title,
+                    played = if (page.cid == lastPlayedCid) lastPlayedTime else 0,
+                    duration = page.duration,
+                    onClick = { onClick(page.cid) }
+                )
+            }
+        }
+
+    PagedVideoInfinityListDialog(
+        show = showPartListDialog,
+        onHideDialog = { showPartListDialog = false },
+        items = pages,
+        title = "分 P 列表",
+        itemKey = { it.cid }
+    ) { itemModifier, absoluteIndex, page ->
+        VideoPartButton(
+            modifier = itemModifier,
+            index = absoluteIndex + 1,
+            title = page.title,
+            played = 0,
+            duration = page.duration,
+            onClick = { onClick(page.cid) }
+        )
+    }
+}
+
+fun Episode.toVideoCardData(): VideoCardData {
+    val displayTitle = longTitle.ifBlank { title }
+
+    return VideoCardData(
+        avid = aid,
+        cid = cid,
+        epId = epid,
+        title = displayTitle,
+        cover = cover,
+        upName = upName,
+        upMid = upMid,
+        playString = playCount.toWanString(),
+        danmakuString = danmakuCount.toWanString(),
+        timeString = (duration * 1000L).formatHourMinSec(),
+        jumpToSeason = false,
+        pubTime = pubTime
+    )
+}
+
+@Composable
+fun UgcSeasonLeadingButton(
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(143.75.dp)
+                .aspectRatio(0.5f),
+            onClick = onClick,
+            shape = CardDefaults.shape(RectangleShape),
+            border = CardDefaults.border(
+                focusedBorder = Border(
+                    border = BorderStroke(3.dp, MaterialTheme.colorScheme.border),
+                    shape = RectangleShape
+                )
+            )
         ) {
             Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-                content = content
-            )
-        }
-    }
-
-    @Composable
-    fun VideoPartRow(
-        modifier: Modifier = Modifier,
-        pages: List<VideoPage>,
-        lastPlayedCid: Long = 0,
-        lastPlayedTime: Int = 0,
-        enablePartListDialog: Boolean = false,
-        onClick: (cid: Long) -> Unit
-    ) {
-        val focusRequester = remember { FocusRequester() }
-        var hasFocus by remember { mutableStateOf(false) }
-        var showPartListDialog by remember { mutableStateOf(false) }
-        val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
-        val titleFontSize by animateFloatAsState(
-            targetValue = 14f,
-            label = "title font size"
-        )
-
-        Column(
-            modifier = modifier
-                .padding(start = 50.dp)
-                .onFocusChanged { hasFocus = it.hasFocus },
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = stringResource(R.string.video_info_part_row_title),
-                fontSize = titleFontSize.sp,
-                color = titleColor
-            )
-
-            LazyRow(
                 modifier = Modifier
-                    .padding(top = 15.dp)
-                    .focusRestorer(focusRequester),
-                contentPadding = PaddingValues(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(20.dp)
+                    .fillMaxSize()
+                    .background(Color.Black),
+                contentAlignment = Alignment.Center
             ) {
-                if (enablePartListDialog) {
-                    item {
-                        VideoPartRowButton(
-                            onClick = { showPartListDialog = true }
-                        ) {
-                            Icon(
-                                modifier = Modifier.size(54.dp),
-                                imageVector = Icons.Rounded.ViewModule,
-                                contentDescription = null
-                            )
-                        }
-                    }
-                }
-
-                val matchedPage = pages.find { it.cid == lastPlayedCid }
-                if (matchedPage != null && pages.size > 1) {
-                    item {
-                        // 分P历史播放按钮
-                        /*
-                        VideoPartRowButton(
-                            onClick = { onClick(matchedPage.cid) }
-                        ) {
-                            Icon(
-                                modifier = Modifier.size(54.dp),
-                                imageVector = Icons.Rounded.History,
-                                contentDescription = null
-                            )
-                        }
-                        */
-                    }
-                }
-
-                itemsIndexed(items = pages, key = { _, page -> page.cid }) { index, page ->
-                    VideoPartButton(
-                        modifier = Modifier
-                            .ifElse(index == 0, Modifier.focusRequester(focusRequester))
-                            .width(300.dp),
-                        index = index + 1,
-                        title = page.title,
-                        played = if (page.cid == lastPlayedCid) lastPlayedTime else 0,
-                        duration = page.duration,
-                        onClick = { onClick(page.cid) }
-                    )
-                }
+                Icon(
+                    modifier = Modifier.size(54.dp),
+                    imageVector = Icons.Rounded.ZoomOutMap,
+                    contentDescription = "打开合集列表",
+                    tint = Color.White
+                )
             }
         }
-
-        PagedVideoInfinityListDialog(
-            show = showPartListDialog,
-            onHideDialog = { showPartListDialog = false },
-            items = pages,
-            title = "分 P 列表",
-            itemKey = { it.cid }
-        ) { itemModifier, absoluteIndex, page ->
-            VideoPartButton(
-                modifier = itemModifier,
-                index = absoluteIndex + 1,
-                title = page.title,
-                played = 0,
-                duration = page.duration,
-                onClick = { onClick(page.cid) }
-            )
-        }
-    }
-
-    @Composable
-    fun VideoUgcSeasonRow(
-        modifier: Modifier = Modifier,
-        title: String,
-        episodes: List<Episode>,
-        lastPlayedCid: Long = 0,
-        lastPlayedTime: Int = 0,
-        enableUgcListDialog: Boolean = false,
-        onClick: (avid: Long, cid: Long) -> Unit
-    ) {
-        val focusRequester = remember { FocusRequester() }
-        var hasFocus by remember { mutableStateOf(false) }
-        var showUgcListDialog by remember { mutableStateOf(false) }
-        val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
-        val titleFontSize by animateFloatAsState(
-            targetValue = 14f,
-            label = "title font size"
-        )
-
-        // 计算当前正在播放的视频在列表中的索引
-        val playingIndex = remember(episodes, lastPlayedCid) {
-            episodes.indexOfFirst { it.cid == lastPlayedCid }
-        }
-
         Column(
-            modifier = modifier
-                .padding(start = 50.dp)
-                .onFocusChanged { hasFocus = it.hasFocus },
-            verticalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp),
+            verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = title,
-                fontSize = titleFontSize.sp,
-                color = titleColor
+                text = "展开全部",
+                style = MaterialTheme.typography.titleMedium,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
             )
 
-            LazyRow(
-                modifier = Modifier
-                    .padding(top = 15.dp)
-                    .focusRestorer(focusRequester),
-                contentPadding = PaddingValues(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(20.dp)
-            ) {
-                if (enableUgcListDialog) {
-                    item {
-                        VideoPartRowButton(
-                            onClick = { showUgcListDialog = true }
-                        ) {
-                            Icon(
-                                modifier = Modifier.size(54.dp),
-                                imageVector = Icons.Rounded.ViewModule,
-                                contentDescription = null
-                            )
-                        }
-                    }
-                }
+            Spacer(modifier = Modifier.height(4.dp))
 
-                val matchedEp = episodes.find { it.cid == lastPlayedCid }
-                if (matchedEp != null && episodes.size > 1) {
-                    item {
-                        // ugc分季历史播放按钮
-                        /*
-                        VideoPartRowButton(
-                            onClick = { onClick(matchedEp.aid, matchedEp.cid) }
-                        ) {
-                            Icon(
-                                modifier = Modifier.size(54.dp),
-                                imageVector = Icons.Rounded.History,
-                                contentDescription = null
-                            )
-                        }
-                        */
-                    }
-                }
-
-                itemsIndexed(items = episodes) { index, episode ->
-
-                    // 为每个分P独立计算播放进度
-                    val currentPlayedTime = when {
-                        // 如果没有播放记录，所有分P进度都为0
-                        playingIndex == -1 -> 0
-                        // 如果当前分P在正在播放的分P之前，说明已经看完，进度为满
-                        index < playingIndex -> episode.duration
-                        // 如果当前分P就是正在播放的分P，使用历史记录的进度
-                        index == playingIndex -> lastPlayedTime
-                        // 如果当前分P在正在播放的分P之后，说明还没看，进度为0
-                        else -> 0
-                    }
-
-                    VideoPartButton(
-                        modifier = Modifier
-                            .ifElse(index == 0, Modifier.focusRequester(focusRequester))
-                            // .width(200.dp),
-                            .width(300.dp),
-                        index = index + 1,
-                        title = episode.title,
-                        played = currentPlayedTime,
-                        duration = episode.duration,
-                        onClick = { onClick(episode.aid, episode.cid) }
-                    )
-                }
-            }
-        }
-
-        PagedVideoInfinityListDialog(
-            show = showUgcListDialog,
-            onHideDialog = { showUgcListDialog = false },
-            items = episodes,
-            title = "合集列表",
-            itemKey = { it.cid }
-        ) { itemModifier, absoluteIndex, episode ->
-            VideoPartButton(
-                modifier = itemModifier,
-                index = absoluteIndex + 1,
-                title = episode.title,
-                played = 0,
-                duration = episode.duration,
-                onClick = { onClick(episode.aid, episode.cid) }
+            Text(
+                text = "占位",
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                color = Color.Transparent,
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }
+}
+
+@Composable
+fun VideoUgcSeasonRow(
+    modifier: Modifier = Modifier,
+    title: String,
+    episodes: List<Episode>,
+    onEpisodeClick: (Episode) -> Unit,
+    onAddWatchLater: ((Long) -> Unit)? = null,
+    onGoToDetailPage: ((Long) -> Unit)? = null,
+    onGoToUpPage: ((Long, String) -> Unit)? = null,
+    rowStateKey: String? = null,
+) {
+    if (episodes.isEmpty()) return
+
+    var showUgcListDialog by remember { mutableStateOf(false) }
+
+    val resolvedRowStateKey = rowStateKey ?: remember(title, episodes) {
+        val firstAid = episodes.firstOrNull()?.aid ?: 0L
+        "VideoUgcSeasonRow:$title:$firstAid:${episodes.size}"
+    }
+
+    val videos = remember(episodes) { episodes.map { it.toVideoCardData() } }
+
+    val episodeByIdentity = remember(episodes, videos) {
+        episodes.zip(videos).associate { (episode, videoData) ->
+            Triple(videoData.avid, videoData.cid ?: -1L, videoData.epId ?: -1) to episode
+        }
+    }
+
+    VideosRowCore(
+        modifier = modifier,
+        header = title,
+        fontSize = 16.sp,
+        videos = videos,
+        onVideoClicked = { videoData ->
+            episodeByIdentity[
+                Triple(videoData.avid, videoData.cid ?: -1L, videoData.epId ?: -1)
+            ]?.let { episode ->
+                onEpisodeClick(episode)
+            }
+        },
+        onAddWatchLater = onAddWatchLater,
+        onGoToDetailPage = onGoToDetailPage,
+        onGoToUpPage = onGoToUpPage,
+        enableHorizontalWrap = false,
+        rowStateKey = resolvedRowStateKey,
+        leadingItem = if (episodes.size > 6) {
+            { itemModifier ->
+                UgcSeasonLeadingButton(
+                    modifier = itemModifier,
+                    onClick = { showUgcListDialog = true }
+                )
+            }
+        } else {
+            null
+        }
+    )
+
+    PagedVideoInfinityListDialog(
+        show = showUgcListDialog,
+        onHideDialog = { showUgcListDialog = false },
+        items = videos,
+        title = title,
+        itemKey = { Triple(it.avid, it.cid ?: -1L, it.epId ?: -1) },
+        columnCount = 5,
+        pageSize = 35,
+        verticalSpacing = 12,
+        horizontalSpacing = 24,
+        contentPadding = PaddingValues(
+            start = 24.dp,
+            top = 24.dp,
+            end = 24.dp,
+            bottom = 64.dp
+        ),
+    ) { itemModifier, _, videoData ->
+            SmallVideoCard(
+                modifier = Modifier,
+                frameModifier = itemModifier,
+                data = videoData,
+                titleMaxLines = 3,
+                onClick = {
+                    episodeByIdentity[
+                        Triple(videoData.avid, videoData.cid ?: -1L, videoData.epId ?: -1)
+                    ]?.let { episode ->
+                        showUgcListDialog = false
+                        onEpisodeClick(episode)
+                    }
+                },
+                onAddWatchLater = onAddWatchLater?.let { callback ->
+                    { callback(videoData.avid) }
+                },
+                onGoToDetailPage = onGoToDetailPage?.let { callback ->
+                    { callback(videoData.avid) }
+                },
+                onGoToUpPage = if (videoData.upMid != null && onGoToUpPage != null) {
+                    { onGoToUpPage(videoData.upMid, videoData.upName) }
+                } else {
+                    null
+                }
+            )
+    }
+}
 
 private data class PendingFocusTarget(
     val tabIndex: Int,
@@ -1423,7 +1478,7 @@ fun <T> PagedVideoInfinityListDialog(
     pageSize: Int = 35,
     columnCount: Int = 5,
     contentPadding: PaddingValues = PaddingValues(16.dp),
-    verticalSpacing: Int = 20,
+    verticalSpacing: Int = 10,
     horizontalSpacing: Int = 20,
     tabTextBuilder: (startIndex: Int, endIndex: Int) -> String = { startIndex, endIndex ->
         if (startIndex == endIndex) "P$startIndex" else "P$startIndex-$endIndex"
@@ -1654,8 +1709,10 @@ fun <T> PagedVideoInfinityListDialog(
                 modifier = modifier
                     .fillMaxSize()
                     .background(Color.Black),
-                color = MaterialTheme.colorScheme.surface,
-                shape = MaterialTheme.shapes.extraLarge
+                colors = SurfaceDefaults.colors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                shape = RectangleShape
             ) {
                 Column(
                     modifier = Modifier
@@ -1743,7 +1800,9 @@ fun <T> PagedVideoInfinityListDialog(
 
                     SmallVideoCardGridHost(
                         state = listState,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
                         columns = GridCells.Fixed(columnCount),
                         contentPadding = contentPadding,
                         verticalArrangement = Arrangement.spacedBy(verticalSpacing.dp),
@@ -1766,6 +1825,7 @@ fun <T> PagedVideoInfinityListDialog(
 
                             itemContent(
                                 Modifier
+                                    .fillMaxWidth()
                                     .focusRequester(itemRequesterFor(absoluteIndex))
                                     .onFocusChanged {
                                         if (it.hasFocus) {
@@ -1846,9 +1906,6 @@ fun <T> PagedVideoInfinityListDialog(
         }
     }
 }
-
-
-
 
 @Preview
 @Composable

@@ -39,7 +39,7 @@ internal fun CapsuleStatButtonContent(
         Box(
             modifier = Modifier
                 .fillMaxHeight()
-                .aspectRatio(1f),
+                .width(52.dp),
             contentAlignment = Alignment.Center
         ) {
             icon()

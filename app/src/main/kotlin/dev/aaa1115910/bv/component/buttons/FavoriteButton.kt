@@ -60,7 +60,7 @@ fun FavoriteButton(
     val pillShape = RoundedCornerShape(percent = 50)
 
     Button(
-        modifier = modifier.height(52.dp),
+        modifier = modifier.height(44.dp),
         contentPadding = PaddingValues(0.dp),
         scale = ButtonDefaults.scale(
             focusedScale = 1f,

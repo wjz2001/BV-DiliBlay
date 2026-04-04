@@ -26,6 +26,9 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -46,6 +49,7 @@ private class RowWrapController {
 
     var enabled: Boolean = true
     var itemCount: Int = 0
+    var leadingRequester: FocusRequester? = null
 
     fun requesterFor(index: Int): FocusRequester {
         return requesters.getOrPut(index) { FocusRequester() }
@@ -54,42 +58,63 @@ private class RowWrapController {
     fun Modifier.modifierFor(index: Int): Modifier {
         if (index !in 0 until itemCount) return this
 
-        // 无论是否启用循环，都先给每个 item 挂上自己的 requester，
-        // 这样 focusRestorer 可以稳定回到第一个 item。
-        val base = this.focusRequester(requesterFor(index))
-
-        if (!enabled || itemCount <= 1) return base
-
         val lastIndex = itemCount - 1
-        return base.focusProperties {
-            left = requesterFor(if (index == 0) lastIndex else index - 1)
-            right = requesterFor(if (index == lastIndex) 0 else index + 1)
-        }
+
+        return this
+            .focusRequester(requesterFor(index))
+            .focusProperties {
+                when {
+                    index == 0 && leadingRequester != null -> {
+                        left = leadingRequester!!
+                    }
+
+                    index > 0 -> {
+                        left = requesterFor(index - 1)
+                    }
+
+                    enabled && itemCount > 1 -> {
+                        left = requesterFor(lastIndex)
+                    }
+                }
+
+                when {
+                    index == lastIndex && enabled && itemCount > 1 -> {
+                        right = requesterFor(0)
+                    }
+
+                    index < lastIndex -> {
+                        right = requesterFor(index + 1)
+                    }
+                }
+            }
     }
 }
 
+private fun videoCardKey(item: VideoCardData): Any {
+    return Triple(item.avid, item.cid ?: -1L, item.epId ?: -1)
+}
+
 @Composable
-fun VideosRow(
+fun VideosRowCore(
     modifier: Modifier = Modifier,
     header: String,
+    fontSize: TextUnit = 14.sp,
     videos: List<VideoCardData>,
     onVideoClicked: (VideoCardData) -> Unit,
     onAddWatchLater: ((Long) -> Unit)? = null,
     onGoToDetailPage: ((Long) -> Unit)? = null,
     onGoToUpPage: ((Long, String) -> Unit)? = null,
     enableHorizontalWrap: Boolean = true,
+    rowStateKey: String,
+    leadingItem: (@Composable (Modifier) -> Unit)? = null,
 ) {
-    val viewModel: SmallVideoCardGridViewModel = koinViewModel()
+    val viewModel: SmallVideoCardGridViewModel = koinViewModel(key = rowStateKey)
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val coAuthorsDialogState = rememberCoAuthorsDialogState()
 
     var hasFocus by remember { mutableStateOf(false) }
     val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
-    val titleFontSize by animateFloatAsState(
-        targetValue = 14f,
-        label = "title font size"
-    )
 
     val navigateUp = remember(context, onGoToUpPage) {
         onGoToUpPage ?: { mid: Long, name: String ->
@@ -100,12 +125,14 @@ fun VideosRow(
     val favoriteFolders = remember { mutableStateListOf<FavoriteFolderMetadata>() }
     val selectedFolderIds = remember { mutableStateListOf<Long>() }
 
+    val leadingFocusRequester = remember { FocusRequester() }
+    val fallbackFocusRequester = remember { FocusRequester() }
+
     val rowWrapController = remember { RowWrapController() }.apply {
         enabled = enableHorizontalWrap
         itemCount = videos.size
+        leadingRequester = leadingItem?.let { leadingFocusRequester }
     }
-
-    val fallbackFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
         viewModel.refreshCapabilities()
@@ -152,42 +179,63 @@ fun VideosRow(
         }
     }
 
-    CompositionLocalProvider(LocalSmallVideoCardGridViewModel provides viewModel) {
+    CompositionLocalProvider(
+        LocalDensity provides Density(
+            density = LocalDensity.current.density * 1.25f,
+            fontScale = LocalDensity.current.fontScale * 1.25f
+        ),
+        LocalSmallVideoCardGridViewModel provides viewModel
+    ) {
         Column(
             modifier = modifier.onFocusChanged { hasFocus = it.hasFocus }
         ) {
             Text(
                 modifier = Modifier.padding(start = 50.dp),
                 text = header,
-                fontSize = titleFontSize.sp,
+                fontSize = fontSize,
                 color = titleColor
             )
 
             LazyRow(
                 modifier = Modifier
-                    .padding(top = 15.dp)
+                    .padding(top = 8.dp)
                     .focusRestorer(
-                        if (videos.isNotEmpty()) {
-                            rowWrapController.requesterFor(0)
-                        } else {
-                            fallbackFocusRequester
+                        when {
+                            videos.isNotEmpty() -> rowWrapController.requesterFor(0)
+                            leadingItem != null -> leadingFocusRequester
+                            else -> fallbackFocusRequester
                         }
                     ),
                 horizontalArrangement = Arrangement.spacedBy(24.dp),
                 verticalAlignment = Alignment.Top,
                 contentPadding = PaddingValues(horizontal = 62.dp)
             ) {
+                if (leadingItem != null) {
+                    item(key = "${rowStateKey}_leading_item") {
+                        leadingItem(
+                            Modifier
+                                .focusRequester(leadingFocusRequester)
+                                .focusProperties {
+                                    if (videos.isNotEmpty()) {
+                                        right = rowWrapController.requesterFor(0)
+                                    }
+                                }
+                        )
+                    }
+                }
+
                 itemsIndexed(
                     items = videos,
-                    key = { _, item -> item.avid }
+                    key = { _, item -> videoCardKey(item) }
                 ) { index, videoData ->
                     SmallVideoCard(
                         modifier = with(rowWrapController) {
                             Modifier
-                                .width(200.dp)
+                                .width(230.dp)
                                 .modifierFor(index)
                         },
                         data = videoData,
+                        titleMaxLines = 1,
                         onClick = { onVideoClicked(videoData) },
                         coverDensityMultiplier = 1f,
                         coverFontScaleMultiplier = 1f,
@@ -223,5 +271,36 @@ fun VideosRow(
         onClickAuthor = { mid, name ->
             viewModel.onCoAuthorClicked(mid, name)
         }
+    )
+}
+
+@Composable
+fun VideosRow(
+    modifier: Modifier = Modifier,
+    header: String,
+    videos: List<VideoCardData>,
+    onVideoClicked: (VideoCardData) -> Unit,
+    onAddWatchLater: ((Long) -> Unit)? = null,
+    onGoToDetailPage: ((Long) -> Unit)? = null,
+    onGoToUpPage: ((Long, String) -> Unit)? = null,
+    enableHorizontalWrap: Boolean = true,
+    rowStateKey: String? = null,
+) {
+    val resolvedRowStateKey = rowStateKey ?: remember(header, videos) {
+        val firstAid = videos.firstOrNull()?.avid ?: 0L
+        "VideosRow:$header:$firstAid:${videos.size}"
+    }
+
+    VideosRowCore(
+        modifier = modifier,
+        header = header,
+        videos = videos,
+        onVideoClicked = onVideoClicked,
+        onAddWatchLater = onAddWatchLater,
+        onGoToDetailPage = onGoToDetailPage,
+        onGoToUpPage = onGoToUpPage,
+        enableHorizontalWrap = enableHorizontalWrap,
+        rowStateKey = resolvedRowStateKey,
+        leadingItem = null
     )
 }
