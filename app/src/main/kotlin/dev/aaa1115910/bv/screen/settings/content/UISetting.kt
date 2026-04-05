@@ -44,6 +44,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.HomeTopNavItem
+import dev.aaa1115910.bv.component.settings.SettingCycleListItem
 import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
@@ -64,6 +65,7 @@ fun UISetting(
     var showVideoInfo by remember { mutableStateOf(Prefs.showVideoInfo) }
     var showPersistentSeek by remember { mutableStateOf(Prefs.showPersistentSeek) }
     var focusAlwaysCenter by remember { mutableStateOf(Prefs.focusAlwaysCenter) }
+    var blackTheme by remember { mutableStateOf(Prefs.blackTheme) }
 
     val density by Prefs.densityFlow.collectAsState(context.resources.displayMetrics.widthPixels / 960f)
     var selectedFirstHomeTopNavItem by remember { mutableStateOf(Prefs.firstHomeTopNavItem) }
@@ -114,13 +116,45 @@ fun UISetting(
                     )
                 }
                 item {
-                    SettingSwitchListItem(
+                    SettingCycleListItem(
                         title = stringResource(R.string.settings_ui_focus_always_center_title),
-                        supportText = stringResource(R.string.settings_ui_focus_always_center_text),
-                        checked = focusAlwaysCenter,
-                        onCheckedChange = {
+                        options = listOf(false, true),
+                        selectedOption = focusAlwaysCenter,
+                        getSupportText = {
+                            if (it) {
+                                "选中的内容始终保持在屏幕中间"
+                            } else {
+                                "只有移动到边缘时才滚动（更流畅）"
+                            }
+                        },
+                        getTrailingText = {
+                            if (it) {
+                                "Pivot"
+                            } else {
+                                "KeepVisible"
+                            }
+                        },
+                        onSelectedChange = {
                             focusAlwaysCenter = it
                             Prefs.focusAlwaysCenter = it
+                        }
+                    )
+                }
+                item {
+                    SettingCycleListItem(
+                        title = "主题设置",
+                        options = listOf(true, false),
+                        selectedOption = blackTheme,
+                        getTrailingText = {
+                            if (it) {
+                                "黑色"
+                            } else {
+                                "白色"
+                            }
+                        },
+                        onSelectedChange = {
+                            blackTheme = it
+                            Prefs.blackTheme = it
                         }
                     )
                 }
