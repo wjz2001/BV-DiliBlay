@@ -1,13 +1,14 @@
 package dev.aaa1115910.bv.component.videocard
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -16,7 +17,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -25,6 +29,11 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
@@ -42,12 +51,15 @@ import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.SmallVideoCardGridEvent
 import dev.aaa1115910.bv.viewmodel.SmallVideoCardGridViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 private class RowWrapController {
     private val requesters = mutableMapOf<Int, FocusRequester>()
 
-    var enabled: Boolean = true
     var itemCount: Int = 0
     var leadingRequester: FocusRequester? = null
 
@@ -55,6 +67,15 @@ private class RowWrapController {
         return requesters.getOrPut(index) { FocusRequester() }
     }
 
+    /**
+     * 这里只处理“相邻项”和 leadingItem：
+     * - 第一个左边 -> leadingItem（如果有）
+     * - 中间项左右 -> 前后项
+     * - 不在这里做首尾互跳
+     *
+     * 首尾循环交给 onPreviewKeyEvent + scrollToItem + requestFocus，
+     * 这样对 LazyRow 才是稳定的。
+     */
     fun Modifier.modifierFor(index: Int): Modifier {
         if (index !in 0 until itemCount) return this
 
@@ -71,23 +92,30 @@ private class RowWrapController {
                     index > 0 -> {
                         left = requesterFor(index - 1)
                     }
-
-                    enabled && itemCount > 1 -> {
-                        left = requesterFor(lastIndex)
-                    }
                 }
 
-                when {
-                    index == lastIndex && enabled && itemCount > 1 -> {
-                        right = requesterFor(0)
-                    }
-
-                    index < lastIndex -> {
-                        right = requesterFor(index + 1)
-                    }
+                if (index < lastIndex) {
+                    right = requesterFor(index + 1)
                 }
             }
     }
+}
+
+private suspend fun requestFocusAfterScroll(
+    listState: LazyListState,
+    targetListIndex: Int,
+    targetVideoIndex: Int,
+    controller: RowWrapController
+) {
+    listState.scrollToItem(targetListIndex)
+
+    snapshotFlow {
+        listState.layoutInfo.visibleItemsInfo.any { it.index == targetListIndex }
+    }.filter { it }.first()
+
+    withFrameNanos { }
+
+    controller.requesterFor(targetVideoIndex).requestFocus()
 }
 
 private fun videoCardKey(item: VideoCardData): Any {
@@ -107,11 +135,13 @@ fun VideosRowCore(
     enableHorizontalWrap: Boolean = true,
     rowStateKey: String,
     leadingItem: (@Composable (Modifier) -> Unit)? = null,
+    listState: LazyListState = rememberLazyListState(),
 ) {
     val viewModel: SmallVideoCardGridViewModel = koinViewModel(key = rowStateKey)
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val coAuthorsDialogState = rememberCoAuthorsDialogState()
+    val scope = rememberCoroutineScope()
 
     var hasFocus by remember { mutableStateOf(false) }
     val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
@@ -129,10 +159,12 @@ fun VideosRowCore(
     val fallbackFocusRequester = remember { FocusRequester() }
 
     val rowWrapController = remember { RowWrapController() }.apply {
-        enabled = enableHorizontalWrap
         itemCount = videos.size
         leadingRequester = leadingItem?.let { leadingFocusRequester }
     }
+
+    val leadingSlotOffset = if (leadingItem != null) 1 else 0
+    var wrapAroundJob by remember { mutableStateOf<Job?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.refreshCapabilities()
@@ -197,6 +229,7 @@ fun VideosRowCore(
             )
 
             LazyRow(
+                state = listState,
                 modifier = Modifier
                     .padding(top = 8.dp)
                     .focusRestorer(
@@ -228,11 +261,63 @@ fun VideosRowCore(
                     items = videos,
                     key = { _, item -> videoCardKey(item) }
                 ) { index, videoData ->
+                    val lastIndex = videos.lastIndex
+
                     SmallVideoCard(
                         modifier = with(rowWrapController) {
                             Modifier
-                                .width(230.dp)
+                                .width(200.dp)
                                 .modifierFor(index)
+                                .onPreviewKeyEvent { event ->
+                                    if (!enableHorizontalWrap) {
+                                        return@onPreviewKeyEvent false
+                                    }
+                                    if (videos.size <= 1) {
+                                        return@onPreviewKeyEvent false
+                                    }
+                                    if (event.type != KeyEventType.KeyDown) {
+                                        return@onPreviewKeyEvent false
+                                    }
+                                    if (wrapAroundJob?.isActive == true) {
+                                        return@onPreviewKeyEvent (
+                                                event.key == Key.DirectionLeft ||
+                                                        event.key == Key.DirectionRight
+                                                )
+                                    }
+
+                                    when {
+                                        // 没有 leadingItem 时，第一个视频按左，循环到最后一个视频
+                                        event.key == Key.DirectionLeft &&
+                                                index == 0 &&
+                                                leadingItem == null -> {
+                                            wrapAroundJob = scope.launch {
+                                                requestFocusAfterScroll(
+                                                    listState = listState,
+                                                    targetListIndex = lastIndex,
+                                                    targetVideoIndex = lastIndex,
+                                                    controller = rowWrapController
+                                                )
+                                            }
+                                            true
+                                        }
+
+                                        // 最后一个视频按右，循环到第一个视频
+                                        event.key == Key.DirectionRight &&
+                                                index == lastIndex -> {
+                                            wrapAroundJob = scope.launch {
+                                                requestFocusAfterScroll(
+                                                    listState = listState,
+                                                    targetListIndex = leadingSlotOffset,
+                                                    targetVideoIndex = 0,
+                                                    controller = rowWrapController
+                                                )
+                                            }
+                                            true
+                                        }
+
+                                        else -> false
+                                    }
+                                }
                         },
                         data = videoData,
                         titleMaxLines = 1,
