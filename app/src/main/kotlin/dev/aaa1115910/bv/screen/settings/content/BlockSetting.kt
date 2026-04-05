@@ -46,7 +46,8 @@ import kotlinx.coroutines.withContext
 
 @Composable
 fun BlockSetting(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    contentActive: Boolean = false
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
@@ -84,8 +85,8 @@ fun BlockSetting(
         }
     }
 
-    LaunchedEffect(hasSnapshot, updating) {
-        if (!updating) {
+    LaunchedEffect(contentActive) {
+        if (contentActive) {
             updateFocusRequester.requestFocus(scope)
         }
     }

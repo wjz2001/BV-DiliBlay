@@ -26,6 +26,7 @@ import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.settings.LogsActivity
 import dev.aaa1115910.bv.component.settings.CookiesDialog
+import dev.aaa1115910.bv.component.settings.SettingCycleListItem
 import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
@@ -39,7 +40,6 @@ fun OtherSetting(
     val scrollState = rememberScrollState()
 
     var showCookiesDialog by remember { mutableStateOf(false) }
-    var showPreferedApiDialog by remember { mutableStateOf(false) }
 
     var showFps by remember { mutableStateOf(Prefs.showFps) }
     var inIncognitoMode by remember { mutableStateOf(Prefs.incognitoMode) }
@@ -59,10 +59,20 @@ fun OtherSetting(
         )
         Spacer(modifier = Modifier.height(12.dp))
 
-        SettingListItem(
+        SettingCycleListItem(
             title = "接口选择",
-            supportText = "当前：${selectedApi.name}",
-            onClick = { showPreferedApiDialog = true }
+            options = listOf(ApiType.App, ApiType.Web),
+            selectedOption = selectedApi,
+            getSupportText = {
+                when (it) {
+                    ApiType.App -> "使用 App 接口"
+                    ApiType.Web -> "使用 Web 接口"
+                }
+            },
+            onSelectedChange = {
+                Prefs.apiType = it
+                selectedApi = it
+            }
         )
 
         SettingListItem(
@@ -117,17 +127,4 @@ fun OtherSetting(
         show = showCookiesDialog,
         onHideDialog = { showCookiesDialog = false }
     )
-
-    if (showPreferedApiDialog) {
-        OptionDialog(
-            options = ApiType.entries.toTypedArray(),
-            selectedOption = selectedApi,
-            onDismiss = { showPreferedApiDialog = false },
-            onSelect = {
-                Prefs.apiType = it
-                selectedApi = it
-            },
-            getDisplayName = { it.name }
-        )
-    }
 }

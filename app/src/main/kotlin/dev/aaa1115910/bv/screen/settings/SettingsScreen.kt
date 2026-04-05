@@ -58,6 +58,7 @@ fun SettingsScreen(
 ) {
     var currentMenu by remember { mutableStateOf(SettingsMenuNavItem.AudioVideo) }
     var focusInNav by remember { mutableStateOf(false) }
+    var focusInContent by remember { mutableStateOf(false) }
 
     CompositionLocalProvider(
         LocalDensity provides Density(
@@ -110,6 +111,8 @@ fun SettingsScreen(
                         .weight(5f)
                         .fillMaxSize(),
                     onBackNav = { focusInNav = true },
+                    onContentFocusChanged = { focusInContent = it },
+                    contentActive = focusInContent,
                     currentMenu = currentMenu
                 )
             }
@@ -179,6 +182,8 @@ enum class SettingsMenuNavItem(private val strRes: Int) {
 fun SettingContent(
     modifier: Modifier = Modifier,
     onBackNav: () -> Unit,
+    onContentFocusChanged: (Boolean) -> Unit,
+    contentActive: Boolean,
     currentMenu: SettingsMenuNavItem
 ) {
     Box(
@@ -187,6 +192,7 @@ fun SettingContent(
     ) {
         SettingsDetail(
             modifier = Modifier.fillMaxSize(),
+            onContentFocusChanged = onContentFocusChanged,
             onFocusBackMenuList = {
                 onBackNav()
             }
@@ -196,7 +202,7 @@ fun SettingContent(
                 SettingsMenuNavItem.Info -> InfoSetting()
                 SettingsMenuNavItem.About -> AboutSetting()
                 SettingsMenuNavItem.Other -> OtherSetting()
-                SettingsMenuNavItem.Block -> BlockSetting()
+                SettingsMenuNavItem.Block -> BlockSetting(contentActive = contentActive)
                 SettingsMenuNavItem.Network -> NetworkSetting()
                 SettingsMenuNavItem.PlayerType -> PlayerTypeSetting()
                 SettingsMenuNavItem.UI -> UISetting()
@@ -252,12 +258,14 @@ fun SettingsMenuButtonPreview() {
 @Composable
 fun SettingsDetail(
     modifier: Modifier = Modifier,
+    onContentFocusChanged: (Boolean) -> Unit,
     onFocusBackMenuList: () -> Unit,
     content: @Composable () -> Unit
 ) {
     Box(
         modifier = modifier
             .fillMaxSize()
+            .onFocusChanged { onContentFocusChanged(it.hasFocus) }
             .onPreviewKeyEvent {
                 val result = it.key.nativeKeyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT
                 if (result) onFocusBackMenuList()
