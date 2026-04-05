@@ -16,9 +16,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.tooling.preview.Preview
@@ -29,6 +30,8 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import dev.aaa1115910.biliapi.entity.video.VideoShot
+import dev.aaa1115910.bv.entity.VideoFlip
+import dev.aaa1115910.bv.entity.VideoRotation
 import dev.aaa1115910.bv.util.SpriteFrame
 import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.getSpriteFrame
@@ -42,7 +45,9 @@ fun VideoShot(
     imageCache: VideoShotImageCache,
     position: Long,
     duration: Long,
-    coercedOffset: Dp = 0.dp
+    coercedOffset: Dp = 0.dp,
+    videoRotation: VideoRotation? = null,
+    videoFlip: VideoFlip? = null
 ) {
     val view = LocalView.current
     var spriteFrame by remember { mutableStateOf<SpriteFrame?>(null) }
@@ -81,7 +86,9 @@ fun VideoShot(
                             placeable.placeRelative(x = xPosition, y = 0)
                         }
                     },
-                spriteFrame = frame
+                spriteFrame = frame,
+                videoRotation = videoRotation,
+                videoFlip = videoFlip
             )
         }
     }
@@ -90,12 +97,19 @@ fun VideoShot(
 @Composable
 fun VideoShotImage(
     modifier: Modifier = Modifier,
-    spriteFrame: SpriteFrame
+    spriteFrame: SpriteFrame,
+    videoRotation: VideoRotation? = null,
+    videoFlip: VideoFlip? = null
 ) {
     val view = LocalView.current
 
-    // 计算纵横比：确保预览框比例正确
-    val aspectRatio = spriteFrame.srcRect.width.toFloat() / spriteFrame.srcRect.height
+    val baseAspectRatio = spriteFrame.srcRect.width.toFloat() / spriteFrame.srcRect.height
+    val isQuarterTurn = videoRotation?.isQuarterTurn == true
+    val aspectRatio = if (isQuarterTurn) 1f / baseAspectRatio else baseAspectRatio
+
+    val rotationDegrees = -(videoRotation?.effectDegreesCounterClockwise ?: 0f)
+    val flipScaleX = videoFlip?.scaleX ?: 1f
+    val flipScaleY = videoFlip?.scaleY ?: 1f
 
     Spacer(
         modifier = modifier
@@ -104,21 +118,33 @@ fun VideoShotImage(
             .shadow(4.dp, MaterialTheme.shapes.large)
             .clip(MaterialTheme.shapes.large)
             .drawWithCache {
+                val dstWidth = if (isQuarterTurn) size.height.roundToInt() else size.width.roundToInt()
+                val dstHeight = if (isQuarterTurn) size.width.roundToInt() else size.height.roundToInt()
+
                 onDrawBehind {
-                    // 直接绘制大图的局部区域到画布，零像素拷贝
-                    drawImage(
-                        image = spriteFrame.spriteSheet,
-                        srcOffset = spriteFrame.srcRect.topLeft,
-                        srcSize = spriteFrame.srcRect.size,
-                        dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
-                        filterQuality = FilterQuality.Low
-                    )
+                    withTransform({
+                        translate(left = center.x, top = center.y)
+                        rotate(rotationDegrees)
+                        scale(scaleX = flipScaleX, scaleY = flipScaleY)
+                        translate(
+                            left = -dstWidth / 2f,
+                            top = -dstHeight / 2f
+                        )
+                    }) {
+                        drawImage(
+                            image = spriteFrame.spriteSheet,
+                            srcOffset = spriteFrame.srcRect.topLeft,
+                            srcSize = spriteFrame.srcRect.size,
+                            dstSize = IntSize(dstWidth, dstHeight),
+                            filterQuality = FilterQuality.Low
+                        )
+                    }
 
                     if (view.isInEditMode) {
                         drawLine(
                             Color.White,
                             Offset(center.x, 0f),
-                            Offset(center.y, size.height),
+                            Offset(center.x, size.height),
                             2f
                         )
                     }
@@ -143,7 +169,9 @@ private fun VideoShotPreview(@PreviewParameter(VideoShotProgressProvider::class)
                 ),
                 imageCache = VideoShotImageCache(),
                 position = data.second,
-                duration = data.first
+                duration = data.first,
+                videoRotation = null,
+                videoFlip = null
             )
             VideoProgressSeek(
                 duration = data.first,

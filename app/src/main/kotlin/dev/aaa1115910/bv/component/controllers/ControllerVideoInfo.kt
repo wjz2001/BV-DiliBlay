@@ -68,6 +68,8 @@ import dev.aaa1115910.bv.ui.state.SeekerState
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.formatHourMinSec
+import dev.aaa1115910.bv.entity.VideoFlip
+import dev.aaa1115910.bv.entity.VideoRotation
 import kotlinx.coroutines.delay
 import java.util.Calendar
 
@@ -84,6 +86,8 @@ fun ControllerVideoInfo(
     currentPlaySpeed: Float,
     videoShot: VideoShot?,
     videoShotCache: VideoShotImageCache,
+    videoRotation: VideoRotation?,
+    videoFlip: VideoFlip?,
     fromSeason: Boolean,
     danmakuEnabled: Boolean,
     isLooping: Boolean,
@@ -142,6 +146,8 @@ fun ControllerVideoInfo(
                 secondTitle = secondTitle,
                 videoShot = videoShot,
                 videoShotCache = videoShotCache,
+                videoRotation = videoRotation,
+                videoFlip = videoFlip,
                 fromSeason = fromSeason,
                 danmakuEnabled = danmakuEnabled,
                 isLooping = isLooping,
@@ -246,6 +252,8 @@ fun ControllerVideoInfoBottom(
     seekerState: SeekerState,
     videoShot: VideoShot?,
     videoShotCache: VideoShotImageCache,
+    videoRotation: VideoRotation?,
+    videoFlip: VideoFlip?,
     fromSeason: Boolean,
     danmakuEnabled: Boolean,
     isLooping: Boolean,
@@ -269,7 +277,6 @@ fun ControllerVideoInfoBottom(
     val buttonsFocusRequester = remember { FocusRequester() }
     val firstIconFocusRequester = remember { FocusRequester() }
 
-
     var isSeekFocused by remember { mutableStateOf(false) }
 
     LaunchedEffect(show) {
@@ -289,15 +296,8 @@ fun ControllerVideoInfoBottom(
     }
     Column(
         modifier = modifier
-            /*
-            .clip(
-                MaterialTheme.shapes.large
-
-            )
-             */
             .background(Color.Black.copy(alpha = 0.5f))
             .padding(top = 5.dp),
-
         verticalArrangement = Arrangement.Bottom
     ) {
         if (isSeeking && videoShot != null) {
@@ -308,7 +308,9 @@ fun ControllerVideoInfoBottom(
                 imageCache = videoShotCache,
                 position = goTime,
                 duration = seekerState.totalDuration,
-                coercedOffset = (-24).dp
+                coercedOffset = (-24).dp,
+                videoRotation = videoRotation,
+                videoFlip = videoFlip
             )
         }
         Row(
@@ -338,7 +340,6 @@ fun ControllerVideoInfoBottom(
                     shadow = Shadow(color = Color.Black, blurRadius = 1f),
                 ),
                 maxLines = 1,
-                // 如果文本超出1行，则以省略号(...)结尾
                 overflow = TextOverflow.Ellipsis
             )
             Text(
@@ -352,30 +353,9 @@ fun ControllerVideoInfoBottom(
                 ),
             )
         }
-        /*
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(
-                modifier = Modifier.padding(bottom = 2.dp, start = 24.dp),
-                text = "${if (isSeeking) goTime.formatHourMinSec() else seekerState.currentTime.formatHourMinSec()} / ${seekerState.totalDuration.formatHourMinSec()}",
-                color = Color.White,
-                style = TextStyle(
-                    shadow = Shadow(color = Color.Black, blurRadius = 1f),
-                ),
-            )
-        }
-         */
+
         Row(
             modifier = Modifier
-                // .padding(horizontal = 24.dp)
-                /*
-                .border(
-                    width = 1.dp,
-                    color = Color.White.copy(alpha = if (isSeekFocused) 1f else 0f),
-                    shape = RoundedCornerShape(8.dp)
-                )
-                */
                 .focusable()
                 .focusRequester(seekFocusRequester)
                 .onKeyEvent {
@@ -404,7 +384,6 @@ fun ControllerVideoInfoBottom(
 
                         Key.DirectionDown -> {
                             if (it.type == KeyEventType.KeyUp) return@onKeyEvent true
-                            //buttonsFocusRequester.requestFocus()
                             firstIconFocusRequester.requestFocus()
                             return@onKeyEvent true
                         }
@@ -427,15 +406,15 @@ fun ControllerVideoInfoBottom(
         }
 
         val icons = listOfNotNull(
-            // (R.drawable.play_pause_24px to "播放/暂停") to onPlayPause,
-            ((if (danmakuEnabled) (R.drawable.danmaku_on_24px) else (R.drawable.danmaku_off_24px)) to "弹幕开关") to onDanmakuSwitchChange,
+            ((if (danmakuEnabled) (R.drawable.danmaku_on_24px) else (R.drawable.danmaku_off_24px)) to "弹幕开关") to
+                    onDanmakuSwitchChange,
             (R.drawable.comment_24px to "评论") to onShowComments,
             (R.drawable.manage_history_24px to "时间跳转") to onShowTimeJump,
-            // (R.drawable.settings_24px to "打开设置") to onShowSettings,
-            // if (!fromSeason) (R.drawable.info_24px to "视频信息") to onGoToVideoInfo else null,
-            if (!fromSeason) ((if (hasMultipleCoAuthors) R.drawable.group_24px else R.drawable.contact_page_24px) to "up主页") to onGoToUpPage else null,
-            if (!fromSeason)(R.drawable.related_videos_24px to "相关视频") to onShowRelatedVideos else null,
-            ((if (isLooping) (R.drawable.repeat_one_on_24px) else (R.drawable.repeat_one_24px)) to "循环播放") to onToggleLoop,
+            if (!fromSeason) ((if (hasMultipleCoAuthors) R.drawable.group_24px else R.drawable.contact_page_24px) to
+                    "up主页") to onGoToUpPage else null,
+            if (!fromSeason) (R.drawable.related_videos_24px to "相关视频") to onShowRelatedVideos else null,
+            ((if (isLooping) (R.drawable.repeat_one_on_24px) else (R.drawable.repeat_one_24px)) to "循环播放") to
+                    onToggleLoop,
         )
 
         Row(
@@ -453,21 +432,21 @@ fun ControllerVideoInfoBottom(
                 .padding(horizontal = 24.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start)
         ) {
-        icons.forEachIndexed { index, (icon, function) ->
-            Surface(
-                modifier = if (index == 0) Modifier.focusRequester(firstIconFocusRequester) else Modifier,
-                onClick = function,
-                shape = ClickableSurfaceDefaults.shape(
-                    shape = MaterialTheme.shapes.small,
-                ),
-            ) {
-                Icon(
-                    painter = painterResource(id = icon.first),
-                    contentDescription = icon.second,
-                    modifier = Modifier.padding(5.dp)
-                )
+            icons.forEachIndexed { index, (icon, function) ->
+                Surface(
+                    modifier = if (index == 0) Modifier.focusRequester(firstIconFocusRequester) else Modifier,
+                    onClick = function,
+                    shape = ClickableSurfaceDefaults.shape(
+                        shape = MaterialTheme.shapes.small,
+                    ),
+                ) {
+                    Icon(
+                        painter = painterResource(id = icon.first),
+                        contentDescription = icon.second,
+                        modifier = Modifier.padding(5.dp)
+                    )
+                }
             }
-        }
         }
     }
 }
@@ -616,6 +595,8 @@ private fun ControllerVideoInfoPreview() {
             currentPlaySpeed = 1.0f,
             videoShot = null,
             videoShotCache = VideoShotImageCache(),
+            videoRotation = null,
+            videoFlip = null,
             fromSeason = false,
             danmakuEnabled = false,
             isLooping = false,
