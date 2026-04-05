@@ -447,6 +447,8 @@ fun VideoPlayerController(
                 currentPlaySpeed = uiState.playSpeed,
                 videoShot = uiState.videoShot,
                 videoShotCache = videoShotCache,
+                videoRotation = uiState.videoRotation,
+                videoFlip = uiState.videoFlip,
                 fromSeason = fromSeason,
                 danmakuEnabled = uiState.danmakuState.danmakuEnabled,
                 isLooping = isLooping,
