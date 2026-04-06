@@ -304,7 +304,7 @@ class HistoryViewModel(
                 updateJob?.join()
 
                 if (!isActive || noMore || !autoLoadEnabled) break
-                delay(Random.nextLong(500L, 2000L))
+                delay(Random.nextLong(100L, 200L))
             }
             isAutoLoading = false
         }

@@ -28,6 +28,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -220,10 +221,8 @@ fun FavoriteScreen(
         }
     }
 
-    // 1s gate：必须在“当前 Tab 按钮上停留 >= 1s”才允许开始请求
-    var selectedFolderIdForAutoLoad by remember { mutableStateOf<Long?>(null) }
     var autoLoadGateTargetFolderId by remember { mutableStateOf<Long?>(null) }
-    var autoLoadGateNonce by remember { mutableStateOf(0) }
+    var autoLoadGateNonce by remember { mutableIntStateOf(0) }
 
     fun clearExplicitSearchAutoLoadGate() {
         autoLoadGateTargetFolderId = null
@@ -238,6 +237,9 @@ fun FavoriteScreen(
     var showSearchDialog by remember { mutableStateOf(false) }
     var searchDialogFolderId by remember { mutableStateOf<Long?>(null) }
     var searchFieldHasFocus by remember { mutableStateOf(false) }
+
+    // 仅当关键词发生变化时，关闭搜索框后恢复一次搜索态自动补页
+    var forceResumeSearchAutoLoadFolderId by remember { mutableStateOf<Long?>(null) }
 
     fun activateFolderByClick(folderMetadata: FavoriteFolderMetadata) {
         val folderId = folderMetadata.id
@@ -268,20 +270,28 @@ fun FavoriteScreen(
 
     fun closeSearchDialog(apply: Boolean) {
         val folderId = searchDialogFolderId
+        var shouldResumeSearchAutoLoad = false
+
         if (apply && folderId != null) {
-            // 按返回关闭也要立刻应用搜索（用 debouncedQuery）
             val queryState = getQueryState(folderId)
             val beforeQuery = queryState.debouncedQuery.trim()
 
             onFolderSearchAction(folderId)
 
             val afterQuery = queryState.debouncedQuery.trim()
-            if (beforeQuery == afterQuery && afterQuery.isNotBlank()) {
-                armExplicitSearchAutoLoadGate(folderId)
-            }
+            val queryChanged = beforeQuery != afterQuery
+
+            shouldResumeSearchAutoLoad = queryChanged && afterQuery.isNotBlank()
         }
+
         showSearchDialog = false
         searchDialogFolderId = null
+
+        forceResumeSearchAutoLoadFolderId = if (shouldResumeSearchAutoLoad) {
+            folderId
+        } else {
+            null
+        }
     }
 
     // Dialog 打开时暂停加载；关闭后继续
@@ -313,12 +323,14 @@ fun FavoriteScreen(
         currentFolderId,
         currentFolderQuery,
         showSearchDialog,
-        focusOnTabs
+        focusOnTabs,
+        forceResumeSearchAutoLoadFolderId
     ) {
         val id = currentFolderId
         val inSearchMode = id != null && currentFolderQuery.isNotBlank()
 
         if (!inSearchMode) {
+            forceResumeSearchAutoLoadFolderId = null
             clearExplicitSearchAutoLoadGate()
             favoriteViewModel.allowAutoLoad = false
             favoriteViewModel.updateLoadingPaused(false)
@@ -328,6 +340,14 @@ fun FavoriteScreen(
         if (showSearchDialog) {
             favoriteViewModel.allowAutoLoad = true
             favoriteViewModel.updateLoadingPaused(true)
+            return@LaunchedEffect
+        }
+
+        if (forceResumeSearchAutoLoadFolderId == id) {
+            favoriteViewModel.allowAutoLoad = true
+            favoriteViewModel.updateLoadingPaused(false)
+            favoriteViewModel.startAutoLoad()
+            forceResumeSearchAutoLoadFolderId = null
             return@LaunchedEffect
         }
 
@@ -356,35 +376,6 @@ fun FavoriteScreen(
             }
     }
 
-   // 当“Tab 按钮焦点”稳定停留 1s 后，搜索态可开启自动加载
-    LaunchedEffect(
-        selectedFolderIdForAutoLoad,
-        currentFolderId,
-        currentFolderQuery,
-        showSearchDialog,
-        focusedFolderId,
-        focusOnTabs
-    ) {
-        val id = selectedFolderIdForAutoLoad ?: return@LaunchedEffect
-        if (!focusOnTabs) return@LaunchedEffect
-        if (currentFolderQuery.isBlank() || showSearchDialog) return@LaunchedEffect
-
-        delay(1000)
-
-        if (
-            focusOnTabs &&
-            selectedFolderIdForAutoLoad == id &&
-            currentFolderId == id &&
-            currentFolderQuery.isNotBlank() &&
-            !showSearchDialog &&
-            focusedFolderId == id
-        ) {
-            favoriteViewModel.allowAutoLoad = true
-            favoriteViewModel.updateLoadingPaused(false)
-            favoriteViewModel.startAutoLoad()
-        }
-    }
-
     LaunchedEffect(
         autoLoadGateTargetFolderId,
         autoLoadGateNonce,
@@ -392,21 +383,14 @@ fun FavoriteScreen(
         currentFolderQuery,
         showSearchDialog,
         focusedFolderId,
-        focusOnTabs,
-        selectedFolderIdForAutoLoad
+        focusOnTabs
     ) {
         val id = autoLoadGateTargetFolderId ?: return@LaunchedEffect
         if (currentFolderQuery.isBlank() || showSearchDialog) return@LaunchedEffect
 
         delay(1000)
 
-        val canResume = if (focusOnTabs) {
-            selectedFolderIdForAutoLoad == id &&
-                    currentFolderId == id &&
-                    focusedFolderId == id
-        } else {
-            currentFolderId == id
-        }
+        val canResume = currentFolderId == id
 
         if (
             autoLoadGateTargetFolderId == id &&
@@ -497,7 +481,6 @@ fun FavoriteScreen(
                         if (state.hasFocus) {
                             pendingBackToTabsFocus = false
                         } else {
-                            selectedFolderIdForAutoLoad = null
                             favoriteViewModel.syncFolderActivationToCurrent()
                         }
                     }
@@ -562,7 +545,6 @@ fun FavoriteScreen(
                             },
                         selected = displayFocusedFolderId == folderId,
                         onFocus = {
-                            selectedFolderIdForAutoLoad = folderId
                             if (focusedFolderId != folderId) {
                                 favoriteViewModel.onFolderFocused(folderId)
                             }

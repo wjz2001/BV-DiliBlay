@@ -163,7 +163,7 @@ class UpInfoViewModel(
 
                 if (ok) {
                     backoffMs = 0L
-                    delay(Random.nextLong(500L, 2000L))
+                    delay(Random.nextLong(100L, 200L))
                 } else {
                     backoffMs = if (backoffMs == 0L) 5_000L else (backoffMs * 2).coerceAtMost(60_000L)
                     delay(backoffMs)
