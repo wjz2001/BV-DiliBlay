@@ -1294,13 +1294,9 @@ class VideoPlayerV3ViewModel(
                 cid = newVideo.cid,
                 epid = newVideo.epid,
                 seasonId = newVideo.seasonId ?: 0,
-                title = newVideo.title,
-                videoRotation = null,
-                videoFlip = null
+                title = newVideo.title
             )
         }
-
-        applyVideoTransformToPlayer(rotation = null, flip = null)
 
         val immediatePartTitle = partTitleOverride
             ?.trim()
