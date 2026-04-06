@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.focusGroup
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -62,8 +63,12 @@ private class RowWrapController {
 
     var itemCount: Int = 0
     var leadingRequester: FocusRequester? = null
+    var firstItemRequesterOverride: FocusRequester? = null
 
     fun requesterFor(index: Int): FocusRequester {
+        if (index == 0 && firstItemRequesterOverride != null) {
+            return firstItemRequesterOverride!!
+        }
         return requesters.getOrPut(index) { FocusRequester() }
     }
 
@@ -127,6 +132,8 @@ fun VideosRowCore(
     modifier: Modifier = Modifier,
     header: String,
     fontSize: TextUnit = 14.sp,
+    focusedHeaderColor: Color? = null,
+    unfocusedHeaderColor: Color? = null,
     videos: List<VideoCardData>,
     onVideoClicked: (VideoCardData) -> Unit,
     onAddWatchLater: ((Long) -> Unit)? = null,
@@ -134,8 +141,12 @@ fun VideosRowCore(
     onGoToUpPage: ((Long, String) -> Unit)? = null,
     enableHorizontalWrap: Boolean = true,
     rowStateKey: String,
+    entryFocusRequester: FocusRequester? = null,
+    upFocusRequester: FocusRequester? = null,
+    downFocusRequester: FocusRequester? = null,
     leadingItem: (@Composable (Modifier) -> Unit)? = null,
     listState: LazyListState = rememberLazyListState(),
+    manageRowFocusInternally: Boolean = true,
 ) {
     val viewModel: SmallVideoCardGridViewModel = koinViewModel(key = rowStateKey)
     val context = LocalContext.current
@@ -144,7 +155,11 @@ fun VideosRowCore(
     val scope = rememberCoroutineScope()
 
     var hasFocus by remember { mutableStateOf(false) }
-    val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
+    val titleColor = if (hasFocus) {
+        focusedHeaderColor ?: Color.White
+    } else {
+        unfocusedHeaderColor ?: Color.White.copy(alpha = 0.6f)
+    }
 
     val navigateUp = remember(context, onGoToUpPage) {
         onGoToUpPage ?: { mid: Long, name: String ->
@@ -157,10 +172,12 @@ fun VideosRowCore(
 
     val leadingFocusRequester = remember { FocusRequester() }
     val fallbackFocusRequester = remember { FocusRequester() }
+    val firstVideoFocusRequester = entryFocusRequester ?: remember { FocusRequester() }
 
     val rowWrapController = remember { RowWrapController() }.apply {
         itemCount = videos.size
         leadingRequester = leadingItem?.let { leadingFocusRequester }
+        firstItemRequesterOverride = firstVideoFocusRequester
     }
 
     val leadingSlotOffset = if (leadingItem != null) 1 else 0
@@ -211,6 +228,12 @@ fun VideosRowCore(
         }
     }
 
+    val restoreFallback = when {
+        videos.isNotEmpty() -> firstVideoFocusRequester
+        leadingItem != null -> leadingFocusRequester
+        else -> fallbackFocusRequester
+    }
+
     CompositionLocalProvider(
         LocalDensity provides Density(
             density = LocalDensity.current.density * 1.25f,
@@ -218,8 +241,16 @@ fun VideosRowCore(
         ),
         LocalSmallVideoCardGridViewModel provides viewModel
     ) {
+        var columnModifier = modifier
+        if (manageRowFocusInternally) {
+            columnModifier = columnModifier
+                .focusRestorer(restoreFallback)
+                .focusGroup()
+        }
+        columnModifier = columnModifier.onFocusChanged { hasFocus = it.hasFocus }
+
         Column(
-            modifier = modifier.onFocusChanged { hasFocus = it.hasFocus }
+            modifier = columnModifier
         ) {
             Text(
                 modifier = Modifier.padding(start = 50.dp),
@@ -230,15 +261,7 @@ fun VideosRowCore(
 
             LazyRow(
                 state = listState,
-                modifier = Modifier
-                    .padding(top = 8.dp)
-                    .focusRestorer(
-                        when {
-                            videos.isNotEmpty() -> rowWrapController.requesterFor(0)
-                            leadingItem != null -> leadingFocusRequester
-                            else -> fallbackFocusRequester
-                        }
-                    ),
+                modifier = Modifier.padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(24.dp),
                 verticalAlignment = Alignment.Top,
                 contentPadding = PaddingValues(horizontal = 62.dp)
@@ -252,6 +275,8 @@ fun VideosRowCore(
                                     if (videos.isNotEmpty()) {
                                         right = rowWrapController.requesterFor(0)
                                     }
+                                    if (upFocusRequester != null) up = upFocusRequester
+                                    if (downFocusRequester != null) down = downFocusRequester
                                 }
                         )
                     }
@@ -268,6 +293,10 @@ fun VideosRowCore(
                             Modifier
                                 .width(200.dp)
                                 .modifierFor(index)
+                                .focusProperties {
+                                    if (upFocusRequester != null) up = upFocusRequester
+                                    if (downFocusRequester != null) down = downFocusRequester
+                                }
                                 .onPreviewKeyEvent { event ->
                                     if (!enableHorizontalWrap) {
                                         return@onPreviewKeyEvent false
@@ -286,7 +315,6 @@ fun VideosRowCore(
                                     }
 
                                     when {
-                                        // 没有 leadingItem 时，第一个视频按左，循环到最后一个视频
                                         event.key == Key.DirectionLeft &&
                                                 index == 0 &&
                                                 leadingItem == null -> {
@@ -301,7 +329,6 @@ fun VideosRowCore(
                                             true
                                         }
 
-                                        // 最后一个视频按右，循环到第一个视频
                                         event.key == Key.DirectionRight &&
                                                 index == lastIndex -> {
                                             wrapAroundJob = scope.launch {
@@ -363,6 +390,8 @@ fun VideosRowCore(
 fun VideosRow(
     modifier: Modifier = Modifier,
     header: String,
+    focusedHeaderColor: Color? = null,
+    unfocusedHeaderColor: Color? = null,
     videos: List<VideoCardData>,
     onVideoClicked: (VideoCardData) -> Unit,
     onAddWatchLater: ((Long) -> Unit)? = null,
@@ -370,6 +399,10 @@ fun VideosRow(
     onGoToUpPage: ((Long, String) -> Unit)? = null,
     enableHorizontalWrap: Boolean = true,
     rowStateKey: String? = null,
+    entryFocusRequester: FocusRequester? = null,
+    upFocusRequester: FocusRequester? = null,
+    downFocusRequester: FocusRequester? = null,
+    manageRowFocusInternally: Boolean = true,
 ) {
     val resolvedRowStateKey = rowStateKey ?: remember(header, videos) {
         val firstAid = videos.firstOrNull()?.avid ?: 0L
@@ -379,6 +412,8 @@ fun VideosRow(
     VideosRowCore(
         modifier = modifier,
         header = header,
+        focusedHeaderColor = focusedHeaderColor,
+        unfocusedHeaderColor = unfocusedHeaderColor,
         videos = videos,
         onVideoClicked = onVideoClicked,
         onAddWatchLater = onAddWatchLater,
@@ -386,6 +421,10 @@ fun VideosRow(
         onGoToUpPage = onGoToUpPage,
         enableHorizontalWrap = enableHorizontalWrap,
         rowStateKey = resolvedRowStateKey,
-        leadingItem = null
+        entryFocusRequester = entryFocusRequester,
+        upFocusRequester = upFocusRequester,
+        downFocusRequester = downFocusRequester,
+        leadingItem = null,
+        manageRowFocusInternally = manageRowFocusInternally
     )
 }
