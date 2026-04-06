@@ -52,6 +52,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -170,6 +175,7 @@ private fun SmallVideoCardCore(
     var showActions by remember(data.avid) { mutableStateOf(false) }
     var releaseLongPress by remember(data.avid) { mutableStateOf(false) }
 
+    val cardFocusRequester = remember(data.avid) { FocusRequester() }
     val historyButtonRequester = remember(data.avid) { FocusRequester() }
 
     val isHostMode = hostVm != null
@@ -231,6 +237,7 @@ private fun SmallVideoCardCore(
             interactive = interactive,
             showActions = showActions,
             allowDismissActionsOnFocusLoss = allowDismissActionsOnFocusLoss,
+            cardFocusRequester = cardFocusRequester,
             focusedScale = focusedScale,
             onClick = onClick,
             onLongClick = { showActions = true },
@@ -245,6 +252,10 @@ private fun SmallVideoCardCore(
                     canWatchLater = canWatchLater,
                     isFavorite = isFavorite,
                     hasMultipleCoAuthors = hasMultipleCoAuthors,
+                    onBack = {
+                        showActions = false
+                        cardFocusRequester.requestFocus(scope)
+                    },
                     onHistoryClick = {
                         if (!releaseLongPress) {
                             releaseLongPress = true
@@ -324,6 +335,7 @@ private fun BvSmallVideoCardFrame(
     interactive: Boolean,
     showActions: Boolean,
     allowDismissActionsOnFocusLoss: Boolean,
+    cardFocusRequester: FocusRequester,
     focusedScale: Float,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -362,6 +374,7 @@ private fun BvSmallVideoCardFrame(
                         Modifier
                     }
                 )
+                .focusRequester(cardFocusRequester)
                 .fillMaxSize()
                 .onFocusChanged { focusState ->
                     cardIsFocused = focusState.isFocused
@@ -411,12 +424,25 @@ private fun BvSmallVideoCardActions(
     canWatchLater: Boolean,
     isFavorite: Boolean,
     hasMultipleCoAuthors: Boolean,
+    onBack: () -> Unit,
     onHistoryClick: () -> Unit,
     onFavoriteClick: () -> Unit,
     onUpClick: () -> Unit,
     onWatchLaterClick: () -> Unit
 ) {
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onPreviewKeyEvent {
+                if (it.key == Key.Back) {
+                    if (it.type == KeyEventType.KeyUp) {
+                        onBack()
+                    }
+                    return@onPreviewKeyEvent true
+                }
+                false
+            }
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
