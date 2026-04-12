@@ -20,20 +20,20 @@ fun <T> SettingCycleListItem(
     modifier: Modifier = Modifier,
     title: String,
     options: List<T>,
-    selectedOption: T,
+    checked: T,
     defaultHasFocus: Boolean = false,
-    getSupportText: (T) -> String = { "" },
-    getTrailingText: (T) -> String = { "" },
-    onSelectedChange: (T) -> Unit
+    supportText: (T) -> String = { "" },
+    trailingText: (T) -> String = { "" },
+    onCheckedChange: (T) -> Unit
 ) {
     if (options.isEmpty()) return
 
     var hasFocus by remember { mutableStateOf(defaultHasFocus) }
 
-    val currentIndex = options.indexOf(selectedOption).takeIf { it >= 0 } ?: 0
+    val currentIndex = options.indexOf(checked).takeIf { it >= 0 } ?: 0
     val currentOption = options[currentIndex]
-    val supportText = getSupportText(currentOption)
-    val trailingText = getTrailingText(currentOption)
+    val currentSupportText = supportText(currentOption)
+    val currentTrailingText = trailingText(currentOption)
 
     ListItem(
         modifier = modifier
@@ -41,8 +41,8 @@ fun <T> SettingCycleListItem(
             .onFocusChanged { hasFocus = it.hasFocus },
         headlineContent = { Text(text = title) },
         supportingContent = {
-            if (supportText.isNotBlank()) {
-                Text(text = supportText)
+            if (currentSupportText.isNotBlank()) {
+                Text(text = currentSupportText)
             }
         },
         trailingContent = {
@@ -50,14 +50,14 @@ fun <T> SettingCycleListItem(
                 modifier = Modifier.widthIn(min = 80.dp),
                 contentAlignment = Alignment.CenterEnd
             ) {
-                if (trailingText.isNotBlank()) {
-                    Text(text = trailingText)
+                if (currentTrailingText.isNotBlank()) {
+                    Text(text = currentTrailingText)
                 }
             }
         },
         onClick = {
             val nextIndex = (currentIndex + 1) % options.size
-            onSelectedChange(options[nextIndex])
+            onCheckedChange(options[nextIndex])
         },
         selected = hasFocus
     )
