@@ -149,7 +149,6 @@ import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.effect.VideoDetailUiEffect
 
 import dev.aaa1115910.bv.ui.theme.BVTheme
-import dev.aaa1115910.bv.ui.theme.selectedBorder
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo

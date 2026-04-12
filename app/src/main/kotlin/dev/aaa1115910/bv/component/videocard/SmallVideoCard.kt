@@ -596,7 +596,7 @@ private fun BvActionIconButton(
             focusedContainerColor = C.primary,
             focusedContentColor = C.surface,
 
-            pressedContainerColor = C.primary,
+            pressedContainerColor = C.primaryContainer,
             pressedContentColor = C.surface,
 
             disabledContainerColor = Color.Transparent,
