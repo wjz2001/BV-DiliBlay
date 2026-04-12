@@ -42,6 +42,7 @@ import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.calculateMaskDelay
 import dev.aaa1115910.bv.util.danmakuMask
 import dev.aaa1115910.bv.viewmodel.player.VideoPlayerV3ViewModel
+import dev.aaa1115910.bv.ui.theme.AppBlack
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -75,7 +76,7 @@ fun VideoPlayerV3Screen(
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .background(Color.Black)
+                .background(AppBlack)
         )
         return
     }
@@ -267,7 +268,7 @@ fun VideoPlayerV3Screen(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black),
+                .background(AppBlack),
             contentAlignment = Alignment.Center
         ) {
             LaunchedEffect(videoPlayer) {

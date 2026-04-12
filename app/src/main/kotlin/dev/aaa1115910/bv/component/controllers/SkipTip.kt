@@ -1,5 +1,5 @@
 package dev.aaa1115910.bv.component.controllers
-
+import dev.aaa1115910.bv.ui.theme.C
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+
 
 @Composable
 fun SkipTips(
@@ -93,7 +94,7 @@ fun PlayerTip(
             modifier = Modifier
                 .height(IntrinsicSize.Min)
                 .clip(RoundedCornerShape(topEnd = 10.dp, bottomEnd = 10.dp))
-                .background(Color.Black.copy(alpha = 0.6f)),
+                .background(C.scrim),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
@@ -104,11 +105,13 @@ fun PlayerTip(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(20.dp),
+                    tint = C.onScrim
                 )
                 Text(
                     text = text,
                     style = MaterialTheme.typography.titleLarge,
+                    color = C.onScrim
                 )
             }
         }

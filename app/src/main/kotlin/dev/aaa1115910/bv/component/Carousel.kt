@@ -20,10 +20,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,10 +43,14 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import dev.aaa1115910.biliapi.entity.CarouselData
+import dev.aaa1115910.bv.ui.theme.AppBlack
+import dev.aaa1115910.bv.ui.theme.AppGray
+import dev.aaa1115910.bv.ui.theme.AppRed
+import dev.aaa1115910.bv.ui.theme.AppWhite
+import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.ui.theme.ThemeMode
 import dev.aaa1115910.bv.util.focusedBorder
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @Composable
 fun PgcCarousel(
@@ -190,50 +192,44 @@ fun Carousel(
 @Preview
 @Composable
 private fun CarouselPreview() {
-    val colors = remember { mutableStateListOf<Color>() }
-
-    val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) {
-        scope.launch(Dispatchers.IO) {
-            delay(8000)
-            colors.addAll(
-                listOf(
-                    Color.Red,
-                    Color.Yellow,
-                    Color.Green,
-                    Color.Blue,
-                    Color.Cyan,
-                    Color.Magenta,
-                    Color.Gray,
-                )
+    BVTheme(themeMode = ThemeMode.DARK) {
+        val colors = remember {
+            listOf(
+                AppBlack,
+                AppWhite,
+                AppGray.copy(alpha = 0.35f),
+                AppBlack.copy(alpha = 0.85f),
+                AppRed,
+                AppRed.copy(alpha = 0.7f),
+                AppWhite.copy(alpha = 0.85f),
             )
         }
-    }
 
-    Column {
-        Button(onClick = {}) { Text(text = "button") }
-        Row {
+        Column {
             Button(onClick = {}) { Text(text = "button") }
-            Carousel(
-                itemCount = colors.size,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-                    .clip(MaterialTheme.shapes.large)
-                    .focusedBorder(),
-                onClick = {
-
-                }
-            ) {
-                Box(
+            Row {
+                Button(onClick = {}) { Text(text = "button") }
+                Carousel(
+                    itemCount = colors.size,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .fillMaxHeight()
-                        .background(color = colors[it])
-                ) {}
-            }
-        }
+                        .height(200.dp)
+                        .clip(MaterialTheme.shapes.large)
+                        .focusedBorder(),
+                    onClick = {
 
-        Button(onClick = {}) { Text(text = "button") }
+                    }
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight()
+                            .background(color = colors[it])
+                    ) {}
+                }
+            }
+
+            Button(onClick = {}) { Text(text = "button") }
+        }
     }
 }

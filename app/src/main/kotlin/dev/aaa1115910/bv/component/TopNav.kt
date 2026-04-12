@@ -39,7 +39,9 @@ import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Tab
 import androidx.tv.material3.TabRow
+import androidx.tv.material3.TabRowDefaults
 import androidx.tv.material3.TabRowScope
+import androidx.tv.material3.TabDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
 import dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2
@@ -98,6 +100,16 @@ fun TopNav(
             modifier = Modifier.focusRestorer(entryFocusRequester),
             selectedTabIndex = selectedTabIndex,
             separator = { Spacer(modifier = Modifier.width(12.dp)) },
+            indicator = { tabPositions, doesTabRowHaveFocus ->
+                tabPositions.getOrNull(selectedTabIndex)?.let { currentTabPosition ->
+                    TabRowDefaults.PillIndicator(
+                        currentTabPosition = currentTabPosition,
+                        doesTabRowHaveFocus = doesTabRowHaveFocus,
+                        activeColor = MaterialTheme.colorScheme.primary,
+                        inactiveColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                }
+            },
         ) {
             items.forEachIndexed { index, tab ->
                 val isHistoryTab = tab is HomeTopNavItem && tab == HomeTopNavItem.History
@@ -155,6 +167,13 @@ private fun TabRowScope.NavItemTab(
     var confirmLongPressTriggered by remember(topNavItem) { mutableStateOf(false) }
 
     Tab(
+        colors = TabDefaults.pillIndicatorTabColors(
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            inactiveContentColor = MaterialTheme.colorScheme.onSurface,
+            selectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            focusedContentColor = MaterialTheme.colorScheme.onPrimary,
+            focusedSelectedContentColor = MaterialTheme.colorScheme.onPrimary
+        ),
         modifier = modifier.onPreviewKeyEvent { event ->
             val isDirectionLeft = event.key == Key.DirectionLeft
             val isDirectionRight = event.key == Key.DirectionRight

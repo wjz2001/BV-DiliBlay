@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.focusGroup
+
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -52,6 +53,7 @@ import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.SmallVideoCardGridEvent
 import dev.aaa1115910.bv.viewmodel.SmallVideoCardGridViewModel
+import dev.aaa1115910.bv.ui.theme.C
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
@@ -156,9 +158,9 @@ fun VideosRowCore(
 
     var hasFocus by remember { mutableStateOf(false) }
     val titleColor = if (hasFocus) {
-        focusedHeaderColor ?: Color.White
+        focusedHeaderColor ?: C.onSurface
     } else {
-        unfocusedHeaderColor ?: Color.White.copy(alpha = 0.6f)
+        unfocusedHeaderColor ?: C.onSurfaceVariant
     }
 
     val navigateUp = remember(context, onGoToUpPage) {
@@ -315,6 +317,7 @@ fun VideosRowCore(
                                     }
 
                                     when {
+                                        // 没有 leadingItem 时，第一个视频按左，循环到最后一个视频
                                         event.key == Key.DirectionLeft &&
                                                 index == 0 &&
                                                 leadingItem == null -> {
@@ -329,6 +332,7 @@ fun VideosRowCore(
                                             true
                                         }
 
+                                        // 最后一个视频按右，循环到第一个视频
                                         event.key == Key.DirectionRight &&
                                                 index == lastIndex -> {
                                             wrapAroundJob = scope.launch {

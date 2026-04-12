@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -55,6 +56,7 @@ import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.ui.effect.UiEffect
+import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import dev.aaa1115910.bv.viewmodel.user.UpInfoViewModel
@@ -188,6 +190,8 @@ fun UpSpaceScreen(
             }
         }
     }
+    val searchFocusedLineColor = C.primary
+    val searchUnfocusedLineColor = C.onSurfaceVariant
 
     Scaffold(
         modifier = modifier
@@ -235,7 +239,11 @@ fun UpSpaceScreen(
                                 val stroke = 3.dp.toPx()
                                 val y = size.height - stroke / 2f
                                 drawLine(
-                                    color = if (searchFieldHasFocus) Color(0xFFFF0000) else Color.White.copy(alpha = 0.55f),
+                                    color = if (searchFieldHasFocus) {
+                                        searchFocusedLineColor
+                                    } else {
+                                        searchUnfocusedLineColor
+                                    },
                                     start = Offset(0f, y),
                                     end = Offset(size.width, y),
                                     strokeWidth = stroke
@@ -268,27 +276,8 @@ fun UpSpaceScreen(
                         fontSize = 26.sp,
                         style = androidx.tv.material3.MaterialTheme.typography.bodyLarge.copy(lineHeight = 32.sp),
                         textAlign = TextAlign.End,
-                        color = Color.White.copy(alpha = 0.6f)
+                        color = C.onSurfaceVariant
                     )
-                    /*
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = stringResource(
-                                R.string.load_data_count,
-                                upInfoViewModel.spaceVideos.size
-                            ),
-                            color = Color.White.copy(alpha = 0.6f)
-                        )
-                        AnimatedVisibility(visible = upInfoViewModel.noMore) {
-                            Text(
-                                text = stringResource(R.string.load_data_no_more),
-                                color = Color.White.copy(alpha = 0.6f)
-                            )
-                        }
-                    }
-                    */
                 }
             }
         }

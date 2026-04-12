@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,6 +37,7 @@ import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.ui.effect.UiEffect
+import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.util.toast
@@ -112,12 +114,12 @@ fun TagScreen(
                                 R.string.load_data_count,
                                 uiState.value.videoList.size
                             ),
-                            color = Color.White.copy(alpha = 0.6f)
+                            color = C.onSurfaceVariant
                         )
                         AnimatedVisibility(visible = uiState.value.noMore) {
                             Text(
                                 text = stringResource(R.string.load_data_no_more),
-                                color = Color.White.copy(alpha = 0.6f)
+                                color = C.onSurfaceVariant
                             )
                         }
                     }

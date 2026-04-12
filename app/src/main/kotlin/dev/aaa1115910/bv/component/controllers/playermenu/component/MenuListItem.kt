@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,6 +35,9 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.ui.theme.AppBlack
+import dev.aaa1115910.bv.ui.theme.AppGray
+import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
 
 @Composable
@@ -91,8 +95,7 @@ fun MenuListItem(
                     }
                 }
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center
                 ) {
                     AnimatedVisibility(
@@ -115,7 +118,14 @@ fun MenuListItem(
             }
         },
         colors = ListItemDefaults.colors(
-            selectedContainerColor = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.4f),
+            containerColor = Color.Transparent,
+            contentColor = AppWhite,
+            selectedContainerColor = AppGray,
+            selectedContentColor = AppBlack,
+            focusedContainerColor = AppWhite,
+            focusedContentColor = AppBlack,
+            focusedSelectedContainerColor = AppWhite,
+            focusedSelectedContentColor = AppBlack
         )
     )
 }

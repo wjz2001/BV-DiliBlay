@@ -21,6 +21,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.FilterList
+
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -63,6 +64,8 @@ import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Tab
 import androidx.tv.material3.TabRow
+import androidx.tv.material3.TabRowDefaults
+import androidx.tv.material3.TabDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
@@ -73,6 +76,7 @@ import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
 import dev.aaa1115910.bv.tv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.effect.UiEffect
+import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.FavoriteViewModel
@@ -487,6 +491,16 @@ fun FavoriteScreen(
                     .focusRestorer(defaultFocusRequester),
                 selectedTabIndex = currentTabIndex,
                 separator = { Spacer(modifier = Modifier.width(12.dp)) },
+                indicator = { tabPositions, doesTabRowHaveFocus ->
+                    tabPositions.getOrNull(currentTabIndex)?.let { currentTabPosition ->
+                        TabRowDefaults.PillIndicator(
+                            currentTabPosition = currentTabPosition,
+                            doesTabRowHaveFocus = doesTabRowHaveFocus,
+                            activeColor = MaterialTheme.colorScheme.primary,
+                            inactiveColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    }
+                },
             ) {
                 folderList.forEachIndexed { index, folderMetadata ->
                     val folderId = folderMetadata.id
@@ -495,6 +509,13 @@ fun FavoriteScreen(
                     var longPressTriggered by remember(folderId) { mutableStateOf(false) }
 
                     Tab(
+                        colors = TabDefaults.pillIndicatorTabColors(
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                            inactiveContentColor = MaterialTheme.colorScheme.onSurface,
+                            selectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            focusedContentColor = MaterialTheme.colorScheme.onPrimary,
+                            focusedSelectedContentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
                         modifier = Modifier
                             .ifElse(
                                 index == focusTargetIndex,
@@ -645,6 +666,9 @@ fun FavoriteScreen(
         if (folderId != null) {
             val st = getQueryState(folderId)
 
+            val searchFocusedLineColor = C.primary
+            val searchUnfocusedLineColor = C.onSurfaceVariant
+
             TvAlertDialog(
                 onDismissRequest = {
                     // 点返回视为“完成输入并应用”
@@ -665,9 +689,9 @@ fun FavoriteScreen(
                                 val y = size.height - stroke / 2f
                                 drawLine(
                                     color = if (searchFieldHasFocus) {
-                                        Color(0xFFFF0000)
+                                        searchFocusedLineColor
                                     } else {
-                                        Color.White.copy(alpha = 0.55f)
+                                        searchUnfocusedLineColor
                                     },
                                     start = Offset(0f, y),
                                     end = Offset(size.width, y),
@@ -681,8 +705,6 @@ fun FavoriteScreen(
                         shape = RectangleShape,
                         colors = TextFieldDefaults.colors(
                             focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            disabledIndicatorColor = Color.Transparent,
                             errorIndicatorColor = Color.Transparent
                         ),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),

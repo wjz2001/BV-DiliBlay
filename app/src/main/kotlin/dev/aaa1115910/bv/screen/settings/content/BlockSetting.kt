@@ -106,26 +106,17 @@ fun BlockSetting(
         Spacer(modifier = Modifier.height(12.dp))
 
         SettingListItem(
-            modifier = when {
-                updating || !hasSnapshot -> disabledModifier
-                else -> Modifier
-            },
-            title = stringResource(R.string.block_setting_groups_title),
+            enabled = !updating && hasSnapshot,
+                title = stringResource(R.string.block_setting_groups_title),
             supportText = when {
                 !hasSnapshot -> "未获取分组，请先点击立即更新"
                 else -> "已选择 $groupSelectedCount / ${tags.size} 个分组"
             },
-            onClick = {
-                if (updating || !hasSnapshot) return@SettingListItem
-                showGroupDialog = true
-            }
+            onClick = { showGroupDialog = true }
         )
 
         SettingListItem(
-            modifier = when {
-                updating || !hasSnapshot -> disabledModifier
-                else -> Modifier
-            },
+            enabled = !updating && hasSnapshot,
             title = stringResource(R.string.block_setting_pages_title),
             supportText = when {
                 !hasSnapshot -> "需先点击立即更新"
@@ -135,14 +126,12 @@ fun BlockSetting(
                     pagesSelected.joinToString(",") { it.displayName }
                 )
             },
-            onClick = {
-                if (updating || !hasSnapshot) return@SettingListItem
-                showPageDialog = true
-            }
+            onClick = { showPageDialog = true }
         )
 
         SettingListItem(
             modifier = Modifier.focusRequester(updateFocusRequester),
+            enabled = !updating,
             title = stringResource(R.string.block_setting_update_now_title),
             supportText = when {
                 updating -> stringResource(R.string.block_setting_update_now_support_updating)
@@ -150,8 +139,6 @@ fun BlockSetting(
                 else -> "当前快照 ${tags.size} 个分组 / ${snapshot?.users?.size ?: 0} 个用户"
             },
             onClick = {
-                if (updating) return@SettingListItem
-
                 val hasAuth = Prefs.uid != 0L &&
                         (Prefs.sessData.isNotBlank() || Prefs.accessToken.isNotBlank())
                 if (!hasAuth) {

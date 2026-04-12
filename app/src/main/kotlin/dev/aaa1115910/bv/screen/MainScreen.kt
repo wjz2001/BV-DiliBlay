@@ -3,8 +3,12 @@ package dev.aaa1115910.bv.screen
 import android.app.Activity
 import android.content.Intent
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -14,11 +18,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.tv.material3.DrawerValue
-import androidx.tv.material3.NavigationDrawer
-import androidx.tv.material3.rememberDrawerState
+import androidx.compose.material3.VerticalDivider
+import androidx.tv.material3.MaterialTheme
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.settings.SettingsActivity
 import dev.aaa1115910.bv.activities.user.LoginActivity
@@ -36,6 +40,7 @@ import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
 import dev.aaa1115910.bv.screen.main.common.MainDrawerPreloadHost
 import dev.aaa1115910.bv.screen.search.MainDrawerSearchInputScreen
 import dev.aaa1115910.bv.screen.search.SearchRightEntryToken
+import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.requestFocus
@@ -110,7 +115,6 @@ fun MainScreen(
         )
     }
 
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val fade = 0
 
     val handleBack = {
@@ -238,18 +242,22 @@ fun MainScreen(
                         }
 
                         MainContentFocusTarget.RightEntry -> {
-                            if (searchCurrentRightEntryToken == null) {
-                                requestFocusForContent(LeftNaviItem.Search, null)
-                            } else if (searchCurrentRightEntryToken == searchRightEntryReadyToken) {
-                                requestFocusForContent(
-                                    LeftNaviItem.Search,
-                                    MainContentFocusTarget.RightEntry
-                                )
-                            } else {
-                                pendingContentFocus = newPendingContentFocus(
-                                    item = LeftNaviItem.Search,
-                                    entryTarget = MainContentFocusTarget.RightEntry
-                                )
+                            when (searchCurrentRightEntryToken) {
+                                null -> {
+                                    requestFocusForContent(LeftNaviItem.Search, null)
+                                }
+                                searchRightEntryReadyToken -> {
+                                    requestFocusForContent(
+                                        LeftNaviItem.Search,
+                                        MainContentFocusTarget.RightEntry
+                                    )
+                                }
+                                else -> {
+                                    pendingContentFocus = newPendingContentFocus(
+                                        item = LeftNaviItem.Search,
+                                        entryTarget = MainContentFocusTarget.RightEntry
+                                    )
+                                }
                             }
                         }
                     }
@@ -318,35 +326,42 @@ fun MainScreen(
         preloadPgc = preloadedDrawerItems[LeftNaviItem.PGC] == true
     )
 
-    NavigationDrawer(
-        modifier = modifier,
-        drawerContent = {
-            LeftNaviContent(
-                isLogin = userViewModel.isLogin,
-                avatar = userViewModel.face,
-                selectedItem = requestedDrawerItem,
-                searchFocusRequester = searchDrawerFocusRequester,
-                homeFocusRequester = homeDrawerFocusRequester,
-                followFocusRequester = followDrawerFocusRequester,
-                ugcFocusRequester = ugcDrawerFocusRequester,
-                pgcFocusRequester = pgcDrawerFocusRequester,
-                onLeftNaviItemChanged = { requestedDrawerItem = it },
-                onLeftNaviItemPreload = onLeftNaviItemPreload,
-                onOpenSettings = {
-                    context.startActivity(Intent(context, SettingsActivity::class.java))
-                },
-                onFocusToContent = onFocusToContent,
-                onOpenUserSwitch = {
-                    context.startActivity(Intent(context, UserSwitchActivity::class.java))
-                },
-                onLogin = {
-                    context.startActivity(Intent(context, LoginActivity::class.java))
-                }
-            )
-        },
-        drawerState = drawerState
+    Row(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        Box(modifier = Modifier) {
+        LeftNaviContent(
+            modifier = Modifier.fillMaxHeight(),
+            isLogin = userViewModel.isLogin,
+            avatar = userViewModel.face,
+            selectedItem = requestedDrawerItem,
+            searchFocusRequester = searchDrawerFocusRequester,
+            homeFocusRequester = homeDrawerFocusRequester,
+            followFocusRequester = followDrawerFocusRequester,
+            ugcFocusRequester = ugcDrawerFocusRequester,
+            pgcFocusRequester = pgcDrawerFocusRequester,
+            onLeftNaviItemChanged = { requestedDrawerItem = it },
+            onLeftNaviItemPreload = onLeftNaviItemPreload,
+            onOpenSettings = { context.startActivity(Intent(context, SettingsActivity::class.java)) },
+            onFocusToContent = onFocusToContent,
+            onOpenUserSwitch = { context.startActivity(Intent(context, UserSwitchActivity::class.java)) },
+            onLogin = { context.startActivity(Intent(context, LoginActivity::class.java)) }
+        )
+
+        VerticalDivider(
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(vertical = 70.dp, horizontal = 4.dp),
+            thickness = 1.dp,
+            color = AppWhite
+        )
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+        ) {
             BlackoutSwitch(
                 targetState = requestedDrawerItem,
                 fadeInMillis = fade,

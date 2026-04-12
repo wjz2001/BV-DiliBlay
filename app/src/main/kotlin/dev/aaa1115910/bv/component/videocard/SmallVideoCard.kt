@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -47,7 +46,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.TransformOrigin
@@ -86,7 +84,11 @@ import dev.aaa1115910.bv.component.TvGridBringIntoViewMode
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
+import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
+
+import dev.aaa1115910.bv.ui.theme.ThemeMode
+import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.resizedImageUrl
@@ -176,7 +178,11 @@ private fun SmallVideoCardCore(
     var releaseLongPress by remember(data.avid) { mutableStateOf(false) }
 
     val cardFocusRequester = remember(data.avid) { FocusRequester() }
+
     val historyButtonRequester = remember(data.avid) { FocusRequester() }
+    val favoriteButtonRequester = remember(data.avid) { FocusRequester() }
+    val upButtonRequester = remember(data.avid) { FocusRequester() }
+    val watchLaterButtonRequester = remember(data.avid) { FocusRequester() }
 
     val isHostMode = hostVm != null
 
@@ -210,9 +216,28 @@ private fun SmallVideoCardCore(
         navigateToUp(mid = mid, name = data.upName)
     }
 
-    LaunchedEffect(showActions, canGoToUpPage, hostVm) {
+    fun requestDefaultActionFocus() {
+        val target = when {
+            canHistory -> historyButtonRequester
+            canFavorite -> favoriteButtonRequester
+            canGoToUpPage -> upButtonRequester
+            canWatchLater -> watchLaterButtonRequester
+            else -> null
+        }
+        target?.requestFocus(scope)
+    }
+
+    LaunchedEffect(
+        showActions,
+        canHistory,
+        canFavorite,
+        canGoToUpPage,
+        canWatchLater,
+        hostVm
+    ) {
         if (showActions) {
-            historyButtonRequester.requestFocus(scope)
+            requestDefaultActionFocus()
+
             hostVm?.onActionsShown(
                 aid = data.avid,
                 canGoToUpPage = canGoToUpPage
@@ -226,7 +251,7 @@ private fun SmallVideoCardCore(
     LaunchedEffect(hostUiState.lastDismissedDialogAid, showActions) {
         val dismissedAid = hostUiState.lastDismissedDialogAid
         if (showActions && dismissedAid == data.avid) {
-            historyButtonRequester.requestFocus(scope)
+            requestDefaultActionFocus()
             hostVm?.consumeLastDismissedDialogAid(data.avid)
         }
     }
@@ -246,6 +271,9 @@ private fun SmallVideoCardCore(
             if (showActions) {
                 BvSmallVideoCardActions(
                     historyButtonRequester = historyButtonRequester,
+                    favoriteButtonRequester = favoriteButtonRequester,
+                    upButtonRequester = upButtonRequester,
+                    watchLaterButtonRequester = watchLaterButtonRequester,
                     canHistory = canHistory,
                     canFavorite = canFavorite,
                     canGoToUpPage = canGoToUpPage,
@@ -299,8 +327,9 @@ private fun SmallVideoCardCore(
                             releaseLongPress = true
                             return@BvSmallVideoCardActions
                         }
-                        if (!canWatchLater) return@BvSmallVideoCardActions
-                        onAddWatchLater()
+
+                        val add = onAddWatchLater ?: return@BvSmallVideoCardActions
+                        add()
                     }
                 )
             } else {
@@ -391,7 +420,7 @@ private fun BvSmallVideoCardFrame(
             ),
             border = CardDefaults.border(
                 focusedBorder = Border(
-                    border = BorderStroke(3.dp, MaterialTheme.colorScheme.border),
+                    border = BorderStroke(3.dp, C.selectedBorder),
                     shape = RectangleShape
                 )
             )
@@ -405,7 +434,7 @@ private fun BvSmallVideoCardFrame(
                             .matchParentSize()
                             .border(
                                 width = 3.dp,
-                                color = MaterialTheme.colorScheme.border,
+                                color = C.selectedBorder,
                                 shape = RectangleShape
                             )
                     )
@@ -418,6 +447,9 @@ private fun BvSmallVideoCardFrame(
 @Composable
 private fun BvSmallVideoCardActions(
     historyButtonRequester: FocusRequester,
+    favoriteButtonRequester: FocusRequester,
+    upButtonRequester: FocusRequester,
+    watchLaterButtonRequester: FocusRequester,
     canHistory: Boolean,
     canFavorite: Boolean,
     canGoToUpPage: Boolean,
@@ -435,9 +467,7 @@ private fun BvSmallVideoCardActions(
             .fillMaxSize()
             .onPreviewKeyEvent {
                 if (it.key == Key.Back) {
-                    if (it.type == KeyEventType.KeyUp) {
-                        onBack()
-                    }
+                    if (it.type == KeyEventType.KeyUp) onBack()
                     return@onPreviewKeyEvent true
                 }
                 false
@@ -446,7 +476,7 @@ private fun BvSmallVideoCardActions(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black)
+                .background(C.surface)
         ) {
             Row(
                 modifier = Modifier
@@ -463,12 +493,11 @@ private fun BvSmallVideoCardActions(
                         modifier = Modifier.focusRequester(historyButtonRequester),
                         canClick = canHistory,
                         onClick = onHistoryClick
-                    ) { tint ->
+                    ) {
                         Icon(
                             modifier = Modifier.size(ActionIconSize),
                             painter = painterResource(id = R.drawable.add_to_list),
-                            contentDescription = "History",
-                            tint = tint
+                            contentDescription = "History"
                         )
                     }
                 }
@@ -480,14 +509,14 @@ private fun BvSmallVideoCardActions(
                     contentAlignment = Alignment.Center
                 ) {
                     BvActionIconButton(
+                        modifier = Modifier.focusRequester(favoriteButtonRequester),
                         canClick = canFavorite,
                         onClick = onFavoriteClick
-                    ) { tint ->
+                    ) {
                         Icon(
                             modifier = Modifier.size(ActionIconSize),
                             imageVector = if (isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                            contentDescription = "Favorite",
-                            tint = tint
+                            contentDescription = "Favorite"
                         )
                     }
                 }
@@ -505,22 +534,21 @@ private fun BvSmallVideoCardActions(
                     contentAlignment = Alignment.Center
                 ) {
                     BvActionIconButton(
+                        modifier = Modifier.focusRequester(upButtonRequester),
                         canClick = canGoToUpPage,
                         onClick = onUpClick
-                    ) { tint ->
+                    ) {
                         if (hasMultipleCoAuthors) {
                             Icon(
                                 modifier = Modifier.size(ActionIconSize),
                                 imageVector = Icons.Rounded.Group,
-                                contentDescription = "CoAuthors",
-                                tint = tint
+                                contentDescription = "CoAuthors"
                             )
                         } else {
                             Icon(
                                 modifier = Modifier.size(ActionIconSize),
                                 painter = painterResource(id = R.drawable.contact_page_24px),
-                                contentDescription = "Up Page",
-                                tint = tint
+                                contentDescription = "Up Page"
                             )
                         }
                     }
@@ -533,14 +561,14 @@ private fun BvSmallVideoCardActions(
                     contentAlignment = Alignment.Center
                 ) {
                     BvActionIconButton(
+                        modifier = Modifier.focusRequester(watchLaterButtonRequester),
                         canClick = canWatchLater,
                         onClick = onWatchLaterClick
-                    ) { tint ->
+                    ) {
                         Icon(
                             modifier = Modifier.size(ActionIconSize),
                             imageVector = Icons.Rounded.Schedule,
-                            contentDescription = "Watch later",
-                            tint = tint
+                            contentDescription = "Watch later"
                         )
                     }
                 }
@@ -554,15 +582,26 @@ private fun BvActionIconButton(
     modifier: Modifier = Modifier,
     canClick: Boolean,
     onClick: () -> Unit,
-    icon: @Composable (tint: Color) -> Unit
+    icon: @Composable () -> Unit
 ) {
-    var isFocused by remember { mutableStateOf(false) }
-
     IconButton(
         modifier = modifier
-            .onFocusChanged { isFocused = it.isFocused }
             .size(ActionButtonSize)
             .aspectRatio(1f),
+        enabled = canClick,
+        colors = IconButtonDefaults.colors(
+            containerColor = Color.Transparent,
+            contentColor = C.onSurface,
+
+            focusedContainerColor = C.primary,
+            focusedContentColor = C.surface,
+
+            pressedContainerColor = C.primary,
+            pressedContentColor = C.surface,
+
+            disabledContainerColor = Color.Transparent,
+            disabledContentColor = C.disabled
+        ),
         shape = ButtonDefaults.shape(shape = CircleShape),
         scale = IconButtonDefaults.scale(
             scale = 1f,
@@ -573,12 +612,7 @@ private fun BvActionIconButton(
         ),
         onClick = onClick
     ) {
-        val tint = when {
-            isFocused -> Color.Black
-            canClick -> Color.White
-            else -> Color.White.copy(alpha = 0.4f)
-        }
-        icon(tint)
+        icon()
     }
 }
 
@@ -639,21 +673,12 @@ private fun CoverStatsBar(
                 .fillMaxWidth()
                 .then(
                     if (interactive) {
-                        Modifier.background(
-                            Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0.0f to Color.Transparent,
-                                    0.15f to Color.Transparent,
-                                    0.16f to Color.Black.copy(alpha = 0.7f),
-                                    1.0f to Color.Black.copy(alpha = 0.7f)
-                                )
-                            )
-                        )
+                        Modifier.background(C.posterOverlay)
                     } else {
                         Modifier
                     }
                 )
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
             val style = MaterialTheme.typography.bodySmall
             val textMeasurer = rememberTextMeasurer()
@@ -701,8 +726,7 @@ private fun CoverStatsBar(
                 Row(
                     modifier = Modifier
                         .weight(1f)
-                        .clipToBounds()
-                        .offset(y = 3.dp),
+                        .clipToBounds(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (playShow.isNotBlank()) {
@@ -710,13 +734,13 @@ private fun CoverStatsBar(
                             modifier = Modifier.size(CoverStatIconSize),
                             painter = painterResource(id = R.drawable.ic_play_count),
                             contentDescription = null,
-                            tint = Color.White
+                            tint = AppWhite
                         )
                         Spacer(Modifier.width(2.dp))
                         Text(
                             text = playShow,
                             style = style,
-                            color = Color.White,
+                            color = AppWhite,
                             maxLines = 1
                         )
                         Spacer(Modifier.width(8.dp))
@@ -727,13 +751,13 @@ private fun CoverStatsBar(
                             modifier = Modifier.size(CoverStatIconSize),
                             painter = painterResource(id = R.drawable.ic_danmaku_count),
                             contentDescription = null,
-                            tint = Color.White
+                            tint = AppWhite
                         )
                         Spacer(Modifier.width(2.dp))
                         Text(
                             text = danmakuShow,
                             style = style,
-                            color = Color.White,
+                            color = AppWhite,
                             maxLines = 1
                         )
                     }
@@ -742,10 +766,10 @@ private fun CoverStatsBar(
                 Spacer(Modifier.width(8.dp))
 
                 Text(
-                    modifier = Modifier.offset(y = 3.dp),
+                    modifier = Modifier,
                     text = time,
                     style = style,
-                    color = Color.White,
+                    color = AppWhite,
                     maxLines = 1
                 )
             }
@@ -785,7 +809,10 @@ fun CardInfo(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                UpIcon(upgroup = hasMultipleCoAuthors)
+                UpIcon(
+                    color = C.onSurface,
+                    upgroup = hasMultipleCoAuthors
+                )
                 Text(
                     modifier = Modifier.weight(1f),
                     text = upName,
@@ -915,7 +942,35 @@ private fun SmallVideoCardPreview() {
         timeString = "23:33",
         pubTime = "1小时前"
     )
-    BVTheme {
+    BVTheme(themeMode = ThemeMode.DARK) {
+        Surface(
+            modifier = Modifier.width(300.dp)
+        ) {
+            SmallVideoCard(
+                modifier = Modifier.padding(20.dp),
+                onClick = {},
+                data = data,
+                titleMaxLines = 3,
+            )
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun SmallVideoCardLightPreview() {
+    val data = VideoCardData(
+        avid = 0,
+        cid = 0,
+        title = "震惊！太震惊了！真的是太震惊了！我的天呐！真TMD震惊！",
+        cover = "",
+        upName = "bishi",
+        playString = "2333",
+        danmakuString = "666",
+        timeString = "23:33",
+        pubTime = "1小时前"
+    )
+    BVTheme(themeMode = ThemeMode.LIGHT) {
         Surface(
             modifier = Modifier.width(300.dp)
         ) {

@@ -103,7 +103,11 @@ import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.repository.VideoInfoRepository
+import dev.aaa1115910.bv.ui.theme.AppBlack
+import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.ui.theme.C
+
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
@@ -278,7 +282,7 @@ fun SeasonInfoScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black)
+                .background(MaterialTheme.colorScheme.background)
         ) {
             Text(
                 modifier = Modifier.align(Alignment.Center),
@@ -565,7 +569,7 @@ fun SeasonCover(
                 modifier = Modifier
                     .height(260.dp)
                     .aspectRatio(0.75f)
-                    .background(if (isPreview) Color.White else Color.Transparent),
+                    .background(if (isPreview) AppWhite else Color.Transparent),
                 model = cover,
                 contentDescription = null,
                 contentScale = ContentScale.FillHeight
@@ -576,7 +580,7 @@ fun SeasonCover(
                     .align(Alignment.BottomCenter)
                     .width(195.dp)
                     .height(coverBottomTipHeight)
-                    .background(Color.Black.copy(alpha = 0.6f)),
+                    .background(C.posterOverlay),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -616,7 +620,7 @@ fun SeasonBaseInfo(
                 style = MaterialTheme.typography.titleLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(text = newEpDesc)
             Text(text = description)
@@ -701,7 +705,7 @@ fun SeasonEpisodeButton(
         onClick = onClick
     ) {
         Row {
-            val coverBackground by remember { mutableStateOf(if (played != 0) Color.Black.copy(alpha = 0.2f) else Color.Transparent) }
+            val coverBackground by remember { mutableStateOf(if (played != 0) AppBlack.copy(alpha = 0.2f) else Color.Transparent) }
             Box(
                 modifier = Modifier.background(coverBackground)
             ) {
@@ -710,7 +714,7 @@ fun SeasonEpisodeButton(
                         .height(80.dp)
                         .aspectRatio(1.6f)
                         .clip(MaterialTheme.shapes.medium)
-                        .background(if (isPreview) Color.White else Color.Transparent),
+                        .background(if (isPreview) AppWhite else Color.Transparent),
                     model = cover.resizedImageUrl(ImageSize.Cover),
                     contentDescription = null,
                     contentScale = ContentScale.FillBounds
@@ -723,7 +727,7 @@ fun SeasonEpisodeButton(
             ) {
                 Box(
                     modifier = Modifier
-                        .background(Color.Black.copy(alpha = 0.2f))
+                        .background(AppBlack.copy(alpha = 0.2f))
                         .fillMaxHeight()
                         .fillMaxWidth(if (duration == 0) 0f else if (played < 0) 1f else ((played * 1000f) / duration))
                 ) {}
@@ -951,7 +955,7 @@ fun SeasonEpisodeRow(
     }
 
     var hasFocus by remember { mutableStateOf(false) }
-    val titleColor = if (hasFocus) Color.White else Color.White.copy(alpha = 0.6f)
+    val titleColor = if (hasFocus) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
     val titleFontSize by animateFloatAsState(
         targetValue = 14f,
         label = "title font size"
@@ -1151,6 +1155,7 @@ private fun SeasonSelectorContent(
         Box(
             modifier = Modifier.fillMaxSize()
         ) {
+            val posterOverlay = C.posterOverlay.copy(alpha = 1f)
             Box(
                 modifier = Modifier.fillMaxSize()
             ) {
@@ -1161,7 +1166,7 @@ private fun SeasonSelectorContent(
                         .graphicsLayer { alpha = 0.99f }
                         .drawWithContent {
                             val colors = listOf(
-                                Color.Black,
+                                posterOverlay,
                                 Color.Transparent
                             )
                             drawContent()

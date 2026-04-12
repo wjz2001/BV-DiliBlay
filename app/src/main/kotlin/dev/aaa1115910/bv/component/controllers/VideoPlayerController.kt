@@ -44,6 +44,7 @@ import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.ui.state.PlayerState
 import dev.aaa1115910.bv.ui.state.PlayerUiState
 import dev.aaa1115910.bv.ui.state.SeekerState
+import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.player.DanmakuSettingAction
@@ -359,7 +360,7 @@ fun VideoPlayerController(
 
     Box(
         modifier = modifier
-            .background(Color.Black)
+            .background(AppBlack)
             .focusable()
             .onPreviewKeyEvent { event ->
                 // 重置 info 控制器的隐藏倒计时 (只要有按键活动就重置)
@@ -381,7 +382,7 @@ fun VideoPlayerController(
                     .align(Alignment.TopStart)
                     .padding(8.dp)
                     .clip(MaterialTheme.shapes.medium)
-                    .background(Color.Black.copy(alpha = 0.3f))
+                    .background(AppBlack.copy(alpha = 0.3f))
             ) {
                 Text(
                     modifier = Modifier.padding(8.dp),

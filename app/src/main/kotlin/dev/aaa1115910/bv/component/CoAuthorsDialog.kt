@@ -133,7 +133,7 @@ fun CoAuthorsDialogHost(
                         Text(
                             text = group.title,
                             style = MaterialTheme.typography.titleMedium,
-                            color = Color.White
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         LazyRow(
                             contentPadding = PaddingValues(horizontal = 20.dp),
@@ -203,7 +203,7 @@ private fun CoAuthorItem(
             ),
             border = ClickableSurfaceDefaults.border(
                 focusedBorder = Border(
-                    border = BorderStroke(3.dp, Color(0xFFFE7297)),
+                    border = BorderStroke(3.dp, MaterialTheme.colorScheme.primary),
                     shape = CircleShape
                 )
             ),
@@ -226,7 +226,7 @@ private fun CoAuthorItem(
 
         Text(
             text = author.name,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )

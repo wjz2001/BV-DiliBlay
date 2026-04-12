@@ -89,6 +89,8 @@ import dev.aaa1115910.biliapi.entity.reply.CommentSort
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.biliapi.http.BiliHttpApi
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.ui.theme.AppBlack
+import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.launchPlayerActivity
 import kotlinx.coroutines.delay
@@ -96,11 +98,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.compose.getKoin
-
-private val CommentsBg = Color(0xFFFBFBF4)
-private val CommentsText = Color(0xFF000000)
-private val UserNameColor = Color(0xFFFE7297)
-private val MentionColor = Color(0xFF008DC3)
 
 private val BILIBILI_VIDEO_LINK_REGEX = Regex(
     "((?:https?://)?(?:[a-zA-Z0-9-]+\\.)*bilibili\\.com/video/([bB][vV][A-Za-z0-9]{10}|[aA][vV]\\d+)[a-zA-Z0-9\\-._~:/?#@!$&*+=%]*)"
@@ -536,8 +533,8 @@ fun VideoCommentsDialog(
                         },
                     shape = RoundedCornerShape(0.dp),
                     colors = androidx.tv.material3.SurfaceDefaults.colors(
-                        containerColor = CommentsBg,
-                        contentColor = CommentsText
+                        containerColor = C.commentsBackground,
+                        contentColor = AppBlack
                     )
                 ) {
                     Column(
@@ -632,7 +629,7 @@ fun VideoCommentsDialog(
                                 if (root == null) {
                                     Text(
                                         text = "未选择根评论",
-                                        color = CommentsText.copy(alpha = 0.70f),
+                                        color = AppBlack.copy(alpha = 0.70f),
                                         fontSize = 20.sp,
                                         modifier = Modifier.padding(
                                             horizontal = 2.dp,
@@ -750,7 +747,7 @@ private fun RootCommentHeader(comment: Comment) {
             ) {
                 Text(
                     text = comment.member.name,
-                    color = UserNameColor,
+                    color = C.bilibili,
                     fontSize = 26.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -766,7 +763,7 @@ private fun RootCommentHeader(comment: Comment) {
 
                 Text(
                     text = comment.timeDesc,
-                    color = CommentsText.copy(alpha = 0.70f),
+                    color = AppBlack.copy(alpha = 0.70f),
                     fontSize = 18.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -776,7 +773,7 @@ private fun RootCommentHeader(comment: Comment) {
 
                 Text(
                     text = "赞 ${comment.like}",
-                    color = CommentsText.copy(alpha = 0.70f),
+                    color = AppBlack.copy(alpha = 0.70f),
                     fontSize = 18.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -883,7 +880,7 @@ private fun LightCommentItem(
                 }
                 .border(
                     width = 3.dp,
-                    color = if (bodyHasFocus) UserNameColor else Color.Transparent,
+                    color = if (bodyHasFocus) C.bilibili else Color.Transparent,
                     shape = MaterialTheme.shapes.medium
                 ),
             shape = ClickableSurfaceDefaults.shape(MaterialTheme.shapes.medium),
@@ -927,7 +924,7 @@ private fun LightCommentItem(
                         ) {
                             Text(
                                 text = comment.member.name,
-                                color = UserNameColor,
+                                color = C.bilibili,
                                 fontSize = 26.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
@@ -943,7 +940,7 @@ private fun LightCommentItem(
 
                         Text(
                             text = comment.timeDesc,
-                            color = CommentsText.copy(alpha = 0.70f),
+                            color = AppBlack.copy(alpha = 0.70f),
                             fontSize = 18.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -953,7 +950,7 @@ private fun LightCommentItem(
 
                         Text(
                             text = "赞 ${comment.like}",
-                            color = CommentsText.copy(alpha = 0.70f),
+                            color = AppBlack.copy(alpha = 0.70f),
                             fontSize = 18.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -977,7 +974,7 @@ private fun LightCommentItem(
                     if (showRepliesHint) {
                         Text(
                             text = "${comment.repliesCount} 条回复 >>",
-                            color = CommentsText.copy(alpha = 0.85f),
+                            color = AppBlack.copy(alpha = 0.85f),
                             fontSize = 18.sp,
                             lineHeight = 22.sp,
                             maxLines = 2
@@ -1018,14 +1015,14 @@ private fun LightCommentItem(
                             .onFocusChanged { pictureHasFocus = it.hasFocus }
                             .border(
                                 width = if (pictureHasFocus) 3.dp else 0.dp,
-                                color = if (pictureHasFocus) UserNameColor else Color.Transparent,
+                                color = if (pictureHasFocus) C.bilibili else Color.Transparent,
                                 shape = MaterialTheme.shapes.small
                             ),
                         shape = ClickableSurfaceDefaults.shape(MaterialTheme.shapes.small),
                         colors = ClickableSurfaceDefaults.colors(
-                            containerColor = CommentsBg,
-                            focusedContainerColor = CommentsBg,
-                            pressedContainerColor = CommentsBg
+                            containerColor = C.commentsBackground,
+                            focusedContainerColor = C.commentsBackground,
+                            pressedContainerColor = C.commentsBackground
                         ),
                         scale = ClickableSurfaceDefaults.scale(
                             focusedScale = 1f,
@@ -1037,7 +1034,7 @@ private fun LightCommentItem(
                         AsyncImage(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(CommentsBg),
+                                .background(C.commentsBackground),
                             model = picture.imgSrc,
                             contentDescription = null,
                             contentScale = ContentScale.Fit,
@@ -1080,11 +1077,11 @@ private fun VideoLinkInlineItem(
             androidx.tv.material3.Icon(
                 imageVector = Icons.Rounded.PlayCircleOutline,
                 contentDescription = null,
-                tint = MentionColor
+                tint = C.mentionAndLink
             )
             Text(
                 text = title,
-                color = MentionColor,
+                color = C.mentionAndLink,
                 fontSize = fontSize,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -1103,7 +1100,7 @@ private fun VideoLinkInlineItem(
             .onFocusChanged { focused = it.hasFocus }
             .border(
                 width = if (focused) 3.dp else 0.dp,
-                color = if (focused) MentionColor else Color.Transparent,
+                color = if (focused) C.mentionAndLink else Color.Transparent,
                 shape = MaterialTheme.shapes.small
             ),
         shape = ClickableSurfaceDefaults.shape(MaterialTheme.shapes.small),
@@ -1129,11 +1126,11 @@ private fun VideoLinkInlineItem(
             androidx.tv.material3.Icon(
                 imageVector = Icons.Rounded.PlayCircleOutline,
                 contentDescription = null,
-                tint = MentionColor
+                tint = C.mentionAndLink
             )
             Text(
                 text = title,
-                color = MentionColor,
+                color = C.mentionAndLink,
                 fontSize = fontSize,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -1169,7 +1166,7 @@ private fun CommentMessageText(
             when (token) {
                 is MessageToken.Text -> {
                     if (token.isMention) {
-                        withStyle(SpanStyle(color = MentionColor, fontWeight = FontWeight.Medium)) {
+                        withStyle(SpanStyle(color = C.mentionAndLink, fontWeight = FontWeight.Medium)) {
                             append(token.text)
                         }
                     } else {
@@ -1242,7 +1239,7 @@ private fun CommentMessageText(
         text = text,
         inlineContent = inlineContent,
         style = TextStyle(
-            color = CommentsText,
+            color = AppBlack,
             fontSize = basicFontSize,
             lineHeight = 29.sp
         ),
@@ -1262,12 +1259,12 @@ private fun RootCommentPictures(pictures: List<Comment.Picture>) {
                     .width(184.dp)
                     .height(112.dp)
                     .clip(MaterialTheme.shapes.small)
-                    .background(CommentsBg)
+                    .background(C.commentsBackground)
             ) {
                 AsyncImage(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(CommentsBg),
+                        .background(C.commentsBackground),
                     model = picture.imgSrc,
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
@@ -1330,14 +1327,14 @@ private fun CommentImagePreviewDialog(
                 },
             shape = RoundedCornerShape(0.dp),
             colors = androidx.tv.material3.SurfaceDefaults.colors(
-                containerColor = CommentsBg,
-                contentColor = CommentsText
+                containerColor = C.commentsBackground,
+                contentColor = AppBlack
             )
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(CommentsBg)
+                    .background(C.commentsBackground)
             ) {
                 AsyncImage(
                     modifier = Modifier.fillMaxSize(),
@@ -1355,13 +1352,13 @@ private fun CommentImagePreviewDialog(
 private fun PinnedBadgeLight() {
     Text(
         text = "置顶",
-        color = UserNameColor,
+        color = C.bilibili,
         fontSize = 11.sp,
         fontWeight = FontWeight.Medium,
         modifier = Modifier
             .border(
                 width = 1.dp,                    // 边框粗细
-                color = UserNameColor,           // 边框颜色与文字一致
+                color = C.bilibili,           // 边框颜色与文字一致
                 shape = RoundedCornerShape(3.dp) // 图片中的小圆角
             )
             .padding(horizontal = 4.dp, vertical = 1.dp) // 文字与边框之间的间距
@@ -1372,7 +1369,7 @@ private fun PinnedBadgeLight() {
 private fun InlineErrorText(text: String) {
     Text(
         text = text,
-        color = Color(0xFFB00020),
+        color = MaterialTheme.colorScheme.error,
         fontSize = 20.sp,
         modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp)
     )
@@ -1396,7 +1393,7 @@ private fun BottomStateLight(
             .fillMaxWidth()
             .padding(vertical = 8.dp),
         text = t,
-        color = CommentsText.copy(alpha = 0.60f),
+        color = AppBlack.copy(alpha = 0.60f),
         fontSize = 18.sp
     )
 }
