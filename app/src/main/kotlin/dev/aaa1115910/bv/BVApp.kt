@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import android.os.Build
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
@@ -59,6 +60,7 @@ class BVApp : Application(), KoinComponent {
 
         initCoreLibraries()
         Prefs.init()
+        AppCompatDelegate.setDefaultNightMode(Prefs.themeMode.toNightMode())
         BlockManager.reloadFromPrefs() // 启动即从本地恢复，保证过滤一直有效
         initDeviceInfo()
         initRepository()
