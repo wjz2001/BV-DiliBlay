@@ -1,6 +1,7 @@
 package dev.aaa1115910.bv.component
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -13,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Done
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text as M3Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
@@ -24,13 +26,17 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.Border
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.FilterChip
+import androidx.tv.material3.FilterChipDefaults
+import androidx.tv.material3.Glow
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.block.BlockPage
+import dev.aaa1115910.bv.ui.theme.C
 
 /**
  * 简单多选弹框的“提交时机”：
@@ -87,12 +93,44 @@ private fun <T> SnapshotStateList<T>.replaceWith(items: Collection<T>) {
  * - 滚动
  * - 间距与 padding
  *
- * 它不关心业务：
- * - 不关心选中了什么
- * - 不关心点击后怎么处理
- * - 不关心 dismiss 时提交什么
- *
- * 所有业务逻辑都由调用方自己实现。
+ * 所有 Dialog/Chip 都走这里，未来新增 Dialog 只要复用 SimpleMultiSelectDialog，
+ * 就天然统一视觉与交互状态（focused/pressed/disabled/selected）。
+ */
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun multiSelectChipColors() = FilterChipDefaults.colors(
+    // 默认（未聚焦/未按压/未选中）
+    containerColor = C.surfaceVariant,
+    contentColor = C.onSurfaceVariant,
+
+    // focused = TV 上的“激活/高亮”
+    focusedContainerColor = C.primary,
+    focusedContentColor = C.onPrimary,
+
+    // pressed
+    pressedContainerColor = C.primaryContainer,
+    pressedContentColor = C.onPrimaryContainer,
+
+    // selected（未聚焦）
+    selectedContainerColor = C.secondary,
+    selectedContentColor = C.onSecondary,
+
+    // disabled
+    disabledContainerColor = C.surfaceVariant,
+    disabledContentColor = C.disabled,
+
+    // focused + selected
+    focusedSelectedContainerColor = C.primary,
+    focusedSelectedContentColor = C.onPrimary,
+
+    // pressed + selected
+    pressedSelectedContainerColor = C.primaryContainer,
+    pressedSelectedContentColor = C.onPrimaryContainer
+)
+
+/**
+ * 最基础的“多选弹框壳”（统一风格：直接用 C）。
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -109,7 +147,13 @@ private fun BaseMultiSelectDialog(
         modifier = modifier,
         onDismissRequest = onDismissRequest,
         confirmButton = {},
-        title = { Text(text = title) },
+        containerColor = C.surface,
+        title = {
+            M3Text(
+                text = title,
+                color = C.onSurface
+            )
+        },
         text = {
             FlowRow(
                 modifier = Modifier
@@ -144,13 +188,17 @@ private fun BaseMultiSelectDialog(
 private fun BaseMultiSelectChip(
     modifier: Modifier = Modifier,
     selected: Boolean,
+    enabled: Boolean = true,
     onClick: () -> Unit,
     content: @Composable () -> Unit
 ) {
     FilterChip(
         modifier = modifier,
         selected = selected,
+        enabled = enabled,
         onClick = onClick,
+        shape = FilterChipDefaults.shape(),
+        colors = multiSelectChipColors(),
         leadingIcon = {
             Row {
                 AnimatedVisibility(visible = selected) {
@@ -201,6 +249,7 @@ private fun <T, ID> SimpleMultiSelectDialog(
     onSubmit: (List<ID>) -> Unit,
     submitMode: SubmitMode,
     dismissOrder: DismissOrder = DismissOrder.SubmitThenHide,
+    itemEnabled: (T) -> Boolean = { true },
     onToggle: SnapshotStateList<ID>.(id: ID, selected: Boolean, item: T) -> Unit = { id, selected, _ ->
         if (selected) remove(id) else add(id)
     },
@@ -213,19 +262,21 @@ private fun <T, ID> SimpleMultiSelectDialog(
     // 默认给第一个 item 聚焦，适合 TV 场景
     val defaultFocusRequester = remember { FocusRequester() }
 
-    /**
-     * 当 dialog 打开时，用外部传进来的初始选中项重置内部状态。
-     *
-     * 为什么用 LaunchedEffect(show, items, initialSelectedIds)：
-     * - show 从 false -> true 时，需要重置
-     * - items / initialSelectedIds 变化时，也希望同步最新状态
-     */
-    LaunchedEffect(show, items, initialSelectedIds) {
-        if (show) {
+    LaunchedEffect(show) {
+        if (show && items.isNotEmpty()) {
+            defaultFocusRequester.requestFocus()
+        }
+    }
+
+    LaunchedEffect(show, submitMode) {
+        if (show && submitMode == SubmitMode.OnDismiss) {
             selectedIds.replaceWith(initialSelectedIds)
-            if (items.isNotEmpty()) {
-                defaultFocusRequester.requestFocus()
-            }
+        }
+    }
+
+    LaunchedEffect(show, submitMode, items, initialSelectedIds) {
+        if (show && submitMode == SubmitMode.OnEachClick) {
+            selectedIds.replaceWith(initialSelectedIds)
         }
     }
 
@@ -235,19 +286,13 @@ private fun <T, ID> SimpleMultiSelectDialog(
         title = title,
         onDismissRequest = {
             when (submitMode) {
-                // 点击时已经提交过了，关闭时只负责隐藏
-                SubmitMode.OnEachClick -> {
-                    onHideDialog()
-                }
-
-                // 关闭时再统一提交
+                SubmitMode.OnEachClick -> onHideDialog()
                 SubmitMode.OnDismiss -> {
                     when (dismissOrder) {
                         DismissOrder.SubmitThenHide -> {
                             onSubmit(selectedIds.toList())
                             onHideDialog()
                         }
-
                         DismissOrder.HideThenSubmit -> {
                             onHideDialog()
                             onSubmit(selectedIds.toList())
@@ -260,6 +305,7 @@ private fun <T, ID> SimpleMultiSelectDialog(
         items.forEachIndexed { index, item ->
             val id = itemId(item)
             val selected = selectedIds.contains(id)
+            val enabled = itemEnabled(item)
 
             // 第一个 item 默认拿焦点
             val itemModifier =
@@ -268,8 +314,10 @@ private fun <T, ID> SimpleMultiSelectDialog(
             BaseMultiSelectChip(
                 modifier = itemModifier,
                 selected = selected,
+                enabled = enabled,
                 onClick = {
-                    // 点击后的选中逻辑由 onToggle 决定
+                    if (!enabled) return@BaseMultiSelectChip
+
                     selectedIds.onToggle(id, selected, item)
 
                     // 如果是“点击即提交”，则每次点击都立刻把结果回调出去
@@ -285,9 +333,7 @@ private fun <T, ID> SimpleMultiSelectDialog(
 }
 
 /**
- * 收藏夹多选框：
- * - 点击一个收藏夹后，立刻把当前选中收藏夹列表回调给外部
- * - 关闭 dialog 时不再额外提交
+ * 收藏夹多选框：点击即提交。
  */
 @Composable
 internal fun FavoriteDialog(
@@ -348,13 +394,8 @@ internal fun BlockPageSelectDialog(
 
 /**
  * 关注分组多选框：
- *
- *
- * 规则：
- * 1. 只做本地选中/取消选中
- * 2. 不拉取成员，不跑队列，不读写成员缓存
- * 3. 0（默认/未分组）和其它分组互斥
- * 4. dismiss 时：先关闭弹框，再把结果提交给外部
+ * - 0（默认/未分组）和其它分组互斥
+ * - dismiss 时：先关闭弹框，再提交结果
  */
 @Composable
 internal fun FollowGroupSelectDialog(
@@ -409,12 +450,7 @@ internal fun FollowGroupSelectDialog(
 }
 
 /**
- * 黑名单分组多选框：
- *
- * 终态规则：
- * 1. 只做本地多选
- * 2. 不拉成员，不读写成员缓存
- * 3. dismiss 时统一提交
+ * 黑名单分组多选框：dismiss 时统一提交。
  */
 @Composable
 internal fun BlockGroupSelectDialog(
