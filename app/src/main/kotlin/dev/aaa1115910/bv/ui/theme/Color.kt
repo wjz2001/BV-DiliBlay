@@ -131,12 +131,16 @@ data class BvThemeTokens(
     // 额外颜色：不属于 Material ColorScheme 标准字段，但业务/组件需要
     val extras: AppThemeColorExtras // 自定义扩展颜色集合（焦点环、选中边框、遮罩等）
 ) {
+    // 让 extras 也能通过 C 直接取：C.focusRing / C.posterOverlay ...
     val focusRing: Color get() = extras.focusRing
     val selectedBorder: Color get() = extras.selectedBorder
     val railBackground: Color get() = extras.railBackground
     val posterOverlay: Color get() = extras.posterOverlay
     val onScrim: Color get() = extras.onScrim
     val disabled: Color get() = extras.disabled
+    val commentsBackground: Color get() = extras.commentsBackground
+    val bilibili: Color get() = extras.bilibili
+    val mentionAndLink: Color get() = extras.mentionAndLink
 }
 
 @Immutable
@@ -146,7 +150,11 @@ data class AppThemeColorExtras(
     val railBackground: Color, // 侧边导轨/菜单背景色
     val posterOverlay: Color, // 海报类封面上的遮罩色
     val onScrim: Color, // 显示在图片信息蒙层上的文字/图标颜色
-    val disabled: Color // 禁用颜色
+    val disabled: Color, // 禁用颜色
+    val commentsBackground: Color,
+    val bilibili: Color,
+    val mentionAndLink: Color
+
 )
 
 val BvDarkThemeTokens = BvThemeTokens(
@@ -186,7 +194,10 @@ val BvDarkThemeTokens = BvThemeTokens(
         railBackground = AppWhite.copy(alpha = 0.05f), // 侧边导轨/菜单背景色（弱化透明底）
         posterOverlay = AppBlack.copy(alpha = 0.7f), // 海报/封面上的遮罩色（用于压暗图片以保证文字可读）
         onScrim = AppWhite, // 显示在图片信息蒙层上的文字/图标颜色
-        disabled = AppGray.copy(alpha = 0.4f) // 禁用颜色
+        disabled = AppGray.copy(alpha = 0.4f), // 禁用颜色
+        commentsBackground = Color(0xFFFBFBF4),
+        bilibili = Color(0xFFFE7297),
+        mentionAndLink = Color(0xFF008DC3)
     )
 )
 
@@ -227,7 +238,10 @@ val BvLightThemeTokens = BvThemeTokens(
         railBackground = AppBlack.copy(alpha = 0.05f), // 侧边导轨/菜单背景色（弱化透明底）
         posterOverlay = AppBlack.copy(alpha = 0.7f), // 海报/封面上的遮罩色（用于压暗图片以保证文字可读）
         onScrim = AppWhite, // 显示在图片信息蒙层上的文字/图标颜色
-        disabled = AppGray.copy(alpha = 0.6f) // 禁用颜色
+        disabled = AppGray.copy(alpha = 0.6f), // 禁用颜色
+        commentsBackground = Color(0xFFFBFBF4),
+        bilibili = Color(0xFFFE7297),
+        mentionAndLink = Color(0xFF008DC3)
     )
 )
 
@@ -396,16 +410,3 @@ fun BvTheme(
         }
     }
 }
-
-// 让 extras 也能通过 C 直接取：C.focusRing / C.posterOverlay ...
-@Suppress("unused")
-val BvThemeTokens.focusRing get() = extras.focusRing
-@Suppress("unused")
-val BvThemeTokens.selectedBorder get() = extras.selectedBorder
-@Suppress("unused")
-val BvThemeTokens.railBackground get() = extras.railBackground
-@Suppress("unused")
-val BvThemeTokens.posterOverlay get() = extras.posterOverlay
-@Suppress("unused")
-val BvThemeTokens.onScrim get() = extras.onScrim
-val BvThemeTokens.disabled get() = extras.disabled

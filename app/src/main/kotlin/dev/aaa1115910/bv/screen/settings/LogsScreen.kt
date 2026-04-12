@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
+
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -41,7 +42,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -61,6 +61,8 @@ import kotlinx.coroutines.delay
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.network.HttpServer
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.ui.theme.C
+
 import dev.aaa1115910.bv.util.LogCatcherUtil
 import dev.aaa1115910.bv.util.swapList
 import dev.aaa1115910.bv.util.toast
@@ -334,9 +336,10 @@ fun LogsScreenContent(
                         Text(
                             modifier = Modifier
                                 .padding(horizontal = 40.dp, vertical = 40.dp)
-                                .background(Color.DarkGray.copy(alpha = 0.5f))
+                                .background(C.scrim)
                                 .padding(16.dp),
                             text = "输入 $serverAddress 或扫描二维码进入网页日志管理界面",
+                            color = C.onScrim,
                             fontSize = 22.sp,
                             style = TextStyle(lineBreak = LineBreak.Paragraph),
                             textAlign = TextAlign.Center
@@ -345,7 +348,7 @@ fun LogsScreenContent(
                             modifier = Modifier
                                 .size(240.dp)
                                 .clip(MaterialTheme.shapes.large)
-                                .background(Color.White),
+                                .background(C.surface),
                             contentAlignment = Alignment.Center,
                         ) {
                             if (serverQrImage != null) {
@@ -371,7 +374,7 @@ fun LogsScreenContent(
                             modifier = Modifier
                                 .size(240.dp)
                                 .clip(MaterialTheme.shapes.large)
-                                .background(Color.White),
+                                .background(C.surface),
                             contentAlignment = Alignment.Center,
                         ) {
                             Image(

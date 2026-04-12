@@ -34,8 +34,10 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.repositories.SearchFilterDuration
 import dev.aaa1115910.biliapi.repositories.SearchFilterOrderType
 import dev.aaa1115910.bv.R
+
 import dev.aaa1115910.bv.util.Partition
 import dev.aaa1115910.bv.util.PartitionUtil
+import dev.aaa1115910.bv.ui.theme.C
 
 @Composable
 fun SearchResultVideoFilter(
@@ -230,9 +232,9 @@ private fun FilterDialogFilterChip(
         border = if (hasFocus) FilterChipDefaults.filterChipBorder(
             enabled = true,
             selected = selected,
-            borderColor = Color.White,
+            borderColor = C.selectedBorder,
             borderWidth = 2.dp,
-            selectedBorderColor = Color.White,
+            selectedBorderColor = C.selectedBorder,
             selectedBorderWidth = 2.dp
         )
         else FilterChipDefaults.filterChipBorder(

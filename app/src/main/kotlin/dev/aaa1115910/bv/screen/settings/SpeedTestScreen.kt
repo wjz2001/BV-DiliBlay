@@ -23,6 +23,7 @@ import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import androidx.webkit.WebViewClientCompat
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.util.Prefs
 
 @Composable
@@ -102,7 +103,7 @@ fun SpeedTestScreen(
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 colors = SurfaceDefaults.colors(
-                    containerColor = Color.Black.copy(alpha = 0.9f)
+                    containerColor = AppBlack.copy(alpha = 0.9f)
                 )
             ) {
                 Box(

@@ -147,7 +147,10 @@ import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.effect.VideoDetailUiEffect
+
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.ui.theme.selectedBorder
+import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.formatHourMinSec
@@ -426,7 +429,7 @@ fun VideoInfoScreen(
                 LocalBringIntoViewSpec provides bringIntoViewSpec
             ) {
                 Scaffold(
-                    containerColor = MaterialTheme.colorScheme.background
+                    containerColor = C.background
                 ) { innerPadding ->
                     BoxWithConstraints(
                         modifier = modifier
@@ -721,7 +724,7 @@ private fun FullScreenMessage(message: String) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black),
+            .background(C.background),
     ) {
         Text(
             modifier = Modifier.align(Alignment.Center),
@@ -837,7 +840,7 @@ fun VideoInfoData(
                 focusedBorder = Border(
                     border = BorderStroke(
                         width = 3.dp,
-                        color = MaterialTheme.colorScheme.border
+                        color = C.outline
                     ),
                     shape = RectangleShape
                 )
@@ -860,7 +863,7 @@ fun VideoInfoData(
             verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             Text(
-                text = if (videoDetail.isUpowerExclusive) "充电▶ ${videoDetail.title}" else videoDetail.title,
+                text = videoDetail.title,
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontSize = 40.sp,
                     lineHeightStyle = LineHeightStyle(
@@ -871,7 +874,7 @@ fun VideoInfoData(
                 maxLines = 2,
                 lineHeight = 46.sp,
                 overflow = TextOverflow.Ellipsis,
-                color = Color.White
+                color = C.onSurface
             )
 
             Row(
@@ -902,14 +905,14 @@ fun VideoInfoData(
                             onClick = { coAuthorsDialogState.open(videoDetail.coAuthors) },
                             shape = ClickableSurfaceDefaults.shape(shape = RectangleShape),
                             colors = ClickableSurfaceDefaults.colors(
-                                containerColor = Color.White.copy(alpha = 0.2f),
-                                focusedContainerColor = Color.White.copy(alpha = 0.2f),
-                                pressedContainerColor = Color.White.copy(alpha = 0.2f)
+                                containerColor = C.surfaceVariant,
+                                focusedContainerColor = C.surfaceVariant,
+                                pressedContainerColor = C.surfaceVariant
                             ),
                             scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
                             border = ClickableSurfaceDefaults.border(
                                 focusedBorder = Border(
-                                    border = BorderStroke(width = 3.dp, color = Color.White),
+                                    border = BorderStroke(width = 3.dp, color = C.selectedBorder),
                                     shape = RectangleShape
                                 )
                             )
@@ -917,7 +920,7 @@ fun VideoInfoData(
                             Icon(
                                 imageVector = Icons.Rounded.Group,
                                 contentDescription = "联合投稿",
-                                tint = Color.White,
+                                tint = C.onSurface,
                                 modifier = Modifier.padding(3.dp)
                             )
                         }
@@ -1113,21 +1116,21 @@ private fun UpButton(
         Row(
             modifier = upInfoModifier
                 .clip(RectangleShape)
-                .background(Color.White.copy(alpha = 0.2f))
+                .background(C.surfaceVariant)
                 .focusedBorder(RectangleShape)
                 .padding(4.dp)
                 .clickable { onClickUp() },
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            UpIcon(color = Color.White)
-            Text(text = name, color = Color.White)
+            UpIcon(color = C.onSurface)
+            Text(text = name, color = C.onSurface)
         }
         AnimatedVisibility(visible = isLogin) {
             Row(
                 modifier = followModifier
                     .clip(RectangleShape)
-                    .background(Color.White.copy(alpha = 0.2f))
+                    .background(C.surfaceVariant)
                     .focusedBorder(RectangleShape)
                     .padding(horizontal = 4.dp, vertical = 3.dp)
                     .clickable { if (followed) onDelFollow() else onAddFollow() }
@@ -1137,19 +1140,19 @@ private fun UpButton(
                     Icon(
                         imageVector = Icons.Rounded.Done,
                         contentDescription = null,
-                        tint = Color.White
+                        tint = C.onSurface
                     )
                     Text(
                         text = stringResource(R.string.video_info_followed),
-                        color = Color.White
+                        color = C.onSurface
                     )
                 } else {
                     Icon(
                         imageVector = Icons.Rounded.Add,
                         contentDescription = null,
-                        tint = Color.White
+                        tint = C.onSurface
                     )
-                    Text(text = stringResource(R.string.video_info_follow), color = Color.White)
+                    Text(text = stringResource(R.string.video_info_follow), color = C.onSurface)
                 }
             }
         }
@@ -1187,7 +1190,7 @@ fun VideoDescription(
                 fontSize = 22.sp,
                 lineHeight = 26.sp,
                 overflow = TextOverflow.Ellipsis,
-                color = Color.White
+                color = C.onSurface
             )
         }
     }
@@ -1231,7 +1234,7 @@ fun VideoDescriptionDialog(
             title = {
                 Text(
                     text = stringResource(R.string.video_info_description_title),
-                    color = Color.White
+                    color = C.onSurface
                 )
             },
             text = {
@@ -1284,12 +1287,14 @@ fun DurationUnitText(
     unit: String,
     fontSize: Int
 ) {
+    // 根据传入的单位标识符，在内部进行计算
     val value = when (unit.lowercase()) {
         "h" -> duration / 3600
         "m" -> (duration % 3600) / 60
         "s" -> duration % 60
         else -> 0L
     }
+    // 在调用 Text 组件时，将 Int 转换为 .sp
     Text(
         text = String.format(Locale.getDefault(), "%02d", value),
         fontSize = fontSize.sp,
@@ -1309,9 +1314,9 @@ fun VideoPartButton(
     Surface(
         modifier = modifier.height(96.dp),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
-            pressedContainerColor = MaterialTheme.colorScheme.inverseSurface
+            containerColor = C.surfaceVariant,
+            focusedContainerColor = C.inverseSurface,
+            pressedContainerColor = C.inverseSurface
         ),
         shape = ClickableSurfaceDefaults.shape(shape = RectangleShape),
         onClick = { onClick() }
@@ -1321,9 +1326,10 @@ fun VideoPartButton(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.CenterStart
         ) {
+            //播放进度覆盖
             Box(
                 modifier = Modifier
-                    .background(Color.Black.copy(alpha = 0.2f))
+                    .background(C.primaryContainer.copy(alpha = 0.65f))
                     .fillMaxHeight()
                     .fillMaxWidth(if (played < 0) 1f else (played / duration.toFloat()))
             ) {}
@@ -1347,7 +1353,7 @@ fun VideoPartButton(
                     // 使用 thickness 参数设置分割线的厚度（宽度）
                     thickness = 1.dp,
                     // 设置分割线的颜色
-                    color = Color.White.copy(alpha = 0.5f)
+                    color = C.outline
                 )
                 // 右侧：垂直显示的时长
                 Column(
@@ -1379,9 +1385,9 @@ fun VideoPartRowButton(
     Surface(
         modifier = modifier.size(96.dp),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
-            pressedContainerColor = MaterialTheme.colorScheme.inverseSurface
+            containerColor = C.surfaceVariant,
+            focusedContainerColor = C.inverseSurface,
+            pressedContainerColor = C.inverseSurface
         ),
         shape = ClickableSurfaceDefaults.shape(shape = RectangleShape),
         onClick = onClick
@@ -1451,7 +1457,7 @@ fun VideoPartRow(
                         .forEach { ch ->
                             Text(
                                 text = ch.toString(),
-                                color = MaterialTheme.colorScheme.onSurface,
+                                color = C.onSurface,
                                 fontSize = 14.sp,
                                 lineHeight = 14.sp,
                                 style = TextStyle(
@@ -1572,7 +1578,7 @@ fun UgcSeasonLeadingButton(
             shape = CardDefaults.shape(RectangleShape),
             border = CardDefaults.border(
                 focusedBorder = Border(
-                    border = BorderStroke(3.dp, MaterialTheme.colorScheme.border),
+                    border = BorderStroke(3.dp, C.outline),
                     shape = RectangleShape
                 )
             )
@@ -1580,14 +1586,14 @@ fun UgcSeasonLeadingButton(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background),
+                    .background(C.background),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     modifier = Modifier.size(54.dp),
                     imageVector = Icons.Rounded.ZoomOutMap,
                     contentDescription = "打开合集列表",
-                    tint = MaterialTheme.colorScheme.onSurface
+                    tint = C.onSurface
                 )
             }
         }
@@ -1696,7 +1702,7 @@ fun VideoUgcSeasonRow(
             start = 24.dp,
             top = 24.dp,
             end = 24.dp,
-            bottom = 64.dp
+            bottom = 96.dp
         ),
     ) { itemModifier, _, videoData ->
         SmallVideoCard(
@@ -1860,10 +1866,12 @@ fun <T> PagedVideoInfinityListDialog(
                 // 目标页没有对应行，聚焦最后一个
                 targetCount - 1
             }
+
             moveRight -> {
                 // 下一页同行最左
                 targetRowStart
             }
+
             else -> {
                 // 上一页同行最右；该行不满则取该行最后一个
                 minOf(targetRowStart + columnCount - 1, targetCount - 1)
@@ -1976,9 +1984,9 @@ fun <T> PagedVideoInfinityListDialog(
             Surface(
                 modifier = modifier
                     .fillMaxSize()
-                    .background(Color.Black),
+                    .background(C.background),
                 colors = SurfaceDefaults.colors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                    containerColor = C.surface
                 ),
                 shape = RectangleShape
             ) {
@@ -1996,7 +2004,7 @@ fun <T> PagedVideoInfinityListDialog(
                         Text(
                             text = title,
                             style = MaterialTheme.typography.headlineMedium,
-                            color = Color.White
+                            color = C.onSurface
                         )
                     }
 

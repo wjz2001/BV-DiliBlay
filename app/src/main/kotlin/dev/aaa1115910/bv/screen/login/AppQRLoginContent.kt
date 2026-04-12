@@ -11,13 +11,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.nativeKeyCode
 import androidx.compose.ui.input.key.onKeyEvent
@@ -32,6 +32,7 @@ import dev.aaa1115910.biliapi.entity.login.QrLoginState
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.login.AppQrLoginViewModel
+import dev.aaa1115910.bv.ui.theme.C
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -89,7 +90,7 @@ fun AppQRLoginContent(
                         modifier = Modifier
                             .size(240.dp)
                             .clip(MaterialTheme.shapes.large)
-                            .background(Color.White),
+                            .background(C.surface),
                         contentAlignment = Alignment.Center,
                     ) {
                         Image(
@@ -114,7 +115,7 @@ fun AppQRLoginContent(
                             QrLoginState.Error, QrLoginState.Unknown -> stringResource(R.string.login_error)
                         },
                         style = MaterialTheme.typography.displaySmall,
-                        color = Color.White
+                        color = C.onSurface
                     )
                     AnimatedVisibility(
                         visible = listOf(QrLoginState.Expired, QrLoginState.Error)
@@ -123,7 +124,7 @@ fun AppQRLoginContent(
                         Text(
                             text = stringResource(R.string.login_retry),
                             style = MaterialTheme.typography.displaySmall,
-                            color = Color.White,
+                            color = C.onSurface,
                             fontSize = 26.sp
                         )
                     }

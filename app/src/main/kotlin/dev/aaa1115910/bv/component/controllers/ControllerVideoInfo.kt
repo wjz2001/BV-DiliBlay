@@ -31,7 +31,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.input.key.Key
@@ -65,11 +64,16 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.ui.state.SeekerState
+import dev.aaa1115910.bv.ui.theme.AppBlack
+import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.ui.theme.ThemeMode
+import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.entity.VideoFlip
 import dev.aaa1115910.bv.entity.VideoRotation
+
 import kotlinx.coroutines.delay
 import java.util.Calendar
 
@@ -187,25 +191,7 @@ fun ControllerVideoInfoTop(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            /*
-            .clip(
-                MaterialTheme.shapes.large.copy(
-                    topStart = CornerSize(0.dp),
-                    topEnd = CornerSize(0.dp)
-                )
-            )
-             */
-            .background(
-                Color.Black.copy(alpha = 0.5f)
-                /*
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color.Black.copy(alpha = 0.5f), // 上部颜色较深
-                        Color.Black.copy(alpha = 0f)  // 下部颜色较浅
-                    )
-                )
-                 */
-            )
+            .background(C.scrim)
             .padding(horizontal = 32.dp, vertical = 16.dp)
     ) {
         Row(
@@ -220,11 +206,11 @@ fun ControllerVideoInfoTop(
                 text = title,
                 style = MaterialTheme.typography.headlineSmall.copy(
                     shadow = Shadow(
-                        color = Color.Black,
+                        color = AppBlack,
                         blurRadius = 1f
                     ),
                 ),
-                color = Color.White,
+                color = AppWhite,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
@@ -296,7 +282,7 @@ fun ControllerVideoInfoBottom(
     }
     Column(
         modifier = modifier
-            .background(Color.Black.copy(alpha = 0.5f))
+            .background(C.scrim)
             .padding(top = 5.dp),
         verticalArrangement = Arrangement.Bottom
     ) {
@@ -323,10 +309,10 @@ fun ControllerVideoInfoBottom(
                 modifier = Modifier
                     .padding(horizontal = 32.dp),
                 text = "${if (isSeeking) goTime.formatHourMinSec() else seekerState.currentTime.formatHourMinSec()} / ${seekerState.totalDuration.formatHourMinSec()}",
-                color = Color.White,
+                color = AppWhite,
                 fontWeight = FontWeight.Bold,
                 style = TextStyle(
-                    shadow = Shadow(color = Color.Black, blurRadius = 1f),
+                    shadow = Shadow(color = AppBlack, blurRadius = 1f),
                 ),
             )
             Text(
@@ -335,9 +321,9 @@ fun ControllerVideoInfoBottom(
                     .padding(horizontal = 32.dp),
                 textAlign = TextAlign.Center,
                 text = secondTitle,
-                color = Color.White,
+                color = AppWhite,
                 style = TextStyle(
-                    shadow = Shadow(color = Color.Black, blurRadius = 1f),
+                    shadow = Shadow(color = AppBlack, blurRadius = 1f),
                 ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -346,10 +332,10 @@ fun ControllerVideoInfoBottom(
                 modifier = Modifier
                     .padding(horizontal = 32.dp),
                 text = "${if (isSeeking) goTime.formatHourMinSec() else seekerState.currentTime.formatHourMinSec()} / ${seekerState.totalDuration.formatHourMinSec()}",
-                color = Color.White,
+                color = AppWhite,
                 fontWeight = FontWeight.Bold,
                 style = TextStyle(
-                    shadow = Shadow(color = Color.Black, blurRadius = 1f),
+                    shadow = Shadow(color = AppBlack, blurRadius = 1f),
                 ),
             )
         }
@@ -439,6 +425,14 @@ fun ControllerVideoInfoBottom(
                     shape = ClickableSurfaceDefaults.shape(
                         shape = MaterialTheme.shapes.small,
                     ),
+                    colors = ClickableSurfaceDefaults.colors(
+                        containerColor = AppBlack,
+                        contentColor = AppWhite,
+                        focusedContainerColor = AppWhite,
+                        focusedContentColor = AppBlack,
+                        pressedContainerColor = AppWhite,
+                        pressedContentColor = AppBlack
+                    )
                 ) {
                     Icon(
                         painter = painterResource(id = icon.first),
@@ -516,34 +510,23 @@ private fun Clock(
     ) {
         Text(
             // modifier = modifier,
-            color = Color.White,
+            color = AppWhite,
             fontWeight = FontWeight.Bold,
             style = TextStyle(
-                shadow = Shadow(color = Color.Black, blurRadius = 1f),
+                shadow = Shadow(color = AppBlack, blurRadius = 1f),
                 fontSize = 32.sp
             ),
             text = clockText
-            /*
-            text = buildAnnotatedString {
-                withStyle(SpanStyle(fontSize = 32.sp)) {
-                    append("$hour".padStart(2, '0'))
-                    append(":")
-                    append("$minute".padStart(2, '0'))
-                    append(":")
-                    append("$second".padStart(2, '0'))
-                }
-            }
-             */
         )
         // 视频结束时间
         if (finishTimeText.isNotEmpty()) {
             Text(
                 modifier = Modifier.padding(top = 2.dp),
-                color = Color.White,
+                color = AppWhite,
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp,
                 style = TextStyle(
-                    shadow = Shadow(color = Color.Black, blurRadius = 1f),
+                    shadow = Shadow(color = AppBlack, blurRadius = 1f),
                 ),
                 text = finishTimeText
             )
@@ -572,11 +555,60 @@ private fun ClockPreview() {
 private fun ControllerVideoInfoPreview() {
     var show by remember { mutableStateOf(true) }
 
-    BVTheme {
+    BVTheme(themeMode = ThemeMode.DARK) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White),
+                .background(AppWhite),
+            contentAlignment = Alignment.Center
+        ) {
+            Button(onClick = { show = !show }) {
+                Text(text = "Switch")
+            }
+        }
+        ControllerVideoInfo(
+            modifier = Modifier.fillMaxSize(),
+            show = show,
+            isSeeking = false,
+            goTime = 0,
+            seekerState = SeekerState(0, 0, 0, ""),
+            title = "【A320】民航史上最佳逆袭！A320的前世今生！民航史上最佳逆袭！A320的前世今生！",
+            secondTitle = "哈哈哈",
+            clock = Pair(12, 30),
+            currentPlaySpeed = 1.0f,
+            videoShot = null,
+            videoShotCache = VideoShotImageCache(),
+            videoRotation = null,
+            videoFlip = null,
+            fromSeason = false,
+            danmakuEnabled = false,
+            isLooping = false,
+            onDirectionRight = {},
+            onDirectionLeft = {},
+            onSeekGoTime = {},
+            onPlayPause = {},
+            onDanmakuSwitchChange = {},
+            onShowSettings = {},
+            onShowRelatedVideos = {},
+            onGoToVideoInfo = {},
+            onToggleLoop = {},
+            onGoToUpPage = {},
+            onShowTimeJump = {},
+            onShowComments = {},
+        )
+    }
+}
+
+@Preview(device = "id:tv_1080p")
+@Composable
+private fun ControllerVideoInfoLightPreview() {
+    var show by remember { mutableStateOf(true) }
+
+    BVTheme(themeMode = ThemeMode.LIGHT) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(AppWhite),
             contentAlignment = Alignment.Center
         ) {
             Button(onClick = { show = !show }) {

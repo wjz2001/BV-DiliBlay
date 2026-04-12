@@ -39,7 +39,11 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
+import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
+
+import dev.aaa1115910.bv.ui.theme.ThemeMode
+import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.focusedBorder
 
 @Composable
@@ -58,7 +62,6 @@ fun LargeVideoCard(
     )
 
     val height = 160.dp
-    val reasonColor = Color.Red
 
     LaunchedEffect(hasFocus) {
         if (hasFocus) onFocus()
@@ -95,7 +98,7 @@ fun LargeVideoCard(
                             .aspectRatio(1.6f),
                         shape = MaterialTheme.shapes.large,
                         colors = SurfaceDefaults.colors(
-                            containerColor = Color.White
+                            containerColor = AppWhite
                         )
                     ) {}
                 }
@@ -104,7 +107,7 @@ fun LargeVideoCard(
                         .align(Alignment.BottomEnd)
                         .padding(8.dp),
                     colors = SurfaceDefaults.colors(
-                        containerColor = Color.Black.copy(alpha = 0.5f)
+                        containerColor = C.posterOverlay
                     ),
                     shape = RoundedCornerShape(6.dp)
                 ) {
@@ -112,7 +115,7 @@ fun LargeVideoCard(
                         modifier = Modifier.padding(4.dp),
                         text = data.timeString,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White
+                        color = AppWhite
                     )
                 }
             }
@@ -132,7 +135,7 @@ fun LargeVideoCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    UpIcon()
+                    UpIcon(color = MaterialTheme.colorScheme.onSurface)
                     Text(text = data.upName)
                 }
 
@@ -161,7 +164,29 @@ fun LargeVideoCardPreview() {
         danmakuString = "666",
         timeString = "2333"
     )
-    BVTheme {
+    BVTheme(themeMode = ThemeMode.DARK) {
+        Surface {
+            LargeVideoCard(
+                data = data
+            )
+        }
+    }
+}
+
+@Preview
+@Composable
+fun LargeVideoCardLightPreview() {
+    val data = VideoCardData(
+        avid = 0,
+        cid = 0,
+        title = "震惊！太震惊了！真的是太震惊了！我的天呐！真TMD震惊！",
+        cover = "http://i2.hdslb.com/bfs/archive/af17fc07b8f735e822563cc45b7b5607a491dfff.jpg",
+        upName = "bishi",
+        playString = "2333",
+        danmakuString = "666",
+        timeString = "2333"
+    )
+    BVTheme(themeMode = ThemeMode.LIGHT) {
         Surface {
             LargeVideoCard(
                 data = data

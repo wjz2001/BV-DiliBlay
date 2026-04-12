@@ -15,14 +15,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.videocard.VideosRow
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
+import dev.aaa1115910.bv.ui.theme.C
+
 
 @Composable
 fun RelatedVideosController(
@@ -66,15 +66,14 @@ fun RelatedVideosController(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    // 应用我们新定义的中间黑、两边透明的渐变
-                    //.background(backgroundBrush)
-                    .background(Color.Black.copy(alpha = 0.7f))
-                    // 添加一点内边距，防止内容太靠近透明边缘
+                    .background(C.scrim)
                     .padding(vertical = 12.dp)
             ) {
                 VideosRow(
                     modifier = Modifier,
                     header = stringResource(R.string.video_info_related_video_title),
+                    focusedHeaderColor = C.onScrim,
+                    unfocusedHeaderColor = C.onScrim.copy(alpha = 0.6f),
                     videos = relatedVideos,
                     onVideoClicked = onVideoClicked
                 )

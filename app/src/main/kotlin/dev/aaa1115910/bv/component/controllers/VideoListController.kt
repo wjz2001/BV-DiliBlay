@@ -43,6 +43,12 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.entity.VideoListItem
+import dev.aaa1115910.bv.ui.theme.AppWhite
+import androidx.tv.material3.ListItemDefaults
+import dev.aaa1115910.bv.ui.theme.AppBlack
+import dev.aaa1115910.bv.ui.theme.AppGray
+import dev.aaa1115910.bv.ui.theme.C
+
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -187,7 +193,8 @@ fun VideoListController(
         Surface(
             modifier = modifier,
             colors = SurfaceDefaults.colors(
-                containerColor = Color.Black.copy(alpha = 0.5f)
+                containerColor = C.scrim,
+                contentColor = C.onScrim
             )
         ) {
             Box(
@@ -415,15 +422,22 @@ fun VideoListController(
                                 trailingContent = {
                                     if (hasSubPages) {
                                         Icon(
-                                            imageVector = if (expanded)
-                                                Icons.Default.KeyboardArrowUp
-                                            else
-                                                Icons.Default.KeyboardArrowDown,
+                                            imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                                             contentDescription = null,
-                                            tint = Color.White.copy(alpha = 0.7f)
+                                            tint = AppWhite.copy(alpha = 0.7f)
                                         )
                                     }
-                                }
+                                },
+                                colors = ListItemDefaults.colors(
+                                    containerColor = Color.Transparent,
+                                    contentColor = AppWhite,
+                                    selectedContainerColor = AppGray,
+                                    selectedContentColor = AppBlack,
+                                    focusedContainerColor = AppWhite,
+                                    focusedContentColor = AppBlack,
+                                    focusedSelectedContainerColor = AppWhite,
+                                    focusedSelectedContentColor = AppBlack
+                                )
                             )
 
                             // 子项未加载：仅在“当前父项 + expanded=true”时展示“加载中...”占位（不可聚焦/不可点击）
@@ -514,7 +528,9 @@ fun VideoListController(
                             }
 
                             // 如果折叠子项，确保焦点回到父项
-                            LaunchedEffect(expanded) {
+                            LaunchedEffect(show, active, expanded) {
+                                if (!show) return@LaunchedEffect
+                                if (!active) return@LaunchedEffect
                                 if (!expanded && isParentSelected) {
                                     parentFocusRequester.requestFocus()
                                 }
@@ -546,6 +562,16 @@ fun MenuListItem(
                 text = text,
                 textAlign = textAlign
             )
-        }
+        },
+        colors = ListItemDefaults.colors(
+            containerColor = Color.Transparent,
+            contentColor = AppWhite,
+            selectedContainerColor = AppGray,
+            selectedContentColor = AppBlack,
+            focusedContainerColor = AppWhite,
+            focusedContentColor = AppBlack,
+            focusedSelectedContainerColor = AppWhite,
+            focusedSelectedContentColor = AppBlack
+        )
     )
 }

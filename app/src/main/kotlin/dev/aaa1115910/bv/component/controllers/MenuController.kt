@@ -63,7 +63,10 @@ import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.entity.VideoFlip
 import dev.aaa1115910.bv.entity.VideoRotation
 import dev.aaa1115910.bv.ui.state.PlayerUiState
+import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.ui.theme.C
+
 import dev.aaa1115910.bv.util.swapList
 
 @Composable
@@ -163,7 +166,8 @@ fun MenuController(
         modifier = modifier
             .fillMaxHeight(),
         colors = SurfaceDefaults.colors(
-            containerColor = Color.Black.copy(alpha = 0.5f)
+            containerColor = C.scrim,
+            contentColor = C.onScrim
         )
     ) {
         CompositionLocalProvider(
@@ -438,7 +442,7 @@ fun MenuControllerPreview() {
     BVTheme {
         Surface(
             colors = SurfaceDefaults.colors(
-                containerColor = Color.White
+                containerColor = AppWhite
             )
         ) {
             Box(modifier = Modifier.fillMaxSize()) {

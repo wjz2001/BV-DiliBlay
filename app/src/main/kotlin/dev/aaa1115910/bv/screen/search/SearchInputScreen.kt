@@ -59,6 +59,7 @@ import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.IconButton
+import androidx.tv.material3.IconButtonDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.search.Hotword
@@ -74,6 +75,16 @@ import dev.aaa1115910.bv.viewmodel.search.SearchInputViewModel
 import dev.aaa1115910.bv.screen.main.common.mainContentLeftExit
 import dev.aaa1115910.bv.screen.main.common.mainContentRightExit
 import org.koin.androidx.compose.koinViewModel
+
+@Composable
+private fun searchActionIconButtonColors() = IconButtonDefaults.colors(
+    containerColor = MaterialTheme.colorScheme.surface,
+    contentColor = MaterialTheme.colorScheme.onSurface,
+    focusedContainerColor = MaterialTheme.colorScheme.onSurface,
+    focusedContentColor = MaterialTheme.colorScheme.surface,
+    pressedContainerColor = MaterialTheme.colorScheme.onSurface,
+    pressedContentColor = MaterialTheme.colorScheme.surface
+)
 
 data class SearchRightEntryToken(
     val slot: Slot,
@@ -469,19 +480,19 @@ private fun SearchHotwords(
             )
             IconButton(
                 onClick = onToggleShowHotword,
-                colors = ButtonDefaults.colors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                )
+                colors = searchActionIconButtonColors()
             ) {
                 if (showHotword) {
                     Icon(
                         painter = painterResource(id = R.drawable.expand_circle_up_24px),
-                        contentDescription = null
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface
                     )
                 } else {
                     Icon(
                         painter = painterResource(id = R.drawable.expand_circle_down_24px),
-                        contentDescription = null
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -615,18 +626,14 @@ private fun SearchHistory(
                 if (deleteMode) {
                     IconButton(
                         onClick = { showDeleteAllConfirmDialog = true },
-                        colors = ButtonDefaults.colors(
-                            containerColor = MaterialTheme.colorScheme.surface,
-                        )
+                        colors = searchActionIconButtonColors()
                     ) {
                         Icon(imageVector = Icons.Default.DeleteSweep, contentDescription = null)
                     }
                 }
                 IconButton(
                     onClick = { deleteMode = !deleteMode },
-                    colors = ButtonDefaults.colors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                    )
+                    colors = searchActionIconButtonColors()
                 ) {
                     if (deleteMode) {
                         Icon(imageVector = Icons.Default.Close, contentDescription = null)

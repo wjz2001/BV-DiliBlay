@@ -32,6 +32,7 @@ import androidx.tv.material3.MaterialTheme
 import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.bv.entity.VideoFlip
 import dev.aaa1115910.bv.entity.VideoRotation
+import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.util.SpriteFrame
 import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.getSpriteFrame
@@ -142,7 +143,7 @@ fun VideoShotImage(
 
                     if (view.isInEditMode) {
                         drawLine(
-                            Color.White,
+                            AppWhite,
                             Offset(center.x, 0f),
                             Offset(center.x, size.height),
                             2f

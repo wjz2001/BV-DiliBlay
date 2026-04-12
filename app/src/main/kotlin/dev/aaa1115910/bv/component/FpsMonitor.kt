@@ -13,7 +13,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -49,7 +48,7 @@ fun FpsMonitor(
                 .size(60.dp)
                 .align(Alignment.TopStart),
             text = "Fps: $fps",
-            color = Color.Red,
+            color = MaterialTheme.colorScheme.primary,
             style = MaterialTheme.typography.bodyMedium
         )
     }

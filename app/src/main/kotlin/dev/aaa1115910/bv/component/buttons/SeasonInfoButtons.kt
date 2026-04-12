@@ -17,7 +17,9 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Button
 import androidx.tv.material3.Icon
 import androidx.tv.material3.IconButton
+import androidx.tv.material3.IconButtonDefaults
 import androidx.tv.material3.OutlinedButtonDefaults
+import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.ui.theme.BVTheme
 
@@ -72,7 +74,14 @@ fun FollowSeasonButton(
     IconButton(
         modifier = modifier,
         onClick = { onClick(!following) },
-        colors = OutlinedButtonDefaults.colors(),
+        colors = IconButtonDefaults.colors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            focusedContainerColor = MaterialTheme.colorScheme.onSurface,
+            focusedContentColor = MaterialTheme.colorScheme.surface,
+            pressedContainerColor = MaterialTheme.colorScheme.onSurface,
+            pressedContentColor = MaterialTheme.colorScheme.surface
+        ),
         border = OutlinedButtonDefaults.border()
     ) {
         Box(

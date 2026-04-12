@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BadgedBox
+
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -77,6 +78,7 @@ import dev.aaa1115910.bv.entity.db.UserDB
 import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.screen.user.lock.UnlockSwitchUserContent
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.viewmodel.UserViewModel
 import dev.aaa1115910.bv.viewmodel.user.UserSwitchViewModel
@@ -452,7 +454,7 @@ fun UserAuthDataDialog(
                         modifier = Modifier
                             .size(140.dp)
                             .clip(MaterialTheme.shapes.medium)
-                            .background(Color.White),
+                            .background(C.surface),
                         contentAlignment = Alignment.Center,
                     ) {
                         Image(
@@ -540,10 +542,10 @@ fun UserItem(
             ) {
                 Surface(
                     modifier = Modifier
-                        .size(80.dp),
+                    .size(80.dp),
                     colors = ClickableSurfaceDefaults.colors(
-                        containerColor = Color.DarkGray,
-                        focusedContainerColor = Color.Gray
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
                     ),
                     shape = ClickableSurfaceDefaults.shape(
                         shape = CircleShape
@@ -572,7 +574,7 @@ fun UserItem(
                     .padding(18.dp)
                     .size(80.dp),
                 colors = SurfaceDefaults.colors(
-                    containerColor = Color.DarkGray
+                    containerColor = MaterialTheme.colorScheme.surface
                 ),
                 shape = CircleShape
             ) {
@@ -641,8 +643,8 @@ private fun AddUserItem(
                 .padding(18.dp)
                 .size(80.dp),
             colors = ClickableSurfaceDefaults.colors(
-                containerColor = Color.DarkGray,
-                focusedContainerColor = Color.Gray
+                containerColor = MaterialTheme.colorScheme.surface,
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
             ),
             shape = ClickableSurfaceDefaults.shape(
                 shape = CircleShape

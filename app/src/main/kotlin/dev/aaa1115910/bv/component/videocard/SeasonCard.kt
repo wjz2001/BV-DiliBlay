@@ -41,7 +41,11 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
+import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
+
+import dev.aaa1115910.bv.ui.theme.ThemeMode
+import dev.aaa1115910.bv.ui.theme.C
 
 @Composable
 fun SeasonCard(
@@ -67,7 +71,7 @@ fun SeasonCard(
         shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.large),
         border = ClickableSurfaceDefaults.border(
             focusedBorder = Border(
-                border = BorderStroke(width = 3.dp, color = Color.White),
+                border = BorderStroke(width = 3.dp, color = C.selectedBorder),
                 shape = MaterialTheme.shapes.large
             )
         )
@@ -110,7 +114,7 @@ fun SeasonCard(
                                 Brush.verticalGradient(
                                     colors = listOf(
                                         Color.Transparent,
-                                        Color.Black.copy(alpha = 0.8f)
+                                        C.posterOverlay
                                     )
                                 )
                             )
@@ -124,6 +128,7 @@ fun SeasonCard(
                         fontStyle = FontStyle.Italic,
                         fontWeight = FontWeight.Bold,
                         fontSize = 24.sp,
+                        color = AppWhite,
                         textAlign = TextAlign.End
                     )
                 }
@@ -155,7 +160,31 @@ fun SeasonCard(
 @Preview(device = "id:tv_1080p")
 @Composable
 private fun SeasonCardPreview() {
-    BVTheme {
+    BVTheme(themeMode = ThemeMode.DARK) {
+        SmallVideoCardGridHost(
+            columns = GridCells.Fixed(6),
+            horizontalWrapColumnCount = 6
+        ) {
+            repeat(6) {
+                item {
+                    SeasonCard(
+                        data = SeasonCardData(
+                            seasonId = 40794,
+                            title = "007：没空去死",
+                            cover = "http://i0.hdslb.com/bfs/bangumi/image/8d211c396aad084d6fa413015200dda6ed260768.png",
+                            rating = "8.6"
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Preview(device = "id:tv_1080p")
+@Composable
+private fun SeasonCardLightPreview() {
+    BVTheme(themeMode = ThemeMode.LIGHT) {
         SmallVideoCardGridHost(
             columns = GridCells.Fixed(6),
             horizontalWrapColumnCount = 6

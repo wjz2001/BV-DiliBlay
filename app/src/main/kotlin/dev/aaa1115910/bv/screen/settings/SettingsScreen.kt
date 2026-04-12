@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Scaffold
+
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -25,7 +26,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.nativeKeyCode
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -49,6 +49,7 @@ import dev.aaa1115910.bv.screen.settings.content.PlayerTypeSetting
 import dev.aaa1115910.bv.screen.settings.content.StorageSetting
 import dev.aaa1115910.bv.screen.settings.content.UISetting
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.screen.settings.content.BlockSetting
 
@@ -88,7 +89,7 @@ fun SettingsScreen(
                         )
                         Text(
                             text = "",
-                            color = Color.White.copy(alpha = 0.6f)
+                            color = C.onSurfaceVariant
                         )
                     }
                 }

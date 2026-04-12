@@ -47,6 +47,12 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.ui.theme.AppWhite
+import androidx.tv.material3.ListItemDefaults
+import dev.aaa1115910.bv.ui.theme.AppBlack
+import dev.aaa1115910.bv.ui.theme.AppGray
+import dev.aaa1115910.bv.ui.theme.C
+
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -124,11 +130,11 @@ fun CollectionListController(
             didInitialPosition = false
             return@LaunchedEffect
         }
-        if (active) {
+        pendingFocusKey = if (active) {
             // “选择合集”会传 enterFocusKey=selectedParentKey，从而默认聚焦父项而不是子项
-            pendingFocusKey = enterFocusKey ?: (selectedChildKey ?: selectedParentKey)
+            enterFocusKey ?: (selectedChildKey ?: selectedParentKey)
         } else {
-            pendingFocusKey = null
+            null
         }
     }
 
@@ -204,7 +210,10 @@ fun CollectionListController(
     ) {
         Surface(
             modifier = modifier.fillMaxHeight(),
-            colors = SurfaceDefaults.colors(containerColor = Color.Black.copy(alpha = 0.5f))
+            colors = SurfaceDefaults.colors(
+                containerColor = C.scrim,
+                contentColor = C.onScrim
+            )
         ) {
             Box(
                 modifier = Modifier
@@ -267,7 +276,7 @@ fun CollectionListController(
                                 val wantKey = pendingFocusKey ?: return@LaunchedEffect
 
                                 val shouldHandleThisGroup =
-                                    (parent.key == wantKey) || (childrenLoaded && (children?.any { it.key == wantKey } == true))
+                                    (parent.key == wantKey) || (childrenLoaded && children.any { it.key == wantKey })
                                 if (!shouldHandleThisGroup) return@LaunchedEffect
 
                                 val wantChild = children?.any { it.key == wantKey } == true
@@ -370,10 +379,20 @@ fun CollectionListController(
                                         Icon(
                                             imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                                             contentDescription = null,
-                                            tint = Color.White.copy(alpha = 0.7f)
+                                            tint = AppWhite.copy(alpha = 0.7f)
                                         )
                                     }
-                                }
+                                },
+                                colors = ListItemDefaults.colors(
+                                    containerColor = Color.Transparent,
+                                    contentColor = AppWhite,
+                                    selectedContainerColor = AppGray,
+                                    selectedContentColor = AppBlack,
+                                    focusedContainerColor = AppWhite,
+                                    focusedContentColor = AppBlack,
+                                    focusedSelectedContainerColor = AppWhite,
+                                    focusedSelectedContentColor = AppBlack
+                                )
                             )
 
                             if (expanded && !childrenLoaded) {
@@ -398,7 +417,7 @@ fun CollectionListController(
                                     modifier = Modifier.padding(start = 16.dp, top = 4.dp),
                                     verticalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    children?.forEach { child ->
+                                    children.forEach { child ->
                                         key(child.key) {
                                             val isChildSelected = child.key == selectedChildKey
 
@@ -476,6 +495,16 @@ private fun SimpleListItem(
         modifier = modifier.onFocusChanged { if (it.hasFocus) onFocus() },
         selected = selected,
         onClick = onClick,
-        headlineContent = { Text(text = text, textAlign = textAlign) }
+        headlineContent = { Text(text = text, textAlign = textAlign) },
+        colors = ListItemDefaults.colors(
+            containerColor = Color.Transparent,
+            contentColor = AppWhite,
+            selectedContainerColor = AppGray,
+            selectedContentColor = AppBlack,
+            focusedContainerColor = AppWhite,
+            focusedContentColor = AppBlack,
+            focusedSelectedContainerColor = AppWhite,
+            focusedSelectedContentColor = AppBlack
+        )
     )
 }

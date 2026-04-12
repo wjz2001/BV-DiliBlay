@@ -37,7 +37,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
@@ -76,6 +75,8 @@ import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
 import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
 import dev.aaa1115910.bv.screen.user.EmptyTip
 import dev.aaa1115910.bv.ui.effect.UiEffect
+import dev.aaa1115910.bv.ui.theme.C
+
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.FollowGroupCardState
@@ -318,7 +319,7 @@ fun FollowContent(
                         )
                         Text(
                             text = stringResource(R.string.load_data_count, count),
-                            color = Color.White.copy(alpha = 0.6f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -615,7 +616,7 @@ private fun FollowGroupCard(
             shape = ClickableSurfaceDefaults.shape(shape = RectangleShape),
             border = ClickableSurfaceDefaults.border(
                 focusedBorder = Border(
-                    border = BorderStroke(width = 3.dp, color = Color.White),
+                    border = BorderStroke(width = 3.dp, color = C.selectedBorder),
                     shape = RectangleShape
                 )
             ),
@@ -678,7 +679,7 @@ private fun FollowGroupCardContent(group: FollowGroupCardUi) {
             Text(
                 text = subtitle,
                 style = subtitleStyle,
-                color = Color.White.copy(alpha = 0.68f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -719,7 +720,7 @@ private fun FollowGroupCardContent(group: FollowGroupCardUi) {
             Text(
                 text = subtitle,
                 style = subtitleStyle,
-                color = Color.White.copy(alpha = 0.68f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center
@@ -806,7 +807,7 @@ private fun UpCard(
         shape = ClickableSurfaceDefaults.shape(shape = RectangleShape),
         border = ClickableSurfaceDefaults.border(
             focusedBorder = Border(
-                border = BorderStroke(width = 3.dp, color = Color.White),
+                border = BorderStroke(width = 3.dp, color = C.selectedBorder),
                 shape = RectangleShape
             )
         ),
@@ -822,7 +823,7 @@ private fun UpCard(
                     .padding(start = 12.dp, end = 8.dp)
                     .size(48.dp),
                 shape = RectangleShape,
-                color = Color.White
+                color = MaterialTheme.colorScheme.surfaceVariant
             ) {
                 AsyncImage(
                     modifier = Modifier.fillMaxSize(),
@@ -841,6 +842,7 @@ private fun UpCard(
                 )
                 Text(
                     text = sign,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )

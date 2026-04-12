@@ -14,7 +14,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -24,6 +23,8 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.ui.theme.C
+
 
 @Composable
 fun PlayStateTips(
@@ -66,7 +67,8 @@ fun PauseIcon(
     Surface(
         modifier = modifier,
         colors = SurfaceDefaults.colors(
-            containerColor = Color.Black.copy(0.5f)
+            containerColor = C.scrim,
+            contentColor = C.onScrim
         ),
         shape = MaterialTheme.shapes.medium
     ) {
@@ -76,7 +78,7 @@ fun PauseIcon(
                 .size(50.dp),
             imageVector = Icons.Rounded.Pause,
             contentDescription = null,
-            tint = Color.White
+            tint = C.onScrim
         )
     }
 }
@@ -89,7 +91,8 @@ fun BufferingTip(
     Surface(
         modifier = modifier,
         colors = SurfaceDefaults.colors(
-            containerColor = Color.Black.copy(0.5f)
+            containerColor = C.scrim,
+            contentColor = C.onScrim
         ),
         shape = MaterialTheme.shapes.medium
     ) {
@@ -101,7 +104,7 @@ fun BufferingTip(
                 modifier = Modifier
                     .size(36.dp)
                     .padding(8.dp),
-                color = Color.White,
+                color = C.onScrim,
                 strokeWidth = 2.dp
             )
             Text(
@@ -121,7 +124,8 @@ fun PlayErrorTip(
     Surface(
         modifier = modifier,
         colors = SurfaceDefaults.colors(
-            containerColor = Color.Black.copy(0.5f)
+            containerColor = C.scrim,
+            contentColor = C.onScrim
         ),
         shape = MaterialTheme.shapes.medium
     ) {

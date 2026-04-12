@@ -24,7 +24,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -36,6 +35,9 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.ui.theme.AppBlack
+import dev.aaa1115910.bv.ui.theme.AppWhite
+import dev.aaa1115910.bv.ui.theme.DarkSurface
 import dev.aaa1115910.bv.tv.component.TvAlertDialog
 import dev.aaa1115910.bv.util.toast
 import kotlinx.coroutines.delay
@@ -183,7 +185,6 @@ fun TimeJumpDialog(
     val gridW = keySize * 6 + gap * 5
     val gridH = keySize * 4 + gap * 3
     val totalW = keySize + gap + gridW + gap + keySize
-    val shape = RoundedCornerShape(10.dp)
 
     val grid: List<List<Int?>> = listOf(
         listOf(1, 2, 3, 4, 5, 6),
@@ -199,7 +200,10 @@ fun TimeJumpDialog(
             dismissOnClickOutside = false,
             usePlatformDefaultWidth = false
         ),
-        title = { Text(text = "时间轴跳转，退出对话框立刻跳转") },
+        containerColor = DarkSurface,
+        titleContentColor = AppWhite,
+        textContentColor = AppWhite,
+        title = { Text(text = "时间轴跳转，退出对话框立刻跳转", color = AppWhite) },
         text = {
             Column(
                 modifier = Modifier.padding(top = 8.dp),
@@ -358,18 +362,20 @@ private fun TimeJumpField(
     modifier: Modifier = Modifier
 ) {
     val shape = RoundedCornerShape(10.dp)
-    val borderColor =
-        if (selected) MaterialTheme.colorScheme.inverseSurface else Color.White.copy(alpha = 0.2f)
 
     Box(
         modifier = modifier
-            .border(2.dp, borderColor, shape)
-            .background(Color.Black.copy(alpha = 0.35f), shape)
+            .then(
+                if (selected) Modifier.border(2.dp, AppWhite, shape)
+                else Modifier
+            )
+            .background(AppBlack, shape)
             .padding(horizontal = 10.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = if (dirty) value.toString() else placeholder,
+            color = AppWhite,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         )
@@ -386,6 +392,14 @@ private fun TimeJumpKey(
         modifier = modifier,
         onClick = onClick,
         shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.small),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = AppBlack,
+            contentColor = AppWhite,
+            focusedContainerColor = AppWhite,
+            focusedContentColor = AppBlack,
+            pressedContainerColor = AppWhite,
+            pressedContentColor = AppBlack
+        )
     ) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(text = text, style = MaterialTheme.typography.titleMedium)
@@ -396,7 +410,7 @@ private fun TimeJumpKey(
 @Composable
 private fun TimeJumpBarKey(
     text: String,
-    modifier: Modifier = Modifier,
+    modifier: Modifier,
     fontSize: TextUnit = TextUnit.Unspecified,
     onClick: () -> Unit
 ) {
@@ -404,6 +418,14 @@ private fun TimeJumpBarKey(
         modifier = modifier,
         onClick = onClick,
         shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.small),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = AppBlack,
+            contentColor = AppWhite,
+            focusedContainerColor = AppWhite,
+            focusedContentColor = AppBlack,
+            pressedContainerColor = AppWhite,
+            pressedContentColor = AppBlack
+        )
     ) {
         Box(
             modifier = Modifier
@@ -411,7 +433,11 @@ private fun TimeJumpBarKey(
                 .padding(horizontal = 8.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(text = text, fontSize = fontSize, style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = text,
+                fontSize = fontSize,
+                style = MaterialTheme.typography.titleMedium
+            )
         }
     }
 }

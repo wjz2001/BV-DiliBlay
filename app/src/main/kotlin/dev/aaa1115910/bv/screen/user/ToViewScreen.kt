@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -17,7 +18,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
@@ -28,6 +28,7 @@ import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.ui.effect.UiEffect
+import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -108,7 +109,7 @@ fun ToViewScreen(
             Text(
                 modifier = Modifier.fillMaxWidth(),
                 text = "未看完",
-                color = Color.White.copy(alpha = 0.6f)
+                color = C.onSurfaceVariant
             )
         }
         if (unwatched.isNotEmpty()) {
@@ -162,7 +163,7 @@ fun ToViewScreen(
             Text(
                 modifier = Modifier.fillMaxWidth(),
                 text = "已看完",
-                color = Color.White.copy(alpha = 0.6f)
+                color = C.onSurfaceVariant
             )
         }
         if (watched.isNotEmpty()) {

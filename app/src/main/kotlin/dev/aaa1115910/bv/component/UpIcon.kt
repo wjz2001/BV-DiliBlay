@@ -18,7 +18,7 @@ import dev.aaa1115910.bv.ui.theme.BVTheme
 @Composable
 fun UpIcon(
     modifier: Modifier = Modifier,
-    color: Color = MaterialTheme.colorScheme.onSurface,
+    color: Color,
     upgroup: Boolean = false
 ) {
     Icon(
@@ -38,7 +38,7 @@ fun UpIconPreview() {
         Row(
             verticalAlignment = Alignment.CenterVertically
         ) {
-            UpIcon()
+            UpIcon(color = MaterialTheme.colorScheme.onSurface)
             Text(text = "bishi")
         }
     }

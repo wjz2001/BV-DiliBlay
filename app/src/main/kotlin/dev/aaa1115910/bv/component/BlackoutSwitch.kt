@@ -12,6 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import dev.aaa1115910.bv.ui.theme.AppBlack
 import kotlinx.coroutines.delay
 
 /**
@@ -38,7 +39,7 @@ import kotlinx.coroutines.delay
 fun <T> BlackoutSwitch(
     targetState: T,
     modifier: Modifier = Modifier,
-    blackoutColor: Color = Color.Black,
+    blackoutColor: Color = AppBlack,
     fadeInMillis: Int = 90,
     fadeOutMillis: Int = 90,
     switchDelayMillis: Long = 0L,

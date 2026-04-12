@@ -59,12 +59,11 @@ import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.component.PgcCarousel
 import dev.aaa1115910.bv.component.videocard.SeasonCard
-
-
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
-
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.ui.theme.C
+
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.resizedImageUrl
 import dev.aaa1115910.bv.util.toast
@@ -198,23 +197,12 @@ fun PgcFeedRankRow(
     data: PgcFeedData.FeedRank
 ) {
     val context = LocalContext.current
+    val posterOverlay = C.posterOverlay.copy(alpha = 1f)
     Box(
         modifier = modifier
             .height(300.dp)
+            .background(C.scrim)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            // light theme color: Color(250, 222, 214)
-                            Color(20, 18, 17),
-                            Color(20, 18, 17).copy(alpha = 0.298f)
-                        )
-                    )
-                )
-        ) {}
         BoxWithConstraints {
             AsyncImage(
                 modifier = Modifier
@@ -223,7 +211,7 @@ fun PgcFeedRankRow(
                     .graphicsLayer { alpha = 0.99f }
                     .drawWithContent {
                         val colors = listOf(
-                            Color.Black,
+                            posterOverlay,
                             Color.Transparent
                         )
                         drawContent()
@@ -258,12 +246,12 @@ fun PgcFeedRankRow(
                 Text(
                     text = data.title,
                     style = MaterialTheme.typography.titleLarge,
-                    color = Color.White
+                    color = C.onScrim
                 )
                 Text(
                     text = data.subTitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.6f)
+                    color = C.onScrim.copy(alpha = 0.6f)
                 )
             }
 

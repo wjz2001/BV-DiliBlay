@@ -25,7 +25,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.ImageBitmapConfig
 import androidx.compose.ui.graphics.asImageBitmap
@@ -40,6 +39,8 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.ui.theme.AppBlack
+import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import io.github.g0dkar.qrcode.QRCode
 import io.github.g0dkar.qrcode.render.Colors
@@ -54,8 +55,8 @@ fun RegionBlockScreen(
 ) {
     val context = LocalContext.current
     var qrImage by remember { mutableStateOf(ImageBitmap(1, 1, ImageBitmapConfig.Argb8888)) }
-    val primaryColorHex =
-        "#" + MaterialTheme.colorScheme.surface.toArgb().toHexString().substring(2)
+    val qrColorHex =
+        "#" + AppBlack.toArgb().toHexString().substring(2)
 
     var finishNumberTarget by remember { mutableIntStateOf(0) }
     val finishNumber by animateIntAsState(
@@ -73,11 +74,11 @@ fun RegionBlockScreen(
     )
 
     LaunchedEffect(Unit) {
-        println(primaryColorHex)
+        println(qrColorHex)
         val output = ByteArrayOutputStream()
         finishNumberTarget = 100
         QRCode(context.getString(R.string.region_block_qr_content))
-            .render(darkColor = Colors.css(primaryColorHex))
+            .render(darkColor = Colors.css(qrColorHex))
             .writeImage(output)
         val input = ByteArrayInputStream(output.toByteArray())
         qrImage = BitmapFactory.decodeStream(input).asImageBitmap()
@@ -132,7 +133,7 @@ fun RegionBlockScreen(
                     Box(
                         modifier = Modifier
                             .size(80.dp)
-                            .background(Color.White),
+                            .background(AppWhite),
                         contentAlignment = Alignment.Center
                     ) {
                         Image(

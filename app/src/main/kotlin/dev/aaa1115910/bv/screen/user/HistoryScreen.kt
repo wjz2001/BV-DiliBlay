@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -48,6 +49,7 @@ import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.tv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.effect.UiEffect
+import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.HistoryViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
@@ -116,6 +118,8 @@ fun HistoryScreen(
             }
         }
     }
+    val searchFocusedLineColor = C.primary
+    val searchUnfocusedLineColor = C.onSurfaceVariant
 
     Box(
         modifier = modifier.onPreviewKeyEvent {
@@ -194,7 +198,11 @@ fun HistoryScreen(
                                 val stroke = 3.dp.toPx()
                                 val y = size.height - stroke / 2f
                                 drawLine(
-                                    color = if (searchFieldHasFocus) Color(0xFFFF0000) else Color.White.copy(alpha = 0.55f),
+                                    color = if (searchFieldHasFocus) {
+                                        searchFocusedLineColor
+                                    } else {
+                                        searchUnfocusedLineColor
+                                    },
                                     start = Offset(0f, y),
                                     end = Offset(size.width, y),
                                     strokeWidth = stroke

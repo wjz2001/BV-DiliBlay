@@ -75,6 +75,8 @@ import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.ui.theme.C
+
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.focusedScale
@@ -263,7 +265,7 @@ fun SearchResultScreen(
                     Text(
                         text = (if (isVideoSearchViaWebApi) "菜单键打开筛选 | " else "") +
                                 stringResource(R.string.load_data_count, searchResult.count),
-                        color = Color.White.copy(alpha = 0.6f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.End
                     )
                 }
@@ -383,7 +385,7 @@ fun UpCard(
         shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.large),
         border = ClickableSurfaceDefaults.border(
             focusedBorder = Border(
-                border = BorderStroke(width = 3.dp, color = Color.White),
+                border = BorderStroke(width = 3.dp, color = C.selectedBorder),
                 shape = MaterialTheme.shapes.large
             )
         ),
@@ -399,7 +401,7 @@ fun UpCard(
                     .padding(start = 12.dp, end = 8.dp)
                     .size(48.dp)
                     .clip(CircleShape),
-                color = Color.White
+                color = MaterialTheme.colorScheme.surfaceVariant
             ) {
                 AsyncImage(
                     modifier = Modifier

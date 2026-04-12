@@ -65,6 +65,11 @@ import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.ui.state.PlayerChapter
 import dev.aaa1115910.bv.ui.state.PlayerUiState
+import dev.aaa1115910.bv.ui.theme.AppBlack
+import dev.aaa1115910.bv.ui.theme.AppGray
+import dev.aaa1115910.bv.ui.theme.AppWhite
+import dev.aaa1115910.bv.ui.theme.C
+
 
 private enum class UpPanelTab(
     val title: String,
@@ -168,7 +173,10 @@ fun UpPanelController(
                         }
                         false
                     },
-                colors = SurfaceDefaults.colors(containerColor = Color.Black.copy(alpha = 0.5f))
+                colors = SurfaceDefaults.colors(
+                    containerColor = C.scrim,
+                    contentColor = C.onScrim
+                )
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -289,6 +297,7 @@ fun UpPanelController(
 private fun UpPanelNavItem(
     modifier: Modifier = Modifier,
     title: String,
+    fontColor: Color,
     progressText: String?,
     icon: ImageVector,
     expanded: Boolean = true,
@@ -336,6 +345,7 @@ private fun UpPanelNavItem(
                                 modifier = Modifier.fillMaxWidth(),
                                 text = if (progressText != null) "$title$progressText" else title,
                                 style = MaterialTheme.typography.titleMedium,
+                                color = fontColor,
                                 textAlign = TextAlign.Center,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -364,7 +374,14 @@ private fun UpPanelNavItem(
             }
         },
         colors = ListItemDefaults.colors(
-            selectedContainerColor = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.4f),
+            containerColor = Color.Transparent,
+            contentColor = AppWhite,
+            selectedContainerColor = AppGray,
+            selectedContentColor = AppBlack,
+            focusedContainerColor = AppWhite,
+            focusedContentColor = AppBlack,
+            focusedSelectedContainerColor = AppWhite,
+            focusedSelectedContentColor = AppBlack
         )
     )
 }
@@ -416,9 +433,9 @@ private fun UpPanelNavList(
             UpPanelNavItem(
                 modifier = Modifier
                     .ifElse(tab == UpPanelTab.Video, Modifier.focusRequester(navVideoItemFocusRequester))
-                    .focusProperties { canFocus = enabled }
-                    .alpha(if (enabled) 1f else 0.45f),
+                    .focusProperties { canFocus = enabled },
                 title = tab.title,
+                fontColor = if (!enabled) C.disabled else Color.Unspecified,
                 progressText = progressText,
                 icon = tab.icon,
                 expanded = isExpanded,
