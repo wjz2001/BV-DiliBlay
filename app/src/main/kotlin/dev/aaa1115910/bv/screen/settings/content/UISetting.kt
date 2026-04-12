@@ -35,6 +35,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Density
@@ -49,6 +50,7 @@ import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.ui.theme.ThemeMode
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.requestFocus
 import kotlin.math.roundToInt
@@ -65,9 +67,10 @@ fun UISetting(
     var showVideoInfo by remember { mutableStateOf(Prefs.showVideoInfo) }
     var showPersistentSeek by remember { mutableStateOf(Prefs.showPersistentSeek) }
     var focusAlwaysCenter by remember { mutableStateOf(Prefs.focusAlwaysCenter) }
-    var blackTheme by remember { mutableStateOf(Prefs.blackTheme) }
+    val themeModeOrdinal by Prefs.themeModeFlow.collectAsState(Prefs.themeMode.ordinal)
+    var selectedThemeMode by remember(themeModeOrdinal) { mutableStateOf(ThemeMode.fromOrdinal(themeModeOrdinal)) }
 
-    val density by Prefs.densityFlow.collectAsState(context.resources.displayMetrics.widthPixels / 960f)
+    val density by Prefs.densityFlow.collectAsState(LocalWindowInfo.current.containerSize.width / 960f)
     var selectedFirstHomeTopNavItem by remember { mutableStateOf(Prefs.firstHomeTopNavItem) }
 
     Box(modifier = modifier) {
@@ -119,22 +122,22 @@ fun UISetting(
                     SettingCycleListItem(
                         title = stringResource(R.string.settings_ui_focus_always_center_title),
                         options = listOf(false, true),
-                        selectedOption = focusAlwaysCenter,
-                        getSupportText = {
+                        checked = focusAlwaysCenter,
+                        supportText = {
                             if (it) {
                                 "选中的内容始终保持在屏幕中间"
                             } else {
                                 "只有移动到边缘时才滚动（更流畅）"
                             }
                         },
-                        getTrailingText = {
+                        trailingText = {
                             if (it) {
                                 "Pivot"
                             } else {
                                 "KeepVisible"
                             }
                         },
-                        onSelectedChange = {
+                        onCheckedChange = {
                             focusAlwaysCenter = it
                             Prefs.focusAlwaysCenter = it
                         }
@@ -142,22 +145,18 @@ fun UISetting(
                 }
                 item {
                     SettingCycleListItem(
-                        title = "主题设置",
-                        options = listOf(true, false),
-                        selectedOption = blackTheme,
-                        getTrailingText = {
-                            if (it) {
-                                "黑色"
-                            } else {
-                                "白色"
-                            }
-                        },
-                        onSelectedChange = {
-                            blackTheme = it
-                            Prefs.blackTheme = it
+                        title = stringResource(R.string.settings_ui_theme_title),
+                        options = ThemeMode.entries.toList(),
+                        checked = selectedThemeMode,
+                        supportText = { context.getString(R.string.settings_ui_theme_text) },
+                        trailingText = { it.getDisplayName(context) },
+                        onCheckedChange = {
+                            selectedThemeMode = it
+                            Prefs.themeMode = it
                         }
                     )
                 }
+                /*
                 item {
                     SettingListItem(
                         title = stringResource(R.string.settings_ui_density_title),
@@ -165,6 +164,7 @@ fun UISetting(
                         onClick = { showDensityDialog = true }
                     )
                 }
+                 */
             }
         }
     }
@@ -198,10 +198,10 @@ private fun UIDensityDialog(
     density: Float,
     onDensityChange: (Float) -> Unit
 ) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
-    val defaultDensity by remember { mutableFloatStateOf(context.resources.displayMetrics.widthPixels / 960f) }
+    val screenWidth = LocalWindowInfo.current.containerSize.width
+    val defaultDensity by remember { mutableFloatStateOf(screenWidth / 960f) }
 
     LaunchedEffect(show) {
         if (show) focusRequester.requestFocus(scope)
@@ -257,7 +257,23 @@ fun UIDensityDialogPreview() {
     val show by remember { mutableStateOf(true) }
     var density by remember { mutableFloatStateOf(1.0f) }
 
-    BVTheme {
+    BVTheme(themeMode = ThemeMode.DARK) {
+        UIDensityDialog(
+            show = show,
+            onHideDialog = {},
+            density = density,
+            onDensityChange = { density = it }
+        )
+    }
+}
+
+@Preview
+@Composable
+fun UIDensityDialogLightPreview() {
+    val show by remember { mutableStateOf(true) }
+    var density by remember { mutableFloatStateOf(1.0f) }
+
+    BVTheme(themeMode = ThemeMode.LIGHT) {
         UIDensityDialog(
             show = show,
             onHideDialog = {},

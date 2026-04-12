@@ -21,6 +21,7 @@ import dev.aaa1115910.bv.entity.PlayerType
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
+import dev.aaa1115910.bv.ui.theme.ThemeMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -300,6 +301,14 @@ object Prefs {
     )
     val densityFlow = flowMap[PrefKeys.prefDensityKey]!!.asStateFlow() as StateFlow<Float>
 
+    var themeMode by pref(
+        PrefKeys.prefThemeModeKey,
+        ThemeMode.DARK,
+        save = { it.ordinal },
+        restore = { ThemeMode.fromOrdinal(it) }
+    )
+    val themeModeFlow = flowMap[PrefKeys.prefThemeModeKey]!!.asStateFlow() as StateFlow<Int>
+
     var firstHomeTopNavItem by pref(
         PrefKeys.prefFirstHomeTopNavItemKey,
         HomeTopNavItem.Dynamics,
@@ -310,7 +319,6 @@ object Prefs {
     var showVideoInfo by pref(PrefKeys.prefShowVideoInfoKey, true)
     var showPersistentSeek by pref(PrefKeys.prefShowPersistentSeekKey, true)
     var focusAlwaysCenter by pref(PrefKeys.prefFocusAlwaysCenterKey, false)
-    var blackTheme by pref(PrefKeys.prefBlackThemeKey, true)
     var showHotword by pref(PrefKeys.prefShowHotwordKey, true)
     var accessToken by pref(PrefKeys.prefAccessTokenKey, "")
     var refreshToken by pref(PrefKeys.prefRefreshTokenKey, "")
@@ -352,7 +360,6 @@ object Prefs {
         if (!initialPrefs.contains(PrefKeys.prefDefaultDanmakuEnabledKey)) {
             defaultDanmakuEnabled = defaultDanmakuTypes.isNotEmpty()
         }
-
         scope.launch {
             BVApp.dataStoreManager.dataStore.data.collect { preferences ->
                 updateMemoryCache(preferences)
@@ -469,11 +476,11 @@ private object PrefKeys {
     val prefBuvid3Key = stringPreferencesKey("random_buvid3")
     val prefPlayerTypeKey = intPreferencesKey("pt")
     val prefDensityKey = floatPreferencesKey("density")
+    val prefThemeModeKey = intPreferencesKey("theme_mode")
     val prefFirstHomeTopNavItemKey = intPreferencesKey("first_home_top_nav")
     val prefShowVideoInfoKey = booleanPreferencesKey("show_video_info")
     val prefShowPersistentSeekKey = booleanPreferencesKey("show_persistent_seek")
     val prefFocusAlwaysCenterKey = booleanPreferencesKey("focus_always_center")
-    val prefBlackThemeKey = booleanPreferencesKey("black_theme")
     val prefShowHotwordKey = booleanPreferencesKey("shw")
     val prefAccessTokenKey = stringPreferencesKey("access_token")
     val prefRefreshTokenKey = stringPreferencesKey("refresh_token")
