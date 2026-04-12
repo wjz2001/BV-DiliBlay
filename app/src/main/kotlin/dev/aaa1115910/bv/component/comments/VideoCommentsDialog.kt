@@ -89,56 +89,17 @@ import dev.aaa1115910.biliapi.repositories.CommentRepository
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.C
+import dev.aaa1115910.bv.util.buildCommentMessageTokens
+import dev.aaa1115910.bv.util.CommentMessageToken
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.launchPlayerActivity
 import dev.aaa1115910.bv.util.resolveVideoLink
 import dev.aaa1115910.bv.util.ResolvedVideoLink
-import dev.aaa1115910.bv.util.splitTextByVideoLink
 import dev.aaa1115910.bv.util.toast
-import dev.aaa1115910.bv.util.VideoLinkTextToken
 import dev.aaa1115910.bv.util.VideoLinkToken
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.compose.getKoin
-
-private sealed class MessageToken {
-    data class Text(val text: String, val isMention: Boolean = false) : MessageToken()
-    data class Emote(val code: String, val url: String, val alt: String) : MessageToken()
-    data class VideoLink(val data: VideoLinkToken) : MessageToken()
-}
-
-private fun buildMessageTokens(comment: Comment): List<MessageToken> {
-    val parts = comment.messageParts.ifEmpty {
-        listOf(Comment.MessagePart.Text(comment.message))
-    }
-
-    val tokens = mutableListOf<MessageToken>()
-    parts.forEach { part ->
-        when (part) {
-            is Comment.MessagePart.Text -> {
-                if (part.isMention) {
-                    tokens += MessageToken.Text(part.text, isMention = true)
-                } else {
-                    tokens += splitTextByVideoLink(part.text).map { token ->
-                        when (token) {
-                            is VideoLinkTextToken.Text -> MessageToken.Text(token.text)
-                            is VideoLinkTextToken.VideoLink -> MessageToken.VideoLink(token.data)
-                        }
-                    }
-                }
-            }
-
-            is Comment.MessagePart.Emote -> {
-                tokens += MessageToken.Emote(
-                    code = part.code,
-                    url = part.url,
-                    alt = part.alt
-                )
-            }
-        }
-    }
-    return tokens
-}
 
 private enum class Page { Main, Replies }
 @OptIn(ExperimentalFoundationApi::class)
@@ -724,9 +685,9 @@ private fun LightCommentItem(
 ) {
     val pictures = comment.pictures
     val tokens = remember(comment.rpid, comment.messageParts, comment.message) {
-        buildMessageTokens(comment)
+        buildCommentMessageTokens(comment)
     }
-    val linkCount = remember(tokens) { tokens.count { it is MessageToken.VideoLink } }
+    val linkCount = remember(tokens) { tokens.count { it is CommentMessageToken.VideoLink } }
 
     val linkFocusRequesters = remember(comment.rpid, linkCount) {
         List(linkCount) { FocusRequester() }
@@ -979,9 +940,10 @@ private fun VideoLinkInlineItem(
         resolved = resolveVideoLink(token)
     }
 
-    val showLinkStyle = !loaded || resolved != null
+    val r = resolved  // 取一次快照
+    val showLinkStyle = !loaded || r != null
     val title = when {
-        resolved != null -> resolved.title
+        r != null -> r.title
         loaded -> token.rawUrl
         else -> token.videoId
     }
@@ -1073,7 +1035,7 @@ private fun CommentMessageText(
     onVideoLinkClick: ((ResolvedVideoLink) -> Unit)?
 ) {
     val tokens = remember(comment.rpid, comment.messageParts, comment.message) {
-        buildMessageTokens(comment)
+        buildCommentMessageTokens(comment)
     }
 
     val inlineContent = linkedMapOf<String, InlineTextContent>()
@@ -1085,17 +1047,17 @@ private fun CommentMessageText(
     val text = buildAnnotatedString {
         tokens.forEach { token ->
             when (token) {
-                is MessageToken.Text -> {
-                    if (token.isMention) {
-                        withStyle(SpanStyle(color = C.mentionAndLink, fontWeight = FontWeight.Medium)) {
-                            append(token.text)
-                        }
-                    } else {
-                        append(token.text)
+                is CommentMessageToken.Text -> {
+                    append(token.text)
+                }
+
+                is CommentMessageToken.Mention -> {
+                    withStyle(SpanStyle(color = C.mentionAndLink, fontWeight = FontWeight.Medium)) {
+                        append("@${token.name}")
                     }
                 }
 
-                is MessageToken.Emote -> {
+                is CommentMessageToken.Emote -> {
                     val id = "comment_emote_$emoteIndex"
                     appendInlineContent(id, token.alt.ifBlank { token.code })
                     inlineContent[id] = InlineTextContent(
@@ -1115,7 +1077,7 @@ private fun CommentMessageText(
                     emoteIndex += 1
                 }
 
-                is MessageToken.VideoLink -> {
+                is CommentMessageToken.VideoLink -> {
                     val id = "comment_video_link_$linkIndex"
                     val currentLinkIndex = linkIndex
                     val currentFr = linkFocusRequesters.getOrNull(currentLinkIndex)

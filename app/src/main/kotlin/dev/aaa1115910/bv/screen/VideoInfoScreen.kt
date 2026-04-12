@@ -161,6 +161,8 @@ import dev.aaa1115910.bv.ui.effect.VideoDetailUiEffect
 
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.C
+import dev.aaa1115910.bv.util.buildCommentMessageTokens
+import dev.aaa1115910.bv.util.CommentMessageToken
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.formatHourMinSec
@@ -168,10 +170,8 @@ import dev.aaa1115910.bv.util.formatPubTimeString
 import dev.aaa1115910.bv.util.launchPlayerActivity
 import dev.aaa1115910.bv.util.resolveVideoLink
 import dev.aaa1115910.bv.util.ResolvedVideoLink
-import dev.aaa1115910.bv.util.splitTextByVideoLink
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.util.toast
-import dev.aaa1115910.bv.util.VideoLinkTextToken
 import dev.aaa1115910.bv.util.VideoLinkToken
 import dev.aaa1115910.bv.util.focusedBorder
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
@@ -1228,8 +1228,8 @@ fun VideoDescriptionDialog(
         val scope = rememberCoroutineScope()
         val bodyFocusRequester = remember { FocusRequester() }
         val context = LocalContext.current
-        val tokens = remember(description) { splitTextByVideoLink(description) }
-        val linkCount = remember(tokens) { tokens.count { it is VideoLinkTextToken.VideoLink } }
+        val tokens = remember(description) { buildCommentMessageTokens(description) }
+        val linkCount = remember(tokens) { tokens.count { it is CommentMessageToken.VideoLink } }
         val linkFocusRequesters = remember(description, linkCount) {
             List(linkCount) { FocusRequester() }
         }
@@ -1352,7 +1352,7 @@ fun VideoDescriptionDialog(
 @Composable
 private fun VideoDescriptionMessageText(
     modifier: Modifier = Modifier,
-    tokens: List<VideoLinkTextToken>,
+    tokens: List<CommentMessageToken>,
     linkFocusRequesters: List<FocusRequester>,
     bodyFocusRequester: FocusRequester,
     onVideoLinkClick: ((ResolvedVideoLink) -> Unit)?
@@ -1364,8 +1364,15 @@ private fun VideoDescriptionMessageText(
     val text = buildAnnotatedString {
         tokens.forEach { token ->
             when (token) {
-                is VideoLinkTextToken.Text -> append(token.text)
-                is VideoLinkTextToken.VideoLink -> {
+                is CommentMessageToken.Text -> append(token.text)
+                is CommentMessageToken.Mention -> {
+                    withStyle(SpanStyle(color = C.mentionAndLink, fontWeight = FontWeight.Medium)) {
+                        append("@${token.name}")
+                    }
+                }
+
+                is CommentMessageToken.Emote -> append(token.alt.ifBlank { token.code })
+                is CommentMessageToken.VideoLink -> {
                     val id = "description_video_link_$linkIndex"
                     val currentLinkIndex = linkIndex
                     val currentFr = linkFocusRequesters.getOrNull(currentLinkIndex)
@@ -1433,9 +1440,10 @@ private fun VideoDescriptionLinkInlineItem(
         resolved = resolveVideoLink(token)
     }
 
-    val showLinkStyle = !loaded || resolved != null
+    val r = resolved  // 取一次快照
+    val showLinkStyle = !loaded || r != null
     val title = when {
-        resolved != null -> resolved.title
+        r != null -> r.title
         loaded -> token.rawUrl
         else -> token.videoId
     }
