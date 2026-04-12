@@ -82,103 +82,29 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import dev.aaa1115910.biliapi.entity.reply.Comment
-import dev.aaa1115910.biliapi.repositories.CommentRepository
 import dev.aaa1115910.biliapi.entity.reply.CommentPage
 import dev.aaa1115910.biliapi.entity.reply.CommentReplyPage
 import dev.aaa1115910.biliapi.entity.reply.CommentSort
-import dev.aaa1115910.bv.util.toast
-import dev.aaa1115910.biliapi.http.BiliHttpApi
+import dev.aaa1115910.biliapi.repositories.CommentRepository
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.launchPlayerActivity
+import dev.aaa1115910.bv.util.resolveVideoLink
+import dev.aaa1115910.bv.util.ResolvedVideoLink
+import dev.aaa1115910.bv.util.splitTextByVideoLink
+import dev.aaa1115910.bv.util.toast
+import dev.aaa1115910.bv.util.VideoLinkTextToken
+import dev.aaa1115910.bv.util.VideoLinkToken
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.koin.compose.getKoin
-
-private val BILIBILI_VIDEO_LINK_REGEX = Regex(
-    "((?:https?://)?(?:[a-zA-Z0-9-]+\\.)*bilibili\\.com/video/([bB][vV][A-Za-z0-9]{10}|[aA][vV]\\d+)[a-zA-Z0-9\\-._~:/?#@!$&*+=%]*)"
-)
-
-private val VIDEO_ID_IN_URL_REGEX = Regex("/video/([bB][vV][A-Za-z0-9]{10}|[aA][vV]\\d+)")
-
-private val TRAILING_NOISE = setOf('.', ',', '!', '?', ';', ':', '"', '\'', ')', ']', '}')
-
-private data class ResolvedVideoLink(
-    val aid: Long,
-    val cid: Long,
-    val title: String
-)
 
 private sealed class MessageToken {
     data class Text(val text: String, val isMention: Boolean = false) : MessageToken()
     data class Emote(val code: String, val url: String, val alt: String) : MessageToken()
     data class VideoLink(val data: VideoLinkToken) : MessageToken()
-}
-
-private data class VideoLinkToken(
-    val rawUrl: String,
-    val cleanedUrl: String,
-    val videoId: String
-)
-
-private fun trimTrailingNoise(rawUrl: String): String {
-    var s = rawUrl.trim()
-    while (s.isNotEmpty()) {
-        val c = s.last()
-        if (c !in TRAILING_NOISE) break
-
-        val keepBracket = when (c) {
-            ')' -> s.count { it == '(' } >= s.count { it == ')' }
-            ']' -> s.count { it == '[' } >= s.count { it == ']' }
-            '}' -> s.count { it == '{' } >= s.count { it == '}' }
-            else -> false
-        }
-        if (keepBracket) break
-        s = s.dropLast(1)
-    }
-    return s
-}
-
-private fun splitTextByVideoLink(text: String, isMention: Boolean): List<MessageToken> {
-    if (text.isEmpty()) return emptyList()
-    if (isMention) return listOf(MessageToken.Text(text, isMention = true))
-
-    val result = mutableListOf<MessageToken>()
-    var cursor = 0
-    BILIBILI_VIDEO_LINK_REGEX.findAll(text).forEach { m ->
-        val start = m.range.first
-        val end = m.range.last + 1
-        if (start > cursor) {
-            result += MessageToken.Text(text.substring(cursor, start))
-        }
-
-        val rawUrl = m.value
-        val cleanedUrl = trimTrailingNoise(rawUrl)
-        val videoId = VIDEO_ID_IN_URL_REGEX.find(cleanedUrl)?.groupValues?.getOrNull(1)
-            ?: m.groupValues.getOrNull(2)
-
-        result += if (!videoId.isNullOrBlank()) {
-            MessageToken.VideoLink(
-                VideoLinkToken(
-                    rawUrl = rawUrl,
-                    cleanedUrl = cleanedUrl,
-                    videoId = videoId
-                )
-            )
-        } else {
-            MessageToken.Text(rawUrl)
-        }
-        cursor = end
-    }
-
-    if (cursor < text.length) {
-        result += MessageToken.Text(text.substring(cursor))
-    }
-    return result
 }
 
 private fun buildMessageTokens(comment: Comment): List<MessageToken> {
@@ -190,7 +116,16 @@ private fun buildMessageTokens(comment: Comment): List<MessageToken> {
     parts.forEach { part ->
         when (part) {
             is Comment.MessagePart.Text -> {
-                tokens += splitTextByVideoLink(part.text, part.isMention)
+                if (part.isMention) {
+                    tokens += MessageToken.Text(part.text, isMention = true)
+                } else {
+                    tokens += splitTextByVideoLink(part.text).map { token ->
+                        when (token) {
+                            is VideoLinkTextToken.Text -> MessageToken.Text(token.text)
+                            is VideoLinkTextToken.VideoLink -> MessageToken.VideoLink(token.data)
+                        }
+                    }
+                }
             }
 
             is Comment.MessagePart.Emote -> {
@@ -203,29 +138,6 @@ private fun buildMessageTokens(comment: Comment): List<MessageToken> {
         }
     }
     return tokens
-}
-
-private suspend fun resolveVideoLink(token: VideoLinkToken): ResolvedVideoLink? {
-    return withContext(Dispatchers.IO) {
-        val sessData = Prefs.sessData.takeIf { it.isNotBlank() }
-        val id = token.videoId
-
-        runCatching {
-            val response = if (id.startsWith("av", ignoreCase = true)) {
-                val aid = id.drop(2).toLong()
-                BiliHttpApi.getVideoInfo(av = aid, sessData = sessData)
-            } else {
-                val normalizedBvid = "BV" + id.drop(2)
-                BiliHttpApi.getVideoInfo(bv = normalizedBvid, sessData = sessData)
-            }
-            val data = response.getResponseData()
-            ResolvedVideoLink(
-                aid = data.aid,
-                cid = data.cid,
-                title = data.title
-            )
-        }.getOrNull()
-    }
 }
 
 private enum class Page { Main, Replies }
@@ -1067,21 +979,28 @@ private fun VideoLinkInlineItem(
         resolved = resolveVideoLink(token)
     }
 
-    val title = resolved?.title ?: token.videoId
+    val showLinkStyle = !loaded || resolved != null
+    val title = when {
+        resolved != null -> resolved.title
+        loaded -> token.rawUrl
+        else -> token.videoId
+    }
 
     if (!enableFocus) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            androidx.tv.material3.Icon(
-                imageVector = Icons.Rounded.PlayCircleOutline,
-                contentDescription = null,
-                tint = C.mentionAndLink
-            )
+            if (showLinkStyle) {
+                androidx.tv.material3.Icon(
+                    imageVector = Icons.Rounded.PlayCircleOutline,
+                    contentDescription = null,
+                    tint = C.mentionAndLink
+                )
+            }
             Text(
                 text = title,
-                color = C.mentionAndLink,
+                color = if (showLinkStyle) C.mentionAndLink else AppBlack,
                 fontSize = fontSize,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -1091,18 +1010,18 @@ private fun VideoLinkInlineItem(
     }
 
     Surface(
-        modifier = Modifier
-            .focusRequester(focusRequester ?: Default)
-            .focusProperties {
-                upRequester?.let { up = it }
-                downRequester?.let { down = it }
-            }
-            .onFocusChanged { focused = it.hasFocus }
-            .border(
-                width = if (focused) 3.dp else 0.dp,
-                color = if (focused) C.mentionAndLink else Color.Transparent,
-                shape = MaterialTheme.shapes.small
-            ),
+            modifier = Modifier
+                .focusRequester(focusRequester ?: Default)
+                .focusProperties {
+                    upRequester?.let { up = it }
+                    downRequester?.let { down = it }
+                }
+                .onFocusChanged { focused = it.hasFocus }
+                .border(
+                    width = if (focused) 3.dp else 0.dp,
+                    color = if (focused && showLinkStyle) C.mentionAndLink else Color.Transparent,
+                    shape = MaterialTheme.shapes.small
+                ),
         shape = ClickableSurfaceDefaults.shape(MaterialTheme.shapes.small),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
@@ -1123,14 +1042,16 @@ private fun VideoLinkInlineItem(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            androidx.tv.material3.Icon(
-                imageVector = Icons.Rounded.PlayCircleOutline,
-                contentDescription = null,
-                tint = C.mentionAndLink
-            )
+            if (showLinkStyle) {
+                androidx.tv.material3.Icon(
+                    imageVector = Icons.Rounded.PlayCircleOutline,
+                    contentDescription = null,
+                    tint = C.mentionAndLink
+                )
+            }
             Text(
                 text = title,
-                color = C.mentionAndLink,
+                color = if (showLinkStyle) C.mentionAndLink else AppBlack,
                 fontSize = fontSize,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis

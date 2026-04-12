@@ -7,9 +7,11 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Arrangement
@@ -38,11 +40,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Done
 import androidx.compose.material.icons.rounded.Group
+import androidx.compose.material.icons.rounded.PlayCircleOutline
 import androidx.compose.material.icons.rounded.ViewModule
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material.icons.rounded.ZoomOutMap
@@ -68,6 +74,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.FocusRequester.Companion.Default
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
@@ -88,6 +95,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -97,7 +106,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -155,8 +166,13 @@ import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.formatPubTimeString
 import dev.aaa1115910.bv.util.launchPlayerActivity
+import dev.aaa1115910.bv.util.resolveVideoLink
+import dev.aaa1115910.bv.util.ResolvedVideoLink
+import dev.aaa1115910.bv.util.splitTextByVideoLink
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.util.toast
+import dev.aaa1115910.bv.util.VideoLinkTextToken
+import dev.aaa1115910.bv.util.VideoLinkToken
 import dev.aaa1115910.bv.util.focusedBorder
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import dev.aaa1115910.bv.viewmodel.video.VideoDetailState
@@ -1210,7 +1226,14 @@ fun VideoDescriptionDialog(
     if (show) {
         val scrollState = rememberScrollState()
         val scope = rememberCoroutineScope()
-        val focusRequester = remember { FocusRequester() }
+        val bodyFocusRequester = remember { FocusRequester() }
+        val context = LocalContext.current
+        val tokens = remember(description) { splitTextByVideoLink(description) }
+        val linkCount = remember(tokens) { tokens.count { it is VideoLinkTextToken.VideoLink } }
+        val linkFocusRequesters = remember(description, linkCount) {
+            List(linkCount) { FocusRequester() }
+        }
+        var bodyHasFocus by remember(description) { mutableStateOf(false) }
 
         var viewportHeightPx by remember { mutableIntStateOf(0) }
         val stepPx = remember(viewportHeightPx) {
@@ -1221,8 +1244,8 @@ fun VideoDescriptionDialog(
         }
 
         LaunchedEffect(canScroll) {
-            if (show && canScroll) {
-                focusRequester.requestFocus()
+            if (show && (canScroll || linkFocusRequesters.isNotEmpty())) {
+                bodyFocusRequester.requestFocus()
             }
         }
 
@@ -1242,41 +1265,229 @@ fun VideoDescriptionDialog(
                         .fillMaxWidth()
                         .height(420.dp)
                         .onSizeChanged { viewportHeightPx = it.height }
-                        .focusRequester(focusRequester)
-                        .focusable(enabled = canScroll)
-                        .onPreviewKeyEvent { event ->
-                            if (!canScroll) return@onPreviewKeyEvent false
-                            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-
-                            when (event.key) {
-                                Key.DirectionDown -> {
-                                    val target = (scrollState.value + stepPx)
-                                        .coerceIn(0, scrollState.maxValue)
-                                    scope.launch { scrollState.animateScrollTo(target) }
-                                    true
-                                }
-                                Key.DirectionUp -> {
-                                    val target = (scrollState.value - stepPx)
-                                        .coerceIn(0, scrollState.maxValue)
-                                    scope.launch { scrollState.animateScrollTo(target) }
-                                    true
-                                }
-                                else -> false
-                            }
-                        }
                 ) {
-                    Text(
+                    Surface(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(scrollState),
-                        text = description,
-                        fontSize = 28.sp,
-                        lineHeight = 34.sp,
-                    )
+                            .fillMaxSize()
+                            .focusRequester(bodyFocusRequester)
+                            .focusProperties {
+                                linkFocusRequesters.firstOrNull()?.let { down = it }
+                            }
+                            .onFocusChanged { bodyHasFocus = it.hasFocus }
+                            .onPreviewKeyEvent { event ->
+                                if (!canScroll) return@onPreviewKeyEvent false
+                                if (!bodyHasFocus) return@onPreviewKeyEvent false
+                                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+
+                                when (event.key) {
+                                    Key.DirectionDown -> {
+                                        if (scrollState.value < scrollState.maxValue) {
+                                            scope.launch { scrollState.animateScrollBy(stepPx.toFloat()) }
+                                            true
+                                        } else {
+                                            false
+                                        }
+                                    }
+                                    Key.DirectionUp -> {
+                                        if (scrollState.value > 0) {
+                                            scope.launch { scrollState.animateScrollBy(-stepPx.toFloat()) }
+                                            true
+                                        } else {
+                                            false
+                                        }
+                                    }
+                                    else -> false
+                                }
+                            }
+                            .border(
+                                width = 3.dp,
+                                color = if (bodyHasFocus) C.bilibili else Color.Transparent,
+                                shape = MaterialTheme.shapes.medium
+                            ),
+                        shape = ClickableSurfaceDefaults.shape(MaterialTheme.shapes.medium),
+                        colors = ClickableSurfaceDefaults.colors(
+                            containerColor = Color.Transparent,
+                            focusedContainerColor = Color.Transparent,
+                            pressedContainerColor = Color.Transparent
+                        ),
+                        scale = ClickableSurfaceDefaults.scale(
+                            focusedScale = 1f,
+                            pressedScale = 1f
+                        ),
+                        enabled = true,
+                        onClick = {}
+                    ) {
+                        VideoDescriptionMessageText(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(12.dp)
+                                .verticalScroll(scrollState),
+                            tokens = tokens,
+                            linkFocusRequesters = linkFocusRequesters,
+                            bodyFocusRequester = bodyFocusRequester,
+                            onVideoLinkClick = { link ->
+                                if (Prefs.showVideoInfo) {
+                                    VideoInfoActivity.actionStart(context, link.aid)
+                                } else {
+                                    launchPlayerActivity(
+                                        context = context,
+                                        avid = link.aid,
+                                        cid = link.cid,
+                                        title = link.title,
+                                        partTitle = "",
+                                        played = 0,
+                                        fromSeason = false
+                                    )
+                                }
+                            }
+                        )
+                    }
                 }
             },
             confirmButton = {}
         )
+    }
+}
+
+@Composable
+private fun VideoDescriptionMessageText(
+    modifier: Modifier = Modifier,
+    tokens: List<VideoLinkTextToken>,
+    linkFocusRequesters: List<FocusRequester>,
+    bodyFocusRequester: FocusRequester,
+    onVideoLinkClick: ((ResolvedVideoLink) -> Unit)?
+) {
+    val inlineContent = linkedMapOf<String, InlineTextContent>()
+    var linkIndex = 0
+    val basicFontSize = 28.sp
+
+    val text = buildAnnotatedString {
+        tokens.forEach { token ->
+            when (token) {
+                is VideoLinkTextToken.Text -> append(token.text)
+                is VideoLinkTextToken.VideoLink -> {
+                    val id = "description_video_link_$linkIndex"
+                    val currentLinkIndex = linkIndex
+                    val currentFr = linkFocusRequesters.getOrNull(currentLinkIndex)
+                    val downFr = if (currentLinkIndex < linkFocusRequesters.lastIndex) {
+                        linkFocusRequesters[currentLinkIndex + 1]
+                    } else {
+                        null
+                    }
+
+                    append(" ")
+                    appendInlineContent(id, token.data.videoId)
+                    append(" ")
+
+                    inlineContent[id] = InlineTextContent(
+                        Placeholder(
+                            width = 20.em,
+                            height = 1.6.em,
+                            placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter
+                        )
+                    ) {
+                        VideoDescriptionLinkInlineItem(
+                            token = token.data,
+                            focusRequester = currentFr,
+                            upRequester = bodyFocusRequester,
+                            downRequester = downFr,
+                            fontSize = basicFontSize,
+                            onVideoLinkClick = onVideoLinkClick
+                        )
+                    }
+
+                    linkIndex += 1
+                }
+            }
+        }
+    }
+
+    BasicText(
+        modifier = modifier,
+        text = text,
+        inlineContent = inlineContent,
+        style = TextStyle(
+            color = C.onSurface,
+            fontSize = basicFontSize,
+            lineHeight = 34.sp
+        )
+    )
+}
+
+@Composable
+private fun VideoDescriptionLinkInlineItem(
+    token: VideoLinkToken,
+    focusRequester: FocusRequester?,
+    upRequester: FocusRequester?,
+    downRequester: FocusRequester?,
+    fontSize: TextUnit,
+    onVideoLinkClick: ((ResolvedVideoLink) -> Unit)?
+) {
+    var resolved by remember(token.cleanedUrl) { mutableStateOf<ResolvedVideoLink?>(null) }
+    var loaded by remember(token.cleanedUrl) { mutableStateOf(false) }
+    var focused by remember(token.cleanedUrl) { mutableStateOf(false) }
+
+    LaunchedEffect(token.cleanedUrl) {
+        if (loaded) return@LaunchedEffect
+        loaded = true
+        resolved = resolveVideoLink(token)
+    }
+
+    val showLinkStyle = !loaded || resolved != null
+    val title = when {
+        resolved != null -> resolved.title
+        loaded -> token.rawUrl
+        else -> token.videoId
+    }
+
+    Surface(
+        modifier = Modifier
+            .focusRequester(focusRequester ?: Default)
+            .focusProperties {
+                upRequester?.let { up = it }
+                downRequester?.let { down = it }
+            }
+            .onFocusChanged { focused = it.hasFocus }
+            .border(
+                width = if (focused) 3.dp else 0.dp,
+                color = if (focused && showLinkStyle) C.mentionAndLink else Color.Transparent,
+                shape = MaterialTheme.shapes.small
+            ),
+        shape = ClickableSurfaceDefaults.shape(MaterialTheme.shapes.small),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.Transparent,
+            focusedContainerColor = Color.Transparent,
+            pressedContainerColor = Color.Transparent
+        ),
+        scale = ClickableSurfaceDefaults.scale(
+            focusedScale = 1f,
+            pressedScale = 1f
+        ),
+        enabled = true,
+        onClick = {
+            resolved?.let { onVideoLinkClick?.invoke(it) }
+        }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (showLinkStyle) {
+                Icon(
+                    imageVector = Icons.Rounded.PlayCircleOutline,
+                    contentDescription = null,
+                    tint = C.mentionAndLink
+                )
+            }
+            Text(
+                text = title,
+                color = if (showLinkStyle) C.mentionAndLink else C.onSurface,
+                fontSize = fontSize,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
