@@ -31,7 +31,6 @@ fun SettingSwitchListItem(
     onCheckedChange: (Boolean) -> Unit
 ) {
     var hasFocus by remember { mutableStateOf(defaultHasFocus) }
-    var switchChecked by remember { mutableStateOf(checked) }
 
     ListItem(
         modifier = modifier
@@ -48,7 +47,7 @@ fun SettingSwitchListItem(
                     modifier = Modifier
                         .focusable(false)
                         .padding(2.dp),
-                    checked = switchChecked,
+                    checked = checked,
                     onCheckedChange = null,
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = MaterialTheme.colorScheme.inverseSurface,
@@ -60,8 +59,7 @@ fun SettingSwitchListItem(
             }
         },
         onClick = {
-            switchChecked = !switchChecked
-            onCheckedChange(switchChecked)
+            onCheckedChange(!checked)
         },
         selected = hasFocus
     )

@@ -62,14 +62,14 @@ fun OtherSetting(
         SettingCycleListItem(
             title = "接口选择",
             options = listOf(ApiType.App, ApiType.Web),
-            selectedOption = selectedApi,
-            getSupportText = {
+            checked = selectedApi,
+            trailingText = {
                 when (it) {
-                    ApiType.App -> "使用 App 接口"
-                    ApiType.Web -> "使用 Web 接口"
+                    ApiType.App -> "App 接口"
+                    ApiType.Web -> "Web 接口"
                 }
             },
-            onSelectedChange = {
+            onCheckedChange = {
                 Prefs.apiType = it
                 selectedApi = it
             }
