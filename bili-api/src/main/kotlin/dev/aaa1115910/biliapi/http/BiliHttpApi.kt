@@ -97,6 +97,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import org.jsoup.nodes.Document
 import java.io.InputStream
@@ -187,6 +188,28 @@ object BiliHttpApi {
     ): BiliResponse<VideoDetail> = client.get("/x/web-interface/view/detail") {
         parameter("aid", av)
         parameter("bvid", bv)
+        sessData?.let { header("Cookie", "SESSDATA=$sessData;") }
+    }.body()
+
+    /**
+     * 获取公开笔记详情
+     */
+    suspend fun getPublishedNoteInfo(
+        cvid: Long,
+        sessData: String? = null
+    ): BiliResponse<JsonObject> = client.get("/x/note/publish/info") {
+        parameter("cvid", cvid)
+        sessData?.let { header("Cookie", "SESSDATA=$sessData;") }
+    }.body()
+
+    /**
+     * 获取专栏正文
+     */
+    suspend fun getArticleView(
+        cvid: Long,
+        sessData: String? = null
+    ): BiliResponse<JsonObject> = client.get("/x/article/view") {
+        parameter("id", cvid)
         sessData?.let { header("Cookie", "SESSDATA=$sessData;") }
     }.body()
 

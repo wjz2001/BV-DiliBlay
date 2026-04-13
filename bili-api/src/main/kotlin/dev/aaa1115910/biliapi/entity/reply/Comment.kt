@@ -79,6 +79,7 @@ data class Comment(
     val parent: Long,
     val message: String,
     val messageParts: List<MessagePart> = emptyList(),
+    val attachments: List<Attachment> = emptyList(),
     val pictures: List<Picture> = emptyList(),
     val member: Member,
     val timeDesc: String,
@@ -87,6 +88,8 @@ data class Comment(
     val isPinned: Boolean
 ) {
     companion object {
+        private val CvidRegex = Regex("""(?:cv|cvid=|/article/)(\d+)""", RegexOption.IGNORE_CASE)
+
         fun fromReplyInfo(info: ReplyInfo, forcePinned: Boolean): Comment {
             val pinnedByFlag =
                 info.replyControl.isUpTop || info.replyControl.isAdminTop || info.replyControl.isVoteTop
@@ -104,6 +107,7 @@ data class Comment(
                 emoteMap = emoteMap,
                 mentionMap = mentionMap
             )
+            val attachments = buildAttachments(info)
             val pictures = info.content.picturesList.map {
                 Picture(
                     imgSrc = it.imgSrc,
@@ -121,6 +125,7 @@ data class Comment(
                 parent = info.parent,
                 message = info.content.message,
                 messageParts = messageParts,
+                attachments = attachments,
                 pictures = pictures,
                 member = Member(
                     mid = info.mid,
@@ -269,6 +274,58 @@ data class Comment(
             return mergeAdjacentTextParts(result)
         }
 
+        private fun buildAttachments(info: ReplyInfo): List<Attachment> {
+            val result = mutableListOf<Attachment>()
+
+            if (info.content.hasRichText()) {
+                val richText = info.content.richText
+                if (richText.hasNote()) {
+                    val note = richText.note
+                    val cvid = parseCvid(note.clickUrl)
+                    if (cvid != null) {
+                        result += Attachment.Note(
+                            cvid = cvid,
+                            clickUrl = note.clickUrl
+                        )
+                    }
+                }
+            }
+
+            info.content.urlMap.entries
+                .asSequence()
+                .mapNotNull { (rawText, url) ->
+                    val candidateUrl = when {
+                        url.pcUrl.isNotBlank() -> url.pcUrl
+                        url.appUrlSchema.isNotBlank() -> url.appUrlSchema
+                        rawText.isNotBlank() -> rawText
+                        else -> null
+                    } ?: return@mapNotNull null
+
+                    val cvid = parseCvid(candidateUrl) ?: return@mapNotNull null
+                    val title = url.title.ifBlank { return@mapNotNull null }
+
+                    Attachment.Article(
+                        cvid = cvid,
+                        title = title,
+                        url = candidateUrl
+                    )
+                }
+                .distinctBy { it.cvid }
+                .forEach { result += it }
+
+            return result.distinctBy {
+                when (it) {
+                    is Attachment.Note -> "note:${it.cvid}"
+                    is Attachment.Article -> "article:${it.cvid}"
+                }
+            }
+        }
+
+        private fun parseCvid(raw: String): Long? {
+            if (raw.isBlank()) return null
+            return CvidRegex.find(raw)?.groupValues?.getOrNull(1)?.toLongOrNull()
+        }
+
         private fun mergeAdjacentTextParts(parts: List<MessagePart>): List<MessagePart> {
             if (parts.isEmpty()) return emptyList()
             val merged = mutableListOf<MessagePart>()
@@ -296,6 +353,26 @@ data class Comment(
         val imgHeight: Double,
         val imgSize: Double
     )
+
+    sealed class Attachment {
+        abstract val cvid: Long
+        abstract val displayText: String
+
+        data class Note(
+            override val cvid: Long,
+            val clickUrl: String
+        ) : Attachment() {
+            override val displayText: String = "笔记"
+        }
+
+        data class Article(
+            override val cvid: Long,
+            val title: String,
+            val url: String
+        ) : Attachment() {
+            override val displayText: String = title
+        }
+    }
 
     sealed class MessagePart {
         data class Text(

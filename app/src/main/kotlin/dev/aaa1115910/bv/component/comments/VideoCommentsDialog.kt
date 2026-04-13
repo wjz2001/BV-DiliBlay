@@ -67,6 +67,7 @@ import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
@@ -90,18 +91,22 @@ import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.buildCommentMessageTokens
+import dev.aaa1115910.bv.util.CommentMessageContent
 import dev.aaa1115910.bv.util.CommentMessageToken
+import dev.aaa1115910.bv.util.loadRichContentDocument
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.launchPlayerActivity
+import dev.aaa1115910.bv.util.RichContentDocument
 import dev.aaa1115910.bv.util.resolveVideoLink
 import dev.aaa1115910.bv.util.ResolvedVideoLink
+import dev.aaa1115910.bv.util.toMessageContent
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.util.VideoLinkToken
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.compose.getKoin
 
-private enum class Page { Main, Replies }
+private enum class Page { Main, Replies, RichContent }
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun VideoCommentsDialog(
@@ -139,6 +144,7 @@ fun VideoCommentsDialog(
 
     var gatePassed by remember(aid) { mutableStateOf(false) }
     var page by remember { mutableStateOf(Page.Main) }
+    var richContentParentPage by remember { mutableStateOf(Page.Main) }
 
     // --- 主评论 ---
     val comments = remember { mutableStateListOf<Comment>() }
@@ -164,6 +170,11 @@ fun VideoCommentsDialog(
 
     // 回复列表 item 焦点请求器（rpid -> requester）
     val replyItemFocusRequesters = remember { mutableMapOf<Long, FocusRequester>() }
+    var lastReplyFocusedRpid by remember { mutableStateOf<Long?>(null) }
+
+    var richContent by remember { mutableStateOf<RichContentDocument?>(null) }
+    var richContentLoading by remember { mutableStateOf(false) }
+    var richContentError by remember { mutableStateOf<String?>(null) }
 
     // 图片全屏预览：仅保存“当前评论图片集”
     var previewPictures by remember { mutableStateOf<List<Comment.Picture>>(emptyList()) }
@@ -207,27 +218,85 @@ fun VideoCommentsDialog(
         }
     }
 
+    fun requestReplyFocusRestore() {
+        scope.launch {
+            delay(40)
+            val target = lastReplyFocusedRpid
+            val requester = target?.let { replyItemFocusRequesters[it] }
+            if (requester != null) {
+                runCatching { requester.requestFocus() }
+                    .onFailure { runCatching { rootFocusRequester.requestFocus() } }
+            } else {
+                val first = replies.firstOrNull()?.rpid
+                val firstReq = first?.let { replyItemFocusRequesters[it] }
+                if (firstReq != null) runCatching { firstReq.requestFocus() }
+                else runCatching { rootFocusRequester.requestFocus() }
+            }
+        }
+    }
+
+    fun openRichContent(
+        attachment: Comment.Attachment,
+        parentPage: Page
+    ) {
+        richContentParentPage = parentPage
+        richContent = null
+        richContentError = null
+        richContentLoading = true
+        page = Page.RichContent
+
+        scope.launch {
+            runCatching {
+                loadRichContentDocument(attachment)
+            }.onSuccess {
+                richContent = it
+            }.onFailure {
+                richContentError = it.message ?: "加载失败"
+            }
+            richContentLoading = false
+        }
+    }
+
     fun goBackLayer(): Boolean {
         if (previewPictures.isNotEmpty()) {
             closePreview()
             return true
         }
 
-        return if (page == Page.Replies) {
-            page = Page.Main
-            rootComment = null
+        return when (page) {
+            Page.RichContent -> {
+                page = richContentParentPage
+                richContent = null
+                richContentLoading = false
+                richContentError = null
 
-            replies.clear()
-            replyPage = CommentReplyPage()
-            repliesHasNext = true
-            repliesError = null
-            replyItemFocusRequesters.clear()
+                if (richContentParentPage == Page.Replies) {
+                    requestReplyFocusRestore()
+                } else {
+                    requestMainFocusRestore()
+                }
+                true
+            }
 
-            requestMainFocusRestore()
-            true
-        } else {
-            onDismissRequest()
-            true
+            Page.Replies -> {
+                page = Page.Main
+                rootComment = null
+
+                replies.clear()
+                replyPage = CommentReplyPage()
+                repliesHasNext = true
+                repliesError = null
+                replyItemFocusRequesters.clear()
+                lastReplyFocusedRpid = null
+
+                requestMainFocusRestore()
+                true
+            }
+
+            Page.Main -> {
+                onDismissRequest()
+                true
+            }
         }
     }
 
@@ -300,6 +369,12 @@ fun VideoCommentsDialog(
         repliesLoading = false
         repliesError = null
         replyItemFocusRequesters.clear()
+        lastReplyFocusedRpid = null
+
+        richContentParentPage = Page.Main
+        richContent = null
+        richContentLoading = false
+        richContentError = null
 
         closePreview()
 
@@ -345,13 +420,10 @@ fun VideoCommentsDialog(
     // 回复列表有数据后，聚焦第一个回复正文
     LaunchedEffect(page, replies.size) {
         if (page == Page.Replies && replies.isNotEmpty()) {
-            scope.launch {
-                delay(50)
-                val firstRpid = replies.firstOrNull()?.rpid
-                val requester = firstRpid?.let { replyItemFocusRequesters[it] }
-                if (requester != null) runCatching { requester.requestFocus() }
-                else runCatching { rootFocusRequester.requestFocus() }
+            if (lastReplyFocusedRpid == null) {
+                lastReplyFocusedRpid = replies.first().rpid
             }
+            requestReplyFocusRestore()
         }
     }
 
@@ -463,6 +535,7 @@ fun VideoCommentsDialog(
                                                 repliesHasNext = true
                                                 repliesError = null
                                                 replyItemFocusRequesters.clear()
+                                                lastReplyFocusedRpid = null
                                                 loadReplies(reset = true)
                                             },
                                             onImageClick = { imgIndex ->
@@ -482,6 +555,9 @@ fun VideoCommentsDialog(
                                                         fromSeason = false
                                                     )
                                                 }
+                                            },
+                                            onAttachmentClick = { attachment ->
+                                                openRichContent(attachment, Page.Main)
                                             }
                                         )
                                     }
@@ -545,6 +621,11 @@ fun VideoCommentsDialog(
                                                     }
 
                                                 LightCommentItem(
+                                                    modifier = Modifier.onFocusChanged {
+                                                        if (it.hasFocus) {
+                                                            lastReplyFocusedRpid = reply.rpid
+                                                        }
+                                                    },
                                                     bodyFocusRequester = bodyFr,
                                                     previousBodyFocusRequester = prevBodyFr,
                                                     nextBodyFocusRequester = nextBodyFr,
@@ -571,6 +652,10 @@ fun VideoCommentsDialog(
                                                                 fromSeason = false
                                                             )
                                                         }
+                                                    },
+                                                    onAttachmentClick = { attachment ->
+                                                        lastReplyFocusedRpid = reply.rpid
+                                                        openRichContent(attachment, Page.Replies)
                                                     }
                                                 )
                                             }
@@ -586,6 +671,32 @@ fun VideoCommentsDialog(
                                         }
                                     }
                                 }
+                            }
+
+                            Page.RichContent -> {
+                                RichContentPage(
+                                    document = richContent,
+                                    loading = richContentLoading,
+                                    error = richContentError,
+                                    onImageClick = { pictures, index ->
+                                        openPreview(pictures, index)
+                                    },
+                                    onVideoLinkClick = { link ->
+                                        if (Prefs.showVideoInfo) {
+                                            VideoInfoActivity.actionStart(context, link.aid)
+                                        } else {
+                                            launchPlayerActivity(
+                                                context = context,
+                                                avid = link.aid,
+                                                cid = link.cid,
+                                                title = link.title,
+                                                partTitle = "",
+                                                played = 0,
+                                                fromSeason = false
+                                            )
+                                        }
+                                    }
+                                )
                             }
                         }
                     }
@@ -654,14 +765,15 @@ private fun RootCommentHeader(comment: Comment) {
             }
 
             CommentMessageText(
-                comment = comment,
+                content = comment.toMessageContent(),
                 maxLines = 5,
                 enableLinkFocus = false,
                 bodyFocusRequester = null,
-                linkFocusRequesters = emptyList(),
+                interactiveFocusRequesters = emptyList(),
                 firstPictureFocusRequester = null,
                 nextBodyFocusRequester = null,
-                onVideoLinkClick = null
+                onVideoLinkClick = null,
+                onAttachmentClick = null
             )
 
             if (comment.pictures.isNotEmpty()) {
@@ -681,16 +793,29 @@ private fun LightCommentItem(
     showRepliesHint: Boolean,
     onClick: () -> Unit,
     onImageClick: (Int) -> Unit,
-    onVideoLinkClick: (ResolvedVideoLink) -> Unit
+    onVideoLinkClick: (ResolvedVideoLink) -> Unit,
+    onAttachmentClick: (Comment.Attachment) -> Unit
 ) {
     val pictures = comment.pictures
-    val tokens = remember(comment.rpid, comment.messageParts, comment.message) {
-        buildCommentMessageTokens(comment)
+    val messageContent = remember(
+        comment.rpid,
+        comment.messageParts,
+        comment.message,
+        comment.attachments
+    ) {
+        comment.toMessageContent()
     }
-    val linkCount = remember(tokens) { tokens.count { it is CommentMessageToken.VideoLink } }
+    val tokens = remember(messageContent) {
+        buildCommentMessageTokens(messageContent)
+    }
+    val interactiveCount = remember(tokens) {
+        tokens.count {
+            it is CommentMessageToken.VideoLink || it is CommentMessageToken.Attachment
+        }
+    }
 
-    val linkFocusRequesters = remember(comment.rpid, linkCount) {
-        List(linkCount) { FocusRequester() }
+    val interactiveFocusRequesters = remember(comment.rpid, interactiveCount) {
+        List(interactiveCount) { FocusRequester() }
     }
     val pictureFocusRequesters = remember(comment.rpid, pictures.size) {
         List(pictures.size) { FocusRequester() }
@@ -702,7 +827,7 @@ private fun LightCommentItem(
     val coroutineScope = rememberCoroutineScope()
 
     val firstInteractiveRequester = when {
-        linkFocusRequesters.isNotEmpty() -> linkFocusRequesters.first()
+        interactiveFocusRequesters.isNotEmpty() -> interactiveFocusRequesters.first()
         pictureFocusRequesters.isNotEmpty() -> pictureFocusRequesters.first()
         else -> null
     }
@@ -834,14 +959,15 @@ private fun LightCommentItem(
                         modifier = Modifier
                             .heightIn(max = 240.dp)
                             .verticalScroll(textScrollState),
-                        comment = comment,
+                        content = messageContent,
                         maxLines = Int.MAX_VALUE,
                         enableLinkFocus = true,
                         bodyFocusRequester = bodyFocusRequester,
-                        linkFocusRequesters = linkFocusRequesters,
+                        interactiveFocusRequesters = interactiveFocusRequesters,
                         firstPictureFocusRequester = pictureFocusRequesters.firstOrNull(),
                         nextBodyFocusRequester = nextBodyFocusRequester,
-                        onVideoLinkClick = onVideoLinkClick
+                        onVideoLinkClick = onVideoLinkClick,
+                        onAttachmentClick = onAttachmentClick
                     )
 
                     if (showRepliesHint) {
@@ -857,66 +983,15 @@ private fun LightCommentItem(
             }
         }
 
-        if (pictures.isNotEmpty()) {
-            LazyRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                itemsIndexed(pictures, key = { index, p -> "${comment.rpid}-${p.imgSrc}-$index" }) { index, picture ->
-                    val fr = pictureFocusRequesters[index]
-                    val upRequester = when {
-                        index > 0 -> pictureFocusRequesters[index - 1]
-                        linkFocusRequesters.isNotEmpty() -> linkFocusRequesters.last()
-                        else -> bodyFocusRequester
-                    }
-                    val downRequester = if (index == pictures.lastIndex) {
-                        nextBodyFocusRequester ?: Default
-                    } else {
-                        pictureFocusRequesters[index + 1]
-                    }
-                    var pictureHasFocus by remember(comment.rpid, index) { mutableStateOf(false) }
-
-                    Surface(
-                        modifier = Modifier
-                            .width(184.dp)
-                            .height(112.dp)
-                            .focusRequester(fr)
-                            .focusProperties {
-                                up = upRequester
-                                down = downRequester
-                            }
-                            .onFocusChanged { pictureHasFocus = it.hasFocus }
-                            .border(
-                                width = if (pictureHasFocus) 3.dp else 0.dp,
-                                color = if (pictureHasFocus) C.bilibili else Color.Transparent,
-                                shape = MaterialTheme.shapes.small
-                            ),
-                        shape = ClickableSurfaceDefaults.shape(MaterialTheme.shapes.small),
-                        colors = ClickableSurfaceDefaults.colors(
-                            containerColor = C.commentsBackground,
-                            focusedContainerColor = C.commentsBackground,
-                            pressedContainerColor = C.commentsBackground
-                        ),
-                        scale = ClickableSurfaceDefaults.scale(
-                            focusedScale = 1f,
-                            pressedScale = 1f
-                        ),
-                        enabled = true,
-                        onClick = { onImageClick(index) }
-                    ) {
-                        AsyncImage(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(C.commentsBackground),
-                            model = picture.imgSrc,
-                            contentDescription = null,
-                            contentScale = ContentScale.Fit,
-                            alignment = Alignment.Center
-                        )
-                    }
-                }
-            }
-        }
+        FocusableCommentPictures(
+            pictures = pictures,
+            keyPrefix = comment.rpid.toString(),
+            pictureFocusRequesters = pictureFocusRequesters,
+            fallbackUpRequester = bodyFocusRequester,
+            lastInteractiveRequester = interactiveFocusRequesters.lastOrNull(),
+            nextBodyFocusRequester = nextBodyFocusRequester,
+            onImageClick = onImageClick
+        )
     }
 }
 
@@ -1025,22 +1100,23 @@ private fun VideoLinkInlineItem(
 @Composable
 private fun CommentMessageText(
     modifier: Modifier = Modifier,
-    comment: Comment,
+    content: CommentMessageContent,
     maxLines: Int,
     enableLinkFocus: Boolean,
     bodyFocusRequester: FocusRequester?,
-    linkFocusRequesters: List<FocusRequester>,
+    interactiveFocusRequesters: List<FocusRequester>,
     firstPictureFocusRequester: FocusRequester?,
     nextBodyFocusRequester: FocusRequester?,
-    onVideoLinkClick: ((ResolvedVideoLink) -> Unit)?
+    onVideoLinkClick: ((ResolvedVideoLink) -> Unit)?,
+    onAttachmentClick: ((Comment.Attachment) -> Unit)?
 ) {
-    val tokens = remember(comment.rpid, comment.messageParts, comment.message) {
-        buildCommentMessageTokens(comment)
+    val tokens = remember(content) {
+        buildCommentMessageTokens(content)
     }
 
     val inlineContent = linkedMapOf<String, InlineTextContent>()
     var emoteIndex = 0
-    var linkIndex = 0
+    var interactiveIndex = 0
 
     val basicFontSize = 24.sp
 
@@ -1078,12 +1154,12 @@ private fun CommentMessageText(
                 }
 
                 is CommentMessageToken.VideoLink -> {
-                    val id = "comment_video_link_$linkIndex"
-                    val currentLinkIndex = linkIndex
-                    val currentFr = linkFocusRequesters.getOrNull(currentLinkIndex)
+                    val id = "comment_video_link_$interactiveIndex"
+                    val currentInteractiveIndex = interactiveIndex
+                    val currentFr = interactiveFocusRequesters.getOrNull(currentInteractiveIndex)
                     val downFr = when {
-                        currentLinkIndex < linkFocusRequesters.lastIndex ->
-                            linkFocusRequesters[currentLinkIndex + 1]
+                        currentInteractiveIndex < interactiveFocusRequesters.lastIndex ->
+                            interactiveFocusRequesters[currentInteractiveIndex + 1]
                         firstPictureFocusRequester != null -> firstPictureFocusRequester
                         nextBodyFocusRequester != null -> nextBodyFocusRequester
                         else -> null
@@ -1111,7 +1187,45 @@ private fun CommentMessageText(
                         )
                     }
 
-                    linkIndex += 1
+                    interactiveIndex += 1
+                }
+
+                is CommentMessageToken.Attachment -> {
+                    val id = "comment_attachment_$interactiveIndex"
+                    val currentInteractiveIndex = interactiveIndex
+                    val currentFr = interactiveFocusRequesters.getOrNull(currentInteractiveIndex)
+                    val downFr = when {
+                        currentInteractiveIndex < interactiveFocusRequesters.lastIndex ->
+                            interactiveFocusRequesters[currentInteractiveIndex + 1]
+                        firstPictureFocusRequester != null -> firstPictureFocusRequester
+                        nextBodyFocusRequester != null -> nextBodyFocusRequester
+                        else -> null
+                    }
+                    val widthEm = (token.data.displayText.length.coerceIn(2, 18) + 2).em
+
+                    append(" ")
+                    appendInlineContent(id, token.data.displayText)
+                    append(" ")
+
+                    inlineContent[id] = InlineTextContent(
+                        Placeholder(
+                            width = widthEm,
+                            height = 1.6.em,
+                            placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter
+                        )
+                    ) {
+                        AttachmentInlineItem(
+                            attachment = token.data,
+                            enableFocus = enableLinkFocus,
+                            focusRequester = currentFr,
+                            upRequester = bodyFocusRequester,
+                            downRequester = downFr,
+                            fontSize = basicFontSize,
+                            onAttachmentClick = onAttachmentClick
+                        )
+                    }
+
+                    interactiveIndex += 1
                 }
             }
         }
@@ -1128,6 +1242,298 @@ private fun CommentMessageText(
         ),
         maxLines = maxLines
     )
+}
+
+@Composable
+private fun AttachmentInlineItem(
+    attachment: Comment.Attachment,
+    enableFocus: Boolean,
+    focusRequester: FocusRequester?,
+    upRequester: FocusRequester?,
+    downRequester: FocusRequester?,
+    fontSize: TextUnit,
+    onAttachmentClick: ((Comment.Attachment) -> Unit)?
+) {
+    var focused by remember(attachment) { mutableStateOf(false) }
+
+    if (!enableFocus) {
+        Text(
+            text = attachment.displayText,
+            color = C.mentionAndLink,
+            fontSize = fontSize,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        return
+    }
+
+    Surface(
+        modifier = Modifier
+            .focusRequester(focusRequester ?: Default)
+            .focusProperties {
+                upRequester?.let { up = it }
+                downRequester?.let { down = it }
+            }
+            .onFocusChanged { focused = it.hasFocus }
+            .border(
+                width = if (focused) 3.dp else 0.dp,
+                color = if (focused) C.mentionAndLink else Color.Transparent,
+                shape = MaterialTheme.shapes.small
+            ),
+        shape = ClickableSurfaceDefaults.shape(MaterialTheme.shapes.small),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.Transparent,
+            focusedContainerColor = Color.Transparent,
+            pressedContainerColor = Color.Transparent
+        ),
+        scale = ClickableSurfaceDefaults.scale(
+            focusedScale = 1f,
+            pressedScale = 1f
+        ),
+        enabled = true,
+        onClick = {
+            onAttachmentClick?.invoke(attachment)
+        }
+    ) {
+        Text(
+            modifier = Modifier.padding(horizontal = 4.dp),
+            text = attachment.displayText,
+            color = C.mentionAndLink,
+            fontSize = fontSize,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun RichContentPage(
+    document: RichContentDocument?,
+    loading: Boolean,
+    error: String?,
+    onImageClick: (List<Comment.Picture>, Int) -> Unit,
+    onVideoLinkClick: (ResolvedVideoLink) -> Unit
+) {
+    when {
+        loading -> {
+            Text(
+                text = "加载中……",
+                color = AppBlack.copy(alpha = 0.70f),
+                fontSize = 20.sp,
+                modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp)
+            )
+        }
+
+        error != null -> {
+            InlineErrorText(text = error)
+        }
+
+        document != null -> {
+            val tokens = remember(document.body) {
+                buildCommentMessageTokens(document.body)
+            }
+            val interactiveCount = remember(tokens) {
+                tokens.count { it is CommentMessageToken.VideoLink || it is CommentMessageToken.Attachment }
+            }
+            val bodyFocusRequester = remember(document.title) { FocusRequester() }
+            val interactiveFocusRequesters = remember(document.title, interactiveCount) {
+                List(interactiveCount) { FocusRequester() }
+            }
+            val pictureFocusRequesters = remember(document.title, document.pictures.size) {
+                List(document.pictures.size) { FocusRequester() }
+            }
+            var bodyHasFocus by remember(document.title) { mutableStateOf(false) }
+            val textScrollState = rememberScrollState()
+            val coroutineScope = rememberCoroutineScope()
+            val firstInteractiveRequester = when {
+                interactiveFocusRequesters.isNotEmpty() -> interactiveFocusRequesters.first()
+                pictureFocusRequesters.isNotEmpty() -> pictureFocusRequesters.first()
+                else -> null
+            }
+
+            LaunchedEffect(document.title) {
+                delay(40)
+                runCatching { bodyFocusRequester.requestFocus() }
+            }
+
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (document.title.isNotBlank()) {
+                    Text(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = document.title,
+                        color = AppBlack,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = if (document.centerTitle) TextAlign.Center else TextAlign.Start,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(bodyFocusRequester)
+                        .focusProperties {
+                            firstInteractiveRequester?.let { down = it }
+                        }
+                        .onFocusChanged { bodyHasFocus = it.hasFocus }
+                        .onPreviewKeyEvent { event ->
+                            if (bodyHasFocus && event.type == KeyEventType.KeyDown) {
+                                when (event.key) {
+                                    Key.DirectionDown -> {
+                                        if (textScrollState.value < textScrollState.maxValue) {
+                                            coroutineScope.launch {
+                                                textScrollState.animateScrollBy(60f)
+                                            }
+                                            return@onPreviewKeyEvent true
+                                        }
+                                    }
+
+                                    Key.DirectionUp -> {
+                                        if (textScrollState.value > 0) {
+                                            coroutineScope.launch {
+                                                textScrollState.animateScrollBy(-60f)
+                                            }
+                                            return@onPreviewKeyEvent true
+                                        }
+                                    }
+
+                                    else -> Unit
+                                }
+                            }
+                            false
+                        }
+                        .border(
+                            width = 3.dp,
+                            color = if (bodyHasFocus) C.bilibili else Color.Transparent,
+                            shape = MaterialTheme.shapes.medium
+                        ),
+                    shape = ClickableSurfaceDefaults.shape(MaterialTheme.shapes.medium),
+                    colors = ClickableSurfaceDefaults.colors(
+                        containerColor = Color.Transparent,
+                        focusedContainerColor = Color.Transparent,
+                        pressedContainerColor = Color.Transparent
+                    ),
+                    scale = ClickableSurfaceDefaults.scale(
+                        focusedScale = 1f,
+                        pressedScale = 1f
+                    ),
+                    enabled = true,
+                    onClick = {}
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp)
+                    ) {
+                        CommentMessageText(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 520.dp)
+                                .verticalScroll(textScrollState),
+                            content = document.body,
+                            maxLines = Int.MAX_VALUE,
+                            enableLinkFocus = true,
+                            bodyFocusRequester = bodyFocusRequester,
+                            interactiveFocusRequesters = interactiveFocusRequesters,
+                            firstPictureFocusRequester = pictureFocusRequesters.firstOrNull(),
+                            nextBodyFocusRequester = null,
+                            onVideoLinkClick = onVideoLinkClick,
+                            onAttachmentClick = null
+                        )
+                    }
+                }
+
+                FocusableCommentPictures(
+                    pictures = document.pictures,
+                    keyPrefix = "rich-${document.title}",
+                    pictureFocusRequesters = pictureFocusRequesters,
+                    fallbackUpRequester = bodyFocusRequester,
+                    lastInteractiveRequester = interactiveFocusRequesters.lastOrNull(),
+                    nextBodyFocusRequester = null,
+                    onImageClick = { index ->
+                        onImageClick(document.pictures, index)
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FocusableCommentPictures(
+    pictures: List<Comment.Picture>,
+    keyPrefix: String,
+    pictureFocusRequesters: List<FocusRequester>,
+    fallbackUpRequester: FocusRequester,
+    lastInteractiveRequester: FocusRequester?,
+    nextBodyFocusRequester: FocusRequester?,
+    onImageClick: (Int) -> Unit
+) {
+    if (pictures.isEmpty()) return
+
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        itemsIndexed(pictures, key = { index, p -> "$keyPrefix-${p.imgSrc}-$index" }) { index, picture ->
+            val fr = pictureFocusRequesters[index]
+            val upRequester = when {
+                index > 0 -> pictureFocusRequesters[index - 1]
+                lastInteractiveRequester != null -> lastInteractiveRequester
+                else -> fallbackUpRequester
+            }
+            val downRequester = if (index == pictures.lastIndex) {
+                nextBodyFocusRequester ?: Default
+            } else {
+                pictureFocusRequesters[index + 1]
+            }
+            var pictureHasFocus by remember(keyPrefix, index) { mutableStateOf(false) }
+
+            Surface(
+                modifier = Modifier
+                    .width(184.dp)
+                    .height(112.dp)
+                    .focusRequester(fr)
+                    .focusProperties {
+                        up = upRequester
+                        down = downRequester
+                    }
+                    .onFocusChanged { pictureHasFocus = it.hasFocus }
+                    .border(
+                        width = if (pictureHasFocus) 3.dp else 0.dp,
+                        color = if (pictureHasFocus) C.bilibili else Color.Transparent,
+                        shape = MaterialTheme.shapes.small
+                    ),
+                shape = ClickableSurfaceDefaults.shape(MaterialTheme.shapes.small),
+                colors = ClickableSurfaceDefaults.colors(
+                    containerColor = C.commentsBackground,
+                    focusedContainerColor = C.commentsBackground,
+                    pressedContainerColor = C.commentsBackground
+                ),
+                scale = ClickableSurfaceDefaults.scale(
+                    focusedScale = 1f,
+                    pressedScale = 1f
+                ),
+                enabled = true,
+                onClick = { onImageClick(index) }
+            ) {
+                AsyncImage(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(C.commentsBackground),
+                    model = picture.imgSrc,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    alignment = Alignment.Center
+                )
+            }
+        }
+    }
 }
 
 @Composable

@@ -2,6 +2,12 @@ package dev.aaa1115910.bv.util
 
 import dev.aaa1115910.biliapi.entity.reply.Comment
 
+data class CommentMessageContent(
+    val message: String = "",
+    val messageParts: List<Comment.MessagePart> = emptyList(),
+    val attachments: List<Comment.Attachment> = emptyList()
+)
+
 sealed class CommentMessageToken {
     data class Text(
         val text: String
@@ -21,11 +27,27 @@ sealed class CommentMessageToken {
     data class VideoLink(
         val data: VideoLinkToken
     ) : CommentMessageToken()
+
+    data class Attachment(
+        val data: Comment.Attachment
+    ) : CommentMessageToken()
 }
 
 fun buildCommentMessageTokens(comment: Comment): List<CommentMessageToken> {
-    val parts = comment.messageParts.ifEmpty {
-        listOf(Comment.MessagePart.Text(comment.message))
+    return buildCommentMessageTokens(comment.toMessageContent())
+}
+
+fun Comment.toMessageContent(): CommentMessageContent {
+    return CommentMessageContent(
+        message = message,
+        messageParts = messageParts,
+        attachments = attachments
+    )
+}
+
+fun buildCommentMessageTokens(content: CommentMessageContent): List<CommentMessageToken> {
+    val parts = content.messageParts.ifEmpty {
+        listOf(Comment.MessagePart.Text(content.message))
     }
 
     val tokens = mutableListOf<CommentMessageToken>()
@@ -50,6 +72,10 @@ fun buildCommentMessageTokens(comment: Comment): List<CommentMessageToken> {
                 )
             }
         }
+    }
+
+    content.attachments.forEach { attachment ->
+        tokens += CommentMessageToken.Attachment(attachment)
     }
     return mergeAdjacentTextTokens(tokens)
 }
