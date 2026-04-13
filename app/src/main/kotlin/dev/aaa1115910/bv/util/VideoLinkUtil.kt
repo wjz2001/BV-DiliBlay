@@ -4,8 +4,8 @@ import dev.aaa1115910.biliapi.http.BiliHttpApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private val BILIBILI_VIDEO_LINK_REGEX = Regex(
-    "((?:https?://)?(?:[a-zA-Z0-9-]+\\.)*bilibili\\.com/video/([bB][vV][A-Za-z0-9]{10}|[aA][vV]\\d+)[a-zA-Z0-9\\-._~:/?#@!$&*+=%]*)"
+private val BILIBILI_VIDEO_LINK_OR_ID_REGEX = Regex(
+    "((?:https?://)?(?:[a-zA-Z0-9-]+\\.)*bilibili\\.com/video/([bB][vV][A-Za-z0-9]{10}|[aA][vV]\\d+)[a-zA-Z0-9\\-._~:/?#@!$&*+=%]*|(?<![A-Za-z0-9])([bB][vV][A-Za-z0-9]{10}|[aA][vV]\\d+)(?![A-Za-z0-9]))"
 )
 
 private val VIDEO_ID_IN_URL_REGEX = Regex("/video/([bB][vV][A-Za-z0-9]{10}|[aA][vV]\\d+)")
@@ -82,7 +82,7 @@ fun splitTextByVideoLink(
 
     val result = mutableListOf<VideoLinkTextToken>()
     var cursor = 0
-    BILIBILI_VIDEO_LINK_REGEX.findAll(text).forEach { m ->
+    BILIBILI_VIDEO_LINK_OR_ID_REGEX.findAll(text).forEach { m ->
         val start = m.range.first
         val end = m.range.last + 1
         if (start > cursor) {
@@ -90,11 +90,17 @@ fun splitTextByVideoLink(
         }
 
         val rawUrl = m.value
-        val cleanedUrl = trimTrailingNoise(rawUrl)
-        val videoId = (
+        val isBilibiliVideoUrl = rawUrl.contains("bilibili.com/video/", ignoreCase = true)
+        val cleanedUrl = if (isBilibiliVideoUrl) trimTrailingNoise(rawUrl) else rawUrl
+        val rawVideoId = if (isBilibiliVideoUrl) {
             VIDEO_ID_IN_URL_REGEX.find(cleanedUrl)?.groupValues?.getOrNull(1)
                 ?: m.groupValues.getOrNull(2)
-            )?.let(::normalizeVideoId)
+        } else {
+            m.groupValues.getOrNull(3)
+        }
+        val videoId = rawVideoId
+            ?.takeIf { it.isNotBlank() }
+            ?.let(::normalizeVideoId)
 
         result += if (!videoId.isNullOrBlank()) {
             VideoLinkTextToken.VideoLink(

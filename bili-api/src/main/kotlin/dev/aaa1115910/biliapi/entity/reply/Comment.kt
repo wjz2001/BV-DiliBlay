@@ -302,13 +302,19 @@ data class Comment(
                     } ?: return@mapNotNull null
 
                     val cvid = parseCvid(candidateUrl) ?: return@mapNotNull null
-                    val title = url.title.ifBlank { return@mapNotNull null }
-
-                    Attachment.Article(
-                        cvid = cvid,
-                        title = title,
-                        url = candidateUrl
-                    )
+                    if (isNoteUrl(candidateUrl) || url.title.contains("笔记")) {
+                        Attachment.Note(
+                            cvid = cvid,
+                            clickUrl = candidateUrl
+                        )
+                    } else {
+                        val title = url.title.ifBlank { return@mapNotNull null }
+                        Attachment.Article(
+                            cvid = cvid,
+                            title = title,
+                            url = candidateUrl
+                        )
+                    }
                 }
                 .distinctBy { it.cvid }
                 .forEach { result += it }
@@ -324,6 +330,12 @@ data class Comment(
         private fun parseCvid(raw: String): Long? {
             if (raw.isBlank()) return null
             return CvidRegex.find(raw)?.groupValues?.getOrNull(1)?.toLongOrNull()
+        }
+
+        private fun isNoteUrl(raw: String): Boolean {
+            if (raw.isBlank()) return false
+            val url = raw.lowercase()
+            return "note-app/view" in url || "/x/note/" in url
         }
 
         private fun mergeAdjacentTextParts(parts: List<MessagePart>): List<MessagePart> {

@@ -1434,6 +1434,7 @@ private fun VideoDescriptionLinkInlineItem(
     var resolved by remember(token.cleanedUrl) { mutableStateOf<ResolvedVideoLink?>(null) }
     var loaded by remember(token.cleanedUrl) { mutableStateOf(false) }
     var focused by remember(token.cleanedUrl) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(token.cleanedUrl) {
         if (loaded) return@LaunchedEffect
@@ -1474,7 +1475,13 @@ private fun VideoDescriptionLinkInlineItem(
         ),
         enabled = true,
         onClick = {
-            resolved?.let { onVideoLinkClick?.invoke(it) }
+            scope.launch {
+                val link = resolved ?: resolveVideoLink(token)
+                if (link != null) {
+                    resolved = link
+                    onVideoLinkClick?.invoke(link)
+                }
+            }
         }
     ) {
         Row(

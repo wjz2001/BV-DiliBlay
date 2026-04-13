@@ -86,6 +86,7 @@ import dev.aaa1115910.biliapi.entity.reply.Comment
 import dev.aaa1115910.biliapi.entity.reply.CommentPage
 import dev.aaa1115910.biliapi.entity.reply.CommentReplyPage
 import dev.aaa1115910.biliapi.entity.reply.CommentSort
+import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.biliapi.repositories.CommentRepository
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.ui.theme.AppBlack
@@ -558,6 +559,9 @@ fun VideoCommentsDialog(
                                             },
                                             onAttachmentClick = { attachment ->
                                                 openRichContent(attachment, Page.Main)
+                                            },
+                                            onMentionClick = { mid, name ->
+                                                UpInfoActivity.actionStart(context, mid = mid, name = name)
                                             }
                                         )
                                     }
@@ -656,6 +660,9 @@ fun VideoCommentsDialog(
                                                     onAttachmentClick = { attachment ->
                                                         lastReplyFocusedRpid = reply.rpid
                                                         openRichContent(attachment, Page.Replies)
+                                                    },
+                                                    onMentionClick = { mid, name ->
+                                                        UpInfoActivity.actionStart(context, mid = mid, name = name)
                                                     }
                                                 )
                                             }
@@ -773,7 +780,8 @@ private fun RootCommentHeader(comment: Comment) {
                 firstPictureFocusRequester = null,
                 nextBodyFocusRequester = null,
                 onVideoLinkClick = null,
-                onAttachmentClick = null
+                onAttachmentClick = null,
+                onMentionClick = null
             )
 
             if (comment.pictures.isNotEmpty()) {
@@ -794,7 +802,8 @@ private fun LightCommentItem(
     onClick: () -> Unit,
     onImageClick: (Int) -> Unit,
     onVideoLinkClick: (ResolvedVideoLink) -> Unit,
-    onAttachmentClick: (Comment.Attachment) -> Unit
+    onAttachmentClick: (Comment.Attachment) -> Unit,
+    onMentionClick: (Long, String) -> Unit
 ) {
     val pictures = comment.pictures
     val messageContent = remember(
@@ -810,7 +819,9 @@ private fun LightCommentItem(
     }
     val interactiveCount = remember(tokens) {
         tokens.count {
-            it is CommentMessageToken.VideoLink || it is CommentMessageToken.Attachment
+            it is CommentMessageToken.VideoLink ||
+                it is CommentMessageToken.Attachment ||
+                it is CommentMessageToken.Mention
         }
     }
 
@@ -967,7 +978,8 @@ private fun LightCommentItem(
                         firstPictureFocusRequester = pictureFocusRequesters.firstOrNull(),
                         nextBodyFocusRequester = nextBodyFocusRequester,
                         onVideoLinkClick = onVideoLinkClick,
-                        onAttachmentClick = onAttachmentClick
+                        onAttachmentClick = onAttachmentClick,
+                        onMentionClick = onMentionClick
                     )
 
                     if (showRepliesHint) {
@@ -1008,6 +1020,7 @@ private fun VideoLinkInlineItem(
     var resolved by remember(token.cleanedUrl) { mutableStateOf<ResolvedVideoLink?>(null) }
     var loaded by remember(token.cleanedUrl) { mutableStateOf(false) }
     var focused by remember(token.cleanedUrl) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(token.cleanedUrl) {
         if (loaded) return@LaunchedEffect
@@ -1071,7 +1084,13 @@ private fun VideoLinkInlineItem(
         ),
         enabled = true,
         onClick = {
-            resolved?.let { onVideoLinkClick?.invoke(it) }
+            scope.launch {
+                val link = resolved ?: resolveVideoLink(token)
+                if (link != null) {
+                    resolved = link
+                    onVideoLinkClick?.invoke(link)
+                }
+            }
         }
     ) {
         Row(
@@ -1108,7 +1127,8 @@ private fun CommentMessageText(
     firstPictureFocusRequester: FocusRequester?,
     nextBodyFocusRequester: FocusRequester?,
     onVideoLinkClick: ((ResolvedVideoLink) -> Unit)?,
-    onAttachmentClick: ((Comment.Attachment) -> Unit)?
+    onAttachmentClick: ((Comment.Attachment) -> Unit)?,
+    onMentionClick: ((Long, String) -> Unit)?
 ) {
     val tokens = remember(content) {
         buildCommentMessageTokens(content)
@@ -1128,8 +1148,44 @@ private fun CommentMessageText(
                 }
 
                 is CommentMessageToken.Mention -> {
-                    withStyle(SpanStyle(color = C.mentionAndLink, fontWeight = FontWeight.Medium)) {
-                        append("@${token.name}")
+                    if (enableLinkFocus && onMentionClick != null) {
+                        val id = "comment_mention_$interactiveIndex"
+                        val currentInteractiveIndex = interactiveIndex
+                        val currentFr = interactiveFocusRequesters.getOrNull(currentInteractiveIndex)
+                        val downFr = when {
+                            currentInteractiveIndex < interactiveFocusRequesters.lastIndex ->
+                                interactiveFocusRequesters[currentInteractiveIndex + 1]
+                            firstPictureFocusRequester != null -> firstPictureFocusRequester
+                            nextBodyFocusRequester != null -> nextBodyFocusRequester
+                            else -> null
+                        }
+                        val widthEm = (token.name.length.coerceIn(1, 16) + 2).em
+
+                        appendInlineContent(id, "@${token.name}")
+
+                        inlineContent[id] = InlineTextContent(
+                            Placeholder(
+                                width = widthEm,
+                                height = 1.6.em,
+                                placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter
+                            )
+                        ) {
+                            MentionInlineItem(
+                                mention = token,
+                                enableFocus = true,
+                                focusRequester = currentFr,
+                                upRequester = bodyFocusRequester,
+                                downRequester = downFr,
+                                fontSize = basicFontSize,
+                                onMentionClick = onMentionClick
+                            )
+                        }
+
+                        interactiveIndex += 1
+                    } else {
+                        withStyle(SpanStyle(color = C.mentionAndLink, fontWeight = FontWeight.Medium)) {
+                            append("@${token.name}")
+                        }
                     }
                 }
 
@@ -1242,6 +1298,70 @@ private fun CommentMessageText(
         ),
         maxLines = maxLines
     )
+}
+
+@Composable
+private fun MentionInlineItem(
+    mention: CommentMessageToken.Mention,
+    enableFocus: Boolean,
+    focusRequester: FocusRequester?,
+    upRequester: FocusRequester?,
+    downRequester: FocusRequester?,
+    fontSize: TextUnit,
+    onMentionClick: ((Long, String) -> Unit)?
+) {
+    var focused by remember(mention.mid, mention.name) { mutableStateOf(false) }
+
+    if (!enableFocus) {
+        Text(
+            text = "@${mention.name}",
+            color = C.mentionAndLink,
+            fontSize = fontSize,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        return
+    }
+
+    Surface(
+        modifier = Modifier
+            .focusRequester(focusRequester ?: Default)
+            .focusProperties {
+                upRequester?.let { up = it }
+                downRequester?.let { down = it }
+            }
+            .onFocusChanged { focused = it.hasFocus }
+            .border(
+                width = if (focused) 3.dp else 0.dp,
+                color = if (focused) C.mentionAndLink else Color.Transparent,
+                shape = MaterialTheme.shapes.small
+            ),
+        shape = ClickableSurfaceDefaults.shape(MaterialTheme.shapes.small),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.Transparent,
+            focusedContainerColor = Color.Transparent,
+            pressedContainerColor = Color.Transparent
+        ),
+        scale = ClickableSurfaceDefaults.scale(
+            focusedScale = 1f,
+            pressedScale = 1f
+        ),
+        enabled = true,
+        onClick = {
+            onMentionClick?.invoke(mention.mid, mention.name)
+        }
+    ) {
+        Text(
+            modifier = Modifier.padding(horizontal = 4.dp),
+            text = "@${mention.name}",
+            color = C.mentionAndLink,
+            fontSize = fontSize,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
 }
 
 @Composable
@@ -1443,7 +1563,8 @@ private fun RichContentPage(
                             firstPictureFocusRequester = pictureFocusRequesters.firstOrNull(),
                             nextBodyFocusRequester = null,
                             onVideoLinkClick = onVideoLinkClick,
-                            onAttachmentClick = null
+                            onAttachmentClick = null,
+                            onMentionClick = null
                         )
                     }
                 }
