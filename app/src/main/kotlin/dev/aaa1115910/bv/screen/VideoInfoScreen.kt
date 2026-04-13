@@ -1372,6 +1372,7 @@ private fun VideoDescriptionMessageText(
                 }
 
                 is CommentMessageToken.Emote -> append(token.alt.ifBlank { token.code })
+                is CommentMessageToken.Attachment -> append(token.data.displayText)
                 is CommentMessageToken.VideoLink -> {
                     val id = "description_video_link_$linkIndex"
                     val currentLinkIndex = linkIndex
