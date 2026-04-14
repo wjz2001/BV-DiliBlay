@@ -57,7 +57,7 @@ fun TopNav(
     defaultFocusRequester: FocusRequester? = null,
     onDefaultFocusReady: (() -> Unit)? = null,
     isHistorySearching: Boolean = false,
-    onHistoryTabDirectionUp: (isLongPress: Boolean) -> Unit = {},
+    onTabConfirmLongPress: ((TopNavItem) -> Boolean)? = null,
     onLeftBoundaryExit: (() -> Unit)? = null,
     onRightBoundaryExit: (() -> Unit)? = null,
     onSelectedChanged: (TopNavItem) -> Unit = {},
@@ -129,7 +129,9 @@ fun TopNav(
                     topNavItem = tab,
                     selected = index == selectedTabIndex,
                     showHistorySearchIcon = isHistoryTab && isHistorySearching,
-                    onHistoryTabDirectionUp = if (isHistoryTab) onHistoryTabDirectionUp else null,
+                    onTabConfirmLongPress = onTabConfirmLongPress?.let { callback ->
+                        { callback(tab) }
+                    },
                     onLeftBoundaryExit = onLeftBoundaryExit.takeIf { index == 0 },
                     onRightBoundaryExit = onRightBoundaryExit.takeIf { index == items.lastIndex },
                     onFocus = {
@@ -151,7 +153,7 @@ private fun TabRowScope.NavItemTab(
     topNavItem: TopNavItem,
     selected: Boolean,
     showHistorySearchIcon: Boolean = false,
-    onHistoryTabDirectionUp: ((isLongPress: Boolean) -> Unit)? = null,
+    onTabConfirmLongPress: (() -> Boolean)? = null,
     onLeftBoundaryExit: (() -> Unit)? = null,
     onRightBoundaryExit: (() -> Unit)? = null,
     onClick: () -> Unit,
@@ -162,8 +164,6 @@ private fun TabRowScope.NavItemTab(
     val tabLabelFontSize = MaterialTheme.typography.labelLarge.fontSize
     val filterIconSizeDp = with(density) { tabLabelFontSize.toDp() }
 
-    var directionUpPressedOnThisTab by remember(topNavItem) { mutableStateOf(false) }
-    var directionUpLongPressTriggered by remember(topNavItem) { mutableStateOf(false) }
     var confirmLongPressTriggered by remember(topNavItem) { mutableStateOf(false) }
 
     Tab(
@@ -177,7 +177,6 @@ private fun TabRowScope.NavItemTab(
         modifier = modifier.onPreviewKeyEvent { event ->
             val isDirectionLeft = event.key == Key.DirectionLeft
             val isDirectionRight = event.key == Key.DirectionRight
-            val isDirectionUp = event.key == Key.DirectionUp
             val isConfirmKey =
                 event.key == Key.DirectionCenter ||
                         event.key == Key.Enter ||
@@ -195,61 +194,28 @@ private fun TabRowScope.NavItemTab(
                 }
             }
 
-            if (onHistoryTabDirectionUp == null) {
-                return@onPreviewKeyEvent false
-            }
-
-            if (!isDirectionUp && !isConfirmKey) return@onPreviewKeyEvent false
+            if (!isConfirmKey) return@onPreviewKeyEvent false
 
             when (event.type) {
                 KeyEventType.KeyDown -> {
-                    if (isDirectionUp) {
-                        directionUpPressedOnThisTab = true
-                    }
-
                     if (event.nativeKeyEvent.isLongPress) {
-                        if (isDirectionUp) {
-                            if (!directionUpLongPressTriggered) {
-                                directionUpLongPressTriggered = true
-                                onHistoryTabDirectionUp(true)
-                            }
-                        } else {
-                            if (!confirmLongPressTriggered) {
-                                confirmLongPressTriggered = true
-                                onHistoryTabDirectionUp(true)
-                            }
+                        if (onTabConfirmLongPress == null) {
+                            return@onPreviewKeyEvent false
                         }
-                        return@onPreviewKeyEvent true
-                    }
-
-                    if (isDirectionUp) {
-                        return@onPreviewKeyEvent true
+                        if (!confirmLongPressTriggered) {
+                            confirmLongPressTriggered = onTabConfirmLongPress()
+                        }
+                        return@onPreviewKeyEvent confirmLongPressTriggered
                     }
                     false
                 }
 
                 KeyEventType.KeyUp -> {
-                    if (isDirectionUp) {
-                        if (!directionUpPressedOnThisTab) {
-                            return@onPreviewKeyEvent true
-                        }
-
-                        directionUpPressedOnThisTab = false
-
-                        if (directionUpLongPressTriggered) {
-                            directionUpLongPressTriggered = false
-                            true
-                        } else {
-                            onHistoryTabDirectionUp(false)
-                            true
-                        }
+                    if (confirmLongPressTriggered) {
+                        confirmLongPressTriggered = false
+                        true
                     } else {
-                        if (confirmLongPressTriggered) {
-                            confirmLongPressTriggered = false
-                            true
-                        } else {
-                            false
-                        }
+                        false
                     }
                 }
 
@@ -259,8 +225,6 @@ private fun TabRowScope.NavItemTab(
         selected = selected,
         onFocus = {
             // 焦点切入时清理按键状态，避免跨焦点污染
-            directionUpPressedOnThisTab = false
-            directionUpLongPressTriggered = false
             confirmLongPressTriggered = false
             onFocus()
         },
