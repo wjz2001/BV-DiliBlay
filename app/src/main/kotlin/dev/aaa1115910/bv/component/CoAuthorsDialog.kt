@@ -15,6 +15,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,7 +30,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import kotlinx.coroutines.delay
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,6 +42,7 @@ import androidx.tv.material3.Surface
 import coil.compose.AsyncImage
 import dev.aaa1115910.biliapi.entity.user.CoAuthor
 import dev.aaa1115910.bv.tv.component.TvAlertDialog
+import dev.aaa1115910.bv.util.requestFocus
 
 @Stable
 class CoAuthorsDialogState internal constructor() {
@@ -104,12 +105,11 @@ fun CoAuthorsDialogHost(
     // 找到弹窗里第一个可聚焦成员（UP主组已在 buildGroups 里置顶）
     val firstMemberMid = remember(groups) { groups.firstOrNull()?.members?.firstOrNull()?.mid }
     val firstMemberFocusRequester = remember { FocusRequester() }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(firstMemberMid) {
         if (firstMemberMid == null) return@LaunchedEffect
-        // Dialog 刚弹出时直接 requestFocus 有概率失败，小延迟更稳
-        delay(60)
-        runCatching { firstMemberFocusRequester.requestFocus() }
+        firstMemberFocusRequester.requestFocus(scope)
     }
 
     TvAlertDialog(
