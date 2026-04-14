@@ -254,6 +254,28 @@ fun HomeContent(
         }
     }
 
+    fun handleTopNavConfirmLongPress(tab: HomeTopNavItem): Boolean {
+        if (activeTab != tab) return false
+
+        return when (tab) {
+            HomeTopNavItem.Dynamics -> {
+                dynamicViewModel.requestScrollToTop()
+                true
+            }
+
+            HomeTopNavItem.History -> {
+                if (historyViewModel.debouncedQuery.isNotBlank()) {
+                    historyViewModel.clearSearch()
+                } else {
+                    historyViewModel.openSearchDialog()
+                }
+                true
+            }
+
+            else -> false
+        }
+    }
+
     fun retryHomeTabSilent(tab: HomeTopNavItem) {
         refreshHomeTabSilent(tab)
     }
@@ -350,11 +372,7 @@ fun HomeContent(
                 defaultFocusRequester = navFocusRequester,
                 onDefaultFocusReady = handleDefaultFocusReady,
                 isHistorySearching = historyViewModel.debouncedQuery.isNotBlank(),
-                onHistoryTabDirectionUp = { isLongPress ->
-                    if (focusedTab == HomeTopNavItem.History) {
-                        if (isLongPress) historyViewModel.clearSearch() else historyViewModel.openSearchDialog()
-                    }
-                },
+                onTabConfirmLongPress = { nav -> handleTopNavConfirmLongPress(nav as HomeTopNavItem) },
                 onLeftBoundaryExit = { drawerFocusRequester.requestFocus() },
                 onRightBoundaryExit = { drawerFocusRequester.requestFocus() },
                 onSelectedChanged = { nav -> homeContentViewModel.onTabFocused(nav as HomeTopNavItem) },

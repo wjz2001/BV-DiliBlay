@@ -94,6 +94,10 @@ class DynamicViewModel(
     var scrollToTopToken by mutableLongStateOf(0L)
         private set
 
+    fun requestScrollToTop() {
+        scrollToTopToken += 1
+    }
+
     // RefreshNew 进行中：屏蔽触底 loadMore
     private var isRefreshingNew = false
 
