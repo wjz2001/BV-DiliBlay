@@ -18,7 +18,9 @@ import androidx.compose.material3.Text as M3Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,6 +39,7 @@ import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.block.BlockPage
 import dev.aaa1115910.bv.ui.theme.C
+import dev.aaa1115910.bv.util.requestFocus
 
 /**
  * 简单多选弹框的“提交时机”：
@@ -261,12 +264,13 @@ private fun <T, ID> SimpleMultiSelectDialog(
 
     // 默认给第一个 item 聚焦，适合 TV 场景
     val defaultFocusRequester = remember { FocusRequester() }
+    val firstItemKey = remember(items) { items.firstOrNull()?.let(itemId) }
 
-    LaunchedEffect(show) {
-        if (show && items.isNotEmpty()) {
-            defaultFocusRequester.requestFocus()
-        }
-    }
+    DialogFirstItemAutoFocus(
+        show = show,
+        firstItemKey = firstItemKey,
+        focusRequester = defaultFocusRequester
+    )
 
     LaunchedEffect(show, submitMode) {
         if (show && submitMode == SubmitMode.OnDismiss) {
@@ -329,6 +333,30 @@ private fun <T, ID> SimpleMultiSelectDialog(
                 itemContent(item)
             }
         }
+    }
+}
+
+@Composable
+private fun <K> DialogFirstItemAutoFocus(
+    show: Boolean,
+    firstItemKey: K?,
+    focusRequester: FocusRequester
+) {
+    val scope = rememberCoroutineScope()
+    val hasRequestedFocus = remember { mutableStateOf(false) }
+
+    // 每次关闭弹窗，重置“一次打开仅聚焦一次”的状态
+    LaunchedEffect(show) {
+        if (!show) {
+            hasRequestedFocus.value = false
+        }
+    }
+
+    // 支持“先打开弹窗，后到数据”的场景：firstItemKey 从 null -> 非 null 时会触发
+    LaunchedEffect(show, firstItemKey) {
+        if (!show || firstItemKey == null || hasRequestedFocus.value) return@LaunchedEffect
+        focusRequester.requestFocus(scope)
+        hasRequestedFocus.value = true
     }
 }
 
