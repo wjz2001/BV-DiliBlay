@@ -52,6 +52,7 @@ import androidx.tv.material3.ListItemDefaults
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppGray
 import dev.aaa1115910.bv.ui.theme.C
+import dev.aaa1115910.bv.util.requestFocus
 
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -471,7 +472,7 @@ fun CollectionListController(
                             LaunchedEffect(active, expanded) {
                                 if (!active) return@LaunchedEffect
                                 if (!expanded && isParentSelected) {
-                                    parentFocusRequester.requestFocus()
+                                    parentFocusRequester.requestFocus(scope)
                                 }
                             }
                         }

@@ -30,6 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,6 +70,7 @@ import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppGray
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.C
+import dev.aaa1115910.bv.util.requestFocus
 
 
 private enum class UpPanelTab(
@@ -101,29 +103,10 @@ fun UpPanelController(
     var selectedTab by remember { mutableStateOf(UpPanelTab.Video) }
     var focusState by remember { mutableStateOf(UpPanelFocusState.Nav) }
     var forceNavExpandedOnOpen by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     // 默认焦点落点：导航“选择视频”
     val navVideoItemFocusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(show) {
-        if (show) {
-            selectedTab = UpPanelTab.Video
-            focusState = UpPanelFocusState.Nav
-            forceNavExpandedOnOpen = true
-            // 等一帧再请求焦点，避免初次 composition 未稳定
-            kotlinx.coroutines.android.awaitFrame()
-            navVideoItemFocusRequester.requestFocus()
-        } else {
-            forceNavExpandedOnOpen = false
-        }
-    }
-
-    // 当前 tab 不可用时，强制回到 Video
-    LaunchedEffect(show, chaptersEnabled, collectionsEnabled) {
-        if (!show) return@LaunchedEffect
-        if (selectedTab == UpPanelTab.Chapter && !chaptersEnabled) selectedTab = UpPanelTab.Video
-        if (selectedTab == UpPanelTab.Collection && !collectionsEnabled) selectedTab = UpPanelTab.Video
-    }
 
     val chapterBuilt = buildChapterParents(
         chapters = uiState.availableChapters,
@@ -134,7 +117,6 @@ fun UpPanelController(
     )
     val videoPageProgress = buildVideoPageProgress(
         videoList = uiState.availableVideoList,
-        currentAid = uiState.aid,
         currentCid = uiState.cid
     )
 
@@ -152,6 +134,27 @@ fun UpPanelController(
         selectedIndex = collectionBuilt.selectedIndex,
         total = collectionBuilt.totalCount
     )
+    val hasAnyProgress = chapterProgressText != null ||
+            videoProgressText != null ||
+            collectionProgressText != null
+
+    LaunchedEffect(show, hasAnyProgress) {
+        if (show) {
+            selectedTab = UpPanelTab.Video
+            focusState = UpPanelFocusState.Nav
+            forceNavExpandedOnOpen = hasAnyProgress
+            navVideoItemFocusRequester.requestFocus(scope)
+        } else {
+            forceNavExpandedOnOpen = false
+        }
+    }
+
+    // 当前 tab 不可用时，强制回到 Video
+    LaunchedEffect(show, chaptersEnabled, collectionsEnabled) {
+        if (!show) return@LaunchedEffect
+        if (selectedTab == UpPanelTab.Chapter && !chaptersEnabled) selectedTab = UpPanelTab.Video
+        if (selectedTab == UpPanelTab.Collection && !collectionsEnabled) selectedTab = UpPanelTab.Video
+    }
 
     Box(
         modifier = modifier,
@@ -400,6 +403,7 @@ private fun UpPanelNavList(
     onSelectedChanged: (UpPanelTab) -> Unit,
 ) {
     val listFocusRequester = remember { FocusRequester() }
+    val scope = rememberCoroutineScope()
 
     // 判断是否至少存在一个进度文本
     val hasAnyProgress = chapterProgressText != null ||
@@ -407,7 +411,7 @@ private fun UpPanelNavList(
             collectionProgressText != null
 
     LaunchedEffect(Unit) {
-        listFocusRequester.requestFocus()
+        listFocusRequester.requestFocus(scope)
     }
 
     LazyColumn(
@@ -424,10 +428,14 @@ private fun UpPanelNavList(
                 UpPanelTab.Collection -> collectionsEnabled
             }
 
-            val progressText = when (tab) {
-                UpPanelTab.Chapter -> chapterProgressText
-                UpPanelTab.Video -> videoProgressText
-                UpPanelTab.Collection -> collectionProgressText
+            val progressText = if (enabled) {
+                when (tab) {
+                    UpPanelTab.Chapter -> chapterProgressText
+                    UpPanelTab.Video -> videoProgressText
+                    UpPanelTab.Collection -> collectionProgressText
+                }
+            } else {
+                null
             }
 
             UpPanelNavItem(
@@ -500,8 +508,8 @@ private data class BuiltCollectionParents(
 
 private fun buildCollectionParents(uiState: PlayerUiState): BuiltCollectionParents {
     val sections = uiState.ugcSeason?.sections.orEmpty()
-    val currentAid = uiState.aid
     val currentCid = uiState.cid
+    val targetCid = currentCid.takeIf { it != 0L }
 
     val parents = sections.mapIndexed { sectionIndex, section ->
         CollectionParentItem(
@@ -517,7 +525,7 @@ private fun buildCollectionParents(uiState: PlayerUiState): BuiltCollectionParen
                     ugcPages = null
                 )
                 CollectionChildItem(
-                    key = ep.aid,
+                    key = ep.cid,
                     title = ep.title,
                     extra = video
                 )
@@ -525,18 +533,21 @@ private fun buildCollectionParents(uiState: PlayerUiState): BuiltCollectionParen
         )
     }
 
-    val selectedParentIndex = sections.indexOfFirst { section ->
-        section.episodes.any { ep -> ep.aid == currentAid || ep.cid == currentCid }
-    }.takeIf { it >= 0 }
+    val selectedParentIndex = targetCid?.let { cid ->
+        sections.indexOfFirst { section ->
+            section.episodes.any { ep -> ep.cid == cid }
+        }.takeIf { it >= 0 }
+    }
 
     val flatEpisodes = sections.flatMap { it.episodes }
-    val selectedEpisodeIndex = flatEpisodes.indexOfFirst { ep ->
-        ep.aid == currentAid || ep.cid == currentCid
-    }.takeIf { it >= 0 }
+    val selectedEpisodeIndex = targetCid?.let { cid ->
+        flatEpisodes.indexOfFirst { ep -> ep.cid == cid }
+            .takeIf { it >= 0 }
+    }
 
-    val selectedChildKey = flatEpisodes.firstOrNull { ep ->
-        ep.aid == currentAid || ep.cid == currentCid
-    }?.aid ?: currentAid.takeIf { it != 0L }
+    val selectedChildKey = targetCid?.let { cid ->
+        flatEpisodes.firstOrNull { ep -> ep.cid == cid }?.cid
+    }
 
     return BuiltCollectionParents(
         parents = parents,
@@ -554,14 +565,12 @@ private data class VideoPageProgress(
 
 private fun buildVideoPageProgress(
     videoList: List<VideoListItem>,
-    currentAid: Long,
     currentCid: Long
 ): VideoPageProgress? {
     if (videoList.isEmpty()) return null
+    if (currentCid == 0L) return null
 
-    val topLevelIndex = videoList.indexOfFirst { video ->
-        video.aid == currentAid || video.cid == currentCid
-    }
+    val topLevelIndex = videoList.indexOfFirst { video -> video.cid == currentCid }
 
     if (videoList.size > 1 && topLevelIndex >= 0) {
         return VideoPageProgress(
@@ -570,8 +579,7 @@ private fun buildVideoPageProgress(
         )
     }
 
-    val parent = videoList.firstOrNull { it.aid == currentAid }
-        ?: videoList.firstOrNull { it.cid == currentCid }
+    val parent = videoList.firstOrNull { it.cid == currentCid }
         ?: videoList.firstOrNull { video ->
             video.ugcPages?.any { page -> page.cid == currentCid } == true
         }
