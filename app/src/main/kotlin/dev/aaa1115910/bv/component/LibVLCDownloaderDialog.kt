@@ -66,7 +66,7 @@ fun LibVLCDownloaderDialog(
             runCatching {
                 text = "正在获取下载地址"
                 val release =
-                    VlcLibsApi.getRelease(BuildConfig.libVLCVersion)
+                    VlcLibsApi.getRelease(BuildConfig.LIB_VLC_VERSION)
                         ?: throw IllegalStateException("Release not found")
                 val tempFilename = "${UUID.randomUUID()}.zip"
                 val tempDir = File(context.cacheDir, "libvlc_downloader")

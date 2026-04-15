@@ -40,10 +40,12 @@ fun handleGrpcException(it: Throwable) {
             val statusDetailsKey = Metadata.Key.of(
                 "grpc-status-details-bin", Metadata.BINARY_BYTE_MARSHALLER
             )
-            val data = it.trailers[statusDetailsKey]
+            val data: ByteArray = it.trailers
+                ?.get(statusDetailsKey)
+                ?: throw it // 没有 trailers 或没有这个 key，就原样抛出
             val status = Status.parseFrom(data).getDetail()
             when (status) {
-                is bilibili.rpc.Status -> {
+                is Status -> {
                     throw IllegalStateException(status.message)
                 }
 

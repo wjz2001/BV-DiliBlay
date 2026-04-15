@@ -66,7 +66,7 @@ import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.LogCatcherUtil
 import dev.aaa1115910.bv.util.swapList
 import dev.aaa1115910.bv.util.toast
-import io.github.g0dkar.qrcode.QRCode
+import qrcode.QRCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay

@@ -7,16 +7,16 @@ plugins {
 }
 
 android {
-    namespace = "${AppConfiguration.appId}.player"
-    compileSdk = AppConfiguration.compileSdk
+    namespace = "${AppConfiguration.APP_ID}.player"
+    compileSdk = AppConfiguration.COMPILE_SDK
 
     defaultConfig {
-        minSdk = AppConfiguration.minSdk
+        minSdk = AppConfiguration.MIN_SDK
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
 
-        buildConfigField("String", "libVLCVersion", "\"${AppConfiguration.libVLCVersion}\"")
+        buildConfigField("String", "LIB_VLC_VERSION", "\"${AppConfiguration.LIB_VLC_VERSION}\"")
     }
 
     buildTypes {
@@ -61,6 +61,8 @@ java {
 dependencies {
     implementation(androidx.activity.compose)
     implementation(androidx.core.ktx)
+    implementation(platform(androidx.compose.bom))
+    androidTestImplementation(platform(androidx.compose.bom))
     implementation(androidx.compose.ui)
     implementation(androidx.compose.ui.util)
     implementation(androidx.compose.ui.tooling.preview)

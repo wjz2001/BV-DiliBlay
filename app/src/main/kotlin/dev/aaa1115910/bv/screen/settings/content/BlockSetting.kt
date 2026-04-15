@@ -121,7 +121,7 @@ fun BlockSetting(
             supportText = when {
                 !hasSnapshot -> "需先点击立即更新"
                 pagesSelected.isEmpty() -> stringResource(R.string.block_setting_pages_support_empty)
-                else -> context.getString(
+                else -> stringResource(
                     R.string.block_setting_pages_support,
                     pagesSelected.joinToString(",") { it.displayName }
                 )
@@ -129,6 +129,7 @@ fun BlockSetting(
             onClick = { showPageDialog = true }
         )
 
+        val needLoginToastText = stringResource(R.string.block_setting_update_now_need_login)
         SettingListItem(
             modifier = Modifier.focusRequester(updateFocusRequester),
             enabled = !updating,
@@ -142,7 +143,7 @@ fun BlockSetting(
                 val hasAuth = Prefs.uid != 0L &&
                         (Prefs.sessData.isNotBlank() || Prefs.accessToken.isNotBlank())
                 if (!hasAuth) {
-                    context.getString(R.string.block_setting_update_now_need_login).toast(context)
+                    needLoginToastText.toast(context)
                     return@SettingListItem
                 }
 
