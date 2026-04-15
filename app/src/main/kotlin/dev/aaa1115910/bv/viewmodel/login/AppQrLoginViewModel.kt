@@ -14,11 +14,12 @@ import dev.aaa1115910.biliapi.repositories.LoginRepository
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.entity.AuthData
 import dev.aaa1115910.bv.repository.UserRepository
+import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fError
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.timeTask
 import dev.aaa1115910.bv.util.toast
-import io.github.g0dkar.qrcode.QRCode
+import qrcode.QRCode
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -107,6 +108,7 @@ class AppQrLoginViewModel(
                         accessToken = qrLoginResult.accessToken!!,
                         refreshToken = qrLoginResult.refreshToken!!
                     )
+
                     userRepository.addUser(authData)
 
                     timer.cancel()
