@@ -24,7 +24,7 @@ import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.CoAuthorsDialogHost
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
-import dev.aaa1115910.bv.component.buttons.FavoriteDialog
+import dev.aaa1115910.bv.component.FavoriteDialog
 import dev.aaa1115910.bv.component.handleUpHomeClick
 import dev.aaa1115910.bv.component.rememberCoAuthorsDialogState
 import dev.aaa1115910.bv.util.toast
