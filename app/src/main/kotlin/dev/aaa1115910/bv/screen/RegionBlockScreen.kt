@@ -28,7 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.ImageBitmapConfig
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -39,14 +38,10 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
-import io.github.g0dkar.qrcode.QRCode
-import io.github.g0dkar.qrcode.render.Colors
-import okhttp3.internal.toHexString
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
+import qrcode.QRCode
+import qrcode.color.Colors
 import kotlin.system.exitProcess
 
 @Composable
@@ -54,9 +49,12 @@ fun RegionBlockScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var qrImage by remember { mutableStateOf(ImageBitmap(1, 1, ImageBitmapConfig.Argb8888)) }
-    val qrColorHex =
-        "#" + AppBlack.toArgb().toHexString().substring(2)
+
+    var qrImage by remember {
+        mutableStateOf(ImageBitmap(1, 1, ImageBitmapConfig.Argb8888))
+    }
+
+    val qrContent = stringResource(R.string.region_block_qr_content)
 
     var finishNumberTarget by remember { mutableIntStateOf(0) }
     val finishNumber by animateIntAsState(
@@ -73,18 +71,22 @@ fun RegionBlockScreen(
         label = "finish percent animation"
     )
 
-    LaunchedEffect(Unit) {
-        println(qrColorHex)
-        val output = ByteArrayOutputStream()
+    // 用 qrContent 做 key：语言/配置变化导致字符串变化时，会重新生成二维码
+    LaunchedEffect(qrContent) {
         finishNumberTarget = 100
-        QRCode(context.getString(R.string.region_block_qr_content))
-            .render(darkColor = Colors.css(qrColorHex))
-            .writeImage(output)
-        val input = ByteArrayInputStream(output.toByteArray())
-        qrImage = BitmapFactory.decodeStream(input).asImageBitmap()
+
+        val pngBytes = QRCode.ofSquares()
+            .withColor(Colors.BLACK)
+            .withBackgroundColor(Colors.WHITE)
+            .build(qrContent)
+            .renderToBytes()
+
+        BitmapFactory.decodeByteArray(pngBytes, 0, pngBytes.size)?.let { bmp ->
+            qrImage = bmp.asImageBitmap()
+        }
     }
 
-    DisposableEffect(key1 = Unit) {
+    DisposableEffect(Unit) {
         onDispose {
             (context as Activity).finish()
             exitProcess(0)
@@ -106,13 +108,12 @@ fun RegionBlockScreen(
                 .padding(84.dp),
             contentAlignment = Alignment.CenterStart
         ) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
+            Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
                 Text(
                     text = stringResource(R.string.region_block_character_painting),
                     fontSize = 100.sp
                 )
+
                 Column {
                     Text(
                         text = stringResource(R.string.region_block_title),
@@ -123,13 +124,13 @@ fun RegionBlockScreen(
                         style = MaterialTheme.typography.titleLarge
                     )
                 }
+
                 Text(
                     text = "$finishNumber% 完成",
                     style = MaterialTheme.typography.titleLarge
                 )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Box(
                         modifier = Modifier
                             .size(80.dp)
@@ -142,6 +143,7 @@ fun RegionBlockScreen(
                             contentDescription = null
                         )
                     }
+
                     Column {
                         Text(text = stringResource(R.string.region_block_solution_title))
                         Text(text = stringResource(R.string.region_block_solution_text))

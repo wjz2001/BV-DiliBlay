@@ -30,7 +30,7 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.bv.entity.AuthData
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.ui.theme.C
-import io.github.g0dkar.qrcode.QRCode
+import qrcode.QRCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString

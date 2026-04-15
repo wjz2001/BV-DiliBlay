@@ -82,7 +82,7 @@ import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.viewmodel.UserViewModel
 import dev.aaa1115910.bv.viewmodel.user.UserSwitchViewModel
-import io.github.g0dkar.qrcode.QRCode
+import qrcode.QRCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext

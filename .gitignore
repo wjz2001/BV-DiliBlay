@@ -8,7 +8,7 @@
 .externalNativeBuild
 .cxx
 /signing.properties
-.idea/
+/.idea/
 /.idea/jarRepositories.xml
 /.idea/migrations.xml
 /.idea/codeStyles/

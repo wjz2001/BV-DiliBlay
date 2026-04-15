@@ -1,11 +1,10 @@
 [versions]
-agp = "8.8.0"
-firebase-crashlytics = "2.9.9"
-gms = "4.4.2"
-kotlin = "2.1.21"
-ksp = "2.1.21-2.0.1"
-protobuf = "0.9.5"
-versions = "0.52.0"
+agp = "8.9.2"
+gms = "4.4.4"
+kotlin = "2.3.20"
+ksp = "2.3.2"
+protobuf = "0.9.6"
+versions = "0.53.0"
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -14,9 +13,6 @@ compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
-
-# https://firebase.google.com/docs/crashlytics/get-started?platform=android
-firebase-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "firebase-crashlytics" }
 
 # https://github.com/google/ksp
 google-ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
