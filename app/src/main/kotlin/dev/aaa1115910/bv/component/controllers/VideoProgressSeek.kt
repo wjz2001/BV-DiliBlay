@@ -7,12 +7,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.ui.theme.AppRed
+import dev.aaa1115910.bv.ui.theme.AppRedDark
 import dev.aaa1115910.bv.ui.theme.AppRedLight
 import dev.aaa1115910.bv.ui.theme.AppRedLighter
 import dev.aaa1115910.bv.ui.theme.BVTheme
@@ -32,6 +34,7 @@ fun VideoProgressSeek(
     } else {
         0f
     }
+    val bufferedProgress = (bufferedPercentage / 100f).coerceIn(0f, 1f)
 
     Canvas(
         modifier = modifier
@@ -39,33 +42,30 @@ fun VideoProgressSeek(
             .height(trackWidthDp)
     ) {
         val trackWidthPx = trackWidthDp.toPx()
+        val playedEndX = size.width * progress
+        val bufferedEndX = size.width * bufferedProgress
 
-        drawLine(
-            // inactiveTrackColor
-            color = AppRedLighter,
-            start = Offset(trackWidthPx / 2, center.y),
-            end = Offset(size.width - trackWidthPx / 2, center.y),
-            strokeWidth = trackWidthPx,
-            cap = StrokeCap.Square
-        )
-        if (!isPersistentSeek) {
+        fun drawSegment(startX: Float, endX: Float, color: Color) {
+            if (endX <= startX) return
             drawLine(
-                // disabledActiveTrackColor
-                color = AppRedLight,
-                start = Offset(trackWidthPx / 2, center.y),
-                end = Offset(trackWidthPx / 2 + size.width * bufferedPercentage / 100, center.y),
+                color = color,
+                start = Offset(startX, center.y),
+                end = Offset(endX, center.y),
                 strokeWidth = trackWidthPx,
-                cap = StrokeCap.Square
+                cap = StrokeCap.Butt
             )
         }
-        drawLine(
-            // activeTrackColor
-            color = AppRed,
-            start = Offset(trackWidthPx / 2, center.y),
-            end = Offset(trackWidthPx / 2 + size.width * progress, center.y),
-            strokeWidth = trackWidthPx,
-            cap = StrokeCap.Square
-        )
+
+        if (isPersistentSeek || bufferedProgress >= 1f) {
+            drawSegment(0f, playedEndX, AppRed)
+            drawSegment(playedEndX, size.width, AppRedLighter)
+            return@Canvas
+        }
+
+        val bufferedVisibleEndX = bufferedEndX.coerceAtLeast(playedEndX)
+        drawSegment(0f, playedEndX, AppRedDark)
+        drawSegment(playedEndX, bufferedVisibleEndX, AppRedLight)
+        drawSegment(bufferedVisibleEndX, size.width, AppRedLighter)
     }
 
 }
