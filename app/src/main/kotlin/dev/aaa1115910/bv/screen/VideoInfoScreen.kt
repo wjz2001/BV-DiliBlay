@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -40,9 +41,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.BasicText
-import androidx.compose.foundation.text.InlineTextContent
-import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -95,8 +94,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.PlatformTextStyle
-import androidx.compose.ui.text.Placeholder
-import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -106,9 +103,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -130,6 +125,9 @@ import androidx.tv.material3.TabRow
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
+import dev.aaa1115910.biliapi.entity.richtext.RichTextContent
+import dev.aaa1115910.biliapi.entity.richtext.RichTextReference
+import dev.aaa1115910.biliapi.entity.reply.Comment
 import dev.aaa1115910.biliapi.entity.video.Dimension
 import dev.aaa1115910.biliapi.entity.video.Tag
 import dev.aaa1115910.biliapi.entity.video.VideoPage
@@ -145,6 +143,7 @@ import dev.aaa1115910.bv.component.FollowGroupSelectDialog
 import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.component.rememberCoAuthorsDialogState
 import dev.aaa1115910.bv.component.comments.VideoCommentsDialog
+import dev.aaa1115910.bv.component.richtext.RichText
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.VideosRow
@@ -161,24 +160,25 @@ import dev.aaa1115910.bv.ui.effect.VideoDetailUiEffect
 
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.C
-import dev.aaa1115910.bv.util.buildCommentMessageTokens
-import dev.aaa1115910.bv.util.CommentMessageToken
+import dev.aaa1115910.bv.util.buildRichTextTokens
+import dev.aaa1115910.bv.util.countRichTextInteractiveTokens
+import dev.aaa1115910.bv.util.loadRichContentDocument
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.formatPubTimeString
 import dev.aaa1115910.bv.util.launchPlayerActivity
-import dev.aaa1115910.bv.util.resolveVideoLink
 import dev.aaa1115910.bv.util.ResolvedVideoLink
+import dev.aaa1115910.bv.util.RichContentDocument
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.util.toast
-import dev.aaa1115910.bv.util.VideoLinkToken
 import dev.aaa1115910.bv.util.focusedBorder
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import dev.aaa1115910.bv.viewmodel.video.VideoDetailState
 import dev.aaa1115910.bv.viewmodel.video.VideoDetailViewModel
 import dev.aaa1115910.bv.viewmodel.video.VideoInfoState
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
@@ -1090,7 +1090,8 @@ fun VideoInfoData(
                             Modifier
                         }
                     ),
-                description = videoDetail.description
+                description = videoDetail.description,
+                descriptionContent = videoDetail.descriptionContent
             )
 
             VideoCommentsDialog(
@@ -1178,6 +1179,7 @@ private fun UpButton(
 fun VideoDescription(
     modifier: Modifier = Modifier,
     description: String,
+    descriptionContent: RichTextContent
 ) {
     var showDescriptionDialog by remember { mutableStateOf(false) }
     val normalizedDescription = description.trim()
@@ -1212,7 +1214,8 @@ fun VideoDescription(
     VideoDescriptionDialog(
         show = showDescriptionDialog,
         onHideDialog = { showDescriptionDialog = false },
-        description = description
+        description = description,
+        descriptionContent = descriptionContent
     )
 }
 
@@ -1221,19 +1224,26 @@ fun VideoDescriptionDialog(
     modifier: Modifier = Modifier,
     show: Boolean,
     onHideDialog: () -> Unit,
-    description: String
+    description: String,
+    descriptionContent: RichTextContent
 ) {
     if (show) {
         val scrollState = rememberScrollState()
         val scope = rememberCoroutineScope()
         val bodyFocusRequester = remember { FocusRequester() }
         val context = LocalContext.current
-        val tokens = remember(description) { buildCommentMessageTokens(description) }
-        val linkCount = remember(tokens) { tokens.count { it is CommentMessageToken.VideoLink } }
-        val linkFocusRequesters = remember(description, linkCount) {
-            List(linkCount) { FocusRequester() }
+        val tokens = remember(descriptionContent) { buildRichTextTokens(descriptionContent) }
+        val interactiveCount = remember(tokens) {
+            countRichTextInteractiveTokens(tokens)
+        }
+        val interactiveFocusRequesters = remember(description, interactiveCount) {
+            List(interactiveCount) { FocusRequester() }
         }
         var bodyHasFocus by remember(description) { mutableStateOf(false) }
+        var showRichContentDialog by remember(description) { mutableStateOf(false) }
+        var richContent by remember(description) { mutableStateOf<RichContentDocument?>(null) }
+        var richContentLoading by remember(description) { mutableStateOf(false) }
+        var richContentError by remember(description) { mutableStateOf<String?>(null) }
 
         var viewportHeightPx by remember { mutableIntStateOf(0) }
         val stepPx = remember(viewportHeightPx) {
@@ -1244,7 +1254,7 @@ fun VideoDescriptionDialog(
         }
 
         LaunchedEffect(canScroll) {
-            if (show && (canScroll || linkFocusRequesters.isNotEmpty())) {
+            if (show && (canScroll || interactiveFocusRequesters.isNotEmpty())) {
                 bodyFocusRequester.requestFocus()
             }
         }
@@ -1271,7 +1281,7 @@ fun VideoDescriptionDialog(
                             .fillMaxSize()
                             .focusRequester(bodyFocusRequester)
                             .focusProperties {
-                                linkFocusRequesters.firstOrNull()?.let { down = it }
+                                interactiveFocusRequesters.firstOrNull()?.let { down = it }
                             }
                             .onFocusChanged { bodyHasFocus = it.hasFocus }
                             .onPreviewKeyEvent { event ->
@@ -1317,14 +1327,24 @@ fun VideoDescriptionDialog(
                         enabled = true,
                         onClick = {}
                     ) {
-                        VideoDescriptionMessageText(
+                        RichText(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(12.dp)
                                 .verticalScroll(scrollState),
                             tokens = tokens,
-                            linkFocusRequesters = linkFocusRequesters,
+                            inlineKeyPrefix = "video_description",
+                            textStyle = TextStyle(
+                                color = C.onSurface,
+                                fontSize = 28.sp,
+                                lineHeight = 34.sp
+                            ),
+                            maxLines = Int.MAX_VALUE,
+                            enableInteractiveFocus = true,
                             bodyFocusRequester = bodyFocusRequester,
+                            interactiveFocusRequesters = interactiveFocusRequesters,
+                            firstPictureFocusRequester = null,
+                            nextBodyFocusRequester = null,
                             onVideoLinkClick = { link ->
                                 if (Prefs.showVideoInfo) {
                                     VideoInfoActivity.actionStart(context, link.aid)
@@ -1339,6 +1359,25 @@ fun VideoDescriptionDialog(
                                         fromSeason = false
                                     )
                                 }
+                            },
+                            onReferenceClick = { reference ->
+                                showRichContentDialog = true
+                                richContent = null
+                                richContentError = null
+                                richContentLoading = true
+                                scope.launch {
+                                    runCatching {
+                                        loadRichContentDocument(reference)
+                                    }.onSuccess {
+                                        richContent = it
+                                    }.onFailure {
+                                        richContentError = it.message ?: "加载失败"
+                                    }
+                                    richContentLoading = false
+                                }
+                            },
+                            onMentionClick = { mid, name ->
+                                UpInfoActivity.actionStart(context, mid = mid, name = name)
                             }
                         )
                     }
@@ -1346,163 +1385,406 @@ fun VideoDescriptionDialog(
             },
             confirmButton = {}
         )
+
+        VideoDescriptionRichContentDialog(
+            show = showRichContentDialog,
+            document = richContent,
+            loading = richContentLoading,
+            error = richContentError,
+            onDismissRequest = { showRichContentDialog = false },
+            onVideoLinkClick = { link ->
+                if (Prefs.showVideoInfo) {
+                    VideoInfoActivity.actionStart(context, link.aid)
+                } else {
+                    launchPlayerActivity(
+                        context = context,
+                        avid = link.aid,
+                        cid = link.cid,
+                        title = link.title,
+                        partTitle = "",
+                        played = 0,
+                        fromSeason = false
+                    )
+                }
+            },
+            onReferenceClick = { reference ->
+                richContent = null
+                richContentError = null
+                richContentLoading = true
+                scope.launch {
+                    runCatching {
+                        loadRichContentDocument(reference)
+                    }.onSuccess {
+                        richContent = it
+                    }.onFailure {
+                        richContentError = it.message ?: "加载失败"
+                    }
+                    richContentLoading = false
+                }
+            }
+        )
     }
 }
 
 @Composable
-private fun VideoDescriptionMessageText(
-    modifier: Modifier = Modifier,
-    tokens: List<CommentMessageToken>,
-    linkFocusRequesters: List<FocusRequester>,
-    bodyFocusRequester: FocusRequester,
-    onVideoLinkClick: ((ResolvedVideoLink) -> Unit)?
+private fun VideoDescriptionRichContentDialog(
+    show: Boolean,
+    document: RichContentDocument?,
+    loading: Boolean,
+    error: String?,
+    onDismissRequest: () -> Unit,
+    onVideoLinkClick: (ResolvedVideoLink) -> Unit,
+    onReferenceClick: (RichTextReference) -> Unit
 ) {
-    val inlineContent = linkedMapOf<String, InlineTextContent>()
-    var linkIndex = 0
-    val basicFontSize = 28.sp
+    if (!show) return
 
-    val text = buildAnnotatedString {
-        tokens.forEach { token ->
-            when (token) {
-                is CommentMessageToken.Text -> append(token.text)
-                is CommentMessageToken.Mention -> {
-                    withStyle(SpanStyle(color = C.mentionAndLink, fontWeight = FontWeight.Medium)) {
-                        append("@${token.name}")
-                    }
+    var previewPictures by remember(document?.title) { mutableStateOf<List<Comment.Picture>>(emptyList()) }
+    var previewIndex by remember(document?.title) { mutableIntStateOf(0) }
+
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = {
+            Text(
+                text = document?.title ?: "内容",
+                color = C.onSurface
+            )
+        },
+        text = {
+            VideoDescriptionRichContentContent(
+                document = document,
+                loading = loading,
+                error = error,
+                onVideoLinkClick = onVideoLinkClick,
+                onReferenceClick = onReferenceClick,
+                onImageClick = { pictures, index ->
+                    previewPictures = pictures
+                    previewIndex = index
                 }
+            )
+        },
+        confirmButton = {}
+    )
 
-                is CommentMessageToken.Emote -> append(token.alt.ifBlank { token.code })
-                is CommentMessageToken.Attachment -> append(token.data.displayText)
-                is CommentMessageToken.VideoLink -> {
-                    val id = "description_video_link_$linkIndex"
-                    val currentLinkIndex = linkIndex
-                    val currentFr = linkFocusRequesters.getOrNull(currentLinkIndex)
-                    val downFr = if (currentLinkIndex < linkFocusRequesters.lastIndex) {
-                        linkFocusRequesters[currentLinkIndex + 1]
-                    } else {
-                        null
-                    }
-
-                    append(" ")
-                    appendInlineContent(id, token.data.videoId)
-                    append(" ")
-
-                    inlineContent[id] = InlineTextContent(
-                        Placeholder(
-                            width = 20.em,
-                            height = 1.6.em,
-                            placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter
-                        )
-                    ) {
-                        VideoDescriptionLinkInlineItem(
-                            token = token.data,
-                            focusRequester = currentFr,
-                            upRequester = bodyFocusRequester,
-                            downRequester = downFr,
-                            fontSize = basicFontSize,
-                            onVideoLinkClick = onVideoLinkClick
-                        )
-                    }
-
-                    linkIndex += 1
-                }
+    VideoDescriptionRichContentImagePreviewDialog(
+        pictures = previewPictures,
+        currentIndex = previewIndex,
+        onDismissRequest = { previewPictures = emptyList() },
+        onSwitch = { delta ->
+            if (previewPictures.isNotEmpty()) {
+                val size = previewPictures.size
+                previewIndex = (previewIndex + delta + size) % size
             }
         }
-    }
-
-    BasicText(
-        modifier = modifier,
-        text = text,
-        inlineContent = inlineContent,
-        style = TextStyle(
-            color = C.onSurface,
-            fontSize = basicFontSize,
-            lineHeight = 34.sp
-        )
     )
 }
 
 @Composable
-private fun VideoDescriptionLinkInlineItem(
-    token: VideoLinkToken,
-    focusRequester: FocusRequester?,
-    upRequester: FocusRequester?,
-    downRequester: FocusRequester?,
-    fontSize: TextUnit,
-    onVideoLinkClick: ((ResolvedVideoLink) -> Unit)?
+private fun VideoDescriptionRichContentContent(
+    document: RichContentDocument?,
+    loading: Boolean,
+    error: String?,
+    onImageClick: (List<Comment.Picture>, Int) -> Unit,
+    onVideoLinkClick: (ResolvedVideoLink) -> Unit,
+    onReferenceClick: (RichTextReference) -> Unit
 ) {
-    var resolved by remember(token.cleanedUrl) { mutableStateOf<ResolvedVideoLink?>(null) }
-    var loaded by remember(token.cleanedUrl) { mutableStateOf(false) }
-    var focused by remember(token.cleanedUrl) { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    LaunchedEffect(token.cleanedUrl) {
-        if (loaded) return@LaunchedEffect
-        loaded = true
-        resolved = resolveVideoLink(token)
-    }
-
-    val r = resolved  // 取一次快照
-    val showLinkStyle = !loaded || r != null
-    val title = when {
-        r != null -> r.title
-        loaded -> token.rawUrl
-        else -> token.videoId
-    }
-
-    Surface(
-        modifier = Modifier
-            .focusRequester(focusRequester ?: Default)
-            .focusProperties {
-                upRequester?.let { up = it }
-                downRequester?.let { down = it }
-            }
-            .onFocusChanged { focused = it.hasFocus }
-            .border(
-                width = if (focused) 3.dp else 0.dp,
-                color = if (focused && showLinkStyle) C.mentionAndLink else Color.Transparent,
-                shape = MaterialTheme.shapes.small
-            ),
-        shape = ClickableSurfaceDefaults.shape(MaterialTheme.shapes.small),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.Transparent,
-            focusedContainerColor = Color.Transparent,
-            pressedContainerColor = Color.Transparent
-        ),
-        scale = ClickableSurfaceDefaults.scale(
-            focusedScale = 1f,
-            pressedScale = 1f
-        ),
-        enabled = true,
-        onClick = {
-            scope.launch {
-                val link = resolved ?: resolveVideoLink(token)
-                if (link != null) {
-                    resolved = link
-                    onVideoLinkClick?.invoke(link)
-                }
+    when {
+        loading -> {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(420.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "加载中……", color = C.onSurface)
             }
         }
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            if (showLinkStyle) {
-                Icon(
-                    imageVector = Icons.Rounded.PlayCircleOutline,
-                    contentDescription = null,
-                    tint = C.mentionAndLink
+
+        error != null -> {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(420.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = error, color = C.onSurface)
+            }
+        }
+
+        document != null -> {
+            val tokens = remember(document.body) {
+                buildRichTextTokens(document.body)
+            }
+            val interactiveCount = remember(tokens) {
+                countRichTextInteractiveTokens(
+                    tokens = tokens,
+                    includeVideoLinks = true,
+                    includeReferences = true,
+                    includeMentions = false
                 )
             }
-            Text(
-                text = title,
-                color = if (showLinkStyle) C.mentionAndLink else C.onSurface,
-                fontSize = fontSize,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+            val bodyFocusRequester = remember(document.title) { FocusRequester() }
+            val interactiveFocusRequesters = remember(document.title, interactiveCount) {
+                List(interactiveCount) { FocusRequester() }
+            }
+            val pictureFocusRequesters = remember(document.title, document.pictures.size) {
+                List(document.pictures.size) { FocusRequester() }
+            }
+            var bodyHasFocus by remember(document.title) { mutableStateOf(false) }
+            val textScrollState = rememberScrollState()
+            val coroutineScope = rememberCoroutineScope()
+            val firstInteractiveRequester = when {
+                interactiveFocusRequesters.isNotEmpty() -> interactiveFocusRequesters.first()
+                pictureFocusRequesters.isNotEmpty() -> pictureFocusRequesters.first()
+                else -> null
+            }
+
+            LaunchedEffect(document.title) {
+                delay(40)
+                runCatching { bodyFocusRequester.requestFocus() }
+            }
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(bodyFocusRequester)
+                        .focusProperties {
+                            firstInteractiveRequester?.let { down = it }
+                        }
+                        .onFocusChanged { bodyHasFocus = it.hasFocus }
+                        .onPreviewKeyEvent { event ->
+                            if (bodyHasFocus && event.type == KeyEventType.KeyDown) {
+                                when (event.key) {
+                                    Key.DirectionDown -> {
+                                        if (textScrollState.value < textScrollState.maxValue) {
+                                            coroutineScope.launch {
+                                                textScrollState.animateScrollBy(60f)
+                                            }
+                                            return@onPreviewKeyEvent true
+                                        }
+                                    }
+
+                                    Key.DirectionUp -> {
+                                        if (textScrollState.value > 0) {
+                                            coroutineScope.launch {
+                                                textScrollState.animateScrollBy(-60f)
+                                            }
+                                            return@onPreviewKeyEvent true
+                                        }
+                                    }
+
+                                    else -> Unit
+                                }
+                            }
+                            false
+                        }
+                        .border(
+                            width = 3.dp,
+                            color = if (bodyHasFocus) C.bilibili else Color.Transparent,
+                            shape = MaterialTheme.shapes.medium
+                        ),
+                    shape = ClickableSurfaceDefaults.shape(MaterialTheme.shapes.medium),
+                    colors = ClickableSurfaceDefaults.colors(
+                        containerColor = Color.Transparent,
+                        focusedContainerColor = Color.Transparent,
+                        pressedContainerColor = Color.Transparent
+                    ),
+                    scale = ClickableSurfaceDefaults.scale(
+                        focusedScale = 1f,
+                        pressedScale = 1f
+                    ),
+                    enabled = true,
+                    onClick = {}
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp)
+                    ) {
+                        RichText(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 520.dp)
+                                .verticalScroll(textScrollState),
+                            tokens = tokens,
+                            inlineKeyPrefix = "video_description_rich",
+                            textStyle = TextStyle(
+                                color = C.onSurface,
+                                fontSize = 26.sp,
+                                lineHeight = 32.sp
+                            ),
+                            maxLines = Int.MAX_VALUE,
+                            enableInteractiveFocus = true,
+                            bodyFocusRequester = bodyFocusRequester,
+                            interactiveFocusRequesters = interactiveFocusRequesters,
+                            firstPictureFocusRequester = pictureFocusRequesters.firstOrNull(),
+                            nextBodyFocusRequester = null,
+                            onVideoLinkClick = onVideoLinkClick,
+                            onReferenceClick = onReferenceClick,
+                            onMentionClick = null
+                        )
+                    }
+                }
+
+                VideoDescriptionRichContentPictures(
+                    pictures = document.pictures,
+                    keyPrefix = "video-description-rich-${document.title}",
+                    pictureFocusRequesters = pictureFocusRequesters,
+                    fallbackUpRequester = bodyFocusRequester,
+                    lastInteractiveRequester = interactiveFocusRequesters.lastOrNull(),
+                    onImageClick = { index ->
+                        onImageClick(document.pictures, index)
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun VideoDescriptionRichContentPictures(
+    pictures: List<Comment.Picture>,
+    keyPrefix: String,
+    pictureFocusRequesters: List<FocusRequester>,
+    fallbackUpRequester: FocusRequester,
+    lastInteractiveRequester: FocusRequester?,
+    onImageClick: (Int) -> Unit
+) {
+    if (pictures.isEmpty()) return
+
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        itemsIndexed(pictures, key = { index, picture -> "$keyPrefix-${picture.imgSrc}-$index" }) { index, picture ->
+            val fr = pictureFocusRequesters[index]
+            val upRequester = when {
+                index > 0 -> pictureFocusRequesters[index - 1]
+                lastInteractiveRequester != null -> lastInteractiveRequester
+                else -> fallbackUpRequester
+            }
+            val downRequester = if (index == pictures.lastIndex) {
+                fr
+            } else {
+                pictureFocusRequesters[index + 1]
+            }
+            var pictureHasFocus by remember(keyPrefix, index) { mutableStateOf(false) }
+
+            Surface(
+                modifier = Modifier
+                    .width(184.dp)
+                    .height(112.dp)
+                    .focusRequester(fr)
+                    .focusProperties {
+                        up = upRequester
+                        down = downRequester
+                    }
+                    .onFocusChanged { pictureHasFocus = it.hasFocus }
+                    .border(
+                        width = if (pictureHasFocus) 3.dp else 0.dp,
+                        color = if (pictureHasFocus) C.bilibili else Color.Transparent,
+                        shape = MaterialTheme.shapes.small
+                    ),
+                shape = ClickableSurfaceDefaults.shape(MaterialTheme.shapes.small),
+                colors = ClickableSurfaceDefaults.colors(
+                    containerColor = C.commentsBackground,
+                    focusedContainerColor = C.commentsBackground,
+                    pressedContainerColor = C.commentsBackground
+                ),
+                scale = ClickableSurfaceDefaults.scale(
+                    focusedScale = 1f,
+                    pressedScale = 1f
+                ),
+                enabled = true,
+                onClick = { onImageClick(index) }
+            ) {
+                AsyncImage(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(C.commentsBackground),
+                    model = picture.imgSrc,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    alignment = Alignment.Center
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun VideoDescriptionRichContentImagePreviewDialog(
+    pictures: List<Comment.Picture>,
+    currentIndex: Int,
+    onDismissRequest: () -> Unit,
+    onSwitch: (delta: Int) -> Unit
+) {
+    if (pictures.isEmpty()) return
+
+    val safeIndex = currentIndex.coerceIn(0, pictures.lastIndex)
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(pictures, safeIndex) {
+        delay(20)
+        runCatching { focusRequester.requestFocus() }
+    }
+
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .focusRequester(focusRequester)
+                .focusable()
+                .onPreviewKeyEvent {
+                    if (it.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    when (it.key) {
+                        Key.Back -> {
+                            onDismissRequest()
+                            true
+                        }
+
+                        Key.DirectionLeft -> {
+                            onSwitch(-1)
+                            true
+                        }
+
+                        Key.DirectionRight -> {
+                            onSwitch(1)
+                            true
+                        }
+
+                        else -> false
+                    }
+                },
+            shape = RoundedCornerShape(0.dp),
+            colors = SurfaceDefaults.colors(
+                containerColor = C.commentsBackground,
+                contentColor = C.onSurface
             )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(C.commentsBackground)
+            ) {
+                AsyncImage(
+                    modifier = Modifier.fillMaxSize(),
+                    model = pictures[safeIndex].imgSrc,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    alignment = Alignment.Center
+                )
+            }
         }
     }
 }
@@ -2460,7 +2742,10 @@ fun VideoPartRowPreview() {
 @Composable
 fun VideoDescriptionPreview() {
     BVTheme {
-        VideoDescription(description = "12435678")
+        VideoDescription(
+            description = "12435678",
+            descriptionContent = RichTextContent.fromText("12435678")
+        )
     }
 }
 

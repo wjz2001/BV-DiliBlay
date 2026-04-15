@@ -8,7 +8,7 @@ enum class CommentSort {
     Time;
 
     internal fun toGrpcMode(): Mode = when (this) {
-        Hot -> Mode.MAIN_LIST_HOT
+        Hot -> Mode.DEFAULT
         HotAndTime -> Mode.DEFAULT
         Time -> Mode.MAIN_LIST_TIME
     }

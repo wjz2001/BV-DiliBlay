@@ -214,6 +214,18 @@ object BiliHttpApi {
     }.body()
 
     /**
+     * 获取图文(opus)详情
+     * 用于从 opus_id 解析出 cvid
+     */
+    suspend fun getOpusDetail(
+        opusId: String,
+        sessData: String? = null
+    ): BiliResponse<JsonObject> = client.get("/x/polymer/web-dynamic/v1/opus/detail") {
+        parameter("id", opusId)
+        sessData?.let { header("Cookie", "SESSDATA=$it;") }
+    }.body()
+
+    /**
      * 获取视频流
      */
     suspend fun getVideoPlayUrl(
