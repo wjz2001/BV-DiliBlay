@@ -20,6 +20,18 @@ if (AppConfiguration.googleServicesAvailable) {
 
 val signingProp = file(project.rootProject.file("signing.properties"))
 
+val taskLine = gradle.startParameter.taskNames.joinToString(" ").lowercase()
+val isReleasePackaging =
+    taskLine.contains("release") && (taskLine.contains("bundle") || taskLine.contains("assemble"))
+
+// Release 出包：reserve（落盘 +1）；其他：peek（不落盘）
+val vc = if (isReleasePackaging) {
+    AppConfiguration.reserveVersionCode()
+} else {
+    AppConfiguration.peekVersionCode()
+}
+val versionName = AppConfiguration.buildVersionName(vc)
+
 android {
     signingConfigs {
         if (signingProp.exists()) {
@@ -41,29 +53,35 @@ android {
         }
     }
 
-    namespace = AppConfiguration.appId
-    compileSdk = AppConfiguration.compileSdk
+    namespace = AppConfiguration.APP_ID
+    compileSdk = AppConfiguration.COMPILE_SDK
 
     defaultConfig {
-        applicationId = AppConfiguration.applicationId
-        minSdk = AppConfiguration.minSdk
-        targetSdk = AppConfiguration.targetSdk
-        versionCode = AppConfiguration.versionCode
-        versionName = AppConfiguration.versionName
+        applicationId = AppConfiguration.APPLICATION_ID
+        minSdk = AppConfiguration.MIN_SDK
+        targetSdk = AppConfiguration.TARGET_SDK
+        versionCode = vc
+        versionName = AppConfiguration.buildVersionName(vc)
         vectorDrawables {
             useSupportLibrary = true
         }
+        ndk {
+            abiFilters += setOf("arm64-v8a", "armeabi-v7a")
+        }
     }
 
-    flavorDimensions.add("channel")
+    flavorDimensions += "channel"
 
     productFlavors {
-        create("lite") {
+        create("public") {
             dimension = "channel"
+            buildConfigField("boolean", "IS_PRIVATE", "false")
         }
-        create("default") {
+        create("private") {
             dimension = "channel"
+            buildConfigField("boolean", "IS_PRIVATE", "true")
         }
+
     }
 
     buildTypes {
@@ -95,14 +113,6 @@ android {
             applicationIdSuffix = ".r8test"
             if (signingProp.exists()) signingConfig = signingConfigs.getByName("release")
         }
-        create("alpha") {
-            isMinifyEnabled = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-            if (signingProp.exists()) signingConfig = signingConfigs.getByName("release")
-        }
     }
     // https://issuetracker.google.com/issues/260059413
     compileOptions {
@@ -114,56 +124,32 @@ android {
         buildConfig = true
     }
 
-    val isAssembleLite = gradle.startParameter.taskNames.any { it.startsWith("assembleLite") }
-
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-            excludes += "**/*.proto"
-        }
-
-        // if (gradle.startParameter.taskNames.find { it.startsWith("assembleLite") } != null) {
-        if (isAssembleLite) {
-            jniLibs {
-                val vlcLibs = listOf("libvlc", "libc++_shared", "libvlcjni")
-                val abis = listOf("x86_64", "x86", "arm64-v8a", "armeabi-v7a")
-
-                // 3. 将 forEach 替换为 Kotlin 规范的 for 循环，完美避开 IDE 误报
-                for (vlcLibName in vlcLibs) {
-                    for (abi in abis) {
-                        excludes.add("lib/$abi/$vlcLibName.so")
-                    }
-                }
-            }
-        }
-    }
-    kotlinOptions {
-        freeCompilerArgs = listOf("-XXLanguage:+BreakContinueInInlineLambdas")
-    }
-
-    /*splits {
-        if (gradle.startParameter.taskNames.find { it.startsWith("assembleDefault") } != null) {
-            abi {
-                isEnable = true
-                reset()
-                include("x86_64", "x86", "arm64-v8a", "armeabi-v7a")
-                isUniversalApk = true
-            }
-        }
-    }*/
-
     applicationVariants.configureEach {
         val variant = this
         outputs.configureEach {
             (this as ApkVariantOutputImpl).apply {
-                val abi = this.filters.find { it.filterType == "ABI" }?.identifier ?: "universal"
                 outputFileName =
-                    "BV_${AppConfiguration.versionCode}_${AppConfiguration.versionName}.${variant.buildType.name}_${variant.flavorName}_$abi.apk"
-                versionNameOverride =
-                    "${variant.versionName}.${variant.buildType.name}"
+                    "DiliBlay-$versionName-${variant.buildType.name}.${variant.flavorName}.APK"
+                versionNameOverride = "${variant.versionName}.${variant.buildType.name}"
             }
         }
     }
+}
+
+kotlin {
+    compilerOptions {
+        freeCompilerArgs.add("-XXLanguage:+BreakContinueInInlineLambdas")
+    }
+}
+
+tasks.register("assembleAllChannelsDebug") {
+    group = "build"
+    dependsOn("assemblePublicDebug", "assemblePrivateDebug")
+}
+
+tasks.register("assembleAllChannelsRelease") {
+    group = "build"
+    dependsOn("assemblePublicRelease", "assemblePrivateRelease")
 }
 
 composeCompiler {
@@ -194,6 +180,8 @@ dependencies {
     implementation(androidx.core.ktx)
     implementation(androidx.core.splashscreen)
     implementation(androidx.compose.constraintlayout)
+    implementation(platform(androidx.compose.bom))
+    androidTestImplementation(platform(androidx.compose.bom))
     implementation(androidx.compose.ui)
     implementation(androidx.compose.ui.util)
     implementation(androidx.compose.ui.tooling.preview)
@@ -217,12 +205,13 @@ dependencies {
     implementation(libs.coil.gif)
     implementation(libs.coil.svg)
     implementation(libs.geetest.sensebot)
+    implementation(platform(libs.koin.bom))
+    implementation(libs.koin.core)
     implementation(libs.koin.android)
-    implementation(libs.koin.annotations)
     implementation(libs.koin.compose)
+    implementation(libs.koin.annotations)
     implementation(libs.kotlinx.serialization)
     implementation(libs.ktor.client.cio)
-    implementation(libs.koin.core)
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.encoding)
@@ -231,7 +220,7 @@ dependencies {
     implementation(libs.ktor.server.cio)
     implementation(libs.ktor.server.core)
     implementation(libs.logging)
-    implementation(libs.lottie)
+    implementation(libs.lottie) { exclude(group = "androidx.compose", module = "compose-bom") }
     implementation(libs.material)
     implementation(libs.qrcode)
     implementation(libs.rememberPreference)
