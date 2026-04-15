@@ -107,7 +107,7 @@ fun BlockSetting(
 
         SettingListItem(
             enabled = !updating && hasSnapshot,
-                title = stringResource(R.string.block_setting_groups_title),
+            title = stringResource(R.string.block_setting_groups_title),
             supportText = when {
                 !hasSnapshot -> "未获取分组，请先点击立即更新"
                 else -> "已选择 $groupSelectedCount / ${tags.size} 个分组"
@@ -132,7 +132,7 @@ fun BlockSetting(
         val needLoginToastText = stringResource(R.string.block_setting_update_now_need_login)
         SettingListItem(
             modifier = Modifier.focusRequester(updateFocusRequester),
-            enabled = !updating,
+            enabled = true, // 更新中也保持可聚焦，避免焦点跳走
             title = stringResource(R.string.block_setting_update_now_title),
             supportText = when {
                 updating -> stringResource(R.string.block_setting_update_now_support_updating)
@@ -140,6 +140,8 @@ fun BlockSetting(
                 else -> "当前快照 ${tags.size} 个分组 / ${snapshot?.users?.size ?: 0} 个用户"
             },
             onClick = {
+                if (updating) return@SettingListItem // 防止更新中重复点击
+
                 val hasAuth = Prefs.uid != 0L &&
                         (Prefs.sessData.isNotBlank() || Prefs.accessToken.isNotBlank())
                 if (!hasAuth) {

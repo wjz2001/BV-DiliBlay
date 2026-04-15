@@ -1,7 +1,6 @@
 package dev.aaa1115910.bv.component
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -20,26 +19,27 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Border
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.FilterChip
 import androidx.tv.material3.FilterChipDefaults
-import androidx.tv.material3.Glow
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.block.BlockPage
 import dev.aaa1115910.bv.ui.theme.C
-import dev.aaa1115910.bv.util.requestFocus
+import kotlinx.coroutines.delay
+
+private const val DialogAutoFocusRetryCount = 20
+private const val DialogAutoFocusRetryDelayMillis = 50L
 
 /**
  * 简单多选弹框的“提交时机”：
@@ -86,7 +86,7 @@ private fun <T> SnapshotStateList<T>.replaceWith(items: Collection<T>) {
 }
 
 /**
- * 最基础的“多选弹框壳”。
+ * 最基础的“多选 Chip 配色”。
  *
  * 这个函数只负责公共 UI：
  * - AlertDialog
@@ -99,7 +99,6 @@ private fun <T> SnapshotStateList<T>.replaceWith(items: Collection<T>) {
  * 所有 Dialog/Chip 都走这里，未来新增 Dialog 只要复用 SimpleMultiSelectDialog，
  * 就天然统一视觉与交互状态（focused/pressed/disabled/selected）。
  */
-
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 private fun multiSelectChipColors() = FilterChipDefaults.colors(
@@ -264,11 +263,17 @@ private fun <T, ID> SimpleMultiSelectDialog(
 
     // 默认给第一个 item 聚焦，适合 TV 场景
     val defaultFocusRequester = remember { FocusRequester() }
-    val firstItemKey = remember(items) { items.firstOrNull()?.let(itemId) }
+    val defaultFocusItemKey = items.firstOrNull { itemEnabled(it) }?.let(itemId)
+    val didDefaultItemReceiveFocus = remember { mutableStateOf(false) }
 
-    DialogFirstItemAutoFocus(
+    LaunchedEffect(show, defaultFocusItemKey) {
+        didDefaultItemReceiveFocus.value = false
+    }
+
+    DialogDefaultItemAutoFocus(
         show = show,
-        firstItemKey = firstItemKey,
+        defaultFocusItemKey = defaultFocusItemKey,
+        didDefaultItemReceiveFocus = didDefaultItemReceiveFocus.value,
         focusRequester = defaultFocusRequester
     )
 
@@ -297,6 +302,7 @@ private fun <T, ID> SimpleMultiSelectDialog(
                             onSubmit(selectedIds.toList())
                             onHideDialog()
                         }
+
                         DismissOrder.HideThenSubmit -> {
                             onHideDialog()
                             onSubmit(selectedIds.toList())
@@ -306,14 +312,23 @@ private fun <T, ID> SimpleMultiSelectDialog(
             }
         }
     ) {
-        items.forEachIndexed { index, item ->
+        items.forEach { item ->
             val id = itemId(item)
             val selected = selectedIds.contains(id)
             val enabled = itemEnabled(item)
+            val isDefaultFocusItem = id == defaultFocusItemKey
 
-            // 第一个 item 默认拿焦点
-            val itemModifier =
-                if (index == 0) Modifier.focusRequester(defaultFocusRequester) else Modifier
+            val itemModifier = if (isDefaultFocusItem) {
+                Modifier
+                    .focusRequester(defaultFocusRequester)
+                    .onFocusChanged { focusState ->
+                        if (focusState.hasFocus) {
+                            didDefaultItemReceiveFocus.value = true
+                        }
+                    }
+            } else {
+                Modifier
+            }
 
             BaseMultiSelectChip(
                 modifier = itemModifier,
@@ -336,27 +351,32 @@ private fun <T, ID> SimpleMultiSelectDialog(
     }
 }
 
+/**
+ * 弹窗默认焦点兜底：
+ *
+ * 1. 焦点目标不是“第一个 item”，而是“第一个 enabled item”
+ * 2. 打开弹窗后会持续重试 requestFocus
+ * 3. 只有目标 item 真的拿到焦点，才停止重试
+ *
+ * 这样能覆盖：
+ * - 先显示弹窗、后到数据
+ * - Dialog 刚创建时节点还没挂稳
+ * - 底层已有焦点持有者时，首次 requestFocus 被吞掉
+ */
 @Composable
-private fun <K> DialogFirstItemAutoFocus(
+private fun <K> DialogDefaultItemAutoFocus(
     show: Boolean,
-    firstItemKey: K?,
+    defaultFocusItemKey: K?,
+    didDefaultItemReceiveFocus: Boolean,
     focusRequester: FocusRequester
 ) {
-    val scope = rememberCoroutineScope()
-    val hasRequestedFocus = remember { mutableStateOf(false) }
+    LaunchedEffect(show, defaultFocusItemKey, didDefaultItemReceiveFocus) {
+        if (!show || defaultFocusItemKey == null || didDefaultItemReceiveFocus) return@LaunchedEffect
 
-    // 每次关闭弹窗，重置“一次打开仅聚焦一次”的状态
-    LaunchedEffect(show) {
-        if (!show) {
-            hasRequestedFocus.value = false
+        repeat(DialogAutoFocusRetryCount) {
+            runCatching { focusRequester.requestFocus() }
+            delay(DialogAutoFocusRetryDelayMillis)
         }
-    }
-
-    // 支持“先打开弹窗，后到数据”的场景：firstItemKey 从 null -> 非 null 时会触发
-    LaunchedEffect(show, firstItemKey) {
-        if (!show || firstItemKey == null || hasRequestedFocus.value) return@LaunchedEffect
-        focusRequester.requestFocus(scope)
-        hasRequestedFocus.value = true
     }
 }
 
