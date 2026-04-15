@@ -1,6 +1,10 @@
 package dev.aaa1115910.biliapi.entity.reply
 
 import bilibili.main.community.reply.v1.ReplyInfo
+import dev.aaa1115910.biliapi.entity.richtext.RichTextContent
+import dev.aaa1115910.biliapi.entity.richtext.RichTextPart
+import dev.aaa1115910.biliapi.entity.richtext.RichTextReference
+import java.net.URLDecoder
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -23,21 +27,18 @@ data class CommentsData(
                 addAll(reply.topRepliesList)
             }.distinctBy { it.id }
 
-            val pinnedIds = rawPinned.map { it.id }.toHashSet()
-
             val pinnedComments = rawPinned.map { Comment.fromReplyInfo(it, forcePinned = true) }
             val normalComments = reply.repliesList
-                .asSequence()
-                .filter { it.id !in pinnedIds }
                 .map { info ->
                     val pinnedByFlag =
                         info.replyControl.isUpTop || info.replyControl.isAdminTop || info.replyControl.isVoteTop
                     Comment.fromReplyInfo(info, forcePinned = pinnedByFlag)
                 }
-                .toList()
+            val mergedComments = (pinnedComments + normalComments)
+                .distinctBy { it.rpid }
 
             return CommentsData(
-                comments = pinnedComments + normalComments,
+                comments = mergedComments,
                 nextPage = CommentPage(
                     next = reply.cursor.next,
                     prev = reply.cursor.prev
@@ -85,10 +86,60 @@ data class Comment(
     val timeDesc: String,
     val like: Long,
     val repliesCount: Int,
-    val isPinned: Boolean
+    val isPinned: Boolean,
+    val isNoteComment: Boolean = false,
+    val noteCvid: Long = 0L,
+    val maxPreviewLines: Int = 0
 ) {
+    fun toRichTextContent(): RichTextContent {
+        val parts = mutableListOf<RichTextPart>()
+
+        val sourceParts = messageParts.ifEmpty {
+            listOf(MessagePart.Text(message))
+        }
+        sourceParts.forEach { part ->
+            when (part) {
+                is MessagePart.Text -> parts += RichTextPart.Text(part.text)
+                is MessagePart.Mention -> {
+                    parts += RichTextPart.Mention(
+                        name = part.name,
+                        mid = part.mid
+                    )
+                }
+
+                is MessagePart.Emote -> {
+                    parts += RichTextPart.Emote(
+                        code = part.code,
+                        url = part.url,
+                        alt = part.alt
+                    )
+                }
+            }
+        }
+
+        attachments.forEach { attachment ->
+            parts += RichTextPart.Reference(attachment.toRichTextReference())
+        }
+        return RichTextContent(parts = mergeAdjacentRichTextParts(parts))
+    }
+
     companion object {
-        private val CvidRegex = Regex("""(?:cv|cvid=|/article/)(\d+)""", RegexOption.IGNORE_CASE)
+        private val CvidRegexes = listOf(
+            Regex("""(?<![A-Za-z0-9])cv(\d+)(?![A-Za-z0-9])""", RegexOption.IGNORE_CASE),
+            Regex("""[?&]cvid=(\d+)""", RegexOption.IGNORE_CASE),
+            Regex("""[?&]id=(\d+)""", RegexOption.IGNORE_CASE),
+            Regex("""(?:https?://)?(?:[a-zA-Z0-9-]+\.)*bilibili\.com/read/cv(\d+)""", RegexOption.IGNORE_CASE),
+            Regex("""(?:https?://)?(?:[a-zA-Z0-9-]+\.)*bilibili\.com/read/mobile[^\s#]*?[?&]id=(\d+)""", RegexOption.IGNORE_CASE),
+            Regex("""(?:https?://)?(?:[a-zA-Z0-9-]+\.)*bilibili\.com/article/(\d+)""", RegexOption.IGNORE_CASE),
+            Regex("""(?:https?://)?(?:[a-zA-Z0-9-]+\.)*bilibili\.com/x/note/(?:[^/\s?#]+/)?(\d+)""", RegexOption.IGNORE_CASE),
+            Regex("""(?:https?://)?(?:[a-zA-Z0-9-]+\.)*bilibili\.com/note-app/view[^\s#]*?[?&]cvid=(\d+)""", RegexOption.IGNORE_CASE),
+            Regex("""(?:https?://)?(?:[a-zA-Z0-9-]+\.)*b23\.tv/(?:cv)?(\d+)""", RegexOption.IGNORE_CASE),
+            Regex("""bilibili://article/(\d+)""", RegexOption.IGNORE_CASE),
+            Regex("""bilibili://article[^\s#]*?[?&]id=(\d+)""", RegexOption.IGNORE_CASE),
+            Regex("""bilibili://note[^\s#]*?[?&](?:cvid|id)=(\d+)""", RegexOption.IGNORE_CASE),
+            Regex("""bilibili://note/(\d+)""", RegexOption.IGNORE_CASE),
+            Regex("""bilibili://[^?]+\?[^#]*\b(?:cvid|id)=(\d+)""", RegexOption.IGNORE_CASE)
+        )
 
         fun fromReplyInfo(info: ReplyInfo, forcePinned: Boolean): Comment {
             val pinnedByFlag =
@@ -138,7 +189,10 @@ data class Comment(
                 ),
                 like = info.like,
                 repliesCount = info.count.toInt(),
-                isPinned = forcePinned || pinnedByFlag
+                isPinned = forcePinned || pinnedByFlag,
+                isNoteComment = info.replyControl.isNote,
+                noteCvid = extractNoteCvid(info),
+                maxPreviewLines = info.replyControl.maxLine.toInt()
             )
         }
 
@@ -170,9 +224,9 @@ data class Comment(
                 val timePart = SimpleDateFormat("HH:mm:ss", Locale.CHINESE).format(date)
 
                 when (diffDays) {
-                    0 -> "今天 ${timePart} 发布"
-                    1 -> "昨天 ${timePart} 发布"
-                    2 -> "前天 ${timePart} 发布"
+                    0 -> "今天 $timePart 发布"
+                    1 -> "昨天 $timePart 发布"
+                    2 -> "前天 $timePart 发布"
                     else -> {
                         // 这里沿用 formatPubTimeString 的“今年不带年、跨年带年”逻辑，只是补上秒
                         val year = targetCal.get(Calendar.YEAR)
@@ -253,12 +307,10 @@ data class Comment(
                         textBuffer.deleteCharAt(textBuffer.lastIndex)
                     }
                     flushTextBuffer()
-                    result += MessagePart.Text(" ")
                     result += MessagePart.Mention(
                         name = matchedMention.name,
                         mid = matchedMention.mid
                     )
-                    result += MessagePart.Text(" ")
                     cursor += matchedMention.rawText.length
                     if (cursor < message.length && message[cursor] == ' ') {
                         cursor += 1
@@ -277,65 +329,110 @@ data class Comment(
         private fun buildAttachments(info: ReplyInfo): List<Attachment> {
             val result = mutableListOf<Attachment>()
 
-            if (info.content.hasRichText()) {
-                val richText = info.content.richText
-                if (richText.hasNote()) {
-                    val note = richText.note
-                    val cvid = parseCvid(note.clickUrl)
-                    if (cvid != null) {
-                        result += Attachment.Note(
-                            cvid = cvid,
-                            clickUrl = note.clickUrl
-                        )
-                    }
-                }
-            }
-
             info.content.urlMap.entries
                 .asSequence()
                 .mapNotNull { (rawText, url) ->
-                    val candidateUrl = when {
-                        url.pcUrl.isNotBlank() -> url.pcUrl
-                        url.appUrlSchema.isNotBlank() -> url.appUrlSchema
-                        rawText.isNotBlank() -> rawText
-                        else -> null
-                    } ?: return@mapNotNull null
+                    val candidates = listOf(url.pcUrl, url.appUrlSchema, rawText)
+                        .map { it.trim() }
+                        .filter { it.isNotBlank() }
+                        .distinct()
+                    val cvid = candidates.firstNotNullOfOrNull(::parseCvid)
+                    // opus URL 无法解析出 cvid，但仍需保留为附件（用 cvid=0 + URL 标记）
+                    if (cvid == null) {
+                        val opusCandidate = candidates.firstOrNull { "bilibili.com/opus/" in it }
+                        if (opusCandidate != null) {
+                            val title = url.title.ifBlank { "图文" }
+                            result += Attachment.Article(cvid = 0L, title = title, url = opusCandidate)
+                        }
+                        return@mapNotNull null
+                    }
+                    val displayUrl = candidates.firstOrNull(::isJumpUrl) ?: candidates.first()
 
-                    val cvid = parseCvid(candidateUrl) ?: return@mapNotNull null
-                    if (isNoteUrl(candidateUrl) || url.title.contains("笔记")) {
+                    if (displayUrl.let(::isNoteUrl) || url.title.contains("笔记")) {
                         Attachment.Note(
                             cvid = cvid,
-                            clickUrl = candidateUrl
+                            clickUrl = displayUrl
                         )
                     } else {
-                        val title = url.title.ifBlank { return@mapNotNull null }
+                        val title = url.title.ifBlank {
+                            rawText.takeIf { it.isNotBlank() } ?: "专栏 cv$cvid"
+                        }
                         Attachment.Article(
                             cvid = cvid,
                             title = title,
-                            url = candidateUrl
+                            url = displayUrl
                         )
                     }
                 }
-                .distinctBy { it.cvid }
                 .forEach { result += it }
 
-            return result.distinctBy {
-                when (it) {
-                    is Attachment.Note -> "note:${it.cvid}"
-                    is Attachment.Article -> "article:${it.cvid}"
+            return result
+                .groupBy { attachment ->
+                    when {
+                        attachment.cvid > 0L -> "cvid:${attachment.cvid}"
+                        attachment is Attachment.Note ->
+                            "note:${attachment.clickUrl}"
+                        attachment is Attachment.Article ->
+                            "article:${attachment.url.ifBlank { attachment.title }}"
+                        else -> "other:${attachment.displayText}"
+                    }
                 }
+                .values
+                .map { group ->
+                    group.firstOrNull { it is Attachment.Note } ?: group.first()
+                }
+        }
+
+        private fun extractNoteCvid(info: ReplyInfo): Long {
+            if (!info.content.hasRichText()) return 0L
+            val richText = info.content.richText
+            if (richText.hasNoteCard() && richText.noteCard.cvid > 0L) {
+                return richText.noteCard.cvid
             }
+            if (richText.hasNote()) {
+                val cvid = parseCvid(richText.note.clickUrl)
+                if (cvid != null) return cvid
+            }
+            return 0L
         }
 
         private fun parseCvid(raw: String): Long? {
             if (raw.isBlank()) return null
-            return CvidRegex.find(raw)?.groupValues?.getOrNull(1)?.toLongOrNull()
+            val candidates = buildList {
+                add(raw)
+                decodeUrl(raw)?.let { add(it) }
+            }.asSequence()
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .distinct()
+
+            return candidates.mapNotNull { candidate ->
+                candidate.toLongOrNull()?.takeIf { it > 0L } ?: CvidRegexes.asSequence()
+                    .mapNotNull { regex ->
+                        regex.find(candidate)?.groupValues?.getOrNull(1)?.toLongOrNull()
+                    }
+                    .firstOrNull()
+            }.firstOrNull()
+        }
+
+        private fun decodeUrl(raw: String): String? {
+            return runCatching {
+                URLDecoder.decode(raw, Charsets.UTF_8.name())
+            }.getOrNull()
+                ?.takeIf { it != raw }
         }
 
         private fun isNoteUrl(raw: String): Boolean {
             if (raw.isBlank()) return false
             val url = raw.lowercase()
             return "note-app/view" in url || "/x/note/" in url
+        }
+
+        private fun isJumpUrl(raw: String): Boolean {
+            if (raw.isBlank()) return false
+            return raw.startsWith("https://", ignoreCase = true) ||
+                raw.startsWith("http://", ignoreCase = true) ||
+                raw.startsWith("bilibili://", ignoreCase = true)
         }
 
         private fun mergeAdjacentTextParts(parts: List<MessagePart>): List<MessagePart> {
@@ -413,4 +510,34 @@ data class Comment(
         val mid: Long,
         val rawText: String
     )
+}
+
+private fun Comment.Attachment.toRichTextReference(): RichTextReference {
+    return when (this) {
+        is Comment.Attachment.Note -> RichTextReference.Note(
+            cvid = cvid,
+            url = clickUrl
+        )
+
+        is Comment.Attachment.Article -> RichTextReference.Article(
+            cvid = cvid,
+            title = title,
+            url = url
+        )
+    }
+}
+
+private fun mergeAdjacentRichTextParts(parts: List<RichTextPart>): List<RichTextPart> {
+    if (parts.isEmpty()) return emptyList()
+
+    val merged = mutableListOf<RichTextPart>()
+    parts.forEach { part ->
+        val last = merged.lastOrNull()
+        if (part is RichTextPart.Text && last is RichTextPart.Text) {
+            merged[merged.lastIndex] = RichTextPart.Text(last.text + part.text)
+        } else {
+            merged += part
+        }
+    }
+    return merged
 }

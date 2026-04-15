@@ -1,6 +1,7 @@
 package dev.aaa1115910.bv.viewmodel.video
 
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
+import dev.aaa1115910.biliapi.entity.richtext.RichTextContent
 import dev.aaa1115910.biliapi.entity.user.Author
 import dev.aaa1115910.biliapi.entity.video.Tag
 import dev.aaa1115910.biliapi.entity.video.VideoDetail.Stat
@@ -44,6 +45,7 @@ data class VideoDetailState(
     val redirectToEp: Boolean,
     val argueTip: String?,
     val description: String,
+    val descriptionContent: RichTextContent,
     val pages: List<VideoPage>,
     val relatedVideos: List<VideoCardData>,
     val ugcSeason: UgcSeason?,

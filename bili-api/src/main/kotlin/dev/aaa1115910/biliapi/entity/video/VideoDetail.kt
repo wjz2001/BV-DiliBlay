@@ -3,6 +3,8 @@ package dev.aaa1115910.biliapi.entity.video
 import bilibili.app.view.v1.ReqUser
 import bilibili.app.view.v1.ViewReply
 import bilibili.app.view.v1.ugcSeasonOrNull
+import dev.aaa1115910.biliapi.entity.richtext.RichTextContent
+import dev.aaa1115910.biliapi.entity.richtext.parseVideoDescriptionContent
 import dev.aaa1115910.biliapi.entity.user.Author
 import dev.aaa1115910.biliapi.entity.video.season.UgcSeason
 import dev.aaa1115910.biliapi.http.entity.video.VideoStat
@@ -16,6 +18,7 @@ data class VideoDetail(
     val title: String,
     val publishDate: Date,
     val description: String,
+    val descriptionContent: RichTextContent,
     val stat: Stat,
     val author: Author,
     val pages: List<VideoPage>,
@@ -60,6 +63,7 @@ data class VideoDetail(
                     title = viewReply.arc.title,
                     publishDate = Date(viewReply.arc.pubdate * 1000L),
                     description = viewReply.arc.desc,
+                    descriptionContent = RichTextContent.fromText(viewReply.arc.desc),
                     stat = Stat.fromStat(viewReply.arc.stat),
                     author = Author.fromAuthor(viewReply.arc.author),
                     pages = viewReply.pagesList.map { VideoPage.fromViewPage(it) },
@@ -103,6 +107,7 @@ data class VideoDetail(
                     title = viewReply.activitySeason.arc.title,
                     publishDate = Date(viewReply.activitySeason.arc.pubdate * 1000L),
                     description = viewReply.activitySeason.arc.desc,
+                    descriptionContent = RichTextContent.fromText(viewReply.activitySeason.arc.desc),
                     stat = Stat.fromStat(viewReply.activitySeason.arc.stat),
                     author = Author.fromAuthor(viewReply.activitySeason.arc.author),
                     pages = viewReply.activitySeason.pagesList.map { VideoPage.fromViewPage(it) },
@@ -157,6 +162,10 @@ data class VideoDetail(
                 title = videoDetail.view.title,
                 publishDate = Date(videoDetail.view.pubdate * 1000L),
                 description = videoDetail.view.desc,
+                descriptionContent = parseVideoDescriptionContent(
+                    description = videoDetail.view.desc,
+                    descV2 = videoDetail.view.descV2
+                ),
                 stat = Stat.fromVideoStat(videoDetail.view.stat),
                 author = Author.fromVideoOwner(videoDetail.view.owner),
                 pages = videoDetail.view.pages.map { VideoPage.fromVideoPage(it) },

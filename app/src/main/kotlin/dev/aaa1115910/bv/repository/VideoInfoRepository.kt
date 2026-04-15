@@ -149,6 +149,7 @@ class VideoInfoRepository(private val videoDetailRepository: VideoDetailReposito
                 redirectToEp = videoDetail.redirectToEp,
                 argueTip = videoDetail.argueTip,
                 description = videoDetail.description,
+                descriptionContent = videoDetail.descriptionContent,
                 pages = videoDetail.pages,
                 //relatedVideos = mapToVideoCardData(videoDetail.relatedVideos),
                 relatedVideos = dev.aaa1115910.bv.block.BlockManager.filterList(

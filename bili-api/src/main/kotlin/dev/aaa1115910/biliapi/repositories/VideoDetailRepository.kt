@@ -120,32 +120,31 @@ class VideoDetailRepository(
             ApiType.App -> {
                 val viewReply = getAppViewReply(aid)
                 val appDetail = VideoDetail.fromViewReply(viewReply)
+                val webDetail = try {
+                    val httpVideoDetail = BiliHttpApi.getVideoDetail(
+                        av = aid,
+                        sessData = authRepository.sessionData ?: ""
+                    ).getResponseData()
+                    VideoDetail.fromVideoDetail(httpVideoDetail)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Throwable) {
+                    null
+                }
 
-                // 仅当存在 ugcSeason 时，补一发 Web view/detail 获取 pages 并求和。
-                val appUgcSeason = appDetail.ugcSeason
-                if (appUgcSeason == null) {
+                if (webDetail == null) {
                     appDetail
                 } else {
-                    try {
-                        val httpVideoDetail = BiliHttpApi.getVideoDetail(
-                            av = aid,
-                            sessData = authRepository.sessionData ?: ""
-                        ).getResponseData()
-                        val webDetail = VideoDetail.fromVideoDetail(httpVideoDetail)
-                        val webUgcSeason = webDetail.ugcSeason
-                        if (webUgcSeason != null) {
-                            // 仅覆盖 duration：失败/对不上则保持 appDetail 原值（你要求的“仍显示当前 episode.duration”）。
-                            appDetail.copy(
-                                ugcSeason = appUgcSeason.mergeEpisodeDurationFrom(webUgcSeason)
-                            )
-                        } else {
-                            appDetail
-                        }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (_: Throwable) {
-                        appDetail
+                    val mergedUgcSeason = when {
+                        appDetail.ugcSeason != null && webDetail.ugcSeason != null ->
+                            appDetail.ugcSeason.mergeEpisodeDurationFrom(webDetail.ugcSeason)
+
+                        else -> appDetail.ugcSeason
                     }
+                    appDetail.copy(
+                        descriptionContent = webDetail.descriptionContent,
+                        ugcSeason = mergedUgcSeason
+                    )
                 }
             }
         }

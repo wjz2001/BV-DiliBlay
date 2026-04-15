@@ -1,10 +1,12 @@
 package dev.aaa1115910.biliapi.repositories
 
 import bilibili.main.community.reply.v1.DetailListScene
+import bilibili.main.community.reply.v1.Mode
 import bilibili.main.community.reply.v1.ReplyGrpcKt
 import bilibili.main.community.reply.v1.cursorReq
 import bilibili.main.community.reply.v1.detailListReq
 import bilibili.main.community.reply.v1.mainListReq
+import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.entity.reply.CommentPage
 import dev.aaa1115910.biliapi.entity.reply.CommentRepliesData
 import dev.aaa1115910.biliapi.entity.reply.CommentReplyPage
@@ -28,6 +30,7 @@ class CommentRepository(
     suspend fun getVideoComments(
         aid: Long,
         sort: CommentSort = CommentSort.Hot,
+        preferApiType: ApiType = ApiType.Web,
         page: CommentPage = CommentPage()
     ): CommentsData {
         return runCatching {
@@ -39,7 +42,7 @@ class CommentRepository(
                     cursor = cursorReq {
                         next = page.next
                         prev = page.prev
-                        mode = sort.toGrpcMode()
+                        mode = resolveMode(sort = sort, preferApiType = preferApiType)
                     }
                 }
             )
@@ -56,6 +59,7 @@ class CommentRepository(
         aid: Long,
         rootRpid: Long,
         sort: CommentSort = CommentSort.Hot,
+        preferApiType: ApiType = ApiType.Web,
         page: CommentReplyPage = CommentReplyPage()
     ): CommentRepliesData {
         return runCatching {
@@ -69,7 +73,7 @@ class CommentRepository(
                     cursor = cursorReq {
                         next = page.next
                         prev = page.prev
-                        mode = sort.toGrpcMode()
+                        mode = resolveMode(sort = sort, preferApiType = preferApiType)
                     }
                     scene = DetailListScene.REPLY
                 }
@@ -78,5 +82,13 @@ class CommentRepository(
         }.onFailure {
             handleGrpcException(it)
         }.getOrThrow()
+    }
+
+    private fun resolveMode(sort: CommentSort, preferApiType: ApiType): Mode {
+        return when {
+            sort == CommentSort.Hot && preferApiType == ApiType.App -> Mode.MAIN_LIST_HOT
+            sort == CommentSort.Hot && preferApiType == ApiType.Web -> Mode.DEFAULT
+            else -> sort.toGrpcMode()
+        }
     }
 }

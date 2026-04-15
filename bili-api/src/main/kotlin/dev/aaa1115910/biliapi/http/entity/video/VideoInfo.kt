@@ -71,6 +71,8 @@ data class VideoInfo(
     val pubdate: Int,
     val ctime: Int = 0,
     val desc: String,
+    @SerialName("desc_v2")
+    val descV2: JsonElement? = null,
     val state: Int,
     val duration: Int,
     val forward: Int? = null,
