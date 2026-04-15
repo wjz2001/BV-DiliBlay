@@ -1,5 +1,6 @@
 package dev.aaa1115910.bv.activities
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -10,10 +11,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.screen.MainScreen
 import dev.aaa1115910.bv.screen.user.lock.UnlockUserScreen
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.util.Prefs
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.android.ext.android.inject
 
@@ -41,6 +44,22 @@ class MainActivity : ComponentActivity() {
                 isCheckingUserLock = false
                 keepSplashScreen = false
             }
+
+            var hasTriggeredAutoLogin by remember { mutableStateOf(false) }
+            LaunchedEffect(isCheckingUserLock, userLockLocked) {
+                if (isCheckingUserLock || userLockLocked || hasTriggeredAutoLogin) return@LaunchedEffect
+                if (!Prefs.autoOpenLoginOnFirstLaunch) return@LaunchedEffect
+
+                if (Prefs.autoOpenLoginOnFirstLaunch) {
+                    hasTriggeredAutoLogin = true
+                    Prefs.autoOpenLoginOnFirstLaunch = false
+                    if (!userRepository.isLogin) {
+                        startActivity(Intent(this@MainActivity, LoginActivity::class.java))
+                    }
+                }
+            }
+
+
 
 
             BVTheme {

@@ -70,6 +70,7 @@ object Prefs {
 
     // 基础类型
     var isLogin by pref(PrefKeys.prefIsLoginKey, false)
+    var autoOpenLoginOnFirstLaunch by pref(PrefKeys.prefAutoOpenLoginOnFirstLaunchKey, true)
     var uid by pref(PrefKeys.prefUidKey, 0L)
     var sid by pref(PrefKeys.prefSidKey, "")
     var sessData by pref(PrefKeys.prefSessDataKey, "")
@@ -446,6 +447,7 @@ class PrefDelegate<T, P>(
 
 private object PrefKeys {
     val prefIsLoginKey = booleanPreferencesKey("il")
+    val prefAutoOpenLoginOnFirstLaunchKey = booleanPreferencesKey("auto_open_login_first_launch")
     val prefUidKey = longPreferencesKey("uid")
     val prefSidKey = stringPreferencesKey("sid")
     val prefSessDataKey = stringPreferencesKey("sd")
