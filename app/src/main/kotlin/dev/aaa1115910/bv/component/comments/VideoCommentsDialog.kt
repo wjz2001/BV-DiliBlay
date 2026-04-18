@@ -38,8 +38,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.focusGroup
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.Alignment
@@ -89,12 +87,13 @@ import dev.aaa1115910.bv.util.countRichTextInteractiveTokens
 import dev.aaa1115910.bv.util.loadRichContentDocument
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.launchPlayerActivity
+import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.RichContentDocument
 import dev.aaa1115910.bv.util.ResolvedVideoLink
 import dev.aaa1115910.bv.util.toast
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import org.koin.compose.getKoin
+import org.koin.compose.koinInject
 
 private enum class Page { Main, Replies, RichContent }
 @OptIn(ExperimentalFoundationApi::class)
@@ -106,7 +105,7 @@ fun VideoCommentsDialog(
 ) {
     if (!show) return
 
-    val commentRepository: CommentRepository = getKoin().get()
+    val commentRepository: CommentRepository = koinInject()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -339,7 +338,7 @@ fun VideoCommentsDialog(
                     preferApiType = Prefs.apiType,
                     page = pageToUse
                 )
-                rootComment = data.rootComment
+                rootComment = rootComment ?: data.rootComment
                 if (reset) replies.clear()
                 val existingRpids = replies.asSequence().map { it.rpid }.toHashSet()
                 replies.addAll(data.replies.filterNot { it.rpid in existingRpids })
@@ -562,7 +561,7 @@ fun VideoCommentsDialog(
                                         comments,
                                         key = { _, c -> c.rpid }
                                     ) { index, comment ->
-                                        // 这个就是“item 入口”FocusRequester：请求它会触发 focusRestorer 恢复到子焦点
+                                        // 这个就是“item 入口”FocusRequester，直接挂在评论正文上
                                         val itemFr = mainItemFocusRequesters.getOrPut(comment.rpid) { FocusRequester() }
 
                                         val prevItemFr = comments
@@ -579,9 +578,9 @@ fun VideoCommentsDialog(
                                                     lastMainFocusedRpid = comment.rpid
                                                 }
                                             },
-                                            itemFocusRequester = itemFr,
-                                            previousItemFocusRequester = prevItemFr,
-                                            nextItemFocusRequester = nextItemFr,
+                                            bodyFocusRequester = itemFr,
+                                            previousBodyFocusRequester = prevItemFr,
+                                            nextBodyFocusRequester = nextItemFr,
                                             comment = comment,
                                             noteFullText = noteFullTexts[comment.rpid],
                                             showRepliesHint = comment.repliesCount > 0,
@@ -687,9 +686,9 @@ fun VideoCommentsDialog(
                                                             lastReplyFocusedRpid = reply.rpid
                                                         }
                                                     },
-                                                    itemFocusRequester = itemFr,
-                                                    previousItemFocusRequester = prevItemFr,
-                                                    nextItemFocusRequester = nextItemFr,
+                                                    bodyFocusRequester = itemFr,
+                                                    previousBodyFocusRequester = prevItemFr,
+                                                    nextBodyFocusRequester = nextItemFr,
                                                     comment = reply,
                                                     noteFullText = noteFullTexts[reply.rpid],
                                                     showRepliesHint = false,
@@ -844,10 +843,7 @@ private fun RootCommentHeader(comment: Comment) {
                 content = comment.toRichTextContent(),
                 maxLines = 5,
                 enableLinkFocus = false,
-                bodyFocusRequester = null,
                 interactiveFocusRequesters = emptyList(),
-                firstPictureFocusRequester = null,
-                nextBodyFocusRequester = null,
                 onVideoLinkClick = null,
                 onReferenceClick = null,
                 onMentionClick = null
@@ -860,12 +856,49 @@ private fun RootCommentHeader(comment: Comment) {
     }
 }
 
+private sealed interface CommentFocusNode {
+    data object Body : CommentFocusNode
+    data class Inline(val index: Int) : CommentFocusNode
+    data class Picture(val index: Int) : CommentFocusNode
+}
+
+private fun firstReachableForwardNodeInCurrentItem(
+    inlineCount: Int,
+    pictureCount: Int
+): CommentFocusNode? = when {
+    inlineCount > 0 -> CommentFocusNode.Inline(0)
+    pictureCount > 0 -> CommentFocusNode.Picture(0)
+    else -> null
+}
+
+private fun nextNodeFromInline(
+    index: Int,
+    inlineCount: Int,
+    pictureCount: Int
+): CommentFocusNode? = when {
+    index + 1 < inlineCount -> CommentFocusNode.Inline(index + 1)
+    pictureCount > 0 -> CommentFocusNode.Picture(0)
+    else -> null
+}
+
+private fun prevNodeFromInline(index: Int): CommentFocusNode =
+    if (index > 0) CommentFocusNode.Inline(index - 1) else CommentFocusNode.Body
+
+private fun nextNodeFromPicture(index: Int, pictureCount: Int): CommentFocusNode? =
+    if (index + 1 < pictureCount) CommentFocusNode.Picture(index + 1) else null
+
+private fun prevNodeFromPicture(index: Int, inlineCount: Int): CommentFocusNode = when {
+    index > 0 -> CommentFocusNode.Picture(index - 1)
+    inlineCount > 0 -> CommentFocusNode.Inline(inlineCount - 1)
+    else -> CommentFocusNode.Body
+}
+
 @Composable
 private fun LightCommentItem(
     modifier: Modifier = Modifier,
-    itemFocusRequester: FocusRequester,
-    previousItemFocusRequester: FocusRequester? = null,
-    nextItemFocusRequester: FocusRequester? = null,
+    bodyFocusRequester: FocusRequester,
+    previousBodyFocusRequester: FocusRequester? = null,
+    nextBodyFocusRequester: FocusRequester? = null,
     comment: Comment,
     noteFullText: String? = null,
     showRepliesHint: Boolean,
@@ -882,20 +915,24 @@ private fun LightCommentItem(
         comment
     }
 
-    // body（评论框本体）的 FocusRequester 放在 item 内部维护
-    val bodyFocusRequester = remember(comment.rpid) { FocusRequester() }
-
     val messageContent = remember(
         displayComment.rpid,
         displayComment.messageParts,
         displayComment.message,
         displayComment.attachments
-    ) {
-        displayComment.toRichTextContent()
-    }
+    ) { displayComment.toRichTextContent() }
 
     val tokens = remember(messageContent) { buildRichTextTokens(messageContent) }
-    val interactiveCount = remember(tokens) { countRichTextInteractiveTokens(tokens) }
+
+    // 只统计“真的可聚焦”的 inline 数量（回调不为 null 才算）
+    val interactiveCount = remember(tokens) {
+        countRichTextInteractiveTokens(
+            tokens = tokens,
+            includeVideoLinks = true,
+            includeReferences = true,
+            includeMentions = true
+        )
+    }
 
     val interactiveFocusRequesters = remember(comment.rpid, interactiveCount) {
         List(interactiveCount) { FocusRequester() }
@@ -907,70 +944,178 @@ private fun LightCommentItem(
     // 文本区滚动
     val textScrollState = rememberScrollState()
     val coroutineScope = rememberCoroutineScope()
+    var activeNode by remember(comment.rpid) { mutableStateOf<CommentFocusNode>(CommentFocusNode.Body) }
+    var shouldSyncFocus by remember(comment.rpid) { mutableStateOf(false) }
+    var skipCurrentItemSync by remember(comment.rpid) { mutableStateOf(false) }
 
-    val firstInteractiveRequester = when {
-        interactiveFocusRequesters.isNotEmpty() -> interactiveFocusRequesters.first()
-        pictureFocusRequesters.isNotEmpty() -> pictureFocusRequesters.first()
-        else -> null
+    fun moveToNode(node: CommentFocusNode) {
+        activeNode = node
+        shouldSyncFocus = true
     }
 
-    // item 容器：可被请求聚焦（FocusRequester），并在聚焦时恢复到上次 child
+    fun moveToCurrentBody() {
+        activeNode = CommentFocusNode.Body
+        shouldSyncFocus = false
+        skipCurrentItemSync = false
+        runCatching { bodyFocusRequester.requestFocus() }
+            .onFailure { bodyFocusRequester.requestFocus(coroutineScope) }
+    }
+
+    fun moveToAdjacentBody(targetRequester: FocusRequester?) {
+        activeNode = CommentFocusNode.Body
+        if (targetRequester != null) {
+            skipCurrentItemSync = true
+            shouldSyncFocus = true
+            targetRequester.requestFocus(coroutineScope)
+        } else {
+            moveToCurrentBody()
+        }
+    }
+
+    suspend fun handleBodyNavDown() {
+        if (textScrollState.value < textScrollState.maxValue) {
+            textScrollState.animateScrollBy(60f)
+            return
+        }
+
+        val nextNode = firstReachableForwardNodeInCurrentItem(
+            inlineCount = interactiveCount,
+            pictureCount = pictures.size
+        )
+        if (nextNode != null) {
+            moveToNode(nextNode)
+        } else {
+            moveToAdjacentBody(nextBodyFocusRequester)
+        }
+    }
+
+    suspend fun handleBodyNavUp() {
+        if (textScrollState.value > 0) {
+            textScrollState.animateScrollBy(-60f)
+            return
+        }
+        moveToAdjacentBody(previousBodyFocusRequester)
+    }
+
+    fun handleInlineNavDown() {
+        val index = (activeNode as? CommentFocusNode.Inline)?.index ?: return
+        val nextNode = nextNodeFromInline(
+            index = index,
+            inlineCount = interactiveCount,
+            pictureCount = pictures.size
+        )
+        if (nextNode != null) {
+            moveToNode(nextNode)
+        } else {
+            moveToAdjacentBody(nextBodyFocusRequester)
+        }
+    }
+
+    fun handleInlineNavUp() {
+        val index = (activeNode as? CommentFocusNode.Inline)?.index ?: return
+        moveToNode(prevNodeFromInline(index))
+    }
+
+    fun handlePictureNavDown(index: Int) {
+        val nextNode = nextNodeFromPicture(index = index, pictureCount = pictures.size)
+        if (nextNode != null) {
+            moveToNode(nextNode)
+        } else {
+            moveToAdjacentBody(nextBodyFocusRequester)
+        }
+    }
+
+    fun handlePictureNavUp(index: Int) {
+        moveToNode(prevNodeFromPicture(index = index, inlineCount = interactiveCount))
+    }
+
+    LaunchedEffect(activeNode, shouldSyncFocus, skipCurrentItemSync, interactiveCount, pictures.size) {
+        if (!shouldSyncFocus) return@LaunchedEffect
+
+        if (skipCurrentItemSync) {
+            skipCurrentItemSync = false
+            shouldSyncFocus = false
+            return@LaunchedEffect
+        }
+
+        when (val node = activeNode) {
+            CommentFocusNode.Body -> {
+                bodyFocusRequester.requestFocus(coroutineScope)
+                shouldSyncFocus = false
+            }
+
+            is CommentFocusNode.Inline -> {
+                val requester = interactiveFocusRequesters.getOrNull(node.index)
+                if (requester != null) {
+                    requester.requestFocus(coroutineScope)
+                    shouldSyncFocus = false
+                } else {
+                    activeNode = CommentFocusNode.Body
+                }
+            }
+
+            is CommentFocusNode.Picture -> {
+                if (pictureFocusRequesters.isEmpty()) {
+                    activeNode = CommentFocusNode.Body
+                } else {
+                    val targetIndex = if (node.index in pictureFocusRequesters.indices) {
+                        node.index
+                    } else {
+                        pictureFocusRequesters.lastIndex
+                    }
+                    if (targetIndex != node.index) {
+                        activeNode = CommentFocusNode.Picture(targetIndex)
+                    } else {
+                        pictureFocusRequesters[targetIndex].requestFocus(coroutineScope)
+                        shouldSyncFocus = false
+                    }
+                }
+            }
+        }
+    }
+
+    // ====== item 容器 ======
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .focusRequester(itemFocusRequester)
-            .focusable() // 让 item 入口能接收 requestFocus
-            .focusGroup()
-            .focusRestorer(fallback = bodyFocusRequester)
             .then(modifier),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         var bodyIsFocused by remember(comment.rpid) { mutableStateOf(false) }
+        var bodyHasFocus by remember(comment.rpid) { mutableStateOf(false) }
 
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(bodyFocusRequester)
                 .focusProperties {
-                    previousItemFocusRequester?.let { up = it }
-
-                    when {
-                        firstInteractiveRequester != null -> down = firstInteractiveRequester
-                        nextItemFocusRequester != null -> down = nextItemFocusRequester
+                    up = previousBodyFocusRequester ?: bodyFocusRequester
+                    // down 不再依赖默认焦点系统；我们自己在 onPreviewKeyEvent 里控制
+                }
+                .onFocusChanged { fs ->
+                    bodyIsFocused = fs.isFocused
+                    bodyHasFocus = fs.hasFocus
+                    if (fs.isFocused) {
+                        activeNode = CommentFocusNode.Body
                     }
                 }
-                // 这里必须用 isFocused：避免“子焦点聚焦时 body 也认为自己 focused”从而拦截按键
-                .onFocusChanged { bodyIsFocused = it.isFocused }
                 .onPreviewKeyEvent { event ->
-                    // 只在“body 自己”聚焦时接管上下键滚动
-                    if (bodyIsFocused && event.type == KeyEventType.KeyDown) {
-                        when (event.key) {
-                            Key.DirectionDown -> {
-                                if (textScrollState.value < textScrollState.maxValue) {
-                                    coroutineScope.launch {
-                                        textScrollState.animateScrollBy(60f)
-                                    }
-                                    return@onPreviewKeyEvent true
-                                }
-                            }
-
-                            Key.DirectionUp -> {
-                                if (textScrollState.value > 0) {
-                                    coroutineScope.launch {
-                                        textScrollState.animateScrollTo(0)
-                                    }
-                                    return@onPreviewKeyEvent true
-                                }
-                            }
-
-                            else -> Unit
+                    if (!bodyIsFocused || event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    when (event.key) {
+                        Key.DirectionDown -> {
+                            coroutineScope.launch { handleBodyNavDown() }
+                            true
                         }
+                        Key.DirectionUp -> {
+                            coroutineScope.launch { handleBodyNavUp() }
+                            true
+                        }
+                        else -> false
                     }
-                    false
                 }
                 .border(
                     width = 3.dp,
-                    color = if (bodyIsFocused) C.bilibili else Color.Transparent,
+                    color = if (bodyHasFocus) C.bilibili else Color.Transparent,
                     shape = MaterialTheme.shapes.medium
                 ),
             shape = ClickableSurfaceDefaults.shape(MaterialTheme.shapes.medium),
@@ -1054,13 +1199,19 @@ private fun LightCommentItem(
                         content = messageContent,
                         maxLines = Int.MAX_VALUE,
                         enableLinkFocus = true,
-                        bodyFocusRequester = bodyFocusRequester,
                         interactiveFocusRequesters = interactiveFocusRequesters,
-                        firstPictureFocusRequester = pictureFocusRequesters.firstOrNull(),
-                        nextBodyFocusRequester = nextItemFocusRequester,
                         onVideoLinkClick = onVideoLinkClick,
                         onReferenceClick = onReferenceClick,
-                        onMentionClick = onMentionClick
+                        onMentionClick = onMentionClick,
+                        onInteractiveFocused = { idx ->
+                            activeNode = CommentFocusNode.Inline(idx)
+                        },
+                        onInteractiveNavDown = {
+                            handleInlineNavDown()
+                        },
+                        onInteractiveNavUp = {
+                            handleInlineNavUp()
+                        }
                     )
 
                     if (showRepliesHint) {
@@ -1080,10 +1231,12 @@ private fun LightCommentItem(
             pictures = pictures,
             keyPrefix = comment.rpid.toString(),
             pictureFocusRequesters = pictureFocusRequesters,
-            fallbackUpRequester = bodyFocusRequester,
-            lastInteractiveRequester = interactiveFocusRequesters.lastOrNull(),
-            nextBodyFocusRequester = nextItemFocusRequester,
-            onImageClick = onImageClick
+            onImageClick = onImageClick,
+            onPictureFocused = { index ->
+                activeNode = CommentFocusNode.Picture(index)
+            },
+            onPictureNavUp = ::handlePictureNavUp,
+            onPictureNavDown = ::handlePictureNavDown
         )
     }
 }
@@ -1094,17 +1247,15 @@ private fun CommentMessageText(
     content: RichTextContent,
     maxLines: Int,
     enableLinkFocus: Boolean,
-    bodyFocusRequester: FocusRequester?,
     interactiveFocusRequesters: List<FocusRequester>,
-    firstPictureFocusRequester: FocusRequester?,
-    nextBodyFocusRequester: FocusRequester?,
     onVideoLinkClick: ((ResolvedVideoLink) -> Unit)?,
     onReferenceClick: ((RichTextReference) -> Unit)?,
-    onMentionClick: ((Long, String) -> Unit)?
+    onMentionClick: ((Long, String) -> Unit)?,
+    onInteractiveFocused: ((index: Int) -> Unit)? = null,
+    onInteractiveNavDown: (() -> Unit)? = null,
+    onInteractiveNavUp: (() -> Unit)? = null
 ) {
-    val tokens = remember(content) {
-        buildRichTextTokens(content)
-    }
+    val tokens = remember(content) { buildRichTextTokens(content) }
     val basicFontSize = 24.sp
 
     RichText(
@@ -1118,13 +1269,13 @@ private fun CommentMessageText(
         ),
         maxLines = maxLines,
         enableInteractiveFocus = enableLinkFocus,
-        bodyFocusRequester = bodyFocusRequester,
         interactiveFocusRequesters = interactiveFocusRequesters,
-        firstPictureFocusRequester = firstPictureFocusRequester,
-        nextBodyFocusRequester = nextBodyFocusRequester,
         onVideoLinkClick = onVideoLinkClick,
         onReferenceClick = onReferenceClick,
-        onMentionClick = onMentionClick
+        onMentionClick = onMentionClick,
+        onInteractiveFocused = onInteractiveFocused,
+        onInteractiveNavDown = onInteractiveNavDown,
+        onInteractiveNavUp = onInteractiveNavUp
     )
 }
 
@@ -1170,17 +1321,117 @@ private fun RichContentPage(
             val pictureFocusRequesters = remember(document.title, document.pictures.size) {
                 List(document.pictures.size) { FocusRequester() }
             }
+            var bodyIsFocused by remember(document.title) { mutableStateOf(false) }
             var bodyHasFocus by remember(document.title) { mutableStateOf(false) }
             val textScrollState = rememberScrollState()
-            val firstInteractiveRequester = when {
-                interactiveFocusRequesters.isNotEmpty() -> interactiveFocusRequesters.first()
-                pictureFocusRequesters.isNotEmpty() -> pictureFocusRequesters.first()
-                else -> null
+            val coroutineScope = rememberCoroutineScope()
+            var activeNode by remember(document.title) {
+                mutableStateOf<CommentFocusNode>(CommentFocusNode.Body)
+            }
+            var shouldSyncFocus by remember(document.title) { mutableStateOf(false) }
+
+            fun moveToNode(node: CommentFocusNode) {
+                activeNode = node
+                shouldSyncFocus = true
+            }
+
+            fun moveToCurrentBody() {
+                activeNode = CommentFocusNode.Body
+                shouldSyncFocus = false
+                runCatching { bodyFocusRequester.requestFocus() }
+                    .onFailure { bodyFocusRequester.requestFocus(coroutineScope) }
+            }
+
+            suspend fun handleBodyNavDown() {
+                if (textScrollState.value < textScrollState.maxValue) {
+                    textScrollState.animateScrollBy(60f)
+                    return
+                }
+
+                moveToNode(
+                    firstReachableForwardNodeInCurrentItem(
+                        inlineCount = interactiveCount,
+                        pictureCount = document.pictures.size
+                    ) ?: return moveToCurrentBody()
+                )
+            }
+
+            suspend fun handleBodyNavUp() {
+                if (textScrollState.value > 0) {
+                    textScrollState.animateScrollBy(-60f)
+                    return
+                }
+                moveToCurrentBody()
+            }
+
+            fun handleInlineNavDown() {
+                val index = (activeNode as? CommentFocusNode.Inline)?.index ?: return
+                moveToNode(
+                    nextNodeFromInline(
+                        index = index,
+                        inlineCount = interactiveCount,
+                        pictureCount = document.pictures.size
+                    ) ?: return moveToCurrentBody()
+                )
+            }
+
+            fun handleInlineNavUp() {
+                val index = (activeNode as? CommentFocusNode.Inline)?.index ?: return
+                moveToNode(prevNodeFromInline(index))
+            }
+
+            fun handlePictureNavDown(index: Int) {
+                moveToNode(
+                    nextNodeFromPicture(index = index, pictureCount = document.pictures.size)
+                        ?: return moveToCurrentBody()
+                )
+            }
+
+            fun handlePictureNavUp(index: Int) {
+                moveToNode(prevNodeFromPicture(index = index, inlineCount = interactiveCount))
             }
 
             LaunchedEffect(document.title) {
-                delay(40)
-                runCatching { bodyFocusRequester.requestFocus() }
+                shouldSyncFocus = true
+            }
+
+            LaunchedEffect(activeNode, shouldSyncFocus, interactiveCount, document.pictures.size) {
+                if (!shouldSyncFocus) return@LaunchedEffect
+
+                when (val node = activeNode) {
+                    CommentFocusNode.Body -> {
+                        bodyFocusRequester.requestFocus(coroutineScope)
+                        shouldSyncFocus = false
+                    }
+
+                    is CommentFocusNode.Inline -> {
+                        val requester = interactiveFocusRequesters.getOrNull(node.index)
+                        if (requester != null) {
+                            requester.requestFocus(coroutineScope)
+                            shouldSyncFocus = false
+                        } else {
+                            activeNode = CommentFocusNode.Body
+                        }
+                    }
+
+                    is CommentFocusNode.Picture -> {
+                        if (pictureFocusRequesters.isEmpty()) {
+                            activeNode = CommentFocusNode.Body
+                        } else {
+                            val targetIndex = if (node.index in pictureFocusRequesters.indices) {
+                                node.index
+                            } else {
+                                pictureFocusRequesters.lastIndex
+                            }
+                            if (targetIndex != node.index) {
+                                activeNode = CommentFocusNode.Picture(targetIndex)
+                            } else {
+                                pictureFocusRequesters[targetIndex].requestFocus(coroutineScope)
+                                shouldSyncFocus = false
+                            }
+                        }
+                    }
+                }
             }
 
             Column(
@@ -1204,10 +1455,31 @@ private fun RichContentPage(
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(bodyFocusRequester)
-                        .focusProperties {
-                            firstInteractiveRequester?.let { down = it }
+                        .onFocusChanged { fs ->
+                            bodyIsFocused = fs.isFocused
+                            bodyHasFocus = fs.hasFocus
+                            if (fs.isFocused) {
+                                activeNode = CommentFocusNode.Body
+                            }
                         }
-                        .onFocusChanged { bodyHasFocus = it.isFocused }
+                        .onPreviewKeyEvent { event ->
+                            if (bodyIsFocused && event.type == KeyEventType.KeyDown) {
+                                when (event.key) {
+                                    Key.DirectionDown -> {
+                                        coroutineScope.launch { handleBodyNavDown() }
+                                        return@onPreviewKeyEvent true
+                                    }
+
+                                    Key.DirectionUp -> {
+                                        coroutineScope.launch { handleBodyNavUp() }
+                                        return@onPreviewKeyEvent true
+                                    }
+
+                                    else -> Unit
+                                }
+                            }
+                            false
+                        }
                         .border(
                             width = 3.dp,
                             color = if (bodyHasFocus) C.bilibili else Color.Transparent,
@@ -1239,13 +1511,19 @@ private fun RichContentPage(
                             content = document.body,
                             maxLines = Int.MAX_VALUE,
                             enableLinkFocus = true,
-                            bodyFocusRequester = bodyFocusRequester,
                             interactiveFocusRequesters = interactiveFocusRequesters,
-                            firstPictureFocusRequester = pictureFocusRequesters.firstOrNull(),
-                            nextBodyFocusRequester = null,
                             onVideoLinkClick = onVideoLinkClick,
                             onReferenceClick = onReferenceClick,
-                            onMentionClick = null
+                            onMentionClick = null,
+                            onInteractiveFocused = { idx ->
+                                activeNode = CommentFocusNode.Inline(idx)
+                            },
+                            onInteractiveNavDown = {
+                                handleInlineNavDown()
+                            },
+                            onInteractiveNavUp = {
+                                handleInlineNavUp()
+                            }
                         )
                     }
                 }
@@ -1254,12 +1532,14 @@ private fun RichContentPage(
                     pictures = document.pictures,
                     keyPrefix = "rich-${document.title}",
                     pictureFocusRequesters = pictureFocusRequesters,
-                    fallbackUpRequester = bodyFocusRequester,
-                    lastInteractiveRequester = interactiveFocusRequesters.lastOrNull(),
-                    nextBodyFocusRequester = null,
                     onImageClick = { index ->
                         onImageClick(document.pictures, index)
-                    }
+                    },
+                    onPictureFocused = { index ->
+                        activeNode = CommentFocusNode.Picture(index)
+                    },
+                    onPictureNavUp = ::handlePictureNavUp,
+                    onPictureNavDown = ::handlePictureNavDown
                 )
             }
         }
@@ -1271,10 +1551,10 @@ private fun FocusableCommentPictures(
     pictures: List<Comment.Picture>,
     keyPrefix: String,
     pictureFocusRequesters: List<FocusRequester>,
-    fallbackUpRequester: FocusRequester,
-    lastInteractiveRequester: FocusRequester?,
-    nextBodyFocusRequester: FocusRequester?,
-    onImageClick: (Int) -> Unit
+    onImageClick: (Int) -> Unit,
+    onPictureFocused: (Int) -> Unit,
+    onPictureNavUp: (Int) -> Unit,
+    onPictureNavDown: (Int) -> Unit
 ) {
     if (pictures.isEmpty()) return
 
@@ -1284,16 +1564,6 @@ private fun FocusableCommentPictures(
     ) {
         itemsIndexed(pictures, key = { index, p -> "$keyPrefix-${p.imgSrc}-$index" }) { index, picture ->
             val fr = pictureFocusRequesters[index]
-            val upRequester = when {
-                index > 0 -> pictureFocusRequesters[index - 1]
-                lastInteractiveRequester != null -> lastInteractiveRequester
-                else -> fallbackUpRequester
-            }
-            val downRequester = if (index == pictures.lastIndex) {
-                nextBodyFocusRequester ?: fr
-            } else {
-                pictureFocusRequesters[index + 1]
-            }
             var pictureHasFocus by remember(keyPrefix, index) { mutableStateOf(false) }
 
             Surface(
@@ -1301,11 +1571,28 @@ private fun FocusableCommentPictures(
                     .width(184.dp)
                     .height(112.dp)
                     .focusRequester(fr)
-                    .focusProperties {
-                        up = upRequester
-                        down = downRequester
+                    .onPreviewKeyEvent { e ->
+                        if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                        when (e.key) {
+                            Key.DirectionUp -> {
+                                onPictureNavUp(index)
+                                true
+                            }
+
+                            Key.DirectionDown -> {
+                                onPictureNavDown(index)
+                                true
+                            }
+
+                            else -> false
+                        }
                     }
-                    .onFocusChanged { pictureHasFocus = it.isFocused }
+                    .onFocusChanged {
+                        pictureHasFocus = it.isFocused
+                        if (it.isFocused) {
+                            onPictureFocused(index)
+                        }
+                    }
                     .border(
                         width = if (pictureHasFocus) 3.dp else 0.dp,
                         color = if (pictureHasFocus) C.bilibili else Color.Transparent,

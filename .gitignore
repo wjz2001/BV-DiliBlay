@@ -9,6 +9,7 @@
 .cxx
 /signing.properties
 /.idea/
+/.idea/vcs.xml
 /.idea/jarRepositories.xml
 /.idea/migrations.xml
 /.idea/codeStyles/
