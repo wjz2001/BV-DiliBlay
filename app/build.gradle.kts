@@ -8,9 +8,18 @@ plugins {
     alias(gradleLibs.plugins.android.application)
     alias(gradleLibs.plugins.compose.compiler)
     alias(gradleLibs.plugins.google.ksp)
+    alias(gradleLibs.plugins.koin.compiler)
     alias(gradleLibs.plugins.google.services) apply false
     alias(gradleLibs.plugins.kotlin.android)
     alias(gradleLibs.plugins.kotlin.serialization)
+    alias(libs.plugins.stability.analyzer)
+}
+
+koinCompiler {
+    compileSafety = true
+    unsafeDslChecks = true
+    skipDefaultValues = true
+    userLogs = true
 }
 
 if (AppConfiguration.googleServicesAvailable) {
@@ -70,15 +79,21 @@ android {
         }
     }
 
+    lint {
+        disable += "ChromeOsAbiSupport"
+    }
+
     flavorDimensions += "channel"
 
     productFlavors {
         create("public") {
             dimension = "channel"
+            applicationIdSuffix = ".public"
             buildConfigField("boolean", "IS_PRIVATE", "false")
         }
         create("private") {
             dimension = "channel"
+            applicationIdSuffix = ".private"
             buildConfigField("boolean", "IS_PRIVATE", "true")
         }
 
@@ -91,7 +106,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // signingConfig = signingConfigs.getByName("release")
             if (signingProp.exists()) signingConfig = signingConfigs.getByName("release")
         }
         debug {
@@ -101,7 +115,6 @@ android {
                 "proguard-rules.pro"
             )
             applicationIdSuffix = ".debug"
-            // signingConfig = signingConfigs.getByName("debug")
             if (signingProp.exists()) signingConfig = signingConfigs.getByName("debug")
         }
         create("r8Test") {
@@ -114,16 +127,10 @@ android {
             if (signingProp.exists()) signingConfig = signingConfigs.getByName("release")
         }
     }
-    // https://issuetracker.google.com/issues/260059413
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
     buildFeatures {
         compose = true
         buildConfig = true
     }
-
     applicationVariants.configureEach {
         val variant = this
         outputs.configureEach {
@@ -133,12 +140,6 @@ android {
                 versionNameOverride = "${variant.versionName}.${variant.buildType.name}"
             }
         }
-    }
-}
-
-kotlin {
-    compilerOptions {
-        freeCompilerArgs.add("-XXLanguage:+BreakContinueInInlineLambdas")
     }
 }
 
@@ -159,12 +160,6 @@ composeCompiler {
     )
 }
 
-java {
-    toolchain {
-        languageVersion.set(JavaLanguageVersion.of(17))
-    }
-}
-
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
@@ -174,7 +169,6 @@ dependencies {
     implementation(libs.runtime)
     annotationProcessor(androidx.room.compiler)
     ksp(androidx.room.compiler)
-    ksp(libs.koin.ksp.compiler)
     implementation(platform(libs.firebase.bom))
     implementation(androidx.activity.compose)
     implementation(androidx.core.ktx)

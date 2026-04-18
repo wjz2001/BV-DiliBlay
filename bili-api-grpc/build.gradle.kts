@@ -6,6 +6,18 @@ plugins {
     alias(gradleLibs.plugins.kotlin.jvm)
 }
 
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(17))
+        vendor.set(JvmVendorSpec.MICROSOFT)
+    }
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    options.isFork = true
+    options.forkOptions.memoryMaximumSize = "4g"
+}
+
 dependencies {
     api(libs.grpc.kotlin.stub)
     api(libs.grpc.okhttp)

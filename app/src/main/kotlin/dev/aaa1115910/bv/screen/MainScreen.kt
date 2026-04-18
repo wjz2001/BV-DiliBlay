@@ -48,7 +48,7 @@ import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.UserViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.androidx.compose.koinViewModel
-import org.koin.compose.getKoin
+import org.koin.compose.koinInject
 
 private data class PendingContentFocus(
     val id: Long,
@@ -60,7 +60,7 @@ private data class PendingContentFocus(
 fun MainScreen(
     modifier: Modifier = Modifier,
     userViewModel: UserViewModel = koinViewModel(),
-    userRepository: UserRepository = getKoin().get()
+    userRepository: UserRepository = koinInject()
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val logger = KotlinLogging.logger("MainScreen")
@@ -347,14 +347,6 @@ fun MainScreen(
             onFocusToContent = onFocusToContent,
             onOpenUserSwitch = { context.startActivity(Intent(context, UserSwitchActivity::class.java)) },
             onLogin = { context.startActivity(Intent(context, LoginActivity::class.java)) }
-        )
-
-        VerticalDivider(
-            modifier = Modifier
-                .fillMaxHeight()
-                .padding(vertical = 70.dp, horizontal = 4.dp),
-            thickness = 1.dp,
-            color = AppWhite
         )
 
         Box(

@@ -87,7 +87,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
-import org.koin.compose.getKoin
+import org.koin.compose.koinInject
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 
@@ -96,7 +96,7 @@ fun UserSwitchScreen(
     modifier: Modifier = Modifier,
     userViewModel: UserViewModel = koinViewModel(),
     userSwitchViewModel: UserSwitchViewModel = koinViewModel(),
-    userRepository: UserRepository = getKoin().get()
+    userRepository: UserRepository = koinInject()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()

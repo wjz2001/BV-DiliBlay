@@ -17,23 +17,36 @@ import dev.aaa1115910.biliapi.http.util.BiliWebConf
 import dev.aaa1115910.biliapi.repositories.AuthRepository
 import dev.aaa1115910.biliapi.repositories.BiliApiModule
 import dev.aaa1115910.biliapi.repositories.ChannelRepository
+import dev.aaa1115910.bv.block.BlockManager
 import dev.aaa1115910.bv.dao.AppDatabase
 import dev.aaa1115910.bv.util.LogCatcherUtil
 import dev.aaa1115910.bv.util.Prefs
-import dev.aaa1115910.bv.block.BlockManager
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
-import org.koin.core.KoinApplication
 import org.koin.core.annotation.ComponentScan
+import org.koin.core.annotation.KoinApplication
 import org.koin.core.annotation.Module
 import org.koin.core.component.KoinComponent
-import org.koin.core.component.get
-import org.koin.core.context.startKoin
+import org.koin.core.component.inject
 import org.koin.core.logger.Level
-import org.koin.ksp.generated.module
+import org.koin.plugin.module.dsl.startKoin
 import org.slf4j.impl.HandroidLoggerAdapter
 
+/**
+ * Koin Compiler Plugin 迁移后：
+ * - 不再 import org.koin.ksp.generated.*
+ * - 不再使用 AppModule().module
+ * - 改用 @KoinApplication + startKoin<T>()
+ *
+ * 迁移指南：Koin 官方 “KSP to Compiler Plugin” <!--citation:5-->
+ */
+@KoinApplication(modules = [AppModule::class])
+class BVGeneratedApp
+
 class BVApp : Application(), KoinComponent {
+    private val channelRepository: ChannelRepository by inject()
+    private val authRepository: AuthRepository by inject()
+
     companion object {
         @SuppressLint("StaticFieldLeak")
         lateinit var context: Context
@@ -42,7 +55,7 @@ class BVApp : Application(), KoinComponent {
         lateinit var dataStoreManager: DataStoreManager
             private set
 
-        lateinit var koinApplication: KoinApplication
+        lateinit var koinApplication: org.koin.core.KoinApplication
             private set
 
         @SuppressLint("StaticFieldLeak")
@@ -62,6 +75,7 @@ class BVApp : Application(), KoinComponent {
         Prefs.init()
         AppCompatDelegate.setDefaultNightMode(Prefs.themeMode.toNightMode())
         BlockManager.reloadFromPrefs() // 启动即从本地恢复，保证过滤一直有效
+
         initDeviceInfo()
         initRepository()
         initProxy()
@@ -75,17 +89,14 @@ class BVApp : Application(), KoinComponent {
 
         dataStoreManager = DataStoreManager(applicationContext.dataStore)
 
-        koinApplication = startKoin {
+        // Koin Compiler Plugin：typed API 启动（不再 modules(AppModule().module)）
+        koinApplication = startKoin<BVGeneratedApp> {
             androidLogger(if (BuildConfig.DEBUG) Level.ERROR else Level.NONE)
             androidContext(this@BVApp)
-            modules(AppModule().module)
         }
     }
 
     fun initRepository() {
-        val channelRepository: ChannelRepository = get()
-        val authRepository: AuthRepository = get()
-
         channelRepository.initDefaultChannel(Prefs.accessToken, Prefs.buvid)
 
         authRepository.apply {
@@ -104,7 +115,6 @@ class BVApp : Application(), KoinComponent {
         BiliHttpProxyApi.createClient(Prefs.proxyHttpServer)
 
         runCatching {
-            val channelRepository: ChannelRepository = get()
             channelRepository.initProxyChannel(
                 Prefs.accessToken,
                 Prefs.buvid,
@@ -117,8 +127,10 @@ class BVApp : Application(), KoinComponent {
         BiliAppConf.osVersion = Build.VERSION.RELEASE
         BiliAppConf.model = Build.MODEL
         BiliWebConf.webViewVersion = runCatching {
-            WebViewCompat.getCurrentWebViewPackage(applicationContext)?.versionName
-                ?.substringBefore(".")?.toInt()
+            WebViewCompat.getCurrentWebViewPackage(applicationContext)
+                ?.versionName
+                ?.substringBefore(".")
+                ?.toInt()
         }.getOrDefault(144) ?: 144
     }
 }
@@ -126,5 +138,5 @@ class BVApp : Application(), KoinComponent {
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "Settings")
 
 @Module(includes = [BiliApiModule::class])
-@ComponentScan
+@ComponentScan("dev.aaa1115910.bv")
 class AppModule

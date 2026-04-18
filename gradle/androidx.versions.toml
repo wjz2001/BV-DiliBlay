@@ -1,7 +1,7 @@
 [versions]
 activity = "1.13.0"
 composeConstraintlayout = "1.1.1"
-compose-bom = "2026.03.01"
+compose-bom = "2026.04.01"
 
 #noinspection GradleDependency https://issuetracker.google.com/issues/361611808
 compose-tv = "1.1.0-rc01"

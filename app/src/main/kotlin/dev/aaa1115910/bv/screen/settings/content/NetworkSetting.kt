@@ -40,12 +40,12 @@ import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
-import org.koin.compose.getKoin
+import org.koin.compose.koinInject
 
 @Composable
 fun NetworkSetting(
     modifier: Modifier = Modifier,
-    channelRepository: ChannelRepository = getKoin().get()
+    channelRepository: ChannelRepository = koinInject()
 ) {
     val context = LocalContext.current
     var enableProxy by remember { mutableStateOf(Prefs.enableProxy) }

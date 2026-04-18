@@ -9,7 +9,7 @@ import androidx.lifecycle.viewModelScope
 import dev.aaa1115910.bv.viewmodel.common.DebouncedActivationController
 import dev.aaa1115910.bv.component.PgcTopNavItem
 import dev.aaa1115910.bv.entity.state.ListViewportState
-import org.koin.android.annotation.KoinViewModel
+import org.koin.core.annotation.KoinViewModel
 
 @KoinViewModel
 class PgcContentViewModel : ViewModel() {

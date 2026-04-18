@@ -122,16 +122,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.koin.compose.getKoin
+import org.koin.compose.koinInject
 import kotlin.math.ceil
 
 @Composable
 fun SeasonInfoScreen(
     modifier: Modifier = Modifier,
     lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current,
-    videoInfoRepository: VideoInfoRepository = getKoin().get(),
-    videoDetailRepository: VideoDetailRepository = getKoin().get(),
-    userRepository: UserRepository = getKoin().get()
+    videoInfoRepository: VideoInfoRepository = koinInject(),
+    videoDetailRepository: VideoDetailRepository = koinInject(),
+    userRepository: UserRepository = koinInject()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()

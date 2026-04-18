@@ -39,12 +39,12 @@ import dev.aaa1115910.bv.screen.user.UserItem
 import dev.aaa1115910.bv.util.toast
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.launch
-import org.koin.compose.getKoin
+import org.koin.compose.koinInject
 
 @Composable
 fun UserLockSettingsScreen(
     modifier: Modifier = Modifier,
-    userRepository: UserRepository = getKoin().get()
+    userRepository: UserRepository = koinInject()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()

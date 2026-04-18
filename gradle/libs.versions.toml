@@ -6,15 +6,14 @@ firebase-bom = "34.12.0"
 geetest-sensebot = "4.4.4"
 grpc = "1.80.0"
 grpc-kotlin = "1.5.0"
-jsoup = "1.22.1"
-koin-bom = "4.1.0"
-koin-ksp-compiler = "2.3.1"
+jsoup = "1.22.2"
+koin-bom = "4.2.1"
+koin = "4.2.1"
 kotlinx-coroutines = "1.10.2"
 kotlinx-serialization = "1.11.0"
-koin-annotations = "2.3.1"
-ktor = "3.4.2"
+ktor = "3.4.3"
 logging = "8.0.01"
-lottie = "6.6.6"
+lottie = "6.7.1"
 material = "1.13.0"
 protobuf = "4.34.1"
 qrcode = "4.5.0"
@@ -60,11 +59,10 @@ jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
 
 # https://insert-koin.io
 koin-bom = { module = "io.insert-koin:koin-bom", version.ref = "koin-bom" }
-koin-core = { module = "io.insert-koin:koin-core" }
+koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
+koin-annotations = { module = "io.insert-koin:koin-annotations", version.ref = "koin" }
 koin-android = { module = "io.insert-koin:koin-android" }
 koin-compose = { module = "io.insert-koin:koin-androidx-compose" }
-koin-ksp-compiler = { module = "io.insert-koin:koin-ksp-compiler", version.ref = "koin-ksp-compiler" }
-koin-annotations = { module = "io.insert-koin:koin-annotations", version.ref = "koin-annotations" }
 
 # https://kotlinlang.org/docs/jvm-test-using-junit.html
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test" }
@@ -118,3 +116,6 @@ slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j-simple"
 ui-text = { group = "androidx.compose.ui", name = "ui-text" }
 runtime = { group = "androidx.compose.runtime", name = "runtime" }
 re2j = { module = "com.google.re2j:re2j", version.ref = "re2j" }
+
+[plugins]
+stability-analyzer = { id = "com.github.skydoves.compose.stability.analyzer", version = "0.7.4" }
