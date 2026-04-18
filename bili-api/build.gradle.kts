@@ -1,13 +1,19 @@
 plugins {
-    alias(gradleLibs.plugins.google.ksp)
+    alias(gradleLibs.plugins.koin.compiler)
     alias(gradleLibs.plugins.kotlin.jvm)
     alias(gradleLibs.plugins.kotlin.serialization)
+}
+
+koinCompiler {
+    compileSafety = true
+    unsafeDslChecks = true
+    skipDefaultValues = true
+    userLogs = true
 }
 
 group = "dev.aaa1115910"
 
 dependencies {
-    ksp(libs.koin.ksp.compiler)
     implementation(project(":bili-api-grpc"))
     implementation(platform(libs.koin.bom))
     implementation(libs.koin.core)

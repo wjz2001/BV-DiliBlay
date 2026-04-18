@@ -25,7 +25,6 @@
 -dontwarn com.badlogic.gdx.utils.GdxBuild
 -dontwarn com.badlogic.gdx.jnigen.BuildTarget*
 -dontwarn com.badlogic.gdx.graphics.g2d.freetype.FreetypeBuild
--keep class com.badlogic.gdx.controllers.android.AndroidControllers
 -keep class com.kuaishou.akdanmaku.ecs.DanmakuContext
 -keepclasseswithmembers class * {
     public <init>(com.kuaishou.akdanmaku.ecs.DanmakuContext);
@@ -88,8 +87,6 @@
 #    static <1>$$serializer INSTANCE;
 #}
 
-# ktor 混淆后，请求参数会莫名其妙消失
--keep class io.ktor.**
 # 这部分是加上不混淆 ktor 后冒出来的 missing rules
 -dontwarn java.lang.management.ManagementFactory
 -dontwarn java.lang.management.RuntimeMXBean

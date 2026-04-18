@@ -10,7 +10,7 @@ import dev.aaa1115910.bv.viewmodel.common.DebouncedActivationController
 import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.entity.state.GridViewportState
 import dev.aaa1115910.bv.util.Prefs
-import org.koin.android.annotation.KoinViewModel
+import org.koin.core.annotation.KoinViewModel
 
 @KoinViewModel
 class HomeContentViewModel : ViewModel() {

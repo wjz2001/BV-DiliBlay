@@ -9,7 +9,7 @@ import java.time.format.DateTimeFormatter
 
 object AppConfiguration {
     const val APP_ID = "dev.aaa1115910.bv"
-    const val APPLICATION_ID = "dev.frost819.bv" // 由于小米电视屏蔽原包名，此包名仅用于apk打包
+    const val APPLICATION_ID = "com.wbjvz.diliblay" // 由于小米电视屏蔽原包名，此包名仅用于apk打包
     const val COMPILE_SDK = 36
     const val MIN_SDK = 23
     const val TARGET_SDK = 36

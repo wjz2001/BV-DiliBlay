@@ -4,5 +4,5 @@ import org.koin.core.annotation.ComponentScan
 import org.koin.core.annotation.Module
 
 @Module
-@ComponentScan
+@ComponentScan("dev.aaa1115910.biliapi")
 class BiliApiModule
