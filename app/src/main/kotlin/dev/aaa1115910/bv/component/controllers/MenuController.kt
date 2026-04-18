@@ -74,6 +74,7 @@ fun MenuController(
     modifier: Modifier = Modifier,
     show: Boolean,
     uiState: PlayerUiState,
+    isDanmakuRefreshing: Boolean = false,
     onResolutionChange: (Int) -> Unit = {},
     onCodecChange: (VideoCodec) -> Unit = {},
     onAspectRatioChange: (VideoAspectRatio) -> Unit,
@@ -88,6 +89,7 @@ fun MenuController(
     onDanmakuSpeedFactorChange: (Float) -> Unit,
     onDanmakuAreaChange: (Float) -> Unit,
     onDanmakuMaskChange: (Boolean) -> Unit = {},
+    onDanmakuReload: () -> Unit = {},
     onSubtitleChange: (Subtitle) -> Unit,
     onSubtitleSizeChange: (TextUnit) -> Unit,
     onSubtitleBackgroundOpacityChange: (Float) -> Unit,
@@ -113,6 +115,7 @@ fun MenuController(
         ) {
             MenuController(
                 uiState = uiState,
+                isDanmakuRefreshing = isDanmakuRefreshing,
                 onResolutionChange = onResolutionChange,
                 onCodecChange = onCodecChange,
                 onAspectRatioChange = onAspectRatioChange,
@@ -127,6 +130,7 @@ fun MenuController(
                 onDanmakuSpeedFactorChange = onDanmakuSpeedFactorChange,
                 onDanmakuAreaChange = onDanmakuAreaChange,
                 onDanmakuMaskChange = onDanmakuMaskChange,
+                onDanmakuReload = onDanmakuReload,
                 onSubtitleChange = onSubtitleChange,
                 onSubtitleSizeChange = onSubtitleSizeChange,
                 onSubtitleBackgroundOpacityChange = onSubtitleBackgroundOpacityChange,
@@ -140,6 +144,7 @@ fun MenuController(
 fun MenuController(
     modifier: Modifier = Modifier,
     uiState: PlayerUiState,
+    isDanmakuRefreshing: Boolean = false,
     onResolutionChange: (Int) -> Unit = {},
     onCodecChange: (VideoCodec) -> Unit = {},
     onAspectRatioChange: (VideoAspectRatio) -> Unit,
@@ -154,6 +159,7 @@ fun MenuController(
     onDanmakuSpeedFactorChange: (Float) -> Unit,
     onDanmakuAreaChange: (Float) -> Unit,
     onDanmakuMaskChange: (Boolean) -> Unit = {},
+    onDanmakuReload: () -> Unit = {},
     onSubtitleChange: (Subtitle) -> Unit,
     onSubtitleSizeChange: (TextUnit) -> Unit,
     onSubtitleBackgroundOpacityChange: (Float) -> Unit,
@@ -181,6 +187,7 @@ fun MenuController(
             ) {
                 MenuList(
                     uiState = uiState,
+                    isDanmakuRefreshing = isDanmakuRefreshing,
                     selectedNavMenu = selectedNavItem,
                     onResolutionChange = onResolutionChange,
                     onCodecChange = onCodecChange,
@@ -196,6 +203,7 @@ fun MenuController(
                     onDanmakuSpeedFactorChange = onDanmakuSpeedFactorChange,
                     onDanmakuAreaChange = onDanmakuAreaChange,
                     onDanmakuMaskChange = onDanmakuMaskChange,
+                    onDanmakuReload = onDanmakuReload,
                     onFocusStateChange = { focusState = it },
                     onSubtitleChange = onSubtitleChange,
                     onSubtitleSizeChange = onSubtitleSizeChange,
@@ -224,6 +232,7 @@ fun MenuController(
 private fun MenuList(
     modifier: Modifier = Modifier,
     uiState: PlayerUiState,
+    isDanmakuRefreshing: Boolean,
     selectedNavMenu: VideoPlayerMenuNavItem,
     onResolutionChange: (Int) -> Unit,
     onCodecChange: (VideoCodec) -> Unit,
@@ -239,6 +248,7 @@ private fun MenuList(
     onDanmakuSpeedFactorChange: (Float) -> Unit,
     onDanmakuAreaChange: (Float) -> Unit,
     onDanmakuMaskChange: (Boolean) -> Unit = {},
+    onDanmakuReload: () -> Unit = {},
     onSubtitleChange: (Subtitle) -> Unit,
     onSubtitleSizeChange: (TextUnit) -> Unit,
     onSubtitleBackgroundOpacityChange: (Float) -> Unit,
@@ -288,6 +298,7 @@ private fun MenuList(
                     currentSpeedFactor = uiState.danmakuState.speedFactor,
                     currentArea = uiState.danmakuState.area,
                     currentMaskEnabled = uiState.danmakuState.maskEnabled,
+                    isDanmakuRefreshing = isDanmakuRefreshing,
                     onDanmakuSwitchChange = onDanmakuSwitchChange,
                     onDanmakuSizeChange = onDanmakuSizeChange,
                     onDanmakuOpacityChange = onDanmakuOpacityChange,
@@ -295,6 +306,7 @@ private fun MenuList(
                     onDanmakuAreaChange = onDanmakuAreaChange,
                     onFocusStateChange = onFocusStateChange,
                     onDanmakuMaskChange = onDanmakuMaskChange,
+                    onDanmakuRefreshClick = onDanmakuReload,
                 )
             }
 
@@ -344,7 +356,8 @@ enum class VideoPlayerDanmakuMenuItem(private val strRes: Int) {
     Opacity(R.string.video_player_menu_danmaku_opacity),
     SpeedFactor(R.string.video_player_menu_danmaku_speed_factor),
     Area(R.string.video_player_menu_danmaku_area),
-    Mask(R.string.video_player_menu_danmaku_mask);
+    Mask(R.string.video_player_menu_danmaku_mask),
+    Refresh(R.string.video_player_menu_danmaku_refresh);
 
     fun getDisplayName(context: Context) = context.getString(strRes)
 }

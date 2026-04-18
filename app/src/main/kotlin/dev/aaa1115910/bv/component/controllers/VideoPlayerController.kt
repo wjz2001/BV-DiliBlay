@@ -71,6 +71,7 @@ fun VideoPlayerController(
     videoShotCache: VideoShotImageCache,
     uiState: PlayerUiState,
     seekerState: State<SeekerState>,
+    isDanmakuRefreshing: Boolean = false,
 
     // player events
     onPlay: () -> Unit,
@@ -93,6 +94,7 @@ fun VideoPlayerController(
     onTempPlaySpeedStart: (Float) -> Unit,
     onTempPlaySpeedEnd: (Float) -> Unit,
     onDanmakuSettingChange: (DanmakuSettingAction) -> Unit,
+    onDanmakuReload: () -> Unit,
     onSubtitleChange: (Subtitle) -> Unit,
     onSubtitleSettingChange: (SubtitleSettingAction) -> Unit,
     onRelatedVideoClicked: (VideoCardData) -> Unit,
@@ -521,6 +523,7 @@ fun VideoPlayerController(
             MenuController(
                 show = showMenuController,
                 uiState = uiState,
+                isDanmakuRefreshing = isDanmakuRefreshing,
                 onResolutionChange = { qualityId ->
                     onMediaProfileSettingChange(
                         MediaProfileSettingAction.SetQuality(qualityId)
@@ -561,6 +564,7 @@ fun VideoPlayerController(
                 onDanmakuMaskChange = { enabled ->
                     onDanmakuSettingChange(DanmakuSettingAction.SetMaskEnabled(enabled))
                 },
+                onDanmakuReload = onDanmakuReload,
                 onSubtitleChange = onSubtitleChange,
                 onSubtitleSizeChange = { size ->
                     onSubtitleSettingChange(SubtitleSettingAction.SetFontSize(size))

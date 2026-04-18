@@ -6,7 +6,7 @@
     <string name="anime_home_button_index">索引</string>
     <string name="anime_home_button_timeline">时间表</string>
 
-    <string name="app_name">BV-Frost819</string>
+    <string name="app_name">BV-DiliBlay</string>
 
     <string name="audio_132k">132K</string>
     <string name="audio_192k">192K</string>
@@ -766,6 +766,8 @@
     <string name="video_player_menu_danmaku_size">字体缩放</string>
     <string name="video_player_menu_danmaku_speed_factor">弹幕速度</string>
     <string name="video_player_menu_danmaku_switch">弹幕类型</string>
+    <string name="video_player_menu_danmaku_refresh">弹幕刷新</string>
+    <string name="video_player_menu_danmaku_refreshing">弹幕刷新中</string>
     <string name="video_player_menu_danmaku_type_all">全部弹幕</string>
     <string name="video_player_menu_danmaku_type_bottom">底部弹幕</string>
     <string name="video_player_menu_danmaku_type_cross">滚动弹幕</string>

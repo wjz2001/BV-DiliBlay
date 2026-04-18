@@ -26,6 +26,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.controllers.DanmakuType
 import dev.aaa1115910.bv.component.controllers.LocalMenuFocusStateData
 import dev.aaa1115910.bv.component.controllers.MenuFocusState
@@ -47,12 +48,14 @@ fun DanmakuMenuList(
     currentSpeedFactor: Float,
     currentArea: Float,
     currentMaskEnabled: Boolean,
+    isDanmakuRefreshing: Boolean = false,
     onDanmakuSwitchChange: (List<DanmakuType>) -> Unit,
     onDanmakuSizeChange: (Float) -> Unit,
     onDanmakuOpacityChange: (Float) -> Unit,
     onDanmakuSpeedFactorChange: (Float) -> Unit,
     onDanmakuAreaChange: (Float) -> Unit,
     onDanmakuMaskChange: (Boolean) -> Unit,
+    onDanmakuRefreshClick: () -> Unit = {},
     onFocusStateChange: (MenuFocusState) -> Unit
 ) {
     val context = LocalContext.current
@@ -193,6 +196,8 @@ fun DanmakuMenuList(
                         focusRequester.requestFocus()
                     }
                 )
+
+                VideoPlayerDanmakuMenuItem.Refresh -> {}
             }
         }
 
@@ -222,9 +227,20 @@ fun DanmakuMenuList(
                 MenuListItem(
                     modifier = Modifier
                         .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester)),
-                    text = item.getDisplayName(context),
-                    selected = selectedDanmakuMenuItem == item,
-                    onClick = {},
+                    text = if (item == VideoPlayerDanmakuMenuItem.Refresh && isDanmakuRefreshing) {
+                        context.getString(R.string.video_player_menu_danmaku_refreshing)
+                    } else {
+                        item.getDisplayName(context)
+                    },
+                    selected = when (item) {
+                        VideoPlayerDanmakuMenuItem.Refresh -> isDanmakuRefreshing
+                        else -> selectedDanmakuMenuItem == item
+                    },
+                    onClick = {
+                        if (item == VideoPlayerDanmakuMenuItem.Refresh) {
+                            onDanmakuRefreshClick()
+                        }
+                    },
                     onFocus = { selectedDanmakuMenuItem = item },
                 )
             }
