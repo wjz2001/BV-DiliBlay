@@ -69,6 +69,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -79,6 +80,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.key.Key
@@ -87,6 +89,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -183,6 +186,10 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import kotlin.math.ceil
+import kotlin.math.max
+import kotlin.math.min
+
+private enum class VideoDescriptionNavDir { None, Up, Down }
 
 private fun Modifier.sectionFocusNav(
     up: FocusRequester? = null,
@@ -1239,22 +1246,131 @@ fun VideoDescriptionDialog(
         val interactiveFocusRequesters = remember(description, interactiveCount) {
             List(interactiveCount) { FocusRequester() }
         }
+        var bodyIsFocused by remember(description) { mutableStateOf(false) }
         var bodyHasFocus by remember(description) { mutableStateOf(false) }
         var showRichContentDialog by remember(description) { mutableStateOf(false) }
         var richContent by remember(description) { mutableStateOf<RichContentDocument?>(null) }
         var richContentLoading by remember(description) { mutableStateOf(false) }
         var richContentError by remember(description) { mutableStateOf<String?>(null) }
+        val inlineRects = remember(description) { mutableStateMapOf<Int, Rect>() }
+        var viewportRect by remember(description) { mutableStateOf<Rect?>(null) }
+        var navDir by remember(description) { mutableStateOf(VideoDescriptionNavDir.None) }
+        var cursorY by remember(description) { mutableStateOf(0f) }
+        var keepCursorOnBodyFocus by remember(description) { mutableStateOf(false) }
 
-        var viewportHeightPx by remember { mutableIntStateOf(0) }
-        val stepPx = remember(viewportHeightPx) {
-            maxOf(1, (viewportHeightPx * 0.2f).toInt())
-        }
-        val canScroll by remember {
-            derivedStateOf { scrollState.maxValue > 0 }
+        fun Rect.isVisibleIn(view: Rect, marginPx: Float): Boolean {
+            val top = view.top + marginPx
+            val bottom = view.bottom - marginPx
+            return this.bottom > top && this.top < bottom
         }
 
-        LaunchedEffect(canScroll) {
-            if (show && (canScroll || interactiveFocusRequesters.isNotEmpty())) {
+        fun contentYOf(index: Int): Float? {
+            val view = viewportRect ?: return null
+            val rect = inlineRects[index] ?: return null
+            val scrollTop = scrollState.value.toFloat()
+            return scrollTop + (rect.top - view.top)
+        }
+
+        fun findNextInline(afterY: Float): Int? {
+            var bestIdx: Int? = null
+            var bestY = Float.POSITIVE_INFINITY
+            for ((idx, _) in inlineRects) {
+                val y = contentYOf(idx) ?: continue
+                if (y >= afterY && y < bestY) {
+                    bestY = y
+                    bestIdx = idx
+                }
+            }
+            return bestIdx
+        }
+
+        fun findPrevInline(beforeY: Float): Int? {
+            var bestIdx: Int? = null
+            var bestY = Float.NEGATIVE_INFINITY
+            for ((idx, _) in inlineRects) {
+                val y = contentYOf(idx) ?: continue
+                if (y <= beforeY && y > bestY) {
+                    bestY = y
+                    bestIdx = idx
+                }
+            }
+            return bestIdx
+        }
+
+        suspend fun handleDown(fromInteractive: Boolean = false) {
+            val view = viewportRect
+            val scrollTop = scrollState.value.toFloat()
+            if (navDir != VideoDescriptionNavDir.Down) {
+                navDir = VideoDescriptionNavDir.Down
+                if (!fromInteractive) cursorY = scrollTop
+            }
+            val baseY = max(cursorY, scrollTop) + 1f
+            val nextIdx = findNextInline(baseY)
+            if (view != null && nextIdx != null) {
+                val rect = inlineRects[nextIdx]
+                val y = contentYOf(nextIdx)
+                if (rect != null && y != null && rect.isVisibleIn(view, marginPx = 8f)) {
+                    cursorY = y + 1f
+                    interactiveFocusRequesters.getOrNull(nextIdx)?.requestFocus()
+                    return
+                }
+            }
+            if (scrollState.value < scrollState.maxValue) {
+                scrollState.animateScrollBy(60f)
+                withFrameNanos { }
+                val view2 = viewportRect
+                val scrollTop2 = scrollState.value.toFloat()
+                cursorY = max(cursorY, scrollTop2)
+                val nextIdx2 = findNextInline(max(cursorY, scrollTop2) + 1f)
+                if (view2 != null && nextIdx2 != null) {
+                    val rect2 = inlineRects[nextIdx2]
+                    val y2 = contentYOf(nextIdx2)
+                    if (rect2 != null && y2 != null && rect2.isVisibleIn(view2, marginPx = 8f)) {
+                        cursorY = y2 + 1f
+                        interactiveFocusRequesters.getOrNull(nextIdx2)?.requestFocus()
+                    }
+                }
+            }
+        }
+
+        suspend fun handleUp(fromInteractive: Boolean = false) {
+            val view = viewportRect
+            val scrollTop = scrollState.value.toFloat()
+            if (navDir != VideoDescriptionNavDir.Up) {
+                navDir = VideoDescriptionNavDir.Up
+                if (!fromInteractive) cursorY = scrollTop
+            }
+            val baseY = min(cursorY, scrollTop) - 1f
+            val prevIdx = findPrevInline(baseY)
+            if (view != null && prevIdx != null) {
+                val rect = inlineRects[prevIdx]
+                val y = contentYOf(prevIdx)
+                if (rect != null && y != null && rect.isVisibleIn(view, marginPx = 8f)) {
+                    cursorY = y - 1f
+                    interactiveFocusRequesters.getOrNull(prevIdx)?.requestFocus()
+                    return
+                }
+            }
+            if (scrollState.value > 0) {
+                scrollState.animateScrollBy(-60f)
+                withFrameNanos { }
+                val scrollTop2 = scrollState.value.toFloat()
+                cursorY = min(cursorY, scrollTop2)
+                val view2 = viewportRect
+                val prevIdx2 = findPrevInline(min(cursorY, scrollTop2) - 1f)
+                if (view2 != null && prevIdx2 != null) {
+                    val rect2 = inlineRects[prevIdx2]
+                    val y2 = contentYOf(prevIdx2)
+                    if (rect2 != null && y2 != null && rect2.isVisibleIn(view2, marginPx = 8f)) {
+                        cursorY = y2 - 1f
+                        interactiveFocusRequesters.getOrNull(prevIdx2)?.requestFocus()
+                    }
+                }
+            }
+        }
+
+        LaunchedEffect(show, scrollState.maxValue, interactiveFocusRequesters.size) {
+            if (show && (scrollState.maxValue > 0 || interactiveFocusRequesters.isNotEmpty())) {
                 bodyFocusRequester.requestFocus()
             }
         }
@@ -1274,37 +1390,33 @@ fun VideoDescriptionDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(420.dp)
-                        .onSizeChanged { viewportHeightPx = it.height }
                 ) {
                     Surface(
                         modifier = Modifier
                             .fillMaxSize()
                             .focusRequester(bodyFocusRequester)
-                            .focusProperties {
-                                interactiveFocusRequesters.firstOrNull()?.let { down = it }
+                            .onFocusChanged {
+                                bodyIsFocused = it.isFocused
+                                bodyHasFocus = it.hasFocus
+                                if (it.isFocused) {
+                                    if (keepCursorOnBodyFocus) {
+                                        keepCursorOnBodyFocus = false
+                                    } else {
+                                        cursorY = scrollState.value.toFloat()
+                                    }
+                                }
                             }
-                            .onFocusChanged { bodyHasFocus = it.hasFocus }
                             .onPreviewKeyEvent { event ->
-                                if (!canScroll) return@onPreviewKeyEvent false
-                                if (!bodyHasFocus) return@onPreviewKeyEvent false
+                                if (!bodyIsFocused) return@onPreviewKeyEvent false
                                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-
                                 when (event.key) {
                                     Key.DirectionDown -> {
-                                        if (scrollState.value < scrollState.maxValue) {
-                                            scope.launch { scrollState.animateScrollBy(stepPx.toFloat()) }
-                                            true
-                                        } else {
-                                            false
-                                        }
+                                        scope.launch { handleDown() }
+                                        true
                                     }
                                     Key.DirectionUp -> {
-                                        if (scrollState.value > 0) {
-                                            scope.launch { scrollState.animateScrollBy(-stepPx.toFloat()) }
-                                            true
-                                        } else {
-                                            false
-                                        }
+                                        scope.launch { handleUp() }
+                                        true
                                     }
                                     else -> false
                                 }
@@ -1331,7 +1443,8 @@ fun VideoDescriptionDialog(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(12.dp)
-                                .verticalScroll(scrollState),
+                                .verticalScroll(scrollState)
+                                .onGloballyPositioned { viewportRect = it.boundsInWindow() },
                             tokens = tokens,
                             inlineKeyPrefix = "video_description",
                             textStyle = TextStyle(
@@ -1341,10 +1454,7 @@ fun VideoDescriptionDialog(
                             ),
                             maxLines = Int.MAX_VALUE,
                             enableInteractiveFocus = true,
-                            bodyFocusRequester = bodyFocusRequester,
                             interactiveFocusRequesters = interactiveFocusRequesters,
-                            firstPictureFocusRequester = null,
-                            nextBodyFocusRequester = null,
                             onVideoLinkClick = { link ->
                                 if (Prefs.showVideoInfo) {
                                     VideoInfoActivity.actionStart(context, link.aid)
@@ -1378,6 +1488,27 @@ fun VideoDescriptionDialog(
                             },
                             onMentionClick = { mid, name ->
                                 UpInfoActivity.actionStart(context, mid = mid, name = name)
+                            },
+                            onInteractivePositioned = { idx, rect -> inlineRects[idx] = rect },
+                            onInteractiveFocused = { idx ->
+                                val y = contentYOf(idx)
+                                if (y != null) cursorY = y
+                            },
+                            onInteractiveNavDown = {
+                                scope.launch {
+                                    keepCursorOnBodyFocus = true
+                                    runCatching { bodyFocusRequester.requestFocus() }
+                                        .onFailure { keepCursorOnBodyFocus = false }
+                                    handleDown(fromInteractive = true)
+                                }
+                            },
+                            onInteractiveNavUp = {
+                                scope.launch {
+                                    keepCursorOnBodyFocus = true
+                                    runCatching { bodyFocusRequester.requestFocus() }
+                                        .onFailure { keepCursorOnBodyFocus = false }
+                                    handleUp(fromInteractive = true)
+                                }
                             }
                         )
                     }
@@ -1529,13 +1660,128 @@ private fun VideoDescriptionRichContentContent(
             val pictureFocusRequesters = remember(document.title, document.pictures.size) {
                 List(document.pictures.size) { FocusRequester() }
             }
+            val inlineRects = remember(document.title) { mutableStateMapOf<Int, Rect>() }
+            var viewportRect by remember(document.title) { mutableStateOf<Rect?>(null) }
+            var navDir by remember(document.title) { mutableStateOf(VideoDescriptionNavDir.None) }
+            var cursorY by remember(document.title) { mutableStateOf(0f) }
+            var keepCursorOnBodyFocus by remember(document.title) { mutableStateOf(false) }
+            var bodyIsFocused by remember(document.title) { mutableStateOf(false) }
             var bodyHasFocus by remember(document.title) { mutableStateOf(false) }
             val textScrollState = rememberScrollState()
             val coroutineScope = rememberCoroutineScope()
-            val firstInteractiveRequester = when {
-                interactiveFocusRequesters.isNotEmpty() -> interactiveFocusRequesters.first()
-                pictureFocusRequesters.isNotEmpty() -> pictureFocusRequesters.first()
-                else -> null
+
+            fun Rect.isVisibleIn(view: Rect, marginPx: Float): Boolean {
+                val top = view.top + marginPx
+                val bottom = view.bottom - marginPx
+                return this.bottom > top && this.top < bottom
+            }
+
+            fun contentYOf(index: Int): Float? {
+                val view = viewportRect ?: return null
+                val rect = inlineRects[index] ?: return null
+                val scrollTop = textScrollState.value.toFloat()
+                return scrollTop + (rect.top - view.top)
+            }
+
+            fun findNextInline(afterY: Float): Int? {
+                var bestIdx: Int? = null
+                var bestY = Float.POSITIVE_INFINITY
+                for ((idx, _) in inlineRects) {
+                    val y = contentYOf(idx) ?: continue
+                    if (y >= afterY && y < bestY) {
+                        bestY = y
+                        bestIdx = idx
+                    }
+                }
+                return bestIdx
+            }
+
+            fun findPrevInline(beforeY: Float): Int? {
+                var bestIdx: Int? = null
+                var bestY = Float.NEGATIVE_INFINITY
+                for ((idx, _) in inlineRects) {
+                    val y = contentYOf(idx) ?: continue
+                    if (y <= beforeY && y > bestY) {
+                        bestY = y
+                        bestIdx = idx
+                    }
+                }
+                return bestIdx
+            }
+
+            suspend fun handleDown(fromInteractive: Boolean = false) {
+                val view = viewportRect
+                val scrollTop = textScrollState.value.toFloat()
+                if (navDir != VideoDescriptionNavDir.Down) {
+                    navDir = VideoDescriptionNavDir.Down
+                    if (!fromInteractive) cursorY = scrollTop
+                }
+                val baseY = max(cursorY, scrollTop) + 1f
+                val nextIdx = findNextInline(baseY)
+                if (view != null && nextIdx != null) {
+                    val rect = inlineRects[nextIdx]
+                    val y = contentYOf(nextIdx)
+                    if (rect != null && y != null && rect.isVisibleIn(view, marginPx = 8f)) {
+                        cursorY = y + 1f
+                        interactiveFocusRequesters.getOrNull(nextIdx)?.requestFocus()
+                        return
+                    }
+                }
+                if (textScrollState.value < textScrollState.maxValue) {
+                    textScrollState.animateScrollBy(60f)
+                    withFrameNanos { }
+                    val view2 = viewportRect
+                    val scrollTop2 = textScrollState.value.toFloat()
+                    cursorY = max(cursorY, scrollTop2)
+                    val nextIdx2 = findNextInline(max(cursorY, scrollTop2) + 1f)
+                    if (view2 != null && nextIdx2 != null) {
+                        val rect2 = inlineRects[nextIdx2]
+                        val y2 = contentYOf(nextIdx2)
+                        if (rect2 != null && y2 != null && rect2.isVisibleIn(view2, marginPx = 8f)) {
+                            cursorY = y2 + 1f
+                            interactiveFocusRequesters.getOrNull(nextIdx2)?.requestFocus()
+                            return
+                        }
+                    }
+                }
+                pictureFocusRequesters.firstOrNull()?.requestFocus()
+            }
+
+            suspend fun handleUp(fromInteractive: Boolean = false) {
+                val view = viewportRect
+                val scrollTop = textScrollState.value.toFloat()
+                if (navDir != VideoDescriptionNavDir.Up) {
+                    navDir = VideoDescriptionNavDir.Up
+                    if (!fromInteractive) cursorY = scrollTop
+                }
+                val baseY = min(cursorY, scrollTop) - 1f
+                val prevIdx = findPrevInline(baseY)
+                if (view != null && prevIdx != null) {
+                    val rect = inlineRects[prevIdx]
+                    val y = contentYOf(prevIdx)
+                    if (rect != null && y != null && rect.isVisibleIn(view, marginPx = 8f)) {
+                        cursorY = y - 1f
+                        interactiveFocusRequesters.getOrNull(prevIdx)?.requestFocus()
+                        return
+                    }
+                }
+                if (textScrollState.value > 0) {
+                    textScrollState.animateScrollBy(-60f)
+                    withFrameNanos { }
+                    val scrollTop2 = textScrollState.value.toFloat()
+                    cursorY = min(cursorY, scrollTop2)
+                    val view2 = viewportRect
+                    val prevIdx2 = findPrevInline(min(cursorY, scrollTop2) - 1f)
+                    if (view2 != null && prevIdx2 != null) {
+                        val rect2 = inlineRects[prevIdx2]
+                        val y2 = contentYOf(prevIdx2)
+                        if (rect2 != null && y2 != null && rect2.isVisibleIn(view2, marginPx = 8f)) {
+                            cursorY = y2 - 1f
+                            interactiveFocusRequesters.getOrNull(prevIdx2)?.requestFocus()
+                            return
+                        }
+                    }
+                }
             }
 
             LaunchedEffect(document.title) {
@@ -1551,31 +1797,28 @@ private fun VideoDescriptionRichContentContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(bodyFocusRequester)
-                        .focusProperties {
-                            firstInteractiveRequester?.let { down = it }
+                        .onFocusChanged {
+                            bodyIsFocused = it.isFocused
+                            bodyHasFocus = it.hasFocus
+                            if (it.isFocused) {
+                                if (keepCursorOnBodyFocus) {
+                                    keepCursorOnBodyFocus = false
+                                } else {
+                                    cursorY = textScrollState.value.toFloat()
+                                }
+                            }
                         }
-                        .onFocusChanged { bodyHasFocus = it.hasFocus }
                         .onPreviewKeyEvent { event ->
-                            if (bodyHasFocus && event.type == KeyEventType.KeyDown) {
+                            if (bodyIsFocused && event.type == KeyEventType.KeyDown) {
                                 when (event.key) {
                                     Key.DirectionDown -> {
-                                        if (textScrollState.value < textScrollState.maxValue) {
-                                            coroutineScope.launch {
-                                                textScrollState.animateScrollBy(60f)
-                                            }
-                                            return@onPreviewKeyEvent true
-                                        }
+                                        coroutineScope.launch { handleDown() }
+                                        return@onPreviewKeyEvent true
                                     }
-
                                     Key.DirectionUp -> {
-                                        if (textScrollState.value > 0) {
-                                            coroutineScope.launch {
-                                                textScrollState.animateScrollBy(-60f)
-                                            }
-                                            return@onPreviewKeyEvent true
-                                        }
+                                        coroutineScope.launch { handleUp() }
+                                        return@onPreviewKeyEvent true
                                     }
-
                                     else -> Unit
                                 }
                             }
@@ -1608,7 +1851,8 @@ private fun VideoDescriptionRichContentContent(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(max = 520.dp)
-                                .verticalScroll(textScrollState),
+                                .verticalScroll(textScrollState)
+                                .onGloballyPositioned { viewportRect = it.boundsInWindow() },
                             tokens = tokens,
                             inlineKeyPrefix = "video_description_rich",
                             textStyle = TextStyle(
@@ -1618,13 +1862,31 @@ private fun VideoDescriptionRichContentContent(
                             ),
                             maxLines = Int.MAX_VALUE,
                             enableInteractiveFocus = true,
-                            bodyFocusRequester = bodyFocusRequester,
                             interactiveFocusRequesters = interactiveFocusRequesters,
-                            firstPictureFocusRequester = pictureFocusRequesters.firstOrNull(),
-                            nextBodyFocusRequester = null,
                             onVideoLinkClick = onVideoLinkClick,
                             onReferenceClick = onReferenceClick,
-                            onMentionClick = null
+                            onMentionClick = null,
+                            onInteractivePositioned = { idx, rect -> inlineRects[idx] = rect },
+                            onInteractiveFocused = { idx ->
+                                val y = contentYOf(idx)
+                                if (y != null) cursorY = y
+                            },
+                            onInteractiveNavDown = {
+                                coroutineScope.launch {
+                                    keepCursorOnBodyFocus = true
+                                    runCatching { bodyFocusRequester.requestFocus() }
+                                        .onFailure { keepCursorOnBodyFocus = false }
+                                    handleDown(fromInteractive = true)
+                                }
+                            },
+                            onInteractiveNavUp = {
+                                coroutineScope.launch {
+                                    keepCursorOnBodyFocus = true
+                                    runCatching { bodyFocusRequester.requestFocus() }
+                                        .onFailure { keepCursorOnBodyFocus = false }
+                                    handleUp(fromInteractive = true)
+                                }
+                            }
                         )
                     }
                 }
@@ -1634,9 +1896,16 @@ private fun VideoDescriptionRichContentContent(
                     keyPrefix = "video-description-rich-${document.title}",
                     pictureFocusRequesters = pictureFocusRequesters,
                     fallbackUpRequester = bodyFocusRequester,
-                    lastInteractiveRequester = interactiveFocusRequesters.lastOrNull(),
                     onImageClick = { index ->
                         onImageClick(document.pictures, index)
+                    },
+                    onRequestScrollUpFromFirstPicture = {
+                        coroutineScope.launch {
+                            keepCursorOnBodyFocus = true
+                            runCatching { bodyFocusRequester.requestFocus() }
+                                .onFailure { keepCursorOnBodyFocus = false }
+                            handleUp(fromInteractive = true)
+                        }
                     }
                 )
             }
@@ -1650,8 +1919,8 @@ private fun VideoDescriptionRichContentPictures(
     keyPrefix: String,
     pictureFocusRequesters: List<FocusRequester>,
     fallbackUpRequester: FocusRequester,
-    lastInteractiveRequester: FocusRequester?,
-    onImageClick: (Int) -> Unit
+    onImageClick: (Int) -> Unit,
+    onRequestScrollUpFromFirstPicture: (() -> Unit)? = null
 ) {
     if (pictures.isEmpty()) return
 
@@ -1661,10 +1930,10 @@ private fun VideoDescriptionRichContentPictures(
     ) {
         itemsIndexed(pictures, key = { index, picture -> "$keyPrefix-${picture.imgSrc}-$index" }) { index, picture ->
             val fr = pictureFocusRequesters[index]
-            val upRequester = when {
-                index > 0 -> pictureFocusRequesters[index - 1]
-                lastInteractiveRequester != null -> lastInteractiveRequester
-                else -> fallbackUpRequester
+            val upRequester = if (index == 0) {
+                fallbackUpRequester
+            } else {
+                pictureFocusRequesters[index - 1]
             }
             val downRequester = if (index == pictures.lastIndex) {
                 fr
@@ -1681,6 +1950,15 @@ private fun VideoDescriptionRichContentPictures(
                     .focusProperties {
                         up = upRequester
                         down = downRequester
+                    }
+                    .onPreviewKeyEvent { e ->
+                        if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                        if (index == 0 && e.key == Key.DirectionUp && onRequestScrollUpFromFirstPicture != null) {
+                            onRequestScrollUpFromFirstPicture()
+                            true
+                        } else {
+                            false
+                        }
                     }
                     .onFocusChanged { pictureHasFocus = it.hasFocus }
                     .border(

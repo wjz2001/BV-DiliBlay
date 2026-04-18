@@ -23,11 +23,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.FocusRequester.Companion.Default
-import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.key
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
@@ -52,10 +59,10 @@ import dev.aaa1115910.bv.util.ResolvedVideoLink
 import dev.aaa1115910.bv.util.RichTextToken
 import dev.aaa1115910.bv.util.VideoLinkToken
 import dev.aaa1115910.bv.util.resolveVideoLink
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.coroutines.launch
 
 @Composable
 fun RichText(
@@ -65,47 +72,29 @@ fun RichText(
     textStyle: TextStyle,
     maxLines: Int = Int.MAX_VALUE,
     enableInteractiveFocus: Boolean,
-    bodyFocusRequester: FocusRequester?,
     interactiveFocusRequesters: List<FocusRequester>,
-    firstPictureFocusRequester: FocusRequester?,
-    nextBodyFocusRequester: FocusRequester?,
     onVideoLinkClick: ((ResolvedVideoLink) -> Unit)?,
     onReferenceClick: ((RichTextReference) -> Unit)?,
-    onMentionClick: ((Long, String) -> Unit)?
+    onMentionClick: ((Long, String) -> Unit)?,
+
+    // 给父级做“滚动遇到内链停靠”的回调（都有默认值，不影响旧调用）
+    onInteractivePositioned: ((index: Int, rectInWindow: Rect) -> Unit)? = null,
+    onInteractiveFocused: ((index: Int) -> Unit)? = null,
+    onInteractiveNavDown: (() -> Unit)? = null,
+    onInteractiveNavUp: (() -> Unit)? = null
 ) {
     val inlineContent = linkedMapOf<String, InlineTextContent>()
     var emoteIndex = 0
-    var interactiveIndex = 0
+
+    // inlineIndex：保证 InlineTextContent key 唯一（不管可不可聚焦都递增）
+    var inlineIndex = 0
+
+    // focusableIndex：只给“真的可聚焦 inline”分配 requester 索引
+    var focusableIndex = 0
+
     val accentColor = C.mentionAndLink
     val fontSize = textStyle.fontSize
     val baseTextColor = textStyle.color
-
-    fun previousUpRequester(
-        currentInteractiveIndex: Int,
-        currentRequester: FocusRequester?
-    ): FocusRequester? {
-        return when {
-            currentInteractiveIndex > 0 ->
-                interactiveFocusRequesters[currentInteractiveIndex - 1]
-
-            bodyFocusRequester != null -> bodyFocusRequester
-            else -> currentRequester
-        }
-    }
-
-    fun nextDownRequester(
-        currentInteractiveIndex: Int,
-        currentRequester: FocusRequester?
-    ): FocusRequester? {
-        return when {
-            currentInteractiveIndex < interactiveFocusRequesters.lastIndex ->
-                interactiveFocusRequesters[currentInteractiveIndex + 1]
-
-            firstPictureFocusRequester != null -> firstPictureFocusRequester
-            nextBodyFocusRequester != null -> nextBodyFocusRequester
-            else -> currentRequester
-        }
-    }
 
     val text = buildAnnotatedString {
         tokens.forEach { token ->
@@ -114,14 +103,19 @@ fun RichText(
 
                 is RichTextToken.Mention -> {
                     val clickable = onMentionClick != null
-                    if (enableInteractiveFocus && clickable) {
-                        val id = "${inlineKeyPrefix}_mention_$interactiveIndex"
-                        val currentInteractiveIndex = interactiveIndex
-                        val currentFr = interactiveFocusRequesters.getOrNull(currentInteractiveIndex)
+                    val focusEnabled = enableInteractiveFocus && clickable
+
+                    if (focusEnabled) {
+                        val id = "${inlineKeyPrefix}_mention_$inlineIndex"
+                        inlineIndex += 1
+
+                        val idx = focusableIndex
+                        val fr = interactiveFocusRequesters.getOrNull(idx)
+
                         appendInlineContent(id, "@${token.name}")
                         inlineContent[id] = InlineTextContent(
                             Placeholder(
-                                width = (token.name.length.coerceIn(1, 16) + 2).em,
+                                width = (token.name.length.coerceIn(1, 20) + 2).em,
                                 height = 1.6.em,
                                 placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter
                             )
@@ -129,16 +123,22 @@ fun RichText(
                             MentionInlineItem(
                                 mention = token,
                                 enableFocus = true,
-                                focusRequester = currentFr,
-                                upRequester = previousUpRequester(currentInteractiveIndex, currentFr),
-                                downRequester = nextDownRequester(currentInteractiveIndex, currentFr),
+                                focusRequester = fr,
                                 fontSize = fontSize,
                                 accentColor = accentColor,
-                                onMentionClick = onMentionClick
+                                onMentionClick = onMentionClick,
+
+                                index = idx,
+                                onPositioned = onInteractivePositioned,
+                                onFocused = onInteractiveFocused,
+                                onNavDown = onInteractiveNavDown,
+                                onNavUp = onInteractiveNavUp
                             )
                         }
-                        interactiveIndex += 1
+
+                        focusableIndex += 1
                     } else {
+                        // 不可聚焦：普通富文本样式
                         withStyle(SpanStyle(color = accentColor, fontWeight = FontWeight.Medium)) {
                             append("@${token.name}")
                         }
@@ -167,73 +167,113 @@ fun RichText(
 
                 is RichTextToken.VideoLink -> {
                     val clickable = onVideoLinkClick != null
-                    val id = "${inlineKeyPrefix}_video_$interactiveIndex"
-                    val currentInteractiveIndex = interactiveIndex
-                    val currentFr = interactiveFocusRequesters.getOrNull(currentInteractiveIndex)
+                    val focusEnabled = enableInteractiveFocus && clickable
 
-                    appendInlineContent(id, token.data.videoId)
+                    val id = "${inlineKeyPrefix}_video_$inlineIndex"
+                    inlineIndex += 1
+
+                    val placeholderText = token.data.videoId.ifBlank { token.data.rawUrl }.ifBlank { token.data.cleanedUrl }
+                    val placeholderWidth = estimateInlineWidthEm(
+                        text = placeholderText,
+                        minEm = 8f,
+                        maxEm = 20f,
+                        paddingEm = 2.5f
+                    )
+
+                    appendInlineContent(id, token.data.videoId.ifBlank { token.data.rawUrl })
 
                     inlineContent[id] = InlineTextContent(
                         Placeholder(
-                            width = 20.em,
+                            width = placeholderWidth,
                             height = 1.6.em,
                             placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter
                         )
                     ) {
-                        VideoLinkInlineItem(
-                            token = token.data,
-                            enableFocus = enableInteractiveFocus && clickable,
-                            focusRequester = currentFr,
-                            upRequester = previousUpRequester(currentInteractiveIndex, currentFr),
-                            downRequester = nextDownRequester(currentInteractiveIndex, currentFr),
-                            fontSize = fontSize,
-                            accentColor = accentColor,
-                            baseTextColor = baseTextColor,
-                            onVideoLinkClick = onVideoLinkClick
-                        )
-                    }
+                        if (!focusEnabled) {
+                            VideoLinkInlineItem(
+                                token = token.data,
+                                enableFocus = false,
+                                focusRequester = null,
+                                fontSize = fontSize,
+                                accentColor = accentColor,
+                                baseTextColor = baseTextColor,
+                                onVideoLinkClick = onVideoLinkClick
+                            )
+                        } else {
+                            val idx = focusableIndex
+                            val fr = interactiveFocusRequesters.getOrNull(idx)
 
-                    if (clickable) {
-                        interactiveIndex += 1
+                            VideoLinkInlineItem(
+                                token = token.data,
+                                enableFocus = true,
+                                focusRequester = fr,
+                                fontSize = fontSize,
+                                accentColor = accentColor,
+                                baseTextColor = baseTextColor,
+                                onVideoLinkClick = onVideoLinkClick,
+
+                                index = idx,
+                                onPositioned = onInteractivePositioned,
+                                onFocused = onInteractiveFocused,
+                                onNavDown = onInteractiveNavDown,
+                                onNavUp = onInteractiveNavUp
+                            )
+
+                            focusableIndex += 1
+                        }
                     }
                 }
 
                 is RichTextToken.Reference -> {
                     val clickable = onReferenceClick != null
-                    val id = "${inlineKeyPrefix}_reference_$interactiveIndex"
-                    val currentInteractiveIndex = interactiveIndex
-                    val currentFr = interactiveFocusRequesters.getOrNull(currentInteractiveIndex)
-                    val placeholderTextLength = when {
-                        token.reference is RichTextReference.Article &&
-                            token.reference.cvid == 0L &&
-                            "/opus/" in token.reference.url -> token.reference.displayText.length.coerceAtLeast(10)
-                        else -> token.reference.displayText.length
-                    }
-
-                    append("\n")
+                    val focusEnabled = enableInteractiveFocus && clickable
+                    val id = "${inlineKeyPrefix}_reference_$inlineIndex"
+                    inlineIndex += 1
+                    val displayText = token.reference.displayText
+                    val placeholderWidth = estimateInlineWidthEm(
+                        text = displayText,
+                        minEm = 6f,
+                        maxEm = 22f,
+                        paddingEm = 2.8f
+                    )
                     appendInlineContent(id, token.reference.displayText)
-
                     inlineContent[id] = InlineTextContent(
                         Placeholder(
-                            width = (placeholderTextLength.coerceIn(2, 18) + 5).em,
+                            width = placeholderWidth,
                             height = 1.6.em,
                             placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter
                         )
                     ) {
-                        ReferenceInlineItem(
-                            reference = token.reference,
-                            enableFocus = enableInteractiveFocus && clickable,
-                            focusRequester = currentFr,
-                            upRequester = previousUpRequester(currentInteractiveIndex, currentFr),
-                            downRequester = nextDownRequester(currentInteractiveIndex, currentFr),
-                            fontSize = fontSize,
-                            accentColor = accentColor,
-                            onReferenceClick = onReferenceClick
-                        )
-                    }
+                        if (!focusEnabled) {
+                            ReferenceInlineItem(
+                                reference = token.reference,
+                                enableFocus = false,
+                                focusRequester = null,
+                                fontSize = fontSize,
+                                accentColor = accentColor,
+                                onReferenceClick = onReferenceClick
+                            )
+                        } else {
+                            val idx = focusableIndex
+                            val fr = interactiveFocusRequesters.getOrNull(idx)
 
-                    if (clickable) {
-                        interactiveIndex += 1
+                            ReferenceInlineItem(
+                                reference = token.reference,
+                                enableFocus = true,
+                                focusRequester = fr,
+                                fontSize = fontSize,
+                                accentColor = accentColor,
+                                onReferenceClick = onReferenceClick,
+
+                                index = idx,
+                                onPositioned = onInteractivePositioned,
+                                onFocused = onInteractiveFocused,
+                                onNavDown = onInteractiveNavDown,
+                                onNavUp = onInteractiveNavUp
+                            )
+
+                            focusableIndex += 1
+                        }
                     }
                 }
             }
@@ -249,16 +289,39 @@ fun RichText(
     )
 }
 
+private fun estimateInlineWidthEm(
+    text: String,
+    minEm: Float,
+    maxEm: Float,
+    paddingEm: Float = 2f
+): TextUnit {
+    val s = text.trim()
+    if (s.isEmpty()) return minEm.em
+
+    // 简易视觉长度：CJK/全角按 2，其它按 1（再做上限）
+    val visualLen = s.sumOf { ch ->
+        if (ch.code in 0x2E80..0x9FFF) 2 else 1
+    }.coerceAtMost(40)
+
+    val estimated = paddingEm + visualLen * 0.75f
+    return estimated.coerceIn(minEm, maxEm).em
+}
+
 @Composable
 private fun MentionInlineItem(
     mention: RichTextToken.Mention,
     enableFocus: Boolean,
     focusRequester: FocusRequester?,
-    upRequester: FocusRequester?,
-    downRequester: FocusRequester?,
     fontSize: TextUnit,
     accentColor: Color,
-    onMentionClick: ((Long, String) -> Unit)?
+    onMentionClick: ((Long, String) -> Unit)?,
+
+    // 给父级做定位/导航
+    index: Int = -1,
+    onPositioned: ((Int, Rect) -> Unit)? = null,
+    onFocused: ((Int) -> Unit)? = null,
+    onNavDown: (() -> Unit)? = null,
+    onNavUp: (() -> Unit)? = null
 ) {
     var focused by remember(mention.mid, mention.name) { mutableStateOf(false) }
 
@@ -269,6 +332,7 @@ private fun MentionInlineItem(
             fontSize = fontSize,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
+            softWrap = false,
             overflow = TextOverflow.Ellipsis
         )
         return
@@ -276,12 +340,36 @@ private fun MentionInlineItem(
 
     Surface(
         modifier = Modifier
-            .focusRequester(focusRequester ?: Default)
-            .focusProperties {
-                upRequester?.let { up = it }
-                downRequester?.let { down = it }
+            .onGloballyPositioned { coords ->
+                if (index >= 0) onPositioned?.invoke(index, coords.boundsInWindow())
             }
-            .onFocusChanged { focused = it.hasFocus }
+            .onPreviewKeyEvent { e ->
+                if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (e.key) {
+                    Key.DirectionDown -> {
+                        if (onNavDown != null) {
+                            onNavDown()
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    Key.DirectionUp -> {
+                        if (onNavUp != null) {
+                            onNavUp()
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    else -> false
+                }
+            }
+            .focusRequester(focusRequester ?: Default)
+            .onFocusChanged { fs ->
+                focused = fs.hasFocus
+                if (fs.isFocused && index >= 0) onFocused?.invoke(index)
+            }
             .border(
                 width = if (focused) 3.dp else 0.dp,
                 color = if (focused) accentColor else Color.Transparent,
@@ -307,6 +395,7 @@ private fun MentionInlineItem(
             fontSize = fontSize,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
+            softWrap = false,
             overflow = TextOverflow.Ellipsis
         )
     }
@@ -317,12 +406,17 @@ private fun VideoLinkInlineItem(
     token: VideoLinkToken,
     enableFocus: Boolean,
     focusRequester: FocusRequester?,
-    upRequester: FocusRequester?,
-    downRequester: FocusRequester?,
     fontSize: TextUnit,
     accentColor: Color,
     baseTextColor: Color,
-    onVideoLinkClick: ((ResolvedVideoLink) -> Unit)?
+    onVideoLinkClick: ((ResolvedVideoLink) -> Unit)?,
+
+    // 给父级做定位/导航
+    index: Int = -1,
+    onPositioned: ((Int, Rect) -> Unit)? = null,
+    onFocused: ((Int) -> Unit)? = null,
+    onNavDown: (() -> Unit)? = null,
+    onNavUp: (() -> Unit)? = null
 ) {
     var resolved by remember(token.cleanedUrl) { mutableStateOf<ResolvedVideoLink?>(null) }
     var loaded by remember(token.cleanedUrl) { mutableStateOf(false) }
@@ -337,10 +431,23 @@ private fun VideoLinkInlineItem(
 
     val snapshot = resolved
     val showLinkStyle = !loaded || snapshot != null
+    val fallbackAsPlainText = loaded && snapshot == null
     val title = when {
         snapshot != null -> snapshot.title
         loaded -> token.rawUrl
         else -> token.videoId
+    }
+
+    if (fallbackAsPlainText && !enableFocus) {
+        Text(
+            text = token.rawUrl,
+            color = baseTextColor,
+            fontSize = fontSize,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
+        )
+        return
     }
 
     if (!enableFocus) {
@@ -356,10 +463,12 @@ private fun VideoLinkInlineItem(
                 )
             }
             Text(
+                modifier = Modifier.weight(1f),
                 text = title,
                 color = if (showLinkStyle) accentColor else baseTextColor,
                 fontSize = fontSize,
                 maxLines = 1,
+                softWrap = false,
                 overflow = TextOverflow.Ellipsis
             )
         }
@@ -368,12 +477,36 @@ private fun VideoLinkInlineItem(
 
     Surface(
         modifier = Modifier
-            .focusRequester(focusRequester ?: Default)
-            .focusProperties {
-                upRequester?.let { up = it }
-                downRequester?.let { down = it }
+            .onGloballyPositioned { coords ->
+                if (index >= 0) onPositioned?.invoke(index, coords.boundsInWindow())
             }
-            .onFocusChanged { focused = it.hasFocus }
+            .onPreviewKeyEvent { e ->
+                if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (e.key) {
+                    Key.DirectionDown -> {
+                        if (onNavDown != null) {
+                            onNavDown()
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    Key.DirectionUp -> {
+                        if (onNavUp != null) {
+                            onNavUp()
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    else -> false
+                }
+            }
+            .focusRequester(focusRequester ?: Default)
+            .onFocusChanged { fs ->
+                focused = fs.hasFocus
+                if (fs.isFocused && index >= 0) onFocused?.invoke(index)
+            }
             .border(
                 width = if (focused) 3.dp else 0.dp,
                 color = if (focused && showLinkStyle) accentColor else Color.Transparent,
@@ -413,10 +546,12 @@ private fun VideoLinkInlineItem(
                 )
             }
             Text(
+                modifier = Modifier.weight(1f),
                 text = title,
                 color = if (showLinkStyle) accentColor else baseTextColor,
                 fontSize = fontSize,
                 maxLines = 1,
+                softWrap = false,
                 overflow = TextOverflow.Ellipsis
             )
         }
@@ -428,11 +563,16 @@ private fun ReferenceInlineItem(
     reference: RichTextReference,
     enableFocus: Boolean,
     focusRequester: FocusRequester?,
-    upRequester: FocusRequester?,
-    downRequester: FocusRequester?,
     fontSize: TextUnit,
     accentColor: Color,
-    onReferenceClick: ((RichTextReference) -> Unit)?
+    onReferenceClick: ((RichTextReference) -> Unit)?,
+
+    // 给父级做定位/导航
+    index: Int = -1,
+    onPositioned: ((Int, Rect) -> Unit)? = null,
+    onFocused: ((Int) -> Unit)? = null,
+    onNavDown: (() -> Unit)? = null,
+    onNavUp: (() -> Unit)? = null
 ) {
     var focused by remember(reference) { mutableStateOf(false) }
     val icon = when (reference) {
@@ -468,10 +608,12 @@ private fun ReferenceInlineItem(
                 tint = accentColor
             )
             Text(
+                modifier = Modifier.weight(1f),
                 text = displayText,
                 color = accentColor,
                 fontSize = fontSize,
                 maxLines = 1,
+                softWrap = false,
                 overflow = TextOverflow.Ellipsis
             )
         }
@@ -480,12 +622,36 @@ private fun ReferenceInlineItem(
 
     Surface(
         modifier = Modifier
-            .focusRequester(focusRequester ?: Default)
-            .focusProperties {
-                upRequester?.let { up = it }
-                downRequester?.let { down = it }
+            .onGloballyPositioned { coords ->
+                if (index >= 0) onPositioned?.invoke(index, coords.boundsInWindow())
             }
-            .onFocusChanged { focused = it.hasFocus }
+            .onPreviewKeyEvent { e ->
+                if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (e.key) {
+                    Key.DirectionDown -> {
+                        if (onNavDown != null) {
+                            onNavDown()
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    Key.DirectionUp -> {
+                        if (onNavUp != null) {
+                            onNavUp()
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    else -> false
+                }
+            }
+            .focusRequester(focusRequester ?: Default)
+            .onFocusChanged { fs ->
+                focused = fs.hasFocus
+                if (fs.isFocused && index >= 0) onFocused?.invoke(index)
+            }
             .border(
                 width = if (focused) 3.dp else 0.dp,
                 color = if (focused) accentColor else Color.Transparent,
@@ -515,10 +681,12 @@ private fun ReferenceInlineItem(
                 tint = accentColor
             )
             Text(
+                modifier = Modifier.weight(1f),
                 text = displayText,
                 color = accentColor,
                 fontSize = fontSize,
                 maxLines = 1,
+                softWrap = false,
                 overflow = TextOverflow.Ellipsis
             )
         }

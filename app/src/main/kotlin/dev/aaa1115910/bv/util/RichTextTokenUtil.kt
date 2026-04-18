@@ -261,6 +261,7 @@ private fun RichTextReference.referenceMatchKey(): String? {
 
 private val BlankLinesRegex = Regex("""\n[ \t]*\n+""")
 private val TrailingSpacesBeforeNewlineRegex = Regex("""[ \t]+\n""")
+private val SpacesAroundNewlineRegex = Regex("""[ \t]*\n[ \t]*""")
 
 /**
  * 不保留空行，但保留必要换行：
@@ -273,6 +274,7 @@ private fun normalizeText(s: String): String {
         .replace("\r\n", "\n")
         .replace("\r", "\n")
         .replace(TrailingSpacesBeforeNewlineRegex, "\n")
+        .replace(SpacesAroundNewlineRegex, "\n")
         .replace(BlankLinesRegex, "\n")
 }
 
@@ -280,38 +282,95 @@ private fun normalizeText(s: String): String {
  * 最终 token 规范化：
  * 合并相邻 Text（用 StringBuilder 缓冲）
  * 对 Text 做 normalizeText（去空行保留换行）
+ * 强制前面和后面只有一个空格
  */
 private fun normalizeTokens(tokens: List<RichTextToken>): List<RichTextToken> {
     if (tokens.isEmpty()) return emptyList()
 
     val out = mutableListOf<RichTextToken>()
-    val buf = StringBuilder()
+    var needSpaceBeforeNextText = false
 
-    fun flushText() {
-        if (buf.isEmpty()) return
-        val normalized = normalizeText(buf.toString())
-        buf.clear()
+    fun appendText(raw: String) {
+        if (raw.isEmpty()) return
+        var s = normalizeText(raw)
+        if (s.isEmpty()) return
 
-        if (normalized.isEmpty()) return
+        if (needSpaceBeforeNextText) {
+            val prevTextEndsWithNewline =
+                (out.lastOrNull() as? RichTextToken.Text)?.text?.endsWith("\n") == true
+
+            // 如果下一段文本一上来就是换行，或上一段以换行结尾，则不插空格
+            if (!s.startsWith("\n") && !prevTextEndsWithNewline) {
+                s = " $s"
+            }
+            needSpaceBeforeNextText = false
+        }
 
         val last = out.lastOrNull()
         if (last is RichTextToken.Text) {
-            out[out.lastIndex] = RichTextToken.Text(last.text + normalized)
+            out[out.lastIndex] = RichTextToken.Text(last.text + s)
         } else {
-            out += RichTextToken.Text(normalized)
+            out += RichTextToken.Text(s)
+        }
+    }
+
+    fun ensureSingleSpaceBeforeInteractive() {
+        if (out.isEmpty()) return
+
+        val last = out.lastOrNull()
+        when (last) {
+            is RichTextToken.Text -> {
+                val t = last.text
+                // 如果上一段以换行结尾，不要在换行后面补空格（避免行首空格）
+                if (t.isNotEmpty() && !t.endsWith("\n")) {
+                    out[out.lastIndex] = RichTextToken.Text(t.trimEnd(' ', '\t') + " ")
+                }
+            }
+            else -> {
+                // 连续两个非 Text token，中间补一个空格
+                out += RichTextToken.Text(" ")
+            }
         }
     }
 
     for (t in tokens) {
         when (t) {
-            is RichTextToken.Text -> buf.append(t.text)
+            is RichTextToken.Text -> appendText(t.text)
             else -> {
-                flushText()
+                ensureSingleSpaceBeforeInteractive()
                 out += t
+                needSpaceBeforeNextText = true
             }
         }
     }
-    flushText()
 
-    return out
+    // 去掉整体首尾的空格（避免首空格/尾空格）
+    if (out.firstOrNull() is RichTextToken.Text) {
+        val first = out.first() as RichTextToken.Text
+        val trimmed = first.text.trimStart(' ', '\t')
+        if (trimmed.isEmpty()) out.removeAt(0) else out[0] = RichTextToken.Text(trimmed)
+    }
+    if (out.lastOrNull() is RichTextToken.Text) {
+        val last = out.last() as RichTextToken.Text
+        val trimmed = last.text.trimEnd(' ', '\t')
+        if (trimmed.isEmpty()) out.removeAt(out.lastIndex) else out[out.lastIndex] = RichTextToken.Text(trimmed)
+    }
+
+    // 对所有 Text 再 normalizeText，并合并相邻 Text
+    val finalOut = mutableListOf<RichTextToken>()
+    for (t in out) {
+        if (t is RichTextToken.Text) {
+            val s = normalizeText(t.text)
+            if (s.isEmpty()) continue
+            val last = finalOut.lastOrNull()
+            if (last is RichTextToken.Text) {
+                finalOut[finalOut.lastIndex] = RichTextToken.Text(last.text + s)
+            } else {
+                finalOut += RichTextToken.Text(s)
+            }
+        } else {
+            finalOut += t
+        }
+    }
+    return finalOut
 }
