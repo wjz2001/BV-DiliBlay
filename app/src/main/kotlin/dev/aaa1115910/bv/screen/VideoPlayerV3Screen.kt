@@ -173,6 +173,7 @@ fun VideoPlayerV3Screen(
         videoShotCache = videoShotCache,
         uiState = uiState,
         seekerState = seekerState,
+        isDanmakuRefreshing = playerViewModel.isDanmakuRefreshing,
         onPlay = { videoPlayer.start() },
         onPause = {
             videoPlayer.pause()
@@ -244,6 +245,9 @@ fun VideoPlayerV3Screen(
         onDanmakuSettingChange = { action ->
             playerViewModel.updateDanmakuState(action)
             logger.info { "On danmaku state change" }
+        },
+        onDanmakuReload = {
+            playerViewModel.reloadDanmakuFromCurrent()
         },
         onSubtitleChange = { subtitle ->
             playerViewModel.loadSubtitle(subtitle.id)
