@@ -256,6 +256,9 @@ data class VideoStat(
     @SerialName("argue_msg")
     val argueMsg: String = ""
 ){
+    val rawView: Long
+        get() = _view
+
     val view: Int
         get() = if (_view > Int.MAX_VALUE) Int.MIN_VALUE else _view.toInt()
 }
