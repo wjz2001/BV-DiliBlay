@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.component.RadioMenuSelectDialog
 import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
@@ -111,70 +112,80 @@ fun AudioVideoSetting(
         )
     }
     // 弹窗复用组件
-    if (showResolutionDialog) {
-        OptionDialog(
-            options = Resolution.entries.toTypedArray(),
-            selectedOption = selectedResolution,
-            onDismiss = { showResolutionDialog = false },
-            onSelect = {
-                Prefs.defaultQuality = it
-                selectedResolution = it
-            },
-            getDisplayName = { it.getDisplayName(context) }
-        )
-    }
+    RadioMenuSelectDialog(
+        visible = showResolutionDialog,
+        onDismissRequest = { showResolutionDialog = false },
+        title = "", // 不要标题就传空；配合上面 titleSlot 写法不会占位
+        items = Resolution.entries.toList(),
+        selected = { it == selectedResolution },
+        onSelect = {
+            Prefs.defaultQuality = it
+            selectedResolution = it
+        },
+        text = { it.getDisplayName(context) },
+        itemKey = { it.name },
+        defaultFocusKey = selectedResolution.name
+    )
 
-    if (showVideoCodecDialog) {
-        OptionDialog(
-            options = VideoCodec.entries.toTypedArray(),
-            selectedOption = selectedVideoCodec,
-            onDismiss = { showVideoCodecDialog = false },
-            onSelect = {
-                Prefs.defaultVideoCodec = it
-                selectedVideoCodec = it
-            },
-            getDisplayName = { it.getDisplayName(context) }
-        )
-    }
+    RadioMenuSelectDialog(
+        visible = showVideoCodecDialog,
+        onDismissRequest = { showVideoCodecDialog = false },
+        title = "",
+        items = VideoCodec.entries.toList(),
+        selected = { it == selectedVideoCodec },
+        onSelect = {
+            Prefs.defaultVideoCodec = it
+            selectedVideoCodec = it
+        },
+        text = { it.getDisplayName(context) },
+        itemKey = { it.name },
+        defaultFocusKey = selectedVideoCodec.name
+    )
 
-    if (showAudioCodecDialog) {
-        OptionDialog(
-            options = Audio.entries.toTypedArray(),
-            selectedOption = selectedAudioCodec,
-            onDismiss = { showAudioCodecDialog = false },
-            onSelect = {
-                Prefs.defaultAudio = it
-                selectedAudioCodec = it
-            },
-            getDisplayName = { it.getDisplayName(context) }
-        )
-    }
+    RadioMenuSelectDialog(
+        visible = showAudioCodecDialog,
+        onDismissRequest = { showAudioCodecDialog = false },
+        title = "",
+        items = Audio.entries.toList(),
+        selected = { it == selectedAudioCodec },
+        onSelect = {
+            Prefs.defaultAudio = it
+            selectedAudioCodec = it
+        },
+        text = { it.getDisplayName(context) },
+        itemKey = { it.name },
+        defaultFocusKey = selectedAudioCodec.name
+    )
 
-    if (showPlaySpeedDialog) {
-        OptionDialog(
-            options = PlaySpeedItem.entries.toTypedArray(),
-            selectedOption = selectedPlaySpeed,
-            onDismiss = { showPlaySpeedDialog = false },
-            onSelect = {
-                Prefs.defaultPlaySpeed = it
-                selectedPlaySpeed = it
-            },
-            getDisplayName = { it.getDisplayName(context) }
-        )
-    }
+    RadioMenuSelectDialog(
+        visible = showPlaySpeedDialog,
+        onDismissRequest = { showPlaySpeedDialog = false },
+        title = "",
+        items = PlaySpeedItem.entries.toList(),
+        selected = { it == selectedPlaySpeed },
+        onSelect = {
+            Prefs.defaultPlaySpeed = it
+            selectedPlaySpeed = it
+        },
+        text = { it.getDisplayName(context) },
+        itemKey = { it.name },
+        defaultFocusKey = selectedPlaySpeed.name
+    )
 
-    if (showActionAfterPlayDialog) {
-        OptionDialog(
-            options = ActionAfterPlayItems.entries.toTypedArray(),
-            selectedOption = selectedActionAfterPlay,
-            onDismiss = { showActionAfterPlayDialog = false },
-            onSelect = {
-                Prefs.actionAfterPlay = it
-                selectedActionAfterPlay = it
-            },
-            getDisplayName = { it.getDisplayName(context) }
-        )
-    }
+    RadioMenuSelectDialog(
+        visible = showActionAfterPlayDialog,
+        onDismissRequest = { showActionAfterPlayDialog = false },
+        title = "",
+        items = ActionAfterPlayItems.entries.toList(),
+        selected = { it == selectedActionAfterPlay },
+        onSelect = {
+            Prefs.actionAfterPlay = it
+            selectedActionAfterPlay = it
+        },
+        text = { it.getDisplayName(context) },
+        itemKey = { it.name },
+        defaultFocusKey = selectedActionAfterPlay.name
+    )
 }
 
 enum class ActionAfterPlayItems (val code: Int, private val displayName: String){
