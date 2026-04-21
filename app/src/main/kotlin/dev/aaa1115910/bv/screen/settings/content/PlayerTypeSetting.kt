@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.component.LibVLCDownloaderDialog
-import dev.aaa1115910.bv.component.settings.SettingsMenuSelectItem
+import dev.aaa1115910.bv.component.RadioMenuSelectItem
 import dev.aaa1115910.bv.entity.PlayerType
 import dev.aaa1115910.bv.screen.settings.SettingsMenuNavItem
 import dev.aaa1115910.bv.util.Prefs
@@ -53,7 +53,7 @@ fun PlayerTypeSetting(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(items = PlayerType.entries) { playerType ->
-                    SettingsMenuSelectItem(
+                    RadioMenuSelectItem(
                         text = playerType.name,
                         selected = selectedPlayerType == playerType,
                         onClick = {

@@ -45,6 +45,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.HomeTopNavItem
+import dev.aaa1115910.bv.component.RadioMenuSelectDialog
 import dev.aaa1115910.bv.component.settings.SettingCycleListItem
 import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
@@ -144,11 +145,12 @@ fun UISetting(
                     )
                 }
                 item {
+                    val support = stringResource(R.string.settings_ui_theme_text)
                     SettingCycleListItem(
                         title = stringResource(R.string.settings_ui_theme_title),
                         options = ThemeMode.entries.toList(),
                         checked = selectedThemeMode,
-                        supportText = { context.getString(R.string.settings_ui_theme_text) },
+                        supportText = { support },
                         trailingText = { it.getDisplayName(context) },
                         onCheckedChange = {
                             selectedThemeMode = it
@@ -176,18 +178,20 @@ fun UISetting(
         onDensityChange = { Prefs.density = it }
     )
 
-    if (showHomepageDialog) {
-        OptionDialog(
-            options = HomeTopNavItem.entries.toTypedArray(),
-            selectedOption = selectedFirstHomeTopNavItem,
-            onDismiss = { showHomepageDialog = false },
-            onSelect = {
-                Prefs.firstHomeTopNavItem = it
-                selectedFirstHomeTopNavItem = it
-            },
-            getDisplayName = { it.getDisplayName(context) }
-        )
-    }
+    RadioMenuSelectDialog(
+        visible = showHomepageDialog,
+        onDismissRequest = { showHomepageDialog = false },
+        title = "",
+        items = HomeTopNavItem.entries.toList(),
+        selected = { it == selectedFirstHomeTopNavItem },
+        onSelect = {
+            Prefs.firstHomeTopNavItem = it
+            selectedFirstHomeTopNavItem = it
+        },
+        text = { it.getDisplayName(context) },
+        itemKey = { it.name },
+        defaultFocusKey = selectedFirstHomeTopNavItem.name
+    )
 }
 
 @Composable
