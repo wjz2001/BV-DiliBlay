@@ -253,7 +253,6 @@
     <string name="settings_item_info">设备信息</string>
     <string name="settings_item_network">网络设置</string>
     <string name="settings_item_other">更多设置</string>
-    <string name="settings_item_player_type">播放器内核</string>
     <string name="settings_item_block">黑名单</string>
     <string name="block_setting_groups_title">需要屏蔽的关注分组</string>
     <string name="block_setting_groups_support">当前：已选择 %1$d 个分组</string>

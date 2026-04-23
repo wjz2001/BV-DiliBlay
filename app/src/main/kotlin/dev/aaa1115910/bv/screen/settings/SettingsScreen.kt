@@ -45,7 +45,6 @@ import dev.aaa1115910.bv.screen.settings.content.AudioVideoSetting
 import dev.aaa1115910.bv.screen.settings.content.InfoSetting
 import dev.aaa1115910.bv.screen.settings.content.NetworkSetting
 import dev.aaa1115910.bv.screen.settings.content.OtherSetting
-import dev.aaa1115910.bv.screen.settings.content.PlayerTypeSetting
 import dev.aaa1115910.bv.screen.settings.content.StorageSetting
 import dev.aaa1115910.bv.screen.settings.content.UISetting
 import dev.aaa1115910.bv.ui.theme.BVTheme
@@ -146,7 +145,7 @@ fun SettingsNav(
         contentPadding = PaddingValues(24.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        for (item in SettingsMenuNavItem.entries - listOf(SettingsMenuNavItem.PlayerType)) {
+        for (item in SettingsMenuNavItem.entries) {
             val buttonModifier = if (currentMenu == item) Modifier
                 .focusRequester(focusRequester)
                 .fillMaxWidth()
@@ -167,7 +166,6 @@ fun SettingsNav(
 
 enum class SettingsMenuNavItem(private val strRes: Int) {
     AudioVideo(R.string.settings_item_audio_video_settings),
-    PlayerType(R.string.settings_item_player_type),
     UI(R.string.settings_item_ui),
     Other(R.string.settings_item_other),
     Block(R.string.settings_item_block),
@@ -205,7 +203,6 @@ fun SettingContent(
                 SettingsMenuNavItem.Other -> OtherSetting()
                 SettingsMenuNavItem.Block -> BlockSetting(contentActive = contentActive)
                 SettingsMenuNavItem.Network -> NetworkSetting()
-                SettingsMenuNavItem.PlayerType -> PlayerTypeSetting()
                 SettingsMenuNavItem.UI -> UISetting()
                 SettingsMenuNavItem.Storage -> StorageSetting()
             }
