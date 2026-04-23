@@ -3,6 +3,7 @@ package dev.aaa1115910.bv.component.comments
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,10 +22,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -43,6 +45,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -55,8 +58,9 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -94,6 +98,7 @@ import dev.aaa1115910.bv.util.toast
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
+import kotlin.math.ceil
 
 private enum class Page { Main, Replies, RichContent }
 @OptIn(ExperimentalFoundationApi::class)
@@ -1661,12 +1666,24 @@ private fun CommentImagePreviewDialog(
     onSwitch: (delta: Int) -> Unit
 ) {
     if (pictures.isEmpty()) return
+
     val safeIndex = currentIndex.coerceIn(0, pictures.lastIndex)
     val focusRequester = remember { FocusRequester() }
+    val coroutineScope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val stepPx = with(density) { 60.dp.toPx() }
+    val imageScrollState = rememberScrollState()
 
-    LaunchedEffect(pictures, safeIndex) {
-        delay(20)
-        runCatching { focusRequester.requestFocus() }
+    var isWidthFitMode by remember { mutableStateOf(false) }
+    val picture = pictures[safeIndex]
+    var resolvedW by remember(picture.imgSrc) { mutableIntStateOf(0) }
+    var resolvedH by remember(picture.imgSrc) { mutableIntStateOf(0) }
+    val canWidthFit = resolvedW > 0 && resolvedH > 0
+    val widthFitEnabled = isWidthFitMode && canWidthFit
+
+    // 切图 / 切换模式：偏移归零
+    LaunchedEffect(safeIndex, isWidthFitMode) {
+        imageScrollState.scrollTo(0)
     }
 
     Dialog(
@@ -1678,49 +1695,137 @@ private fun CommentImagePreviewDialog(
         )
     ) {
         Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .focusRequester(focusRequester)
-                .focusable()
-                .onPreviewKeyEvent {
-                    if (it.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                    when (it.key) {
-                        Key.Back -> {
-                            onDismissRequest()
-                            true
-                        }
-
-                        Key.DirectionLeft -> {
-                            onSwitch(-1)
-                            true
-                        }
-
-                        Key.DirectionRight -> {
-                            onSwitch(1)
-                            true
-                        }
-
-                        else -> false
-                    }
-                },
+            modifier = Modifier.fillMaxSize(),
             shape = RoundedCornerShape(0.dp),
             colors = androidx.tv.material3.SurfaceDefaults.colors(
                 containerColor = C.commentsBackground,
                 contentColor = AppBlack
             )
         ) {
-            Box(
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(C.commentsBackground)
+                    .clipToBounds()
+                    .focusRequester(focusRequester)
+                    .focusProperties {
+                        up = focusRequester
+                        down = focusRequester
+                        left = focusRequester
+                        right = focusRequester
+                    }
+                    .onKeyEvent { e ->
+                        when (e.key) {
+                            Key.Back -> {
+                                if (e.type == KeyEventType.KeyUp) return@onKeyEvent true
+                                onDismissRequest()
+                                return@onKeyEvent true
+                            }
+
+                            Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
+                                if (e.type == KeyEventType.KeyUp) return@onKeyEvent true
+                                isWidthFitMode = !isWidthFitMode
+                                return@onKeyEvent true
+                            }
+
+                            Key.DirectionLeft, Key.MediaRewind -> {
+                                if (e.type == KeyEventType.KeyUp) return@onKeyEvent true
+                                onSwitch(-1)
+                                return@onKeyEvent true
+                            }
+
+                            Key.DirectionRight, Key.MediaFastForward -> {
+                                if (e.type == KeyEventType.KeyUp) return@onKeyEvent true
+                                onSwitch(1)
+                                return@onKeyEvent true
+                            }
+
+                            Key.DirectionUp -> {
+                                if (e.type == KeyEventType.KeyUp) return@onKeyEvent true
+                                if (widthFitEnabled) {
+                                    coroutineScope.launch {
+                                        imageScrollState.animateScrollBy(-stepPx)
+                                    }
+                                }
+                                return@onKeyEvent true
+                            }
+
+                            Key.DirectionDown -> {
+                                if (e.type == KeyEventType.KeyUp) return@onKeyEvent true
+                                if (widthFitEnabled) {
+                                    coroutineScope.launch {
+                                        imageScrollState.animateScrollBy(stepPx)
+                                    }
+                                }
+                                return@onKeyEvent true
+                            }
+
+                            else -> false
+                        }
+                    }
+                    .focusable()
             ) {
-                AsyncImage(
-                    modifier = Modifier.fillMaxSize(),
-                    model = pictures[safeIndex].imgSrc,
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    alignment = Alignment.Center
-                )
+                val viewportWidthPx = constraints.maxWidth
+                val viewportHeightPx = constraints.maxHeight
+                val widthFitHeightPx = if (canWidthFit) {
+                    ceil((viewportWidthPx.toFloat() * resolvedH.toFloat()) / resolvedW.toFloat()).toInt()
+                } else {
+                    viewportHeightPx
+                }
+                val widthFitHeightDp = with(density) { widthFitHeightPx.toDp() }
+
+                // 关键：确保预览层真的拿到焦点（否则任何 onKeyEvent 都收不到）
+                LaunchedEffect(pictures, safeIndex) {
+                    delay(80)
+                    runCatching { focusRequester.requestFocus() }
+                }
+
+                val imageModifier =
+                    if (widthFitEnabled) {
+                        Modifier
+                            .fillMaxWidth()
+                            .requiredHeight(widthFitHeightDp)
+                    } else {
+                        Modifier.fillMaxSize()
+                    }
+
+                if (widthFitEnabled) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(imageScrollState)
+                    ) {
+                        AsyncImage(
+                            modifier = imageModifier,
+                            model = picture.imgSrc,
+                            contentDescription = null,
+                            contentScale = ContentScale.FillBounds,
+                            alignment = Alignment.TopCenter,
+                            onSuccess = { success ->
+                                val d = success.result.drawable
+                                val w = d.intrinsicWidth
+                                val h = d.intrinsicHeight
+                                if (w > 0) resolvedW = w
+                                if (h > 0) resolvedH = h
+                            }
+                        )
+                    }
+                } else {
+                    AsyncImage(
+                        modifier = imageModifier,
+                        model = picture.imgSrc,
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        alignment = Alignment.Center,
+                        onSuccess = { success ->
+                            val d = success.result.drawable
+                            val w = d.intrinsicWidth
+                            val h = d.intrinsicHeight
+                            if (w > 0) resolvedW = w
+                            if (h > 0) resolvedH = h
+                        }
+                    )
+                }
             }
         }
     }
