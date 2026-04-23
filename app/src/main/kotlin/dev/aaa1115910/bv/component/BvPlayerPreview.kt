@@ -10,9 +10,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import dev.aaa1115910.bv.player.AbstractVideoPlayer
-import dev.aaa1115910.bv.player.BvVideoPlayer
+import dev.aaa1115910.bv.player.BvPlayerSurface
 import dev.aaa1115910.bv.player.VideoPlayerListener
 import dev.aaa1115910.bv.player.VideoPlayerOptions
+import dev.aaa1115910.bv.player.impl.exo.ExoMediaPlayer
 import dev.aaa1115910.bv.player.impl.exo.ExoPlayerFactory
 
 private const val videoUrl = ""
@@ -67,15 +68,15 @@ private val videoPlayerListener = object : VideoPlayerListener {
 
 @Preview
 @Composable
-fun BvVideoPlayerExoPreview() {
+fun BvPlayerSurfaceExoPreview() {
     val context = LocalContext.current
     val exoPlayer by remember { mutableStateOf(ExoPlayerFactory().create(context, options)) }
 
-    BvVideoPlayerPreview(exoPlayer)
+    BvPlayerSurfacePreview(exoPlayer)
 }
 
 @Composable
-fun BvVideoPlayerPreview(
+fun BvPlayerSurfacePreview(
     player: AbstractVideoPlayer
 ) {
     LaunchedEffect(Unit) {
@@ -84,8 +85,8 @@ fun BvVideoPlayerPreview(
         player.prepare()
     }
 
-    BvVideoPlayer(
+    BvPlayerSurface(
         modifier = Modifier.fillMaxSize(),
-        videoPlayer = player,
+        player = (player as? ExoMediaPlayer)?.mPlayer,
     )
 }

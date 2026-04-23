@@ -4,22 +4,15 @@ import android.content.Context
 import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.Effect
-import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.effect.ScaleAndRotateTransformation
-import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.Renderer
-import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
-import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.source.MediaSource
-import androidx.media3.exoplayer.source.MergingMediaSource
-import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import dev.aaa1115910.bv.player.AbstractVideoPlayer
-import dev.aaa1115910.bv.player.OkHttpUtil
 import dev.aaa1115910.bv.player.VideoPlayerOptions
 import dev.aaa1115910.bv.player.formatMinSec
 
@@ -42,17 +35,14 @@ open class ExoMediaPlayer(
     /**
      * 不是“pipeline 是否 primed”，而是：
      * 当前这次 transform / prepare 之后，
-     * 在 PlayerView 真正完成绑定后，是否还需要补打一遍 effect。
+     * 在 surface 真正完成绑定后，是否还需要补打一遍 effect。
      */
     private var needsEffectReapplyAfterViewAttach: Boolean = false
     private var needsEffectReapplyAfterReady: Boolean = false
 
     @OptIn(UnstableApi::class)
     private val dataSourceFactory =
-        OkHttpDataSource.Factory(OkHttpUtil.generateCustomSslOkHttpClient(context)).apply {
-            options.userAgent?.let { setUserAgent(it) }
-            options.referer?.let { setDefaultRequestProperties(mapOf("referer" to it)) }
-        }
+        BvPlayerFactory.createDataSourceFactory(context, options)
 
     init {
         initPlayer()
@@ -69,39 +59,7 @@ open class ExoMediaPlayer(
         mPlayer?.release()
         mPlayer = null
 
-        val renderersFactory = DefaultRenderersFactory(context).apply {
-            setExtensionRendererMode(
-                when (options.enableFfmpegAudioRenderer) {
-                    true -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
-                    false -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
-                }
-            )
-            if (options.enableSoftwareVideoDecoder) {
-                // 强制软件解码
-                setMediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
-                    val allDecoders = MediaCodecUtil.getDecoderInfos(
-                        mimeType,
-                        requiresSecureDecoder,
-                        requiresTunnelingDecoder
-                    )
-                    val softwareDecoders = allDecoders.filter {
-                        it.name.startsWith("OMX.google.") || it.name.startsWith("c2.android.")
-                    }
-                    // 兜底回退
-                    softwareDecoders.ifEmpty { allDecoders }
-                }
-            } else {
-                // 默认硬件解码
-                setMediaCodecSelector(MediaCodecSelector.DEFAULT)
-            }
-        }
-
-        mPlayer = ExoPlayer
-            .Builder(context)
-            .setRenderersFactory(renderersFactory)
-            .setSeekForwardIncrementMs(1000 * 10)
-            .setSeekBackIncrementMs(1000 * 5)
-            .build()
+        mPlayer = BvPlayerFactory.createPlayer(context, options)
             .apply {
                 // 这里保持调用，确保 player 初始化后已有当前 effect 状态
                 applyCurrentVideoEffects()
@@ -163,7 +121,7 @@ open class ExoMediaPlayer(
 
     /**
      * 关键补丁：
-     * 当 PlayerView 已经把 player 重新挂上，并且 View 至少过了一帧消息循环后，
+     * 当 surface 已经把 player 重新挂上，并且至少过了一帧消息循环后，
      * 再把当前 effect 重新 apply 一次。
      */
     fun reapplyVideoEffectsAfterViewBound() {
@@ -193,23 +151,7 @@ open class ExoMediaPlayer(
         videoUrl: String?,
         audioUrl: String?
     ): MediaSource? {
-        val videoMediaSource = videoUrl?.let {
-            ProgressiveMediaSource.Factory(dataSourceFactory)
-                .createMediaSource(MediaItem.fromUri(it))
-        }
-        val audioMediaSource = audioUrl?.let {
-            ProgressiveMediaSource.Factory(dataSourceFactory)
-                .createMediaSource(MediaItem.fromUri(it))
-        }
-
-        val mediaSources = listOfNotNull(videoMediaSource, audioMediaSource)
-        if (mediaSources.isEmpty()) return null
-
-        return if (mediaSources.size == 1) {
-            mediaSources.first()
-        } else {
-            MergingMediaSource(*mediaSources.toTypedArray())
-        }
+        return BvPlayerFactory.createMediaSource(dataSourceFactory, videoUrl, audioUrl)
     }
 
     private fun hasNonIdentityVideoTransform(): Boolean {
