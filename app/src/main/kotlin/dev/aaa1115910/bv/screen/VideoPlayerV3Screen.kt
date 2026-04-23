@@ -33,7 +33,8 @@ import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.rememberCoAuthorsDialogState
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoListItem
-import dev.aaa1115910.bv.player.BvVideoPlayer
+import dev.aaa1115910.bv.player.BvPlayerSurface
+import dev.aaa1115910.bv.player.impl.exo.ExoMediaPlayer
 import dev.aaa1115910.bv.ui.effect.PlayerUiEffect
 import dev.aaa1115910.bv.ui.state.PlayerState
 import dev.aaa1115910.bv.util.DanmakuMaskFinder
@@ -323,12 +324,20 @@ fun VideoPlayerV3Screen(
                     .aspectRatio(displayAspectRatio)
             }
 
-            BvVideoPlayer(
-                modifier = playerModifier
-                    .align(Alignment.Center)
-                    .onGloballyPositioned { _ -> },
-                videoPlayer = videoPlayer,
-            )
+            val composeSurfacePlayer = (videoPlayer as? ExoMediaPlayer)?.mPlayer
+            val videoRenderModifier = playerModifier
+                .align(Alignment.Center)
+                .onGloballyPositioned { _ -> }
+
+            Box(
+                modifier = videoRenderModifier
+                    .background(Color.Black)
+            ) {
+                BvPlayerSurface(
+                    modifier = Modifier.fillMaxSize(),
+                    player = composeSurfacePlayer
+                )
+            }
 
             if (uiState.danmakuState.danmakuEnabled && danmakuPlayer != null) {
                 DanmakuPlayerCompose(

@@ -189,7 +189,6 @@ dependencies {
     implementation(androidx.media3.common)
     implementation(androidx.media3.decoder)
     implementation(androidx.media3.exoplayer)
-    implementation(androidx.media3.ui)
     implementation(androidx.room.ktx)
     implementation(androidx.room.runtime)
     implementation(androidx.webkit)
