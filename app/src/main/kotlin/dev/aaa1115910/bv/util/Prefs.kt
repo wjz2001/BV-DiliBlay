@@ -17,7 +17,6 @@ import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.component.controllers.DanmakuType
 import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.entity.Audio
-import dev.aaa1115910.bv.entity.PlayerType
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
@@ -286,15 +285,7 @@ object Prefs {
     var buvid by pref(PrefKeys.prefBuvidKey, "")
     var buvid3 by pref(PrefKeys.prefBuvid3Key, "")
 
-    var playerType by pref(
-        PrefKeys.prefPlayerTypeKey,
-        PlayerType.Media3,
-        save = { it.ordinal },
-        restore = { PlayerType.entries.getOrElse(it) { PlayerType.Media3 } }
-    )
-
     // 暴露 Flow 给 Compose 使用的示例
-//    val playerTypeFlow = flowMap[PrefKeys.prefPlayerTypeKey]!!.asStateFlow() // 需强转类型使用，或封装 helper
 
     var density by pref(
         PrefKeys.prefDensityKey,
@@ -476,7 +467,6 @@ private object PrefKeys {
     val prefShowFpsKey = booleanPreferencesKey("sf")
     val prefBuvidKey = stringPreferencesKey("random_buvid")
     val prefBuvid3Key = stringPreferencesKey("random_buvid3")
-    val prefPlayerTypeKey = intPreferencesKey("pt")
     val prefDensityKey = floatPreferencesKey("density")
     val prefThemeModeKey = intPreferencesKey("theme_mode")
     val prefFirstHomeTopNavItemKey = intPreferencesKey("first_home_top_nav")

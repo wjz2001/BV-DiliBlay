@@ -34,7 +34,6 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.controllers.DanmakuType
 import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.entity.Audio
-import dev.aaa1115910.bv.entity.PlayerType
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
@@ -511,7 +510,6 @@ class VideoPlayerV3ViewModel(
     fun initVideoPlayer(context: Context) {
         if (videoPlayer != null) return
 
-        logger.info { "Init video player: ${Prefs.playerType.name}" }
         val options = VideoPlayerOptions(
             userAgent = when (Prefs.apiType) {
                 ApiType.Web -> context.getString(R.string.video_player_user_agent_http)
@@ -525,9 +523,7 @@ class VideoPlayerV3ViewModel(
             enableSoftwareVideoDecoder = Prefs.enableSoftwareVideoDecoder
         )
 
-        val player = when (Prefs.playerType) {
-            PlayerType.Media3 -> ExoPlayerFactory().create(context.applicationContext, options)
-        }
+        val player = ExoPlayerFactory().create(context.applicationContext, options)
 
         attachPlayer(player)
     }
