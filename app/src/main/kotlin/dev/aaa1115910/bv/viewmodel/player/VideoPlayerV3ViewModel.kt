@@ -248,11 +248,19 @@ class VideoPlayerV3ViewModel(
 
     private val ugcPagesPrefetchDelayMs = 800L
     private val ugcPagesPrefetchFailureDelayMs = 3000L
+    private val bufferingShowDelayMs = 150L
+    private val bufferingMinShowMs = 400L
 
     private val loadGeneration = AtomicLong(0L)
 
     @Volatile
     private var activeLoadGeneration: Long = 0L
+    private var bufferingShowJob: Job? = null
+    private var bufferingHideJob: Job? = null
+    @Volatile
+    private var isRawBuffering: Boolean = false
+    @Volatile
+    private var bufferingVisibleSinceMs: Long = 0L
 
     private val videoPlayerListener = object : VideoPlayerListener {
         override fun onError(error: Exception) {
@@ -280,6 +288,7 @@ class VideoPlayerV3ViewModel(
 
             Log.e("BugDebug", "ViewModel onError -> PlayerState.Error", error)
             logger.info { "onError: $error" }
+            onBufferingStateChanged(false)
             _uiState.update {
                 it.copy(
                     playerState = PlayerState.Error(
@@ -292,6 +301,7 @@ class VideoPlayerV3ViewModel(
         override fun onReady() {
             logger.info { "onReady" }
             _uiState.update { it.copy(playerState = PlayerState.Ready) }
+            onBufferingStateChanged(false)
 
             val tempSpeed = tempPlaySpeedOverride
             if (tempSpeed != null) {
@@ -307,7 +317,8 @@ class VideoPlayerV3ViewModel(
         override fun onPlay() {
             logger.info { "onPlay" }
             withDanmakuPlayerLocked { danmakuPlayer?.start() }
-            _uiState.update { it.copy(playerState = PlayerState.Playing, isBuffering = false) }
+            _uiState.update { it.copy(playerState = PlayerState.Playing) }
+            onBufferingStateChanged(false)
 
             if (_uiState.value.lastPlayed > 0) {
                 seekToLastPlayed()
@@ -324,13 +335,14 @@ class VideoPlayerV3ViewModel(
         override fun onBuffering() {
             logger.info { "onBuffering" }
             withDanmakuPlayerLocked { danmakuPlayer?.pause() }
-            _uiState.update { it.copy(isBuffering = true) }
+            onBufferingStateChanged(true)
         }
 
         override fun onEnd() {
             logger.info { "onEnd" }
             withDanmakuPlayerLocked { danmakuPlayer?.pause() }
             stopSeekerUpdater()
+            onBufferingStateChanged(false)
 
             _uiState.update { it.copy(playerState = PlayerState.Ended) }
             viewModelScope.launch {
@@ -1335,6 +1347,51 @@ class VideoPlayerV3ViewModel(
         }
     }
 
+    private fun setBufferingVisible(visible: Boolean) {
+        _uiState.update { state ->
+            if (state.isBuffering == visible) state else state.copy(isBuffering = visible)
+        }
+    }
+
+    private fun forceShowBufferingTip() {
+        isRawBuffering = true
+        bufferingShowJob?.cancel()
+        bufferingHideJob?.cancel()
+        bufferingVisibleSinceMs = System.currentTimeMillis()
+        setBufferingVisible(true)
+    }
+
+    private fun onBufferingStateChanged(buffering: Boolean) {
+        isRawBuffering = buffering
+        if (buffering) {
+            bufferingHideJob?.cancel()
+            if (_uiState.value.isBuffering) return
+            bufferingShowJob?.cancel()
+            bufferingShowJob = viewModelScope.launch {
+                delay(bufferingShowDelayMs)
+                if (!isRawBuffering) return@launch
+                bufferingVisibleSinceMs = System.currentTimeMillis()
+                setBufferingVisible(true)
+            }
+            return
+        }
+
+        bufferingShowJob?.cancel()
+        if (!_uiState.value.isBuffering) return
+
+        bufferingHideJob?.cancel()
+        bufferingHideJob = viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val remainMs = (bufferingVisibleSinceMs + bufferingMinShowMs - now).coerceAtLeast(0L)
+            if (remainMs > 0L) {
+                delay(remainMs)
+            }
+            if (!isRawBuffering) {
+                setBufferingVisible(false)
+            }
+        }
+    }
+
     fun seekToTime(time: Long) {
         videoPlayer?.seekTo(time)
         _seekerState.update { it.copy(currentTime = time) }
@@ -1374,7 +1431,6 @@ class VideoPlayerV3ViewModel(
 
         _uiState.update {
             it.copy(
-                isBuffering = true,
                 aid = newVideo.aid,
                 cid = newVideo.cid,
                 epid = newVideo.epid,
@@ -1382,6 +1438,7 @@ class VideoPlayerV3ViewModel(
                 title = newVideo.title
             )
         }
+        forceShowBufferingTip()
 
         val immediatePartTitle = partTitleOverride
             ?.trim()
@@ -2959,6 +3016,8 @@ class VideoPlayerV3ViewModel(
         backToStartCountdownJob?.cancel()
         previewTipCountdownJob?.cancel()
         ugcPagesPrefetchJob?.cancel()
+        bufferingShowJob?.cancel()
+        bufferingHideJob?.cancel()
         clearDanmakuXmlBytesCache()
 
         runCatching { subtitleHttpClient.close() }
