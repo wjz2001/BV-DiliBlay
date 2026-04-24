@@ -27,4 +27,7 @@ interface VideoPlayerListener {
     /** 前进 */
     fun onSeekForward(seekForwardIncrementMs: Long)
 
+    /** 首帧渲染完成 */
+    fun onRenderedFirstFrame() {}
+
 }

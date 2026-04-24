@@ -263,6 +263,10 @@ open class ExoMediaPlayer(
         }
     }
 
+    override fun onRenderedFirstFrame() {
+        mPlayerEventListener?.onRenderedFirstFrame()
+    }
+
     override fun onSeekBackIncrementChanged(seekBackIncrementMs: Long) {
         mPlayerEventListener?.onSeekBack(seekBackIncrementMs)
     }

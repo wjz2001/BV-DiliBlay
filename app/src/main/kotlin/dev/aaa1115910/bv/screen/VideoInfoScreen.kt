@@ -60,6 +60,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -158,6 +159,7 @@ import dev.aaa1115910.bv.component.buttons.LikeButton
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+import dev.aaa1115910.bv.repository.StartupCoverRepository
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.effect.VideoDetailUiEffect
 
@@ -535,6 +537,7 @@ fun VideoInfoScreen(
                                     favoriteFolderIds = uiState.videoFavoriteFolderIds.toList(),
                                     onClickCover = {
                                         logger.fInfo { "Click video cover" }
+                                        StartupCoverRepository.put(videoDetailState.aid, videoDetailState.cover)
                                         playCurrentVideo(videoDetailState.lastPlayedCid.takeIf { it != 0L })
                                     },
                                     onClickUp = {
@@ -625,6 +628,8 @@ fun VideoInfoScreen(
 
                                             val episodeDisplayTitle =
                                                 episode.longTitle.ifBlank { episode.title }
+
+                                            StartupCoverRepository.put(episode.aid, episode.cover)
 
                                             if (Prefs.showVideoInfo) {
                                                 VideoInfoActivity.actionStart(context, episode.aid)
@@ -1255,7 +1260,7 @@ fun VideoDescriptionDialog(
         val inlineRects = remember(description) { mutableStateMapOf<Int, Rect>() }
         var viewportRect by remember(description) { mutableStateOf<Rect?>(null) }
         var navDir by remember(description) { mutableStateOf(VideoDescriptionNavDir.None) }
-        var cursorY by remember(description) { mutableStateOf(0f) }
+        var cursorY by remember(description) { mutableFloatStateOf(0f) }
         var keepCursorOnBodyFocus by remember(description) { mutableStateOf(false) }
 
         fun Rect.isVisibleIn(view: Rect, marginPx: Float): Boolean {
@@ -1276,7 +1281,7 @@ fun VideoDescriptionDialog(
             var bestY = Float.POSITIVE_INFINITY
             for ((idx, _) in inlineRects) {
                 val y = contentYOf(idx) ?: continue
-                if (y >= afterY && y < bestY) {
+                if (y in afterY..<bestY) {
                     bestY = y
                     bestIdx = idx
                 }
@@ -1369,7 +1374,7 @@ fun VideoDescriptionDialog(
             }
         }
 
-        LaunchedEffect(show, scrollState.maxValue, interactiveFocusRequesters.size) {
+        LaunchedEffect(scrollState.maxValue, interactiveFocusRequesters.size) {
             if (show && (scrollState.maxValue > 0 || interactiveFocusRequesters.isNotEmpty())) {
                 bodyFocusRequester.requestFocus()
             }
@@ -1663,7 +1668,7 @@ private fun VideoDescriptionRichContentContent(
             val inlineRects = remember(document.title) { mutableStateMapOf<Int, Rect>() }
             var viewportRect by remember(document.title) { mutableStateOf<Rect?>(null) }
             var navDir by remember(document.title) { mutableStateOf(VideoDescriptionNavDir.None) }
-            var cursorY by remember(document.title) { mutableStateOf(0f) }
+            var cursorY by remember(document.title) { mutableFloatStateOf(0f) }
             var keepCursorOnBodyFocus by remember(document.title) { mutableStateOf(false) }
             var bodyIsFocused by remember(document.title) { mutableStateOf(false) }
             var bodyHasFocus by remember(document.title) { mutableStateOf(false) }
@@ -1688,7 +1693,7 @@ private fun VideoDescriptionRichContentContent(
                 var bestY = Float.POSITIVE_INFINITY
                 for ((idx, _) in inlineRects) {
                     val y = contentYOf(idx) ?: continue
-                    if (y >= afterY && y < bestY) {
+                    if (y in afterY..<bestY) {
                         bestY = y
                         bestIdx = idx
                     }

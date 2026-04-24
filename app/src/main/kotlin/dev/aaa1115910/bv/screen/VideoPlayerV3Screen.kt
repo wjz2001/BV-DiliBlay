@@ -1,6 +1,8 @@
 package dev.aaa1115910.bv.screen
 
 import android.app.Activity
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -20,8 +22,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskFrame
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.CoAuthorsDialogHost
@@ -35,6 +40,7 @@ import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.player.BvPlayerSurface
 import dev.aaa1115910.bv.player.impl.exo.ExoMediaPlayer
+import dev.aaa1115910.bv.repository.StartupCoverRepository
 import dev.aaa1115910.bv.ui.effect.PlayerUiEffect
 import dev.aaa1115910.bv.ui.state.PlayerState
 import dev.aaa1115910.bv.util.DanmakuMaskFinder
@@ -63,6 +69,14 @@ fun VideoPlayerV3Screen(
     val uiState by playerViewModel.uiState.collectAsState()
     val seekerState = playerViewModel.seekerState.collectAsState()
     val latestPlayerState by rememberUpdatedState(uiState.playerState)
+    val startupCoverAlpha by animateFloatAsState(
+        targetValue = if (
+            uiState.startupCover.isNotBlank() &&
+            !(uiState.hasRenderedFirstFrame && uiState.hasStartedPlayback)
+        ) 1f else 0f,
+        animationSpec = tween(durationMillis = 180),
+        label = "startupCoverAlpha"
+    )
 
     val coAuthorsDialogState = rememberCoAuthorsDialogState()
     var lastCoAuthorsDialogVisible by remember { mutableStateOf(false) }
@@ -258,6 +272,7 @@ fun VideoPlayerV3Screen(
             playerViewModel.updateSubtitleState(action)
         },
         onRelatedVideoClicked = { video ->
+            StartupCoverRepository.put(video.avid, video.cover)
             video.cid?.let {
                 playerViewModel.playNewVideo(
                     VideoListItem(
@@ -337,6 +352,24 @@ fun VideoPlayerV3Screen(
                     modifier = Modifier.fillMaxSize(),
                     player = composeSurfacePlayer
                 )
+            }
+
+            if (startupCoverAlpha > 0f) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(AppBlack.copy(alpha = startupCoverAlpha))
+                ) {
+                    AsyncImage(
+                        model = uiState.startupCover,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .align(Alignment.Center)
+                            .graphicsLayer(alpha = startupCoverAlpha),
+                        contentScale = ContentScale.Fit
+                    )
+                }
             }
 
             if (uiState.danmakuState.danmakuEnabled && danmakuPlayer != null) {

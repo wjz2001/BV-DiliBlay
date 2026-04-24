@@ -84,6 +84,7 @@ import dev.aaa1115910.bv.component.TvGridBringIntoViewMode
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
+import dev.aaa1115910.bv.repository.StartupCoverRepository
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
 
@@ -256,6 +257,13 @@ private fun SmallVideoCardCore(
         }
     }
 
+    val onClickWithStartupCover = remember(data.avid, data.cover, onClick) {
+        {
+            StartupCoverRepository.put(data.avid, data.cover)
+            onClick()
+        }
+    }
+
     Column(modifier = modifier.fillMaxWidth()) {
         BvSmallVideoCardFrame(
             modifier = frameModifier,
@@ -264,7 +272,7 @@ private fun SmallVideoCardCore(
             allowDismissActionsOnFocusLoss = allowDismissActionsOnFocusLoss,
             cardFocusRequester = cardFocusRequester,
             focusedScale = focusedScale,
-            onClick = onClick,
+            onClick = onClickWithStartupCover,
             onLongClick = { showActions = true },
             onDismissActions = { showActions = false }
         ) {

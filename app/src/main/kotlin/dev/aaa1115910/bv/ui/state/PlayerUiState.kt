@@ -31,6 +31,7 @@ data class PlayerUiState(
     val coAuthors: List<dev.aaa1115910.biliapi.entity.user.CoAuthor> = emptyList(),
     val title: String = "",
     val partTitle: String = "",
+    val startupCover: String = "",
     val videoHeight: Int = 0,
     val videoWidth: Int = 0,
     val lastPlayed: Int = 0,
@@ -86,6 +87,8 @@ data class PlayerUiState(
     val subtitleState: SubtitleState = SubtitleState(),
     val subtitleId: Long = -1L,
     val subtitleData: List<SubtitleItem> = emptyList(),
+    val hasRenderedFirstFrame: Boolean = false,
+    val hasStartedPlayback: Boolean = false,
 )
 
 // 2. 播放器进度条状态 (高频更新)

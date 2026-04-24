@@ -46,6 +46,7 @@ import dev.aaa1115910.bv.player.VideoPlayerListener
 import dev.aaa1115910.bv.player.VideoPlayerOptions
 import dev.aaa1115910.bv.player.impl.exo.ExoPlayerFactory
 import dev.aaa1115910.bv.player.impl.exo.ExoMediaPlayer
+import dev.aaa1115910.bv.repository.StartupCoverRepository
 import dev.aaa1115910.bv.repository.VideoInfoRepository
 import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
 import dev.aaa1115910.bv.ui.effect.PlayerUiEffect
@@ -317,7 +318,12 @@ class VideoPlayerV3ViewModel(
         override fun onPlay() {
             logger.info { "onPlay" }
             withDanmakuPlayerLocked { danmakuPlayer?.start() }
-            _uiState.update { it.copy(playerState = PlayerState.Playing) }
+            _uiState.update {
+                it.copy(
+                    playerState = PlayerState.Playing,
+                    hasStartedPlayback = true
+                )
+            }
             onBufferingStateChanged(false)
 
             if (_uiState.value.lastPlayed > 0) {
@@ -352,6 +358,11 @@ class VideoPlayerV3ViewModel(
 
         override fun onSeekBack(seekBackIncrementMs: Long) {}
         override fun onSeekForward(seekForwardIncrementMs: Long) {}
+        override fun onRenderedFirstFrame() {
+            _uiState.update {
+                if (it.hasRenderedFirstFrame) it else it.copy(hasRenderedFirstFrame = true)
+            }
+        }
     }
 
     init {
@@ -468,12 +479,15 @@ class VideoPlayerV3ViewModel(
                 seasonId = seasonId,
                 title = title,
                 partTitle = partTitle,
+                startupCover = StartupCoverRepository.get(aid),
                 lastPlayed = lastPlayed,
                 fromSeason = fromSeason,
                 subType = subType,
                 proxyArea = proxyArea,
                 authorMid = authorMid,
                 authorName = authorName,
+                hasRenderedFirstFrame = false,
+                hasStartedPlayback = false,
                 mediaProfileState = MediaProfileState(
                     qualityId = Prefs.defaultQuality.code,
                     videoCodec = Prefs.defaultVideoCodec,
@@ -563,6 +577,13 @@ class VideoPlayerV3ViewModel(
             return
         }
 
+        _uiState.update {
+            it.copy(
+                hasRenderedFirstFrame = false,
+                hasStartedPlayback = false
+            )
+        }
+
         loadPlayUrl(
             avid = state.aid,
             cid = state.cid,
@@ -628,6 +649,12 @@ class VideoPlayerV3ViewModel(
         }
 
         needRecreateOnStart = false
+        _uiState.update {
+            it.copy(
+                hasRenderedFirstFrame = false,
+                hasStartedPlayback = false
+            )
+        }
 
         try {
             val player = videoPlayer
@@ -664,6 +691,12 @@ class VideoPlayerV3ViewModel(
 
             val cachedPlayData = playData
             if (cachedPlayData != null) {
+                _uiState.update {
+                    it.copy(
+                        hasRenderedFirstFrame = false,
+                        hasStartedPlayback = false
+                    )
+                }
                 runCatching {
                     playQuality(
                         playData = cachedPlayData,
@@ -1435,7 +1468,10 @@ class VideoPlayerV3ViewModel(
                 cid = newVideo.cid,
                 epid = newVideo.epid,
                 seasonId = newVideo.seasonId ?: 0,
-                title = newVideo.title
+                title = newVideo.title,
+                startupCover = StartupCoverRepository.get(newVideo.aid),
+            hasRenderedFirstFrame = false,
+            hasStartedPlayback = false
             )
         }
         forceShowBufferingTip()
