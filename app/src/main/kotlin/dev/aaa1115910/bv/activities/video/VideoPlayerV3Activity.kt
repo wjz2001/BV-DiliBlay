@@ -38,7 +38,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
             cid: Long,
             title: String,
             partTitle: String,
-            played: Int,
+            played: Long,
             fromSeason: Boolean,
             subType: Int? = null,
             epid: Int? = null,
@@ -185,7 +185,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
             val cid = intent.getLongExtra("cid", 170001)
             val title = intent.getStringExtra("title") ?: "Unknown Title"
             val partTitle = intent.getStringExtra("partTitle").orEmpty()
-            val played = intent.getIntExtra("played", 0)
+            val played = intent.getLongExtra("played", 0)
             val fromSeason = intent.getBooleanExtra("fromSeason", false)
             val subType = intent.getIntExtra("subType", 0)
             val epid = intent.getIntExtra("epid", 0)

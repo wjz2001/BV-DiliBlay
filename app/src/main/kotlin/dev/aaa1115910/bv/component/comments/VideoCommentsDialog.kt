@@ -618,7 +618,7 @@ fun VideoCommentsDialog(
                                                         cid = link.cid,
                                                         title = link.title,
                                                         partTitle = "",
-                                                        played = 0,
+                                                        played = 0L,
                                                         fromSeason = false
                                                     )
                                                 }
@@ -711,7 +711,7 @@ fun VideoCommentsDialog(
                                                                 cid = link.cid,
                                                                 title = link.title,
                                                                 partTitle = "",
-                                                                played = 0,
+                                                                played = 0L,
                                                                 fromSeason = false
                                                             )
                                                         }
@@ -757,7 +757,7 @@ fun VideoCommentsDialog(
                                                 cid = link.cid,
                                                 title = link.title,
                                                 partTitle = "",
-                                                played = 0,
+                                                played = 0L,
                                                 fromSeason = false
                                             )
                                         }

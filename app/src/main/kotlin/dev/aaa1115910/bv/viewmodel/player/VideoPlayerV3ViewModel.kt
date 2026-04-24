@@ -328,7 +328,7 @@ class VideoPlayerV3ViewModel(
 
             if (_uiState.value.lastPlayed > 0) {
                 seekToLastPlayed()
-                _uiState.update { it.copy(lastPlayed = 0) }
+                _uiState.update { it.copy(lastPlayed = 0L) }
             }
         }
 
@@ -463,7 +463,7 @@ class VideoPlayerV3ViewModel(
         epid: Int?,
         title: String,
         partTitle: String,
-        lastPlayed: Int,
+        lastPlayed: Long,
         fromSeason: Boolean,
         subType: Int,
         seasonId: Int,
@@ -479,7 +479,7 @@ class VideoPlayerV3ViewModel(
                 seasonId = seasonId,
                 title = title,
                 partTitle = partTitle,
-                startupCover = StartupCoverRepository.get(aid),
+                startupCover = StartupCoverRepository[aid],
                 lastPlayed = lastPlayed,
                 fromSeason = fromSeason,
                 subType = subType,
@@ -623,12 +623,11 @@ class VideoPlayerV3ViewModel(
         pendingResumePositionMs = pos.coerceAtLeast(0L)
         needRecreateOnStart = true
 
-        val resumeSec = (pendingResumePositionMs / 1000L).toInt().coerceAtLeast(0)
-        _uiState.update { it.copy(lastPlayed = resumeSec) }
+        _uiState.update { it.copy(lastPlayed = pendingResumePositionMs) }
 
         Log.i(
             "BugDebug",
-            "ViewModel onHostStopReleaseForRecreate: posMs=$pendingResumePositionMs resumeSec=$resumeSec"
+            "ViewModel onHostStopReleaseForRecreate: posMs=$pendingResumePositionMs"
         )
 
         runCatching {
@@ -707,7 +706,7 @@ class VideoPlayerV3ViewModel(
                     )
                     if (pendingResumePositionMs > 0) {
                         player.seekTo(pendingResumePositionMs)
-                        _uiState.update { it.copy(lastPlayed = 0) }
+                        _uiState.update { it.copy(lastPlayed = 0L) }
                     }
                     player.setOptions()
                     player.start()
@@ -746,8 +745,7 @@ class VideoPlayerV3ViewModel(
         allowFastResumeOnNextStart = true
 
         pendingResumePositionMs = player.currentPosition.coerceAtLeast(0L)
-        val resumeSec = (pendingResumePositionMs / 1000L).toInt().coerceAtLeast(0)
-        _uiState.update { it.copy(lastPlayed = resumeSec) }
+        _uiState.update { it.copy(lastPlayed = pendingResumePositionMs) }
 
         Log.i(
             "BugDebug",
@@ -788,7 +786,20 @@ class VideoPlayerV3ViewModel(
 
         Log.i("BugDebug", "ViewModel onHostStartFastResumeOrRecreate: fast resume")
         allowFastResumeOnNextStart = false
-        runCatching { videoPlayer?.start() }
+        runCatching {
+            videoPlayer?.let { player ->
+                val currentPosition = player.currentPosition.coerceAtLeast(0L)
+                val shouldSeekToPendingPosition = pendingResumePositionMs > 0 &&
+                        (currentPosition == 0L || pendingResumePositionMs - currentPosition > 1000L)
+
+                if (shouldSeekToPendingPosition) {
+                    player.seekTo(pendingResumePositionMs)
+                    _uiState.update { it.copy(lastPlayed = 0L) }
+                }
+
+                player.start()
+            }
+        }
     }
 
     fun loadSubtitle(
@@ -2826,7 +2837,7 @@ class VideoPlayerV3ViewModel(
     }
 
     private fun seekToLastPlayed() {
-        val time = _uiState.value.lastPlayed.toLong()
+        val time = _uiState.value.lastPlayed
         logger.fInfo { "Back to history: ${time.formatHourMinSec()}" }
 
         videoPlayer?.seekTo(time)

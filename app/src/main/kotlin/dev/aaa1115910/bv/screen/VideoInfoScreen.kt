@@ -308,9 +308,9 @@ fun VideoInfoScreen(
         val videoDetailState = uiState.videoDetailState ?: return
 
         val playedTime = if (targetCid == videoDetailState.lastPlayedCid) {
-            videoDetailState.lastPlayedTime * 1000
+            videoDetailState.lastPlayedTime * 1000L
         } else {
-            0
+            0L
         }
 
         if (lastPlayedAid != targetAid) {
@@ -1470,7 +1470,7 @@ fun VideoDescriptionDialog(
                                         cid = link.cid,
                                         title = link.title,
                                         partTitle = "",
-                                        played = 0,
+                                        played = 0L,
                                         fromSeason = false
                                     )
                                 }
@@ -1538,7 +1538,7 @@ fun VideoDescriptionDialog(
                         cid = link.cid,
                         title = link.title,
                         partTitle = "",
-                        played = 0,
+                        played = 0L,
                         fromSeason = false
                     )
                 }

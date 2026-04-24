@@ -34,7 +34,7 @@ data class PlayerUiState(
     val startupCover: String = "",
     val videoHeight: Int = 0,
     val videoWidth: Int = 0,
-    val lastPlayed: Int = 0,
+    val lastPlayed: Long = 0L,
     val fromSeason: Boolean = false,
     val proxyArea: ProxyArea = ProxyArea.MainLand,
     val subType: Int = 0,
