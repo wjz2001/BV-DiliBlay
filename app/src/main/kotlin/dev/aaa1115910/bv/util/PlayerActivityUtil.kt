@@ -11,7 +11,7 @@ fun launchPlayerActivity(
     cid: Long,
     title: String,
     partTitle: String,
-    played: Int,
+    played: Long,
     fromSeason: Boolean,
     subType: Int? = null,
     epid: Int? = null,
