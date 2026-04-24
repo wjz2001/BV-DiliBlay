@@ -41,6 +41,7 @@ import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.VideoRotation
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+import dev.aaa1115910.bv.repository.StartupCoverRepository
 import dev.aaa1115910.bv.ui.state.PlayerState
 import dev.aaa1115910.bv.ui.state.PlayerUiState
 import dev.aaa1115910.bv.ui.state.SeekerState
@@ -475,6 +476,7 @@ fun VideoPlayerController(
                     showRelatedVideosController = true
                 },
                 onGoToVideoInfo = {
+                    StartupCoverRepository.put(aid, uiState.startupCover)
                     VideoInfoActivity.actionStart(
                         context = context,
                         aid = aid,
