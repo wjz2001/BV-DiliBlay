@@ -1,13 +1,5 @@
 <resources>
-
-    <style name="Theme.BV.Splash" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">@color/app_window_background</item>
-        <item name="postSplashScreenTheme">@style/Theme.BV</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
-    </style>
-
     <style name="Theme.BV" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowBackground">@color/app_window_background</item>
-
     </style>
 </resources>

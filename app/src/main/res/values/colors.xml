@@ -2,6 +2,5 @@
 <resources>
     <color name="app_vector_icon_color">#111827</color>
     <color name="app_window_background">#F2F4F7</color>
-    <color name="ic_launcher_background">#000000</color>
     <color name="ic_banner_background">#000000</color>
 </resources>
