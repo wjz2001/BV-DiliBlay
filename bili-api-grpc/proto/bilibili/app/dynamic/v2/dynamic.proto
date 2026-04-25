@@ -2856,19 +2856,19 @@ message LineParagraph {
 //
 message LinkNode {
     //
-    string show_text = 1;
+    bytes show_text = 1;
     //
-    string link = 2;
+    bytes link = 2;
     //
-    string icon = 3;
+    bytes icon = 3;
     //
-    string icon_suffix = 4;
+    bytes icon_suffix = 4;
     //
-    string link_type = 5;
+    bytes link_type = 5;
     //
     LinkNodeType link_type_enum = 6;
     //
-    string biz_id = 7;
+    bytes biz_id = 7;
     //
     int64 timestamp = 8;
     //
