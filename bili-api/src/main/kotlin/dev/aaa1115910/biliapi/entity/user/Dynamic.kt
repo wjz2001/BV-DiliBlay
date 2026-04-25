@@ -132,6 +132,25 @@ data class DynamicVideo(
                     )
                 }
 
+                ModuleDynamic.ModuleItemCase.DYN_UGC_SEASON -> {
+                    val ugcSeason = dynamic.dynUgcSeason
+                    return DynamicVideo(
+                        aid = ugcSeason.avid,
+                        bvid = null,
+                        cid = ugcSeason.cid,
+                        epid = null,
+                        seasonId = null,
+                        title = ugcSeason.title,
+                        cover = ugcSeason.cover,
+                        author = author.author.name,
+                        authorMid = author.author.mid,
+                        duration = ugcSeason.duration.toInt(),
+                        play = convertStringPlayCountToNumberPlayCount(ugcSeason.coverLeftText1),
+                        danmaku = convertStringPlayCountToNumberPlayCount(ugcSeason.coverLeftText2),
+                        pubTime = author.ptimeLabelText.substringBefore(" ")
+                    )
+                }
+
                 else -> return null
             }
         }
