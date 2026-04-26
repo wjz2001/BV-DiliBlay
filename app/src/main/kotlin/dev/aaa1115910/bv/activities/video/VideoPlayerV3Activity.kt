@@ -15,7 +15,6 @@ import dev.aaa1115910.biliapi.entity.user.Author
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.screen.VideoPlayerV3Screen
 import dev.aaa1115910.bv.ui.theme.BVTheme
-import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.viewmodel.player.VideoPlayerV3ViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -78,19 +77,14 @@ class VideoPlayerV3Activity : ComponentActivity() {
         // 2. 初始化播放器
         playerViewModel.initVideoPlayer(applicationContext)
 
-        // 3. 初始化弹幕播放器
-        if (Prefs.defaultDanmakuEnabled) {
-            playerViewModel.safeInitDanmakuPlayer()
-        }
-
-        // 4. 设置 UI
+        // 3. 设置 UI
         setContent {
             BVTheme {
                 VideoPlayerV3Screen()
             }
         }
 
-        // 5. 显式加载资源并开始播放
+        // 4. 显式加载资源并开始播放
         //playerViewModel.loadVideoWithResources()
     }
 
@@ -150,7 +144,6 @@ class VideoPlayerV3Activity : ComponentActivity() {
             .show(WindowInsetsCompat.Type.systemBars())
 
         playerViewModel.videoPlayer?.pause()
-        playerViewModel.safePauseDanmakuPlayer()
     }
 
     override fun onStop() {
@@ -175,7 +168,6 @@ class VideoPlayerV3Activity : ComponentActivity() {
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (isFinishing) {
             playerViewModel.detachPlayer()
-            playerViewModel.safeReleaseDanmakuPlayer()
         }
     }
 

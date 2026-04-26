@@ -6,7 +6,6 @@ import dev.aaa1115910.biliapi.http.BiliHttpApi.getRegionDynamic
 import dev.aaa1115910.biliapi.http.entity.BiliResponse
 import dev.aaa1115910.biliapi.http.entity.BiliResponseWithoutData
 import dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuData
-import dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuResponse
 import dev.aaa1115910.biliapi.http.entity.dynamic.DynamicData
 import dev.aaa1115910.biliapi.http.entity.history.HistoryData
 import dev.aaa1115910.biliapi.http.entity.home.RcmdIndexData
@@ -84,9 +83,9 @@ import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsText
 import io.ktor.client.statement.readRawBytes
 import io.ktor.client.statement.bodyAsChannel
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.Parameters
 import io.ktor.http.URLProtocol
 import io.ktor.serialization.kotlinx.json.json
@@ -101,7 +100,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import org.jsoup.nodes.Document
 import java.io.InputStream
-import javax.xml.parsers.DocumentBuilderFactory
 
 object BiliHttpApi {
     private var endPoint: String = "api.bilibili.com"
@@ -353,218 +351,45 @@ object BiliHttpApi {
         header("referer", "https://www.bilibili.com")
     }.body()
 
-    class NonXmlDanmakuResponseException(
-        val code: Int?,
-        val serverMessage: String?,
-        val responsePreview: String,
-    ) : IllegalStateException(
-        "Danmaku API returned non-XML response: code=${code ?: "unknown"}, message=${serverMessage ?: "unknown"}, preview=$responsePreview"
-    )
-
-    private val danmakuJsonCodeRegex = Regex(""""code"\s*:\s*(-?\d+)""")
-    private val danmakuJsonMessageRegex = Regex("\"message\"\\s*:\\s*\"([^\"]*)\"")
-
-    private fun buildNonXmlDanmakuException(rawText: String): NonXmlDanmakuResponseException {
-        val trimmed = rawText.trim()
-        val code = danmakuJsonCodeRegex.find(trimmed)?.groupValues?.getOrNull(1)?.toIntOrNull()
-        val message = danmakuJsonMessageRegex.find(trimmed)?.groupValues?.getOrNull(1)
-        val preview = trimmed.take(200)
-        return NonXmlDanmakuResponseException(code = code, serverMessage = message, responsePreview = preview)
-    }
-
-    // 通过[cid]获取视频弹幕
-    suspend fun getDanmakuXml(
+    /**
+     * 通过[cid]和[avid]获取视频弹幕
+     * 支持分段获取
+     *
+     * @param cid 视频 cid
+     * @param avid 视频 avid
+     * @param segmentIndex 分段索引，从 1 开始。每 6min 一包
+     * @param sessData 用户认证 cookie
+     * @return 弹幕数据列表
+     */
+    suspend fun getDanmakuSeg(
         cid: Long,
+        avid: Long,
+        segmentIndex: Int = 1,
         sessData: String = ""
-    ): DanmakuResponse {
-        val rawBytes = client.get("/x/v1/dm/list.so") {
+    ): List<DanmakuData> {
+        val responseBytes = client.get("/x/v2/dm/wbi/web/seg.so") {
+            parameter("type", 1)
             parameter("oid", cid)
+            parameter("pid", avid)
+            parameter("segment_index", segmentIndex.coerceAtLeast(1))
             header("Cookie", "SESSDATA=$sessData;")
             header("referer", "https://www.bilibili.com")
         }.readRawBytes()
 
-        val rawText = rawBytes.toString(Charsets.UTF_8)
-        val trimmed = rawText.trimStart()
-        if (!trimmed.startsWith("<")) {
-            throw buildNonXmlDanmakuException(rawText)
-        }
-
-        val dbFactory = DocumentBuilderFactory.newInstance()
-        val dBuilder = dbFactory.newDocumentBuilder()
-        val doc = withContext(Dispatchers.IO) {
-            dBuilder.parse(rawBytes.inputStream())
-        }
-        doc.documentElement.normalize()
-
-        val chatServer = doc.getElementsByTagName("chatserver").item(0).textContent
-        val chatId = doc.getElementsByTagName("chatid").item(0).textContent.toLong()
-        val maxLimit = doc.getElementsByTagName("maxlimit").item(0).textContent.toInt()
-        val state = doc.getElementsByTagName("state").item(0).textContent.toInt()
-        val realName = doc.getElementsByTagName("real_name").item(0).textContent.toInt()
-        val source = runCatching {
-            doc.getElementsByTagName("source").item(0).textContent
-        }.getOrDefault("")
-
-        val data = mutableListOf<DanmakuData>()
-        val danmakuNodes = doc.getElementsByTagName("d")
-
-        for (i in 0 until danmakuNodes.length) {
-            val danmakuNode = danmakuNodes.item(i)
-            val p = danmakuNode.attributes.item(0).textContent
-            val text = danmakuNode.textContent
-            data.add(DanmakuData.fromString(p, text))
-        }
-
-        return DanmakuResponse(chatServer, chatId, maxLimit, state, realName, source, data)
-    }
-
-    private class StopDanmakuParsingException : org.xml.sax.SAXException("stop")
-
-    private fun newDanmakuSaxParser(): javax.xml.parsers.SAXParser {
-        val saxFactory = javax.xml.parsers.SAXParserFactory.newInstance()
-        saxFactory.isNamespaceAware = false
-
-        runCatching {
-            saxFactory.setFeature(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING, true)
-        }
-        runCatching {
-            saxFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
-        }
-        runCatching {
-            saxFactory.setFeature("http://xml.org/sax/features/external-general-entities", false)
-        }
-        runCatching {
-            saxFactory.setFeature("http://xml.org/sax/features/external-parameter-entities", false)
-        }
-        runCatching {
-            saxFactory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
-        }
-
-        return saxFactory.newSAXParser()
-    }
-
-    /**
-     * 下载弹幕 XML（解压后的 bytes）。
-     *
-     * 用于“同一个 cid 反复开关弹幕”时复用，避免重复网络下载。
-     * 这是 bytes 缓存路线，不是纯网络流式。
-     */
-    suspend fun getDanmakuXmlBytes(
-        cid: Long,
-        sessData: String = ""
-    ): ByteArray {
-        val rawBytes = client.get("/x/v1/dm/list.so") {
-            parameter("oid", cid)
-            header("Cookie", "SESSDATA=$sessData;")
-            header("referer", "https://www.bilibili.com")
-        }.body<ByteArray>()
-
-        val previewSize = minOf(rawBytes.size, 4096)
-        val previewText = rawBytes.copyOf(previewSize).toString(Charsets.UTF_8)
-        val trimmed = previewText.removePrefix("\uFEFF").trimStart()
-        if (!trimmed.startsWith("<")) {
-            throw buildNonXmlDanmakuException(previewText)
-        }
-
-        return rawBytes
-    }
-
-    /**
-     * 从 XML bytes 里按 chunkSize 分批解析 DanmakuData（SAX）。
-     *
-     * - 适合配合 getDanmakuXmlBytes 做“当前 cid”的内存缓存复用
-     * - shouldContinue 返回 false 时，会主动中断解析
-     */
-    fun parseDanmakuXmlChunkedFromBytes(
-        xmlBytes: ByteArray,
-        chunkSize: Int = 800,
-        onChunk: (List<DanmakuData>) -> Unit,
-        shouldContinue: () -> Boolean = { true },
-    ) {
-        val actualChunkSize = chunkSize.coerceAtLeast(1)
-        val saxParser = newDanmakuSaxParser()
-
-        var chunk = ArrayList<DanmakuData>(actualChunkSize)
-        var currentP: String? = null
-        val textBuf = StringBuilder(128)
-
-        fun flushChunk() {
-            if (chunk.isEmpty()) return
-            val out = chunk
-            chunk = ArrayList(actualChunkSize)
-            onChunk(out)
-        }
-
-        val handler = object : org.xml.sax.helpers.DefaultHandler() {
-            private fun elementName(localName: String?, qName: String?): String? {
-                return when {
-                    !localName.isNullOrBlank() -> localName
-                    !qName.isNullOrBlank() -> qName
-                    else -> null
-                }
-            }
-
-            override fun startElement(
-                uri: String?,
-                localName: String?,
-                qName: String?,
-                attributes: org.xml.sax.Attributes?
-            ) {
-                if (!shouldContinue()) throw StopDanmakuParsingException()
-
-                if (elementName(localName, qName) == "d") {
-                    currentP = attributes?.getValue("p")
-                    textBuf.setLength(0)
-                }
-            }
-
-            override fun characters(ch: CharArray, start: Int, length: Int) {
-                if (length <= 0) return
-                if (currentP == null) return
-                if (!shouldContinue()) throw StopDanmakuParsingException()
-
-                textBuf.append(ch, start, length)
-            }
-
-            override fun endElement(uri: String?, localName: String?, qName: String?) {
-                if (elementName(localName, qName) != "d") return
-
-                val p = currentP
-                val text = textBuf.toString()
-
-                currentP = null
-                textBuf.setLength(0)
-
-                if (p == null) return
-
-                // 单条坏数据容错：不要打断整场弹幕解析
-                runCatching {
-                    chunk.add(DanmakuData.fromString(p, text))
-                }
-
-                if (chunk.size >= actualChunkSize) {
-                    flushChunk()
-                }
-            }
-
-            override fun endDocument() {
-                flushChunk()
-            }
-        }
-
-        try {
-            java.io.ByteArrayInputStream(xmlBytes).use { input ->
-                saxParser.parse(input, handler)
-            }
-        } catch (e: StopDanmakuParsingException) {
-            return
-        } catch (e: org.xml.sax.SAXException) {
-            var cur: Throwable? = e
-            while (cur != null) {
-                if (cur is StopDanmakuParsingException) return
-                cur = cur.cause
-            }
-            throw e
+        val reply = bilibili.community.service.dm.v1.DmSegMobileReply.parseFrom(responseBytes)
+        return reply.elemsList.map { elem ->
+            DanmakuData(
+                time = elem.progress / 1000f,
+                type = elem.mode,
+                size = elem.fontsize,
+                color = elem.color,
+                timestamp = (elem.ctime / 1000).toInt(),
+                pool = elem.pool,
+                midHash = elem.midHash,
+                dmid = elem.id,
+                level = elem.weight,
+                text = elem.content,
+            )
         }
     }
 

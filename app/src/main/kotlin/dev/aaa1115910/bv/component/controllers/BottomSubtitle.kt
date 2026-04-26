@@ -12,16 +12,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bilisubtitle.entity.SubtitleItem
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.ui.theme.AppBlack
+import dev.aaa1115910.bv.ui.theme.AppWhite
 
 @Composable
 fun BottomSubtitle(
@@ -53,11 +52,11 @@ fun BottomSubtitle(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = padding)
-                    .clip(MaterialTheme.shapes.small)
                     .background(AppBlack.copy(alpha = opacity))
                     .padding(vertical = 4.dp, horizontal = 12.dp),
                 text = currentText,
                 fontSize = fontSize,
+                color = AppWhite,
                 textAlign = TextAlign.Center
             )
         }

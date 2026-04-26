@@ -7,5 +7,18 @@ data class DanmakuEvent(
     val mid: Long,
     val username: String,
     val medalName: String? = null,
-    val medalLevel: Int? = null
+    val medalLevel: Int? = null,
+    val mode: Int = 1,
+    val fontSize: Int = 25,
+    val color: Int = 0xFFFFFF,
+    val userLevel: Int = 0
+) : LiveEvent
+
+data class PopularityChangeEvent(
+    val popularity: Int,
+    val popularityText: String
+) : LiveEvent
+
+data class OnlineRankCountEvent(
+    val count: Int
 ) : LiveEvent

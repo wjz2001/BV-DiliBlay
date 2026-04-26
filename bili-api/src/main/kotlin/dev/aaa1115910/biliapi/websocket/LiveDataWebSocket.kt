@@ -2,6 +2,8 @@ package dev.aaa1115910.biliapi.websocket
 
 import dev.aaa1115910.biliapi.http.BiliLiveHttpApi
 import dev.aaa1115910.biliapi.http.entity.live.DanmakuEvent
+import dev.aaa1115910.biliapi.http.entity.live.OnlineRankCountEvent
+import dev.aaa1115910.biliapi.http.entity.live.PopularityChangeEvent
 import dev.aaa1115910.biliapi.http.entity.live.FrameHeader
 import dev.aaa1115910.biliapi.http.entity.live.LiveEvent
 import dev.aaa1115910.biliapi.http.entity.live.readFrameHeader
@@ -235,17 +237,29 @@ object LiveDataWebSocket {
             "COMBO_SEND" -> {}
             "DANMU_MSG" -> {
                 runCatching {
-                    val danmakuContent = dataJson["info"]!!.jsonArray[1].jsonPrimitive.content
-                    val senderMid = dataJson["info"]!!.jsonArray[2].jsonArray[0].jsonPrimitive.long
-                    val senderUsername =
-                        dataJson["info"]!!.jsonArray[2].jsonArray[1].jsonPrimitive.content
+                    val infoArray = dataJson["info"]!!.jsonArray
+                    val danmakuContent = infoArray[1].jsonPrimitive.content
+                    val attrArray = infoArray[0].jsonArray
+                    val mode = attrArray[1].jsonPrimitive.int
+                    val fontSize = attrArray[2].jsonPrimitive.int
+                    val color = attrArray[3].jsonPrimitive.int
+                    val senderMid = infoArray[2].jsonArray[0].jsonPrimitive.long
+                    val senderUsername = infoArray[2].jsonArray[1].jsonPrimitive.content
                     var medalLevel: Int? = null
                     var medalName: String? = null
                     runCatching {
-                        medalLevel =
-                            dataJson["info"]?.jsonArray?.get(3)?.jsonArray?.get(0)?.jsonPrimitive?.int
-                        medalName =
-                            dataJson["info"]?.jsonArray?.get(3)?.jsonArray?.get(1)?.jsonPrimitive?.content
+                        val medalArray = infoArray[3].jsonArray
+                        if (medalArray.isNotEmpty()) {
+                            medalLevel = medalArray[0].jsonPrimitive.int
+                            medalName = medalArray[1].jsonPrimitive.content
+                        }
+                    }
+                    var userLevel = 0
+                    runCatching {
+                        val userLevelArray = infoArray[4].jsonArray
+                        if (userLevelArray.isNotEmpty()) {
+                            userLevel = userLevelArray[0].jsonPrimitive.int
+                        }
                     }
 
                     return DanmakuEvent(
@@ -253,7 +267,11 @@ object LiveDataWebSocket {
                         mid = senderMid,
                         username = senderUsername,
                         medalName = medalName,
-                        medalLevel = medalLevel
+                        medalLevel = medalLevel,
+                        mode = mode,
+                        fontSize = fontSize,
+                        color = color,
+                        userLevel = userLevel,
                     )
                 }.onFailure {
                     logger.warn { "Parse danmaku content failed: ${it.message}" }
@@ -282,10 +300,28 @@ object LiveDataWebSocket {
             "LIKE_INFO_V3_CLICK" -> {}
             "LIKE_INFO_V3_UPDATE" -> {}
             "NOTICE_MSG" -> {}
-            "ONLINE_RANK_COUNT" -> {}
+            "ONLINE_RANK_COUNT" -> {
+                runCatching {
+                    val data = dataJson["data"]!!.jsonObject
+                    return OnlineRankCountEvent(count = data["count"]!!.jsonPrimitive.int)
+                }.onFailure {
+                    logger.warn { "Parse ONLINE_RANK_COUNT failed: ${it.message}" }
+                }
+            }
             "ONLINE_RANK_V2" -> {}
             "ONLINE_RANK_TOP3" -> {}
             "PREPARING" -> {}
+            "POPULARITY_CHANGE" -> {
+                runCatching {
+                    val data = dataJson["data"]!!.jsonObject
+                    return PopularityChangeEvent(
+                        popularity = data["popularity"]!!.jsonPrimitive.int,
+                        popularityText = data["popularity_text"]!!.jsonPrimitive.content,
+                    )
+                }.onFailure {
+                    logger.warn { "Parse POPULARITY_CHANGE failed: ${it.message}" }
+                }
+            }
             "ROOM_REAL_TIME_MESSAGE_UPDATE" -> {}
             "SEND_GIFT" -> {}
             "STOP_LIVE_ROOM_LIST" -> {}
