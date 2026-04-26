@@ -199,11 +199,6 @@
     <string name="play_speed_x4_75">4.75倍</string>
     <string name="play_speed_x5">5倍</string>
 
-    <string name="danmaku_speed_factor_x0_5">极慢</string>
-    <string name="danmaku_speed_factor_x0_75">较慢</string>
-    <string name="danmaku_speed_factor_x1">适中</string>
-    <string name="danmaku_speed_factor_x1_25">较快</string>
-    <string name="danmaku_speed_factor_x1_5">极快</string>
 
     <string name="search_input_history">历史记录</string>
     <string name="search_input_history_delete_all_confirm_dialog_cancel_button">手滑了</string>
@@ -760,10 +755,13 @@
     <string name="video_info_tags">标签</string>
     <string name="video_info_time">投稿时间: %1$s</string>
     <string name="video_player_menu_danmaku_area">显示区域</string>
+    <string name="video_player_menu_danmaku_filter_level">弹幕等级</string>
+    <string name="video_player_menu_danmaku_block_keyword">屏蔽关键词</string>
     <string name="video_player_menu_danmaku_mask">防遮挡</string>
     <string name="video_player_menu_danmaku_opacity">不透明度</string>
     <string name="video_player_menu_danmaku_size">字体缩放</string>
-    <string name="video_player_menu_danmaku_speed_factor">弹幕速度</string>
+    <string name="video_player_menu_danmaku_colorful">彩色弹幕</string>
+    <string name="video_player_menu_danmaku_speed">弹幕速度</string>
     <string name="video_player_menu_danmaku_switch">弹幕类型</string>
     <string name="video_player_menu_danmaku_refresh">弹幕刷新</string>
     <string name="video_player_menu_danmaku_refreshing">弹幕刷新中</string>

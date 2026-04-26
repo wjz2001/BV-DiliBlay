@@ -42,6 +42,7 @@ import dev.aaa1115910.bv.component.controllers.VideoPlayerClosedCaptionMenuItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.MenuListItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.RadioMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.component.StepLessMenuItem
+import dev.aaa1115910.bv.component.controllers.playermenu.component.ToggleMenuItem
 import dev.aaa1115910.bv.component.ifElse
 import java.text.NumberFormat
 
@@ -65,6 +66,7 @@ fun ClosedCaptionMenuList(
 
     val focusRequester = remember { FocusRequester() }
     var selectedClosedCaptionMenuItem by remember { mutableStateOf(VideoPlayerClosedCaptionMenuItem.Switch) }
+    var continuePlayEnabled by remember { mutableStateOf(Prefs.continuePlayAutoSubtitleEnabled) }
 
     Row(
         modifier = modifier.fillMaxHeight(),
@@ -145,23 +147,7 @@ fun ClosedCaptionMenuList(
                     )
                 }
 
-                VideoPlayerClosedCaptionMenuItem.ContinuePlay -> {
-                    var enabled by remember { mutableStateOf(Prefs.continuePlayAutoSubtitleEnabled) }
-
-                    RadioMenuList(
-                        modifier = menuItemsModifier,
-                        items = listOf("关闭", "开启"),
-                        selected = if (enabled) 1 else 0,
-                        onSelectedChanged = {
-                            enabled = it == 1
-                            Prefs.continuePlayAutoSubtitleEnabled = enabled
-                        },
-                        onFocusBackToParent = {
-                            onFocusStateChange(MenuFocusState.Menu)
-                            focusRequester.requestFocus()
-                        },
-                    )
-                }
+                VideoPlayerClosedCaptionMenuItem.ContinuePlay -> {}
 
                 VideoPlayerClosedCaptionMenuItem.Switch -> RadioMenuList(
                     modifier = menuItemsModifier,
@@ -240,16 +226,32 @@ fun ClosedCaptionMenuList(
                     else -> true
                 }
 
-                MenuListItem(
-                    modifier = Modifier
-                        .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester))
-                        .focusProperties { canFocus = enabled }
-                        .alpha(if (enabled) 1f else 0.45f),
-                    text = item.getDisplayName(context),
-                    selected = selectedClosedCaptionMenuItem == item,
-                    onClick = {},
-                    onFocus = { if (enabled) selectedClosedCaptionMenuItem = item },
-                )
+                if (item == VideoPlayerClosedCaptionMenuItem.ContinuePlay) {
+                    ToggleMenuItem(
+                        modifier = Modifier
+                            .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester))
+                            .focusProperties { canFocus = true }
+                            .alpha(1f),
+                        text = item.getDisplayName(context),
+                        checked = continuePlayEnabled,
+                        onCheckedChange = {
+                            continuePlayEnabled = it
+                            Prefs.continuePlayAutoSubtitleEnabled = it
+                        },
+                        onFocus = { selectedClosedCaptionMenuItem = item },
+                    )
+                } else {
+                    MenuListItem(
+                        modifier = Modifier
+                            .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester))
+                            .focusProperties { canFocus = enabled }
+                            .alpha(if (enabled) 1f else 0.45f),
+                        text = item.getDisplayName(context),
+                        selected = selectedClosedCaptionMenuItem == item,
+                        onClick = {},
+                        onFocus = { if (enabled) selectedClosedCaptionMenuItem = item },
+                    )
+                }
             }
         }
     }

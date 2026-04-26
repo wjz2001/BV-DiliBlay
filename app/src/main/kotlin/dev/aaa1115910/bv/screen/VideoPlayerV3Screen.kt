@@ -20,41 +20,34 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
-import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskFrame
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.CoAuthorsDialogHost
-import dev.aaa1115910.bv.component.DanmakuPlayerCompose
 import dev.aaa1115910.bv.component.controllers.VideoPlayerController
 import dev.aaa1115910.bv.component.controllers.VideoProgressSeek
 import dev.aaa1115910.bv.component.handleUpHomeClick
-import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.rememberCoAuthorsDialogState
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.player.BvPlayerSurface
+import dev.aaa1115910.bv.player.danmaku.host.BvDanmakuSurface
 import dev.aaa1115910.bv.player.impl.exo.ExoMediaPlayer
 import dev.aaa1115910.bv.repository.StartupCoverRepository
 import dev.aaa1115910.bv.ui.effect.PlayerUiEffect
 import dev.aaa1115910.bv.ui.state.PlayerState
-import dev.aaa1115910.bv.util.DanmakuMaskFinder
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.VideoShotImageCache
-import dev.aaa1115910.bv.util.calculateMaskDelay
-import dev.aaa1115910.bv.util.danmakuMask
 import dev.aaa1115910.bv.viewmodel.player.VideoPlayerV3ViewModel
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import org.koin.androidx.compose.koinViewModel
-import kotlin.math.absoluteValue
 
 @Composable
 fun VideoPlayerV3Screen(
@@ -64,10 +57,10 @@ fun VideoPlayerV3Screen(
     val logger = KotlinLogging.logger { }
     val context = LocalContext.current
     val videoPlayer = playerViewModel.videoPlayer
-    val danmakuPlayer = playerViewModel.danmakuPlayer
 
     val uiState by playerViewModel.uiState.collectAsState()
     val seekerState = playerViewModel.seekerState.collectAsState()
+    val danmakuHostViewModelState by playerViewModel.danmakuHostState.collectAsState()
     val latestPlayerState by rememberUpdatedState(uiState.playerState)
     val startupCoverAlpha by animateFloatAsState(
         targetValue = if (
@@ -81,8 +74,6 @@ fun VideoPlayerV3Screen(
     val coAuthorsDialogState = rememberCoAuthorsDialogState()
     var lastCoAuthorsDialogVisible by remember { mutableStateOf(false) }
 
-    val maskFinder = remember { DanmakuMaskFinder() }
-    var currentDanmakuMaskFrame: DanmakuMaskFrame? by remember { mutableStateOf(null) }
     var isLooping by remember { mutableStateOf(false) }
 
     val videoShotCache by remember(uiState.videoShot) { mutableStateOf(VideoShotImageCache()) }
@@ -133,49 +124,6 @@ fun VideoPlayerV3Screen(
             videoPlayer.start()
         }
         lastCoAuthorsDialogVisible = now
-    }
-
-    // 弹幕防遮挡蒙版更新
-    LaunchedEffect(
-        uiState.danmakuState.danmakuEnabled,
-        uiState.danmakuState.maskEnabled,
-        uiState.danmakuMask
-    ) {
-        if (!uiState.danmakuState.danmakuEnabled ||
-            !uiState.danmakuState.maskEnabled ||
-            uiState.danmakuMask == null
-        ) {
-            currentDanmakuMaskFrame = null
-            return@LaunchedEffect
-        }
-
-        // 当 mask 列表变化（如切集）或开关变化时，重置查找器缓存
-        maskFinder.reset()
-
-        val mask = uiState.danmakuMask ?: return@LaunchedEffect
-        var lastCheckTime = -1L
-
-        while (isActive) {
-            val currentTime = seekerState.value.currentTime
-            val isPlaying = latestPlayerState == PlayerState.Playing
-            val isTimeJumping = (currentTime - lastCheckTime).absoluteValue > 200
-
-            if (isPlaying || isTimeJumping) {
-                // 使用工具类查找 Frame
-                val foundFrame = maskFinder.findFrame(mask, currentTime)
-
-                if (currentDanmakuMaskFrame != foundFrame) {
-                    currentDanmakuMaskFrame = foundFrame
-                }
-
-                lastCheckTime = currentTime
-
-                val delayTime = calculateMaskDelay(foundFrame, currentTime, isPlaying)
-                delay(delayTime)
-            } else {
-                delay(500L)
-            }
-        }
     }
 
     VideoPlayerController(
@@ -372,17 +320,20 @@ fun VideoPlayerV3Screen(
                 }
             }
 
-            if (uiState.danmakuState.danmakuEnabled && danmakuPlayer != null) {
-                DanmakuPlayerCompose(
+            if (danmakuHostViewModelState.config.enabled) {
+                BvDanmakuSurface(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .alpha(uiState.danmakuState.opacity)
-                        .ifElse(
-                            { uiState.danmakuState.maskEnabled },
-                            Modifier.danmakuMask(currentDanmakuMaskFrame, displayAspectRatio)
-                        ),
-                    danmakuPlayer = danmakuPlayer,
-                    onPlayerBoundStateChanged = playerViewModel::notifyDanmakuPlayerBound
+                        .fillMaxSize(),
+                    currentTime = seekerState.value.currentTime,
+                    isPlaying = danmakuHostViewModelState.isPlaying,
+                    playbackSpeed = danmakuHostViewModelState.playbackSpeed,
+                    config = danmakuHostViewModelState.config,
+                    mask = uiState.danmakuMask,
+                    maskEnabled = danmakuHostViewModelState.maskEnabled,
+                    sourceMode = danmakuHostViewModelState.sourceMode,
+                    videoAspectRatio = displayAspectRatio,
+                    commandFlow = playerViewModel.danmakuHostCommands,
+                    onSessionEvent = playerViewModel::onDanmakuHostSessionEvent
                 )
             }
 

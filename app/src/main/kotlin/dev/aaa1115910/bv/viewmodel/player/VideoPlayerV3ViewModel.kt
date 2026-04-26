@@ -6,27 +6,20 @@ import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.kuaishou.akdanmaku.DanmakuConfig
-import com.kuaishou.akdanmaku.data.DanmakuItemData
-import com.kuaishou.akdanmaku.ecs.component.filter.TypeFilter
-import com.kuaishou.akdanmaku.render.SimpleRenderer
-import com.kuaishou.akdanmaku.ui.DanmakuPlayer
 import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.entity.PlayData
+import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMask
 import dev.aaa1115910.biliapi.entity.video.HeartbeatVideoType
 import dev.aaa1115910.biliapi.entity.video.Subtitle
 import dev.aaa1115910.biliapi.entity.video.SubtitleAiStatus
 import dev.aaa1115910.biliapi.entity.video.SubtitleAiType
 import dev.aaa1115910.biliapi.entity.video.SubtitleType
 import dev.aaa1115910.biliapi.entity.video.VideoPage
-import dev.aaa1115910.biliapi.http.BiliHttpApi
 import dev.aaa1115910.biliapi.repositories.VideoPlayRepository
 import dev.aaa1115910.bilisubtitle.SubtitleParser
 import dev.aaa1115910.bv.BVApp
@@ -46,6 +39,13 @@ import dev.aaa1115910.bv.player.VideoPlayerListener
 import dev.aaa1115910.bv.player.VideoPlayerOptions
 import dev.aaa1115910.bv.player.impl.exo.ExoPlayerFactory
 import dev.aaa1115910.bv.player.impl.exo.ExoMediaPlayer
+import dev.aaa1115910.bv.player.danmaku.config.DanmakuConfig
+import dev.aaa1115910.bv.player.danmaku.host.DanmakuSourceMode
+import dev.aaa1115910.bv.player.danmaku.model.DanmakuFilterRule
+import dev.aaa1115910.bv.player.danmaku.model.DanmakuSessionEvent
+import dev.aaa1115910.bv.player.danmaku.model.DanmakuSessionEventType
+import dev.aaa1115910.bv.player.danmaku.session.DanmakuLiveEventStream
+import dev.aaa1115910.bv.player.danmaku.session.DanmakuLiveInput
 import dev.aaa1115910.bv.repository.StartupCoverRepository
 import dev.aaa1115910.bv.repository.VideoInfoRepository
 import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
@@ -73,7 +73,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -87,11 +86,9 @@ import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.koin.core.annotation.KoinViewModel
@@ -100,6 +97,7 @@ import java.util.Calendar
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.math.roundToInt
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 private fun media3Slashy(): String = androidx.media3.common.MediaLibraryInfo.VERSION_SLASHY
@@ -126,9 +124,6 @@ class VideoPlayerV3ViewModel(
     private val logger = KotlinLogging.logger { }
 
     var videoPlayer: AbstractVideoPlayer? by mutableStateOf(null)
-        private set
-
-    var danmakuPlayer: DanmakuPlayer? by mutableStateOf(null)
         private set
 
     var isDanmakuRefreshing: Boolean by mutableStateOf(false)
@@ -170,20 +165,6 @@ class VideoPlayerV3ViewModel(
         val selection: ContinueSelection?
     )
 
-    private data class CachedDanmakuXmlBytes(
-        val cid: Long,
-        val xmlBytes: ByteArray
-    )
-
-    private data class PendingDanmakuLoad(
-        val aid: Long,
-        val cid: Long,
-        val expectedEpid: Int?,
-        val generation: Long,
-        val startFromMs: Long,
-        val player: DanmakuPlayer
-    )
-
     @Volatile
     private var allowFastResumeOnNextStart: Boolean = false
 
@@ -208,9 +189,6 @@ class VideoPlayerV3ViewModel(
     @Volatile
     private var envLogged: Boolean = false
 
-    private var danmakuConfig = DanmakuConfig()
-    private val danmakuTypeFilter = TypeFilter()
-
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState = _uiState.asStateFlow()
 
@@ -220,24 +198,17 @@ class VideoPlayerV3ViewModel(
     private val _uiEffect = MutableSharedFlow<PlayerUiEffect>()
     val uiEffect = _uiEffect.asSharedFlow()
 
+    private val _danmakuHostState = MutableStateFlow(DanmakuHostViewModelState())
+    val danmakuHostState = _danmakuHostState.asStateFlow()
+
+    private val _danmakuHostCommands = MutableSharedFlow<DanmakuHostCommand>(extraBufferCapacity = 16)
+    val danmakuHostCommands = _danmakuHostCommands.asSharedFlow()
+
     private var seekerUpdateJob: Job? = null
     private var clockUpdateJob: Job? = null
     private var heartbeatJob: Job? = null
     private var loadPlayUrlJob: Job? = null
     private var subtitleLoadJob: Job? = null
-
-    private var danmakuLoadJob: Job? = null
-    private val danmakuPlayerLock = Any()
-
-    @Volatile
-    private var boundDanmakuPlayer: DanmakuPlayer? = null
-
-    @Volatile
-    private var pendingDanmakuLoad: PendingDanmakuLoad? = null
-
-    @Volatile
-    private var danmakuXmlBytesCache: CachedDanmakuXmlBytes? = null
-    private val danmakuXmlBytesCacheMaxBytes: Int = 8 * 1024 * 1024 // 8MB弹幕缓存
 
     private var backToStartCountdownJob: Job? = null
     private var playNextCountdownJob: Job? = null
@@ -297,17 +268,19 @@ class VideoPlayerV3ViewModel(
                     )
                 )
             }
+            syncDanmakuHostStateFromPlayerState()
         }
 
         override fun onReady() {
             logger.info { "onReady" }
             _uiState.update { it.copy(playerState = PlayerState.Ready) }
             onBufferingStateChanged(false)
+            syncDanmakuHostStateFromPlayerState()
 
             val tempSpeed = tempPlaySpeedOverride
             if (tempSpeed != null) {
                 videoPlayer?.speed = tempSpeed
-                withDanmakuPlayerLocked { danmakuPlayer?.updatePlaySpeed(tempSpeed) }
+                syncDanmakuHostStateFromPlayerState()
             } else {
                 updatePlaySpeed(forceUpdate = true)
             }
@@ -317,13 +290,13 @@ class VideoPlayerV3ViewModel(
 
         override fun onPlay() {
             logger.info { "onPlay" }
-            withDanmakuPlayerLocked { danmakuPlayer?.start() }
             _uiState.update {
                 it.copy(
                     playerState = PlayerState.Playing,
                     hasStartedPlayback = true
                 )
             }
+            syncDanmakuHostStateFromPlayerState()
             onBufferingStateChanged(false)
 
             if (_uiState.value.lastPlayed > 0) {
@@ -334,23 +307,23 @@ class VideoPlayerV3ViewModel(
 
         override fun onPause() {
             logger.info { "onPause" }
-            withDanmakuPlayerLocked { danmakuPlayer?.pause() }
             _uiState.update { it.copy(playerState = PlayerState.Paused) }
+            syncDanmakuHostStateFromPlayerState()
         }
 
         override fun onBuffering() {
             logger.info { "onBuffering" }
-            withDanmakuPlayerLocked { danmakuPlayer?.pause() }
             onBufferingStateChanged(true)
+            syncDanmakuHostStateFromPlayerState()
         }
 
         override fun onEnd() {
             logger.info { "onEnd" }
-            withDanmakuPlayerLocked { danmakuPlayer?.pause() }
             stopSeekerUpdater()
             onBufferingStateChanged(false)
 
             _uiState.update { it.copy(playerState = PlayerState.Ended) }
+            syncDanmakuHostStateFromPlayerState()
             viewModelScope.launch {
                 _uiEffect.emit(PlayerUiEffect.PlayEnded)
             }
@@ -500,7 +473,10 @@ class VideoPlayerV3ViewModel(
                     scale = Prefs.defaultDanmakuScale,
                     opacity = Prefs.defaultDanmakuOpacity,
                     area = Prefs.defaultDanmakuArea,
-                    speedFactor = Prefs.defaultDanmakuSpeedFactor,
+                    rollingDurationFactor = Prefs.defaultDanmakuRollingDurationFactor,
+                    vodFilterLevel = Prefs.defaultDanmakuFilterLevel,
+                    liveFilterLevel = Prefs.defaultLiveDanmakuFilterLevel,
+                    colorful = Prefs.defaultDanmakuColorful,
                     maskEnabled = Prefs.defaultDanmakuMask,
                     enabledTypes = Prefs.defaultDanmakuTypes,
                     danmakuEnabled = Prefs.defaultDanmakuEnabled,
@@ -512,6 +488,7 @@ class VideoPlayerV3ViewModel(
                 )
             )
         }
+        syncDanmakuHostStateFromPlayerState()
 
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
@@ -552,13 +529,6 @@ class VideoPlayerV3ViewModel(
         val player = ExoPlayerFactory().create(context.applicationContext, options)
 
         attachPlayer(player)
-    }
-
-    /**
-     * 方案 B：公开初始化弹幕播放器接口，供 Activity 按上游方式调用
-     */
-    fun initDanmakuPlayer() {
-        safeInitDanmakuPlayer()
     }
 
     /**
@@ -606,10 +576,6 @@ class VideoPlayerV3ViewModel(
 
         videoPlayer?.release()
         videoPlayer = null
-    }
-
-    fun releaseDanmakuPlayer() {
-        safeReleaseDanmakuPlayer()
     }
 
     fun setSuppressPlayerErrors(suppress: Boolean) {
@@ -866,7 +832,7 @@ class VideoPlayerV3ViewModel(
 
         _uiState.update { it.copy(playSpeed = targetSpeed) }
         videoPlayer?.speed = targetSpeed
-        withDanmakuPlayerLocked { danmakuPlayer?.updatePlaySpeed(targetSpeed) }
+        syncDanmakuHostStateFromPlayerState()
 
         if (speed != null) {
             tempPlaySpeedOverride = null
@@ -963,10 +929,19 @@ class VideoPlayerV3ViewModel(
     fun updateDanmakuState(action: DanmakuSettingAction) {
         val old = _uiState.value.danmakuState
         val new = when (action) {
-            is DanmakuSettingAction.SetScale -> old.copy(scale = action.value)
-            is DanmakuSettingAction.SetOpacity -> old.copy(opacity = action.value)
-            is DanmakuSettingAction.SetArea -> old.copy(area = action.value)
-            is DanmakuSettingAction.SetSpeedFactor -> old.copy(speedFactor = action.value)
+            is DanmakuSettingAction.SetScale -> old.copy(scale = action.value.coerceIn(0.5f, 4f))
+            is DanmakuSettingAction.SetOpacity -> old.copy(opacity = action.value.coerceIn(0f, 1f))
+            is DanmakuSettingAction.SetArea -> old.copy(area = action.value.coerceIn(0f, 1f))
+            is DanmakuSettingAction.SetRollingDurationFactor -> {
+                old.copy(rollingDurationFactor = action.value.coerceIn(0.2f, 1.8f))
+            }
+            is DanmakuSettingAction.SetVodFilterLevel -> {
+                old.copy(vodFilterLevel = action.value.coerceIn(0, 10))
+            }
+            is DanmakuSettingAction.SetLiveFilterLevel -> {
+                old.copy(liveFilterLevel = action.value.coerceIn(0, 60))
+            }
+            is DanmakuSettingAction.SetColorful -> old.copy(colorful = action.value)
             is DanmakuSettingAction.SetMaskEnabled -> old.copy(maskEnabled = action.enabled)
             is DanmakuSettingAction.SetDanmakuEnabled -> old.copy(danmakuEnabled = action.enabled)
             is DanmakuSettingAction.SetEnabledTypes -> old.copy(enabledTypes = action.types)
@@ -978,21 +953,27 @@ class VideoPlayerV3ViewModel(
         val isEnabled = new.danmakuEnabled
 
         _uiState.update { it.copy(danmakuState = new) }
+        syncDanmakuHostStateFromPlayerState()
 
         if (new.enabledTypes != old.enabledTypes) {
-            updateDanmakuConfigTypeFilter(new.enabledTypes)
             Prefs.defaultDanmakuTypes = new.enabledTypes
         }
         if (new.scale != old.scale) {
-            updateDanmakuScale(new.scale)
             Prefs.defaultDanmakuScale = new.scale
         }
-        if (new.speedFactor != old.speedFactor) {
-            updateDanmakuSpeedFactor(new.speedFactor)
-            Prefs.defaultDanmakuSpeedFactor = new.speedFactor
+        if (new.rollingDurationFactor != old.rollingDurationFactor) {
+            Prefs.defaultDanmakuRollingDurationFactor = new.rollingDurationFactor
+        }
+        if (new.vodFilterLevel != old.vodFilterLevel) {
+            Prefs.defaultDanmakuFilterLevel = new.vodFilterLevel
+        }
+        if (new.liveFilterLevel != old.liveFilterLevel) {
+            Prefs.defaultLiveDanmakuFilterLevel = new.liveFilterLevel
+        }
+        if (new.colorful != old.colorful) {
+            Prefs.defaultDanmakuColorful = new.colorful
         }
         if (new.area != old.area) {
-            updateDanmakuArea(new.area)
             Prefs.defaultDanmakuArea = new.area
         }
         if (new.opacity != old.opacity) {
@@ -1003,6 +984,7 @@ class VideoPlayerV3ViewModel(
 
             if (!new.maskEnabled) {
                 _uiState.update { it.copy(danmakuMask = null) }
+                syncDanmakuHostStateFromPlayerState()
             } else if (new.danmakuEnabled) {
                 val aid = _uiState.value.aid
                 val cid = _uiState.value.cid
@@ -1025,38 +1007,21 @@ class VideoPlayerV3ViewModel(
 
         if (wasEnabled && !isEnabled) {
             _uiState.update { it.copy(danmakuMask = null) }
+            syncDanmakuHostStateFromPlayerState()
             viewModelScope.launch {
-                stopDanmakuHard()
+                _danmakuHostCommands.emit(DanmakuHostCommand.Clear(reason = "danmaku_disabled"))
             }
             return
         }
 
         if (!wasEnabled && isEnabled) {
             viewModelScope.launch {
-                danmakuLoadJob?.cancelAndJoin()
-                danmakuLoadJob = null
-
-                withDanmakuPlayerLocked {
-                    if (danmakuPlayer == null) {
-                        unsafeInitDanmakuPlayer()
-                    }
-                }
-
                 updatePlaySpeed(forceUpdate = true)
 
                 val aid = _uiState.value.aid
                 val cid = _uiState.value.cid
                 val epid = _uiState.value.epid
                 val generation = activeLoadGeneration
-                val currentPlayer = withDanmakuPlayerLocked { danmakuPlayer } ?: return@launch
-
-                enqueueOrStartDanmakuLoad(
-                    aid = aid,
-                    cid = cid,
-                    expectedEpid = epid,
-                    generation = generation,
-                    currentPlayer = currentPlayer
-                )
 
                 if (_uiState.value.danmakuState.maskEnabled) {
                     updateDanmakuMask(
@@ -1070,15 +1035,17 @@ class VideoPlayerV3ViewModel(
         }
     }
 
-    fun safeInitDanmakuPlayer() = withDanmakuPlayerLocked {
-        if (danmakuPlayer == null) unsafeInitDanmakuPlayer()
+    fun seekDanmakuHost(posMs: Long) {
+        viewModelScope.launch {
+            _danmakuHostCommands.emit(
+                DanmakuHostCommand.Seek(
+                    positionMs = posMs.coerceAtLeast(0L),
+                    forceFetch = false,
+                    reason = "player_seek"
+                )
+            )
+        }
     }
-
-    fun safeReleaseDanmakuPlayer() = withDanmakuPlayerLocked { unsafeReleaseDanmakuPlayer() }
-
-    fun safePauseDanmakuPlayer() = withDanmakuPlayerLocked { danmakuPlayer?.pause() }
-
-    fun safeSeekDanmakuPlayer(posMs: Long) = withDanmakuPlayerLocked { danmakuPlayer?.seekTo(posMs) }
 
     fun reloadDanmakuFromCurrent() {
         viewModelScope.launch {
@@ -1086,64 +1053,15 @@ class VideoPlayerV3ViewModel(
             if (isDanmakuRefreshing) return@launch
 
             isDanmakuRefreshing = true
-
             val currentPosMs = (videoPlayer?.currentPosition ?: 0L).coerceAtLeast(0L)
 
-            withContext(Dispatchers.Main) {
-                videoPlayer?.pause()
-            }
-
             try {
-                val aid = _uiState.value.aid
-                val cid = _uiState.value.cid
-                val epid = _uiState.value.epid
-                val generation = activeLoadGeneration
-
-                val latestDanmakuXmlBytes = BiliHttpApi.getDanmakuXmlBytes(
-                    cid = cid,
-                    sessData = Prefs.sessData
-                )
-
-                val hasFutureDanmaku = hasDanmakuAfterPosition(
-                    xmlBytes = latestDanmakuXmlBytes,
-                    startFromMs = currentPosMs
-                )
-
-                if (!hasFutureDanmaku) {
-                    logger.fInfo {
-                        "Danmaku refresh failed: no future danmaku after $currentPosMs ms, aid=$aid, cid=$cid"
-                    }
-                    "弹幕刷新失败".toast(BVApp.context)
-                    return@launch
-                }
-
-                danmakuLoadJob?.cancelAndJoin()
-                danmakuLoadJob = null
-                clearDanmakuXmlBytesCache()
-                cacheDanmakuXmlBytesIfAllowed(
-                    cid = cid,
-                    xmlBytes = latestDanmakuXmlBytes
-                )
-                clearDanmakuBindingState()
-
-                withContext(Dispatchers.Main) {
-                    withDanmakuPlayerLocked {
-                        unsafeReleaseDanmakuPlayer()
-                        unsafeInitDanmakuPlayer()
-                    }
-                }
-
-                updatePlaySpeed(forceUpdate = true)
-
-                val currentPlayer = withDanmakuPlayerLocked { danmakuPlayer } ?: return@launch
-
-                enqueueOrStartDanmakuLoad(
-                    aid = aid,
-                    cid = cid,
-                    expectedEpid = epid,
-                    generation = generation,
-                    startFromMs = currentPosMs,
-                    currentPlayer = currentPlayer
+                _danmakuHostCommands.emit(
+                    DanmakuHostCommand.RefreshFromPosition(
+                        positionMs = currentPosMs,
+                        forceFetch = true,
+                        reason = "manual_refresh"
+                    )
                 )
                 logger.fInfo { "Danmaku refresh started from $currentPosMs ms" }
                 "弹幕刷新成功".toast(BVApp.context)
@@ -1153,117 +1071,166 @@ class VideoPlayerV3ViewModel(
                 "弹幕刷新失败".toast(BVApp.context)
             } finally {
                 isDanmakuRefreshing = false
-                withContext(Dispatchers.Main) {
-                    videoPlayer?.start()
-                }
             }
         }
     }
 
-    fun safeUpdateDanmakuData(expected: DanmakuPlayer, items: List<DanmakuItemData>): Boolean =
-        withDanmakuPlayerLocked {
-            if (!_uiState.value.danmakuState.danmakuEnabled) return@withDanmakuPlayerLocked false
-            if (danmakuPlayer !== expected) return@withDanmakuPlayerLocked false
-            expected.updateData(items)
-            true
-        }
-
-    fun notifyDanmakuPlayerBound(player: DanmakuPlayer?) {
-        val pending = withDanmakuPlayerLocked {
-            boundDanmakuPlayer = player.takeIf { it != null && danmakuPlayer === it }
-
-            pendingDanmakuLoad?.takeIf { request ->
-                val bound = boundDanmakuPlayer
-                bound != null &&
-                        request.player === bound &&
-                        _uiState.value.danmakuState.danmakuEnabled &&
-                        isCurrentLoadRequest(
-                            generation = request.generation,
-                            aid = request.aid,
-                            cid = request.cid,
-                            expectedEpid = request.expectedEpid
-                        )
-            }?.also {
-                pendingDanmakuLoad = null
-            }
-        }
-
-        if (pending != null) {
-            logger.fInfo {
-                "Danmaku player bound, start deferred danmaku load: " +
-                        "aid=${pending.aid}, cid=${pending.cid}, generation=${pending.generation}"
-            }
-
-            startDanmakuLoadJob(
-                aid = pending.aid,
-                cid = pending.cid,
-                expectedEpid = pending.expectedEpid,
-                generation = pending.generation,
-                startFromMs = pending.startFromMs,
-                currentPlayer = pending.player
+    fun attachLiveDanmakuInput(roomId: Long, input: DanmakuLiveInput) {
+        _danmakuHostState.update { current ->
+            current.copy(
+                sourceMode = DanmakuSourceMode.Live(
+                    roomId = roomId,
+                    input = input
+                ),
+                live = current.live.copy(
+                    roomId = roomId,
+                    enabled = true,
+                    state = "attached",
+                    errorMessage = null
+                )
             )
         }
     }
 
-    private fun enqueueOrStartDanmakuLoad(
-        aid: Long,
-        cid: Long,
-        expectedEpid: Int?,
-        generation: Long,
-        startFromMs: Long = 0L,
-        currentPlayer: DanmakuPlayer
-    ) {
-        val shouldStartNow = withDanmakuPlayerLocked {
-            if (danmakuPlayer !== currentPlayer) return@withDanmakuPlayerLocked false
-
-            if (boundDanmakuPlayer === currentPlayer) {
-                pendingDanmakuLoad = null
-                true
-            } else {
-                pendingDanmakuLoad = PendingDanmakuLoad(
-                    aid = aid,
-                    cid = cid,
-                    expectedEpid = expectedEpid,
-                    generation = generation,
-                    startFromMs = startFromMs,
-                    player = currentPlayer
+    fun attachLiveDanmakuEventStream(roomId: Long, eventStream: DanmakuLiveEventStream) {
+        _danmakuHostState.update { current ->
+            current.copy(
+                sourceMode = DanmakuSourceMode.Live(
+                    roomId = roomId,
+                    eventStream = eventStream
+                ),
+                live = current.live.copy(
+                    roomId = roomId,
+                    enabled = true,
+                    state = "attached",
+                    errorMessage = null
                 )
-                false
-            }
+            )
         }
+    }
 
-        if (shouldStartNow) {
-            startDanmakuLoadJob(
-                aid = aid,
-                cid = cid,
-                expectedEpid = expectedEpid,
-                generation = generation,
-                startFromMs = startFromMs,
-                currentPlayer = currentPlayer
+    fun detachLiveDanmaku(reason: String = "detach_live") {
+        _danmakuHostState.update { current ->
+            current.copy(
+                sourceMode = buildVodSourceMode(_uiState.value),
+                live = DanmakuLiveInterfaceState(
+                    state = reason
+                )
+            )
+        }
+    }
+
+    fun onDanmakuHostSessionStateChanged(sessionId: String, state: String, errorMessage: String? = null) {
+        _danmakuHostState.update { current ->
+            current.copy(
+                live = current.live.copy(
+                    sessionId = sessionId,
+                    state = state,
+                    errorMessage = errorMessage
+                )
+            )
+        }
+    }
+
+    fun onDanmakuHostSessionEvent(event: DanmakuSessionEvent) {
+        when (event.type) {
+            DanmakuSessionEventType.LiveConnected -> {
+                onDanmakuHostSessionStateChanged(
+                    sessionId = event.sessionId,
+                    state = "connected",
+                    errorMessage = null
+                )
+            }
+
+            DanmakuSessionEventType.LiveDisconnected -> {
+                onDanmakuHostSessionStateChanged(
+                    sessionId = event.sessionId,
+                    state = "disconnected",
+                    errorMessage = null
+                )
+            }
+
+            DanmakuSessionEventType.LiveStateChanged -> {
+                onDanmakuHostSessionStateChanged(
+                    sessionId = event.sessionId,
+                    state = event.payload["state"] as? String ?: "unknown",
+                    errorMessage = event.payload["error"] as? String
+                )
+            }
+
+            DanmakuSessionEventType.Error -> {
+                onDanmakuHostSessionStateChanged(
+                    sessionId = event.sessionId,
+                    state = "error",
+                    errorMessage = event.payload["message"] as? String
+                )
+            }
+
+            else -> Unit
+        }
+    }
+
+    private fun syncDanmakuHostStateFromPlayerState() {
+        val state = _uiState.value
+        val currentPositionMs = (videoPlayer?.currentPosition ?: 0L).coerceAtLeast(0L)
+        val hasVisibleSubtitle = state.subtitleId != -1L &&
+            state.subtitleData.any { it.isShowing(currentPositionMs) }
+        val extraBottomPaddingPx = if (hasVisibleSubtitle) {
+            (4 * BVApp.context.resources.displayMetrics.density).roundToInt()
+        } else {
+            0
+        }
+        val subtitleBottomPaddingPx = (
+            state.subtitleState.bottomPadding.value * BVApp.context.resources.displayMetrics.density
+        ).roundToInt() + extraBottomPaddingPx
+        val config = state.danmakuState.toDanmakuConfig(
+            bottomPaddingPx = subtitleBottomPaddingPx,
+        )
+        _danmakuHostState.update { current ->
+            current.copy(
+                sourceMode = if (current.live.enabled && current.sourceMode is DanmakuSourceMode.Live) {
+                    current.sourceMode
+                } else {
+                    buildVodSourceMode(state)
+                },
+                config = config,
+                filterRule = config.toFilterRule(),
+                maskEnabled = state.danmakuState.danmakuEnabled && state.danmakuState.maskEnabled,
+                mask = state.danmakuMask,
+                aid = state.aid,
+                cid = state.cid,
+                currentPositionMs = (videoPlayer?.currentPosition ?: 0L).coerceAtLeast(0L),
+                isPlaying = state.playerState == PlayerState.Playing,
+                playbackSpeed = tempPlaySpeedOverride ?: state.playSpeed
+            )
+        }
+    }
+
+    private fun buildVodSourceMode(state: PlayerUiState): DanmakuSourceMode {
+        return if (
+            state.danmakuState.danmakuEnabled &&
+            state.aid != 0L &&
+            state.cid != 0L
+        ) {
+            DanmakuSourceMode.Vod(
+                aid = state.aid,
+                cid = state.cid
             )
         } else {
-            logger.fInfo {
-                "Defer danmaku load until player bound: " +
-                        "aid=$aid, cid=$cid, generation=$generation"
-            }
+            DanmakuSourceMode.None
         }
-    }
-
-    private fun clearDanmakuBindingState() = withDanmakuPlayerLocked {
-        boundDanmakuPlayer = null
-        pendingDanmakuLoad = null
     }
 
     fun startTempPlaySpeed(speed: Float) {
         tempPlaySpeedOverride = speed
         videoPlayer?.speed = speed
-        withDanmakuPlayerLocked { danmakuPlayer?.updatePlaySpeed(speed) }
+        syncDanmakuHostStateFromPlayerState()
     }
 
     fun endTempPlaySpeed(speed: Float) {
         tempPlaySpeedOverride = null
         videoPlayer?.speed = speed
-        withDanmakuPlayerLocked { danmakuPlayer?.updatePlaySpeed(speed) }
+        syncDanmakuHostStateFromPlayerState()
     }
 
     fun updateSubtitleState(action: SubtitleSettingAction) {
@@ -1290,6 +1257,7 @@ class VideoPlayerV3ViewModel(
         if (new.bottomPadding != old.bottomPadding) {
             Prefs.defaultSubtitleBottomPadding = new.bottomPadding
         }
+        syncDanmakuHostStateFromPlayerState()
     }
 
     /**
@@ -1372,8 +1340,7 @@ class VideoPlayerV3ViewModel(
         _uiState.update { it.copy(showBackToStart = false) }
 
         videoPlayer?.seekTo(0)
-        withDanmakuPlayerLocked { danmakuPlayer?.seekTo(0) }
-        withDanmakuPlayerLocked { danmakuPlayer?.pause() }
+        seekDanmakuHost(0L)
     }
 
     /**
@@ -1439,8 +1406,7 @@ class VideoPlayerV3ViewModel(
     fun seekToTime(time: Long) {
         videoPlayer?.seekTo(time)
         _seekerState.update { it.copy(currentTime = time) }
-        withDanmakuPlayerLocked { danmakuPlayer?.seekTo(time) }
-        withDanmakuPlayerLocked { danmakuPlayer?.pause() }
+        seekDanmakuHost(time)
     }
 
     fun playNewVideo(
@@ -1450,10 +1416,6 @@ class VideoPlayerV3ViewModel(
         videoPlayer?.pause()
 
         val state = _uiState.value
-
-        if (state.cid != newVideo.cid) {
-            clearDanmakuXmlBytesCache()
-        }
 
         val shouldUpdateVideoDetail = state.aid != newVideo.aid
         val shouldUpdateVideoList = !state.availableVideoList.any { it.aid == newVideo.aid }
@@ -1480,7 +1442,7 @@ class VideoPlayerV3ViewModel(
                 epid = newVideo.epid,
                 seasonId = newVideo.seasonId ?: 0,
                 title = newVideo.title,
-                startupCover = StartupCoverRepository.get(newVideo.aid),
+                startupCover = StartupCoverRepository[newVideo.aid],
             hasRenderedFirstFrame = false,
             hasStartedPlayback = false
             )
@@ -1511,20 +1473,8 @@ class VideoPlayerV3ViewModel(
     }
 
     private suspend fun resetDanmakuForVideoSwitch() {
-        val job = danmakuLoadJob
-        danmakuLoadJob = null
-        job?.cancel()
-        withContext(Dispatchers.Default) {
-            withTimeoutOrNull(300) { job?.cancelAndJoin() }
-        }
-        withContext(Dispatchers.Main) {
-            withDanmakuPlayerLocked {
-                unsafeReleaseDanmakuPlayer()
-                if (_uiState.value.danmakuState.danmakuEnabled) {
-                    unsafeInitDanmakuPlayer()
-                }
-            }
-        }
+        _danmakuHostCommands.emit(DanmakuHostCommand.Clear(reason = "video_switch"))
+        syncDanmakuHostStateFromPlayerState()
     }
 
     fun trySendHeartbeat() {
@@ -1701,6 +1651,7 @@ class VideoPlayerV3ViewModel(
                 showPreviewTip = false
             )
         }
+        syncDanmakuHostStateFromPlayerState()
 
         restartUgcPagesPrefetchIfNeeded(_uiState.value.availableVideoList)
 
@@ -1721,34 +1672,6 @@ class VideoPlayerV3ViewModel(
                 launch {
                     val danmakuEnabled = _uiState.value.danmakuState.danmakuEnabled
                     if (danmakuEnabled) {
-                        danmakuLoadJob?.cancelAndJoin()
-                        danmakuLoadJob = null
-
-                        val currentPlayer = withDanmakuPlayerLocked {
-                            if (danmakuPlayer == null) {
-                                unsafeInitDanmakuPlayer()
-                            }
-                            danmakuPlayer
-                        }
-
-                        if (currentPlayer != null) {
-                            withDanmakuPlayerLocked {
-                                if (danmakuPlayer === currentPlayer) {
-                                    currentPlayer.updatePlaySpeed(
-                                        tempPlaySpeedOverride ?: _uiState.value.playSpeed
-                                    )
-                                }
-                            }
-
-                            enqueueOrStartDanmakuLoad(
-                                aid = avid,
-                                cid = cid,
-                                expectedEpid = normalizedEpid,
-                                generation = generation,
-                                currentPlayer = currentPlayer
-                            )
-                        }
-
                         if (_uiState.value.danmakuState.maskEnabled) {
                             updateDanmakuMask(
                                 aid = avid,
@@ -1758,10 +1681,11 @@ class VideoPlayerV3ViewModel(
                             )
                         } else {
                             _uiState.update { it.copy(danmakuMask = null) }
+                            syncDanmakuHostStateFromPlayerState()
                         }
                     } else {
-                        stopDanmakuLoadOnly()
                         _uiState.update { it.copy(danmakuMask = null) }
+                        syncDanmakuHostStateFromPlayerState()
                     }
                 }
 
@@ -2216,108 +2140,6 @@ class VideoPlayerV3ViewModel(
         }
     }
 
-    private suspend fun loadDanmaku(
-        cid: Long,
-        expectedPlayer: DanmakuPlayer? = null,
-        expectedAid: Long,
-        expectedGeneration: Long,
-        startFromMs: Long = 0L
-    ) {
-        if (!_uiState.value.danmakuState.danmakuEnabled) return
-        if (!isSubtitleOrDanmakuRequestCurrent(expectedAid, cid, expectedGeneration)) return
-
-        val currentPlayer = expectedPlayer ?: withDanmakuPlayerLocked { danmakuPlayer } ?: return
-        val chunkSize = 500
-
-        var injectedCount = 0
-        var cacheHit = false
-        var skippedAsStale = false
-
-        runCatching {
-            val cached = danmakuXmlBytesCache?.takeIf { it.cid == cid }
-            val xmlBytes: ByteArray = if (cached != null) {
-                cacheHit = true
-                cached.xmlBytes
-            } else {
-                val downloaded = BiliHttpApi.getDanmakuXmlBytes(
-                    cid = cid,
-                    sessData = Prefs.sessData
-                )
-
-                if (!isSubtitleOrDanmakuRequestCurrent(expectedAid, cid, expectedGeneration)) {
-                    skippedAsStale = true
-                    return@runCatching
-                }
-
-                if (downloaded.size <= danmakuXmlBytesCacheMaxBytes) {
-                    danmakuXmlBytesCache = CachedDanmakuXmlBytes(
-                        cid = cid,
-                        xmlBytes = downloaded
-                    )
-                } else {
-                    clearDanmakuXmlBytesCache()
-                }
-
-                downloaded
-            }
-
-            if (!isSubtitleOrDanmakuRequestCurrent(expectedAid, cid, expectedGeneration)) {
-                skippedAsStale = true
-                return@runCatching
-            }
-
-            BiliHttpApi.parseDanmakuXmlChunkedFromBytes(
-                xmlBytes = xmlBytes,
-                chunkSize = chunkSize,
-                shouldContinue = {
-                    _uiState.value.danmakuState.danmakuEnabled &&
-                            isSubtitleOrDanmakuRequestCurrent(expectedAid, cid, expectedGeneration) &&
-                            withDanmakuPlayerLocked { danmakuPlayer === currentPlayer }
-                },
-                onChunk = onChunk@{ danmakuChunk ->
-                    if (!isSubtitleOrDanmakuRequestCurrent(expectedAid, cid, expectedGeneration)) {
-                        return@onChunk
-                    }
-
-                    val items = danmakuChunk.mapNotNull { raw ->
-                        val positionMs = (raw.time * 1000).toLong()
-                        if (positionMs < startFromMs) return@mapNotNull null
-
-                        DanmakuItemData(
-                            danmakuId = raw.dmid,
-                            position = positionMs,
-                            content = raw.text,
-                            mode = when (raw.type) {
-                                4 -> DanmakuItemData.DANMAKU_MODE_CENTER_BOTTOM
-                                5 -> DanmakuItemData.DANMAKU_MODE_CENTER_TOP
-                                else -> DanmakuItemData.DANMAKU_MODE_ROLLING
-                            },
-                            textSize = raw.size,
-                            textColor = Color(raw.color).toArgb()
-                        )
-                    }
-
-                    if (safeUpdateDanmakuData(currentPlayer, items)) {
-                        injectedCount += items.size
-                    }
-                }
-            )
-        }.onSuccess {
-            if (skippedAsStale) {
-                logger.fInfo {
-                    "Skip stale danmaku bytes parse: aid=$expectedAid, cid=$cid, generation=$expectedGeneration"
-                }
-            } else {
-                logger.fInfo {
-                    "Load danmaku success (xml bytes cache, cacheHit=$cacheHit, startFromMs=$startFromMs), injected: $injectedCount"
-                }
-            }
-        }.onFailure { error ->
-            if (error is CancellationException) throw error
-            logger.fWarn { "Load danmaku failed: ${error.stackTraceToString()}" }
-        }
-    }
-
     private suspend fun updateSubtitle(
         aid: Long,
         cid: Long,
@@ -2522,6 +2344,7 @@ class VideoPlayerV3ViewModel(
             )
 
             _uiState.update { it.copy(danmakuMask = mask) }
+            syncDanmakuHostStateFromPlayerState()
 
             if (!isCurrentLoadRequest(generation, aid, cid, expectedEpid)) return@runCatching
 
@@ -2529,90 +2352,6 @@ class VideoPlayerV3ViewModel(
         }.onFailure {
             if (it is CancellationException) throw it
             logger.fWarn { "Load danmaku mask failed: ${it.stackTraceToString()}" }
-        }
-    }
-
-    private suspend fun stopDanmakuLoadOnly() {
-        clearDanmakuBindingState()
-
-        val job = danmakuLoadJob
-        danmakuLoadJob = null
-        job?.cancel()
-        withContext(Dispatchers.Default) {
-            withTimeoutOrNull(200) { job?.cancelAndJoin() }
-        }
-    }
-
-    private suspend fun stopDanmakuHard() {
-        clearDanmakuBindingState()
-
-        val job = danmakuLoadJob
-        danmakuLoadJob = null
-        job?.cancel()
-
-        withContext(Dispatchers.Main) {
-            safeReleaseDanmakuPlayer()
-        }
-
-        withContext(Dispatchers.Default) {
-            withTimeoutOrNull(200) { job?.cancelAndJoin() }
-        }
-    }
-
-    private fun unsafeInitDanmakuPlayer() {
-        boundDanmakuPlayer = null
-        pendingDanmakuLoad = null
-        danmakuPlayer = DanmakuPlayer(SimpleRenderer())
-        initDanmakuConfig()
-    }
-
-    private fun unsafeReleaseDanmakuPlayer() {
-        boundDanmakuPlayer = null
-        pendingDanmakuLoad = null
-        danmakuPlayer?.release()
-        danmakuPlayer = null
-    }
-
-    private fun startDanmakuLoadJob(
-        aid: Long,
-        cid: Long,
-        expectedEpid: Int?,
-        generation: Long,
-        startFromMs: Long = 0L,
-        currentPlayer: DanmakuPlayer
-    ) {
-        val dispatcher = Dispatchers.IO.limitedParallelism(1)
-        val job = viewModelScope.launch(dispatcher) {
-            loadDanmaku(
-                cid = cid,
-                expectedPlayer = currentPlayer,
-                expectedAid = aid,
-                expectedGeneration = generation,
-                startFromMs = startFromMs
-            )
-
-            withContext(Dispatchers.Main) {
-                withDanmakuPlayerLocked {
-                    if (!_uiState.value.danmakuState.danmakuEnabled) return@withDanmakuPlayerLocked
-                    if (danmakuPlayer !== currentPlayer) return@withDanmakuPlayerLocked
-                    if (!isCurrentLoadRequest(generation, aid, cid, expectedEpid)) return@withDanmakuPlayerLocked
-
-                    val latestPos = videoPlayer?.currentPosition ?: 0L
-                    currentPlayer.seekTo(latestPos)
-                    currentPlayer.pause()
-
-                    if (_uiState.value.playerState == PlayerState.Playing) {
-                        currentPlayer.start()
-                    }
-                }
-            }
-        }
-
-        danmakuLoadJob = job
-        job.invokeOnCompletion {
-            if (danmakuLoadJob === job) {
-                danmakuLoadJob = null
-            }
         }
     }
 
@@ -2654,88 +2393,6 @@ class VideoPlayerV3ViewModel(
                 "User-Agent" to BVApp.context.getString(R.string.video_player_user_agent_client)
             )
         }
-    }
-
-    private fun initDanmakuConfig() {
-        val danmakuState = _uiState.value.danmakuState
-        val danmakuTypes = danmakuState.enabledTypes
-        val area = danmakuState.area
-        val scale = danmakuState.scale
-        val factor = danmakuState.speedFactor
-
-        danmakuTypeFilter.clear()
-        if (!danmakuTypes.contains(DanmakuType.All)) {
-            val types = DanmakuType.entries.toMutableList()
-            types.remove(DanmakuType.All)
-            types.removeAll(danmakuTypes)
-            val filterTypes = types.mapNotNull {
-                when (it) {
-                    DanmakuType.Rolling -> DanmakuItemData.DANMAKU_MODE_ROLLING
-                    DanmakuType.Top -> DanmakuItemData.DANMAKU_MODE_CENTER_TOP
-                    DanmakuType.Bottom -> DanmakuItemData.DANMAKU_MODE_CENTER_BOTTOM
-                    else -> null
-                }
-            }
-            filterTypes.forEach { danmakuTypeFilter.addFilterItem(it) }
-        }
-
-        danmakuConfig = danmakuConfig.copy(
-            density = 120,
-            textSizeScale = scale,
-            screenPart = area,
-            dataFilter = listOf(danmakuTypeFilter),
-            rollingSpeedFactor = factor
-        )
-        danmakuConfig.updateFilter()
-        logger.info { "Init danmaku config: $danmakuConfig" }
-        withDanmakuPlayerLocked { danmakuPlayer?.updateConfig(danmakuConfig) }
-    }
-
-    private fun updateDanmakuConfigTypeFilter(enabledDanmakuTypes: List<DanmakuType>) {
-        danmakuTypeFilter.clear()
-
-        if (!enabledDanmakuTypes.contains(DanmakuType.All)) {
-            val types = DanmakuType.entries.toMutableList()
-            types.remove(DanmakuType.All)
-            types.removeAll(enabledDanmakuTypes)
-            val filterTypes = types.mapNotNull {
-                when (it) {
-                    DanmakuType.Rolling -> DanmakuItemData.DANMAKU_MODE_ROLLING
-                    DanmakuType.Top -> DanmakuItemData.DANMAKU_MODE_CENTER_TOP
-                    DanmakuType.Bottom -> DanmakuItemData.DANMAKU_MODE_CENTER_BOTTOM
-                    else -> null
-                }
-            }
-            filterTypes.forEach { danmakuTypeFilter.addFilterItem(it) }
-        }
-        logger.info { "Update danmaku type filters: ${danmakuTypeFilter.filterSet}" }
-        danmakuConfig.updateFilter()
-        withDanmakuPlayerLocked { danmakuPlayer?.updateConfig(danmakuConfig) }
-    }
-
-    private fun updateDanmakuArea(area: Float) {
-        logger.info { "Update danmaku area: $area" }
-
-        danmakuConfig = danmakuConfig.copy(
-            screenPart = area
-        )
-        withDanmakuPlayerLocked { danmakuPlayer?.updateConfig(danmakuConfig) }
-        withDanmakuPlayerLocked { danmakuPlayer?.setDanmakuRollingSpeed(_uiState.value.danmakuState.speedFactor) }
-    }
-
-    private fun updateDanmakuScale(scale: Float) {
-        logger.info { "Update danmaku config: $danmakuConfig" }
-
-        danmakuConfig = danmakuConfig.copy(
-            textSizeScale = scale,
-        )
-        withDanmakuPlayerLocked { danmakuPlayer?.updateConfig(danmakuConfig) }
-        withDanmakuPlayerLocked { danmakuPlayer?.setDanmakuRollingSpeed(_uiState.value.danmakuState.speedFactor) }
-    }
-
-    private fun updateDanmakuSpeedFactor(factor: Float) {
-        logger.info { "Update danmaku rolling speed factor: $factor" }
-        withDanmakuPlayerLocked { danmakuPlayer?.setDanmakuRollingSpeed(factor) }
     }
 
     private fun startNextEpisodeCountdown(target: NextPlayTarget) {
@@ -2841,8 +2498,7 @@ class VideoPlayerV3ViewModel(
         logger.fInfo { "Back to history: ${time.formatHourMinSec()}" }
 
         videoPlayer?.seekTo(time)
-        withDanmakuPlayerLocked { danmakuPlayer?.seekTo(time) }
-        withDanmakuPlayerLocked { danmakuPlayer?.pause() }
+        seekDanmakuHost(time)
 
         _uiState.update { it.copy(showBackToStart = true) }
 
@@ -2961,38 +2617,6 @@ class VideoPlayerV3ViewModel(
                 state.cid == expectedCid
     }
 
-    private inline fun <T> withDanmakuPlayerLocked(block: () -> T): T =
-        synchronized(danmakuPlayerLock) { block() }
-
-    private fun clearDanmakuXmlBytesCache() { danmakuXmlBytesCache = null }
-
-    private fun cacheDanmakuXmlBytesIfAllowed(cid: Long, xmlBytes: ByteArray) {
-        if (xmlBytes.size <= danmakuXmlBytesCacheMaxBytes) {
-            danmakuXmlBytesCache = CachedDanmakuXmlBytes(
-                cid = cid,
-                xmlBytes = xmlBytes
-            )
-        } else {
-            clearDanmakuXmlBytesCache()
-        }
-    }
-
-    private fun hasDanmakuAfterPosition(xmlBytes: ByteArray, startFromMs: Long): Boolean {
-        var found = false
-
-        BiliHttpApi.parseDanmakuXmlChunkedFromBytes(
-            xmlBytes = xmlBytes,
-            chunkSize = 200,
-            shouldContinue = { !found },
-            onChunk = onChunk@{ chunk ->
-                if (found) return@onChunk
-                found = chunk.any { raw -> (raw.time * 1000).toLong() >= startFromMs }
-            }
-        )
-
-        return found
-    }
-
     private fun isHttp302Error(error: Throwable): Boolean {
         val responseCode = (error as? ResponseException)?.response?.status?.value
         if (responseCode == 302) return true
@@ -3058,14 +2682,12 @@ class VideoPlayerV3ViewModel(
         seekerUpdateJob?.cancel()
         clockUpdateJob?.cancel()
         heartbeatJob?.cancel()
-        danmakuLoadJob?.cancel()
         playNextCountdownJob?.cancel()
         backToStartCountdownJob?.cancel()
         previewTipCountdownJob?.cancel()
         ugcPagesPrefetchJob?.cancel()
         bufferingShowJob?.cancel()
         bufferingHideJob?.cancel()
-        clearDanmakuXmlBytesCache()
 
         runCatching { subtitleHttpClient.close() }
 
@@ -3091,10 +2713,71 @@ sealed interface DanmakuSettingAction {
     data class SetScale(val value: Float) : DanmakuSettingAction
     data class SetOpacity(val value: Float) : DanmakuSettingAction
     data class SetArea(val value: Float) : DanmakuSettingAction
-    data class SetSpeedFactor(val value: Float) : DanmakuSettingAction
+    data class SetRollingDurationFactor(val value: Float) : DanmakuSettingAction
+    data class SetVodFilterLevel(val value: Int) : DanmakuSettingAction
+    data class SetLiveFilterLevel(val value: Int) : DanmakuSettingAction
+    data class SetColorful(val value: Boolean) : DanmakuSettingAction
     data class SetMaskEnabled(val enabled: Boolean) : DanmakuSettingAction
     data class SetEnabledTypes(val types: List<DanmakuType>) : DanmakuSettingAction
     data class SetDanmakuEnabled(val enabled: Boolean) : DanmakuSettingAction
+}
+
+data class DanmakuHostViewModelState(
+    val sourceMode: DanmakuSourceMode = DanmakuSourceMode.None,
+    val config: DanmakuConfig = DanmakuConfig(),
+    val filterRule: DanmakuFilterRule = DanmakuFilterRule(),
+    val maskEnabled: Boolean = false,
+    val mask: DanmakuMask? = null,
+    val aid: Long = 0L,
+    val cid: Long = 0L,
+    val currentPositionMs: Long = 0L,
+    val isPlaying: Boolean = false,
+    val playbackSpeed: Float = 1f,
+    val live: DanmakuLiveInterfaceState = DanmakuLiveInterfaceState(),
+)
+
+data class DanmakuLiveInterfaceState(
+    val roomId: Long = 0L,
+    val enabled: Boolean = false,
+    val sessionId: String = "",
+    val state: String = "idle",
+    val errorMessage: String? = null,
+)
+
+sealed interface DanmakuHostCommand {
+    data class Seek(
+        val positionMs: Long,
+        val forceFetch: Boolean,
+        val reason: String,
+    ) : DanmakuHostCommand
+
+    data class RefreshFromPosition(
+        val positionMs: Long,
+        val forceFetch: Boolean,
+        val reason: String,
+    ) : DanmakuHostCommand
+
+    data class Clear(
+        val reason: String,
+    ) : DanmakuHostCommand
+}
+
+private fun DanmakuState.toDanmakuConfig(bottomPaddingPx: Int): DanmakuConfig {
+    return DanmakuConfig(
+        enabled = danmakuEnabled,
+        opacity = opacity.coerceIn(0f, 1f),
+        textSizeScale = (scale * 100).toInt().coerceAtLeast(1),
+        durationMultiplier = 2f - rollingDurationFactor.coerceIn(0.2f, 1.8f),
+        minLevel = vodFilterLevel.coerceAtLeast(0),
+        vodMinLevel = vodFilterLevel.coerceIn(0, 10),
+        liveMinLevel = liveFilterLevel.coerceIn(0, 60),
+        colorful = colorful,
+        bottomPaddingPx = bottomPaddingPx.coerceAtLeast(0),
+        area = area.coerceIn(0f, 1f),
+        allowScroll = enabledTypes.contains(DanmakuType.All) || enabledTypes.contains(DanmakuType.Rolling),
+        allowTop = enabledTypes.contains(DanmakuType.All) || enabledTypes.contains(DanmakuType.Top),
+        allowBottom = enabledTypes.contains(DanmakuType.All) || enabledTypes.contains(DanmakuType.Bottom),
+    )
 }
 
 sealed interface SubtitleSettingAction {

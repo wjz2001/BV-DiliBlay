@@ -105,9 +105,15 @@ object Prefs {
         restore = { Audio.fromCode(it) }
     )
 
-    var defaultDanmakuScale by pref(PrefKeys.prefDefaultDanmakuScaleKey, 1.75f)
+    var defaultDanmakuScale by pref(PrefKeys.prefDefaultDanmakuScaleKey, 1f)
     var defaultDanmakuOpacity by pref(PrefKeys.prefDefaultDanmakuOpacityKey, 0.7f)
-    var defaultDanmakuSpeedFactor by pref(PrefKeys.prefDefaultDanmakuSpeedFactorKey, 1f)
+    var defaultDanmakuRollingDurationFactor by pref(
+        PrefKeys.prefDefaultDanmakuRollingDurationFactorKey,
+        1f
+    )
+    var defaultDanmakuFilterLevel by pref(PrefKeys.prefDefaultDanmakuFilterLevelKey, 0)
+    var defaultLiveDanmakuFilterLevel by pref(PrefKeys.prefDefaultLiveDanmakuFilterLevelKey, 0)
+    var defaultDanmakuColorful by pref(PrefKeys.prefDefaultDanmakuColorfulKey, true)
     var defaultDanmakuEnabled by pref(PrefKeys.prefDefaultDanmakuEnabledKey, true)
 
     // 列表类型映射
@@ -127,7 +133,7 @@ object Prefs {
         }
     )
 
-    var defaultDanmakuArea by pref(PrefKeys.prefDefaultDanmakuAreaKey, 0.5f)
+    var defaultDanmakuArea by pref(PrefKeys.prefDefaultDanmakuAreaKey, 1f)
 
     // -------------------------
     // 屏蔽功能（默认都不勾选）
@@ -450,7 +456,10 @@ private object PrefKeys {
     val prefDefaultPlaySpeedKey = intPreferencesKey("dps")
     val prefDefaultDanmakuScaleKey = floatPreferencesKey("dds2")
     val prefDefaultDanmakuOpacityKey = floatPreferencesKey("ddo")
-    val prefDefaultDanmakuSpeedFactorKey = floatPreferencesKey("ddsf")
+    val prefDefaultDanmakuRollingDurationFactorKey = floatPreferencesKey("ddrdf")
+    val prefDefaultDanmakuFilterLevelKey = intPreferencesKey("ddfl")
+    val prefDefaultLiveDanmakuFilterLevelKey = intPreferencesKey("dldfl")
+    val prefDefaultDanmakuColorfulKey = booleanPreferencesKey("ddc")
     val prefDefaultDanmakuTypesKey = stringPreferencesKey("ddts")
     val prefDefaultDanmakuAreaKey = floatPreferencesKey("dda")
     val prefDefaultDanmakuEnabledKey = booleanPreferencesKey("dde")

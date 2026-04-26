@@ -1,5 +1,4 @@
 [versions]
-akdanmaku = "1.0.2"
 androidsvg = "1.4"
 coil = "2.7.0"
 firebase-bom = "34.12.0"
@@ -23,9 +22,6 @@ slf4j-simple = "2.0.17"
 re2j = "1.8"
 
 [libraries]
-# https://github.com/Frost819/AkDanmaku
-akdanmaku = { module = "com.github.Frost819:AkDanmaku", version.ref = "akdanmaku" }
-
 # https://github.com/BigBadaboom/androidsvg
 androidSvg = { module = "com.caverock:androidsvg-aar", version.ref = "androidsvg" }
 

@@ -35,6 +35,7 @@ import dev.aaa1115910.biliapi.entity.video.Subtitle
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.component.comments.VideoCommentsDialog
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoFlip
 import dev.aaa1115910.bv.entity.VideoListItem
@@ -51,7 +52,6 @@ import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.player.DanmakuSettingAction
 import dev.aaa1115910.bv.viewmodel.player.MediaProfileSettingAction
 import dev.aaa1115910.bv.viewmodel.player.SubtitleSettingAction
-import dev.aaa1115910.bv.component.comments.VideoCommentsDialog
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -546,10 +546,8 @@ fun VideoPlayerController(
                 onVideoRotationChange = onVideoRotationChange,
                 onVideoFlipChange = onVideoFlipChange,
                 onPlaySpeedChange = onPlaySpeedChange,
-                onDanmakuSwitchChange = {
-                    onDanmakuSettingChange(
-                        DanmakuSettingAction.SetDanmakuEnabled(!uiState.danmakuState.danmakuEnabled)
-                    )
+                onDanmakuSwitchChange = { types ->
+                    onDanmakuSettingChange(DanmakuSettingAction.SetEnabledTypes(types))
                 },
                 onDanmakuSizeChange = { scale ->
                     onDanmakuSettingChange(DanmakuSettingAction.SetScale(scale))
@@ -557,8 +555,17 @@ fun VideoPlayerController(
                 onDanmakuOpacityChange = { opacity ->
                     onDanmakuSettingChange(DanmakuSettingAction.SetOpacity(opacity))
                 },
-                onDanmakuSpeedFactorChange = { factor ->
-                    onDanmakuSettingChange(DanmakuSettingAction.SetSpeedFactor(factor))
+                onDanmakuRollingDurationFactorChange = { factor ->
+                    onDanmakuSettingChange(DanmakuSettingAction.SetRollingDurationFactor(factor))
+                },
+                onDanmakuVodFilterLevelChange = { level ->
+                    onDanmakuSettingChange(DanmakuSettingAction.SetVodFilterLevel(level))
+                },
+                onDanmakuLiveFilterLevelChange = { level ->
+                    onDanmakuSettingChange(DanmakuSettingAction.SetLiveFilterLevel(level))
+                },
+                onDanmakuColorfulChange = { enabled ->
+                    onDanmakuSettingChange(DanmakuSettingAction.SetColorful(enabled))
                 },
                 onDanmakuAreaChange = { area ->
                     onDanmakuSettingChange(DanmakuSettingAction.SetArea(area))
@@ -588,8 +595,5 @@ fun VideoPlayerController(
                 onPlay()
             }
         )
-        }
     }
-
-
-
+}

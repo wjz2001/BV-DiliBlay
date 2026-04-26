@@ -86,7 +86,10 @@ fun MenuController(
     onDanmakuSwitchChange: (List<DanmakuType>) -> Unit,
     onDanmakuSizeChange: (Float) -> Unit,
     onDanmakuOpacityChange: (Float) -> Unit,
-    onDanmakuSpeedFactorChange: (Float) -> Unit,
+    onDanmakuRollingDurationFactorChange: (Float) -> Unit,
+    onDanmakuVodFilterLevelChange: (Int) -> Unit,
+    onDanmakuLiveFilterLevelChange: (Int) -> Unit,
+    onDanmakuColorfulChange: (Boolean) -> Unit,
     onDanmakuAreaChange: (Float) -> Unit,
     onDanmakuMaskChange: (Boolean) -> Unit = {},
     onDanmakuReload: () -> Unit = {},
@@ -127,7 +130,10 @@ fun MenuController(
                 onDanmakuSwitchChange = onDanmakuSwitchChange,
                 onDanmakuSizeChange = onDanmakuSizeChange,
                 onDanmakuOpacityChange = onDanmakuOpacityChange,
-                onDanmakuSpeedFactorChange = onDanmakuSpeedFactorChange,
+                onDanmakuRollingDurationFactorChange = onDanmakuRollingDurationFactorChange,
+                onDanmakuVodFilterLevelChange = onDanmakuVodFilterLevelChange,
+                onDanmakuLiveFilterLevelChange = onDanmakuLiveFilterLevelChange,
+                onDanmakuColorfulChange = onDanmakuColorfulChange,
                 onDanmakuAreaChange = onDanmakuAreaChange,
                 onDanmakuMaskChange = onDanmakuMaskChange,
                 onDanmakuReload = onDanmakuReload,
@@ -156,7 +162,10 @@ fun MenuController(
     onDanmakuSwitchChange: (List<DanmakuType>) -> Unit,
     onDanmakuSizeChange: (Float) -> Unit,
     onDanmakuOpacityChange: (Float) -> Unit,
-    onDanmakuSpeedFactorChange: (Float) -> Unit,
+    onDanmakuRollingDurationFactorChange: (Float) -> Unit,
+    onDanmakuVodFilterLevelChange: (Int) -> Unit,
+    onDanmakuLiveFilterLevelChange: (Int) -> Unit,
+    onDanmakuColorfulChange: (Boolean) -> Unit,
     onDanmakuAreaChange: (Float) -> Unit,
     onDanmakuMaskChange: (Boolean) -> Unit = {},
     onDanmakuReload: () -> Unit = {},
@@ -200,7 +209,10 @@ fun MenuController(
                     onDanmakuSwitchChange = onDanmakuSwitchChange,
                     onDanmakuSizeChange = onDanmakuSizeChange,
                     onDanmakuOpacityChange = onDanmakuOpacityChange,
-                    onDanmakuSpeedFactorChange = onDanmakuSpeedFactorChange,
+                    onDanmakuRollingDurationFactorChange = onDanmakuRollingDurationFactorChange,
+                    onDanmakuVodFilterLevelChange = onDanmakuVodFilterLevelChange,
+                    onDanmakuLiveFilterLevelChange = onDanmakuLiveFilterLevelChange,
+                    onDanmakuColorfulChange = onDanmakuColorfulChange,
                     onDanmakuAreaChange = onDanmakuAreaChange,
                     onDanmakuMaskChange = onDanmakuMaskChange,
                     onDanmakuReload = onDanmakuReload,
@@ -245,7 +257,10 @@ private fun MenuList(
     onDanmakuSwitchChange: (List<DanmakuType>) -> Unit,
     onDanmakuSizeChange: (Float) -> Unit,
     onDanmakuOpacityChange: (Float) -> Unit,
-    onDanmakuSpeedFactorChange: (Float) -> Unit,
+    onDanmakuRollingDurationFactorChange: (Float) -> Unit,
+    onDanmakuVodFilterLevelChange: (Int) -> Unit,
+    onDanmakuLiveFilterLevelChange: (Int) -> Unit,
+    onDanmakuColorfulChange: (Boolean) -> Unit,
     onDanmakuAreaChange: (Float) -> Unit,
     onDanmakuMaskChange: (Boolean) -> Unit = {},
     onDanmakuReload: () -> Unit = {},
@@ -295,14 +310,20 @@ private fun MenuList(
                     currentEnabledTypes = uiState.danmakuState.enabledTypes,
                     currentScale = uiState.danmakuState.scale,
                     currentOpacity = uiState.danmakuState.opacity,
-                    currentSpeedFactor = uiState.danmakuState.speedFactor,
+                    currentRollingDurationFactor = uiState.danmakuState.rollingDurationFactor,
+                    currentVodFilterLevel = uiState.danmakuState.vodFilterLevel,
+                    currentLiveFilterLevel = uiState.danmakuState.liveFilterLevel,
+                    currentColorful = uiState.danmakuState.colorful,
                     currentArea = uiState.danmakuState.area,
                     currentMaskEnabled = uiState.danmakuState.maskEnabled,
                     isDanmakuRefreshing = isDanmakuRefreshing,
                     onDanmakuSwitchChange = onDanmakuSwitchChange,
                     onDanmakuSizeChange = onDanmakuSizeChange,
                     onDanmakuOpacityChange = onDanmakuOpacityChange,
-                    onDanmakuSpeedFactorChange = onDanmakuSpeedFactorChange,
+                    onRollingDurationFactorChange = onDanmakuRollingDurationFactorChange,
+                    onVodFilterLevelChange = onDanmakuVodFilterLevelChange,
+                    onLiveFilterLevelChange = onDanmakuLiveFilterLevelChange,
+                    onColorfulChange = onDanmakuColorfulChange,
                     onDanmakuAreaChange = onDanmakuAreaChange,
                     onFocusStateChange = onFocusStateChange,
                     onDanmakuMaskChange = onDanmakuMaskChange,
@@ -352,9 +373,12 @@ enum class VideoPlayerPictureMenuItem(private val strRes: Int) {
 
 enum class VideoPlayerDanmakuMenuItem(private val strRes: Int) {
     Switch(R.string.video_player_menu_danmaku_switch),
+    FilterLevel(R.string.video_player_menu_danmaku_filter_level),
+    BlockKeyword(R.string.video_player_menu_danmaku_block_keyword),
     Size(R.string.video_player_menu_danmaku_size),
     Opacity(R.string.video_player_menu_danmaku_opacity),
-    SpeedFactor(R.string.video_player_menu_danmaku_speed_factor),
+    Colorful(R.string.video_player_menu_danmaku_colorful),
+    Speed(R.string.video_player_menu_danmaku_speed),
     Area(R.string.video_player_menu_danmaku_area),
     Mask(R.string.video_player_menu_danmaku_mask),
     Refresh(R.string.video_player_menu_danmaku_refresh);
@@ -396,8 +420,11 @@ fun MenuControllerPreview() {
 
     val currentDanmakuSwitch = remember { mutableStateListOf<DanmakuType>() }
     var currentDanmakuSize by remember { mutableFloatStateOf(1f) }
-    var currentDanmakuSpeedFactor by remember { mutableFloatStateOf(1f) }
+    var currentDanmakuRollingDurationFactor by remember { mutableFloatStateOf(1f) }
     var currentDanmakuOpacity by remember { mutableFloatStateOf(1f) }
+    var currentDanmakuVodFilterLevel by remember { mutableIntStateOf(0) }
+    var currentDanmakuLiveFilterLevel by remember { mutableIntStateOf(0) }
+    var currentDanmakuColorful by remember { mutableStateOf(true) }
     var currentDanmakuArea by remember { mutableFloatStateOf(1f) }
     var currentDanmakuMask by remember { mutableStateOf(false) }
 
@@ -487,7 +514,12 @@ fun MenuControllerPreview() {
                     },
                     onDanmakuSizeChange = { currentDanmakuSize = it },
                     onDanmakuOpacityChange = { currentDanmakuOpacity = it },
-                    onDanmakuSpeedFactorChange = { currentDanmakuSpeedFactor = it },
+                    onDanmakuRollingDurationFactorChange = {
+                        currentDanmakuRollingDurationFactor = it
+                    },
+                    onDanmakuVodFilterLevelChange = { currentDanmakuVodFilterLevel = it },
+                    onDanmakuLiveFilterLevelChange = { currentDanmakuLiveFilterLevel = it },
+                    onDanmakuColorfulChange = { currentDanmakuColorful = it },
                     onDanmakuAreaChange = { currentDanmakuArea = it },
                     onDanmakuMaskChange = { currentDanmakuMask = it },
                     onSubtitleChange = { currentSubtitleId = it.id },

@@ -127,10 +127,13 @@ internal class BiliHttpApiTest {
     }
 
     @Test
-    fun `get video danmaku from xml`() {
+    fun `get video danmaku from segment api`() {
         assertDoesNotThrow {
             runBlocking {
-                val response = BiliHttpApi.getDanmakuXml(cid = 903675075)
+                val response = BiliHttpApi.getDanmakuSeg(
+                    cid = 903675075,
+                    avid = 903096632
+                )
                 println(response)
             }
         }

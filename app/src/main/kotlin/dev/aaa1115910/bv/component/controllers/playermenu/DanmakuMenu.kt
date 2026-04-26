@@ -25,19 +25,21 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.controllers.DanmakuType
 import dev.aaa1115910.bv.component.controllers.LocalMenuFocusStateData
 import dev.aaa1115910.bv.component.controllers.MenuFocusState
 import dev.aaa1115910.bv.component.controllers.VideoPlayerDanmakuMenuItem
+import dev.aaa1115910.bv.component.controllers.playermenu.component.ActionMenuItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.CheckBoxMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.component.MenuListItem
-import dev.aaa1115910.bv.component.controllers.playermenu.component.RadioMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.component.StepLessMenuItem
+import dev.aaa1115910.bv.component.controllers.playermenu.component.ToggleMenuItem
 import dev.aaa1115910.bv.component.ifElse
-import dev.aaa1115910.bv.entity.DanmakuSpeedFactor
 import java.text.NumberFormat
+import kotlin.math.roundToInt
 
 @Composable
 fun DanmakuMenuList(
@@ -45,14 +47,20 @@ fun DanmakuMenuList(
     currentEnabledTypes: List<DanmakuType>,
     currentScale: Float,
     currentOpacity: Float,
-    currentSpeedFactor: Float,
+    currentRollingDurationFactor: Float,
+    currentVodFilterLevel: Int,
+    currentLiveFilterLevel: Int,
+    currentColorful: Boolean,
     currentArea: Float,
     currentMaskEnabled: Boolean,
     isDanmakuRefreshing: Boolean = false,
     onDanmakuSwitchChange: (List<DanmakuType>) -> Unit,
     onDanmakuSizeChange: (Float) -> Unit,
     onDanmakuOpacityChange: (Float) -> Unit,
-    onDanmakuSpeedFactorChange: (Float) -> Unit,
+    onRollingDurationFactorChange: (Float) -> Unit,
+    onVodFilterLevelChange: (Int) -> Unit,
+    onLiveFilterLevelChange: (Int) -> Unit,
+    onColorfulChange: (Boolean) -> Unit,
     onDanmakuAreaChange: (Float) -> Unit,
     onDanmakuMaskChange: (Boolean) -> Unit,
     onDanmakuRefreshClick: () -> Unit = {},
@@ -138,6 +146,18 @@ fun DanmakuMenuList(
                     }
                 )
 
+                VideoPlayerDanmakuMenuItem.FilterLevel -> StepLessMenuItem(
+                    modifier = menuItemsModifier,
+                    value = currentVodFilterLevel,
+                    step = 1,
+                    range = 0..10,
+                    text = currentVodFilterLevel.toString(),
+                    onValueChange = onVodFilterLevelChange,
+                    onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
+                )
+
+                VideoPlayerDanmakuMenuItem.BlockKeyword -> {}
+
                 VideoPlayerDanmakuMenuItem.Size -> StepLessMenuItem(
                     modifier = menuItemsModifier,
                     value = currentScale,
@@ -162,16 +182,16 @@ fun DanmakuMenuList(
                     onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
                 )
 
-                VideoPlayerDanmakuMenuItem.SpeedFactor -> RadioMenuList(
+                VideoPlayerDanmakuMenuItem.Colorful -> {}
+
+                VideoPlayerDanmakuMenuItem.Speed -> StepLessMenuItem(
                     modifier = menuItemsModifier,
-                    items = DanmakuSpeedFactor.entries.map { it.getDisplayName(context) },
-                    selected = DanmakuSpeedFactor.getIndexByFactor(currentSpeedFactor),
-                    onSelectedChanged = {
-                        onDanmakuSpeedFactorChange(DanmakuSpeedFactor.entries[it].factor) },
-                    onFocusBackToParent = {
-                        onFocusStateChange(MenuFocusState.Menu)
-                        focusRequester.requestFocus()
-                    }
+                    value = currentRollingDurationFactor,
+                    step = 0.1f,
+                    range = 0.2f..1.8f,
+                    text = "${((currentRollingDurationFactor * 10).roundToInt() / 10f)}x",
+                    onValueChange = onRollingDurationFactorChange,
+                    onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
                 )
 
                 VideoPlayerDanmakuMenuItem.Area -> StepLessMenuItem(
@@ -186,21 +206,11 @@ fun DanmakuMenuList(
                     onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
                 )
 
-                VideoPlayerDanmakuMenuItem.Mask -> RadioMenuList(
-                    modifier = menuItemsModifier,
-                    items = listOf("关闭", "开启"),
-                    selected = if (currentMaskEnabled) 1 else 0,
-                    onSelectedChanged = { onDanmakuMaskChange(it == 1) },
-                    onFocusBackToParent = {
-                        onFocusStateChange(MenuFocusState.Menu)
-                        focusRequester.requestFocus()
-                    }
-                )
+                VideoPlayerDanmakuMenuItem.Mask -> {}
 
                 VideoPlayerDanmakuMenuItem.Refresh -> {}
             }
         }
-
         LazyColumn(
             modifier = Modifier
                 .focusRequester(focusRequester)
@@ -224,25 +234,47 @@ fun DanmakuMenuList(
             contentPadding = PaddingValues(8.dp)
         ) {
             itemsIndexed(VideoPlayerDanmakuMenuItem.entries) { index, item ->
-                MenuListItem(
-                    modifier = Modifier
-                        .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester)),
-                    text = if (item == VideoPlayerDanmakuMenuItem.Refresh && isDanmakuRefreshing) {
-                        context.getString(R.string.video_player_menu_danmaku_refreshing)
-                    } else {
-                        item.getDisplayName(context)
-                    },
-                    selected = when (item) {
-                        VideoPlayerDanmakuMenuItem.Refresh -> isDanmakuRefreshing
-                        else -> selectedDanmakuMenuItem == item
-                    },
-                    onClick = {
-                        if (item == VideoPlayerDanmakuMenuItem.Refresh) {
-                            onDanmakuRefreshClick()
-                        }
-                    },
-                    onFocus = { selectedDanmakuMenuItem = item },
-                )
+                when (item) {
+                    VideoPlayerDanmakuMenuItem.Colorful -> ToggleMenuItem(
+                        modifier = Modifier
+                            .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester)),
+                        text = item.getDisplayName(context),
+                        checked = currentColorful,
+                        onCheckedChange = onColorfulChange,
+                        onFocus = { selectedDanmakuMenuItem = item },
+                    )
+
+                    VideoPlayerDanmakuMenuItem.Mask -> ToggleMenuItem(
+                        modifier = Modifier
+                            .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester)),
+                        text = item.getDisplayName(context),
+                        checked = currentMaskEnabled,
+                        onCheckedChange = onDanmakuMaskChange,
+                        onFocus = { selectedDanmakuMenuItem = item },
+                    )
+
+                    VideoPlayerDanmakuMenuItem.Refresh -> ActionMenuItem(
+                        modifier = Modifier
+                            .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester)),
+                        text = if (isDanmakuRefreshing) {
+                            stringResource(R.string.video_player_menu_danmaku_refreshing)
+                        } else {
+                            item.getDisplayName(context)
+                        },
+                        active = isDanmakuRefreshing,
+                        onClick = onDanmakuRefreshClick,
+                        onFocus = { selectedDanmakuMenuItem = item },
+                    )
+
+                    else -> MenuListItem(
+                        modifier = Modifier
+                            .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester)),
+                        text = item.getDisplayName(context),
+                        selected = selectedDanmakuMenuItem == item,
+                        onClick = {},
+                        onFocus = { selectedDanmakuMenuItem = item },
+                    )
+                }
             }
         }
     }
