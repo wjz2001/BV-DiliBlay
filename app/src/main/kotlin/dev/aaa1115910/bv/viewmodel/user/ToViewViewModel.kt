@@ -197,33 +197,45 @@ class ToViewViewModel(
         }
     }
 
+    suspend fun deleteToViewRemote(aid: Long, viewed: Boolean = false): Boolean {
+        return try {
+            toViewRepository.delToView(
+                viewed = viewed,
+                aid = aid,
+                preferApiType = Prefs.apiType
+            )
+            _uiEffect.emit(UiEffect.ShowToast("删除稍后再看"))
+            true
+        } catch (_: CancellationException) {
+            logger.fInfo { "Delete toview canceled" }
+            false
+        } catch (t: Throwable) {
+            logger.fWarn { "Delete toview failed: ${t.stackTraceToString()}" }
+            when (t) {
+                is AuthFailureException -> {
+                    _uiEffect.emit(
+                        UiEffect.ShowToast(BVApp.context.getString(R.string.exception_auth_failure))
+                    )
+                    if (!BuildConfig.DEBUG) userRepository.logout()
+                }
+
+                else -> {
+                    _uiEffect.emit(UiEffect.ShowToast("删除稍后再看失败"))
+                }
+            }
+            false
+        }
+    }
+
+    fun removeFromLocalList(aid: Long) {
+        histories.removeAll { it.avid == aid }
+    }
+
     fun delToView(aid: Long, viewed: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
-            try {
-                toViewRepository.delToView(
-                    viewed = viewed,
-                    aid = aid,
-                    preferApiType = Prefs.apiType
-                )
+            if (deleteToViewRemote(aid = aid, viewed = viewed)) {
                 withContext(Dispatchers.Main) {
-                    histories.removeAll { it.avid == aid }
-                }
-                _uiEffect.emit(UiEffect.ShowToast("删除稍后再看"))
-            } catch (_: CancellationException) {
-                logger.fInfo { "Delete toview canceled" }
-            } catch (t: Throwable) {
-                logger.fWarn { "Delete toview failed: ${t.stackTraceToString()}" }
-                when (t) {
-                    is AuthFailureException -> {
-                        _uiEffect.emit(
-                            UiEffect.ShowToast(BVApp.context.getString(R.string.exception_auth_failure))
-                        )
-                        if (!BuildConfig.DEBUG) userRepository.logout()
-                    }
-
-                    else -> {
-                        _uiEffect.emit(UiEffect.ShowToast("删除稍后再看失败"))
-                    }
+                    removeFromLocalList(aid)
                 }
             }
         }

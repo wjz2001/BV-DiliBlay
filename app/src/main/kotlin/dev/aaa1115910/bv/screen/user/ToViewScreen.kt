@@ -14,7 +14,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +36,7 @@ import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 
@@ -44,6 +48,8 @@ fun ToViewScreen(
     toViewViewModel: ToViewViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var pendingRemovalAid by remember { mutableStateOf<Long?>(null) }
 
     val groupedHistories by remember {
         derivedStateOf {
@@ -122,6 +128,13 @@ fun ToViewScreen(
                     SmallVideoCard(
                         data = item,
                         delToView = true,
+                        pendingRemoval = pendingRemovalAid == item.avid,
+                        onPendingRemovalFocusLost = {
+                            if (pendingRemovalAid == item.avid) {
+                                pendingRemovalAid = null
+                                toViewViewModel.removeFromLocalList(item.avid)
+                            }
+                        },
                         onClick = {
                             VideoInfoActivity.actionStart(
                                 context = context,
@@ -131,7 +144,11 @@ fun ToViewScreen(
                             )
                         },
                         onAddWatchLater = {
-                            toViewViewModel.delToView(item.avid)
+                            scope.launch {
+                                if (toViewViewModel.deleteToViewRemote(item.avid)) {
+                                    pendingRemovalAid = item.avid
+                                }
+                            }
                         },
                         onGoToDetailPage = {
                             VideoInfoActivity.actionStart(
@@ -176,6 +193,13 @@ fun ToViewScreen(
                     SmallVideoCard(
                         data = item,
                         delToView = true,
+                        pendingRemoval = pendingRemovalAid == item.avid,
+                        onPendingRemovalFocusLost = {
+                            if (pendingRemovalAid == item.avid) {
+                                pendingRemovalAid = null
+                                toViewViewModel.removeFromLocalList(item.avid)
+                            }
+                        },
                         onClick = {
                             VideoInfoActivity.actionStart(
                                 context = context,
@@ -185,7 +209,11 @@ fun ToViewScreen(
                             )
                         },
                         onAddWatchLater = {
-                            toViewViewModel.delToView(item.avid)
+                            scope.launch {
+                                if (toViewViewModel.deleteToViewRemote(item.avid)) {
+                                    pendingRemovalAid = item.avid
+                                }
+                            }
                         },
                         onGoToDetailPage = {
                             VideoInfoActivity.actionStart(

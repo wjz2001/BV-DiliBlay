@@ -125,6 +125,8 @@ fun SmallVideoCard(
     onAddWatchLater: (() -> Unit)? = null,
     onGoToDetailPage: (() -> Unit)? = null,
     onGoToUpPage: (() -> Unit)? = null,
+    pendingRemoval: Boolean = false,
+    onPendingRemovalFocusLost: (() -> Unit)? = null,
     interactive: Boolean = true,
     focusedScale: Float = 1.1f,
     coverDensityMultiplier: Float = 1.5f,
@@ -140,6 +142,8 @@ fun SmallVideoCard(
         onClick = onClick,
         onAddWatchLater = onAddWatchLater,
         legacyOnGoToUpPage = onGoToUpPage,
+        pendingRemoval = pendingRemoval,
+        onPendingRemovalFocusLost = onPendingRemovalFocusLost,
         interactive = interactive,
         focusedScale = focusedScale,
         coverDensityMultiplier = coverDensityMultiplier,
@@ -158,6 +162,8 @@ private fun SmallVideoCardCore(
     onClick: () -> Unit,
     onAddWatchLater: (() -> Unit)? = null,
     legacyOnGoToUpPage: (() -> Unit)? = null,
+    pendingRemoval: Boolean = false,
+    onPendingRemovalFocusLost: (() -> Unit)? = null,
     interactive: Boolean = true,
     focusedScale: Float = 1.1f,
     coverDensityMultiplier: Float = 1.5f,
@@ -177,6 +183,7 @@ private fun SmallVideoCardCore(
 
     var showActions by remember(data.avid) { mutableStateOf(false) }
     var releaseLongPress by remember(data.avid) { mutableStateOf(false) }
+    var restoreFocusToCardAfterActionsClose by remember(data.avid) { mutableStateOf(false) }
 
     val cardFocusRequester = remember(data.avid) { FocusRequester() }
 
@@ -201,8 +208,13 @@ private fun SmallVideoCardCore(
     }
 
     val allowDismissActionsOnFocusLoss =
+        !pendingRemoval &&
+                hostUiState.favoriteDialog.aid != data.avid &&
+                hostUiState.coAuthorsDialog.ownerAid != data.avid
+    val canFinalizePendingRemovalOnFocusLoss =
         hostUiState.favoriteDialog.aid != data.avid &&
                 hostUiState.coAuthorsDialog.ownerAid != data.avid
+    val actionLayerVisible = showActions || pendingRemoval
 
     fun navigateToUp(mid: Long, name: String) {
         UpInfoActivity.actionStart(context, mid = mid, name = name)
@@ -229,14 +241,14 @@ private fun SmallVideoCardCore(
     }
 
     LaunchedEffect(
-        showActions,
+        actionLayerVisible,
         canHistory,
         canFavorite,
         canGoToUpPage,
         canWatchLater,
         hostVm
     ) {
-        if (showActions) {
+        if (actionLayerVisible) {
             requestDefaultActionFocus()
 
             hostVm?.onActionsShown(
@@ -249,11 +261,18 @@ private fun SmallVideoCardCore(
         }
     }
 
-    LaunchedEffect(hostUiState.lastDismissedDialogAid, showActions) {
+    LaunchedEffect(hostUiState.lastDismissedDialogAid, actionLayerVisible) {
         val dismissedAid = hostUiState.lastDismissedDialogAid
-        if (showActions && dismissedAid == data.avid) {
+        if (actionLayerVisible && dismissedAid == data.avid) {
             requestDefaultActionFocus()
             hostVm?.consumeLastDismissedDialogAid(data.avid)
+        }
+    }
+
+    LaunchedEffect(showActions, pendingRemoval, restoreFocusToCardAfterActionsClose) {
+        if (!pendingRemoval && !showActions && restoreFocusToCardAfterActionsClose) {
+            cardFocusRequester.requestFocus(scope)
+            restoreFocusToCardAfterActionsClose = false
         }
     }
 
@@ -268,15 +287,26 @@ private fun SmallVideoCardCore(
         BvSmallVideoCardFrame(
             modifier = frameModifier,
             interactive = interactive,
-            showActions = showActions,
+            showActions = actionLayerVisible,
             allowDismissActionsOnFocusLoss = allowDismissActionsOnFocusLoss,
             cardFocusRequester = cardFocusRequester,
             focusedScale = focusedScale,
             onClick = onClickWithStartupCover,
-            onLongClick = { showActions = true },
-            onDismissActions = { showActions = false }
+            onLongClick = {
+                if (!pendingRemoval) {
+                    showActions = true
+                }
+            },
+            onDismissActions = {
+                if (!pendingRemoval) {
+                    showActions = false
+                }
+            },
+            onPendingRemovalFocusLost = onPendingRemovalFocusLost,
+            pendingRemoval = pendingRemoval,
+            canFinalizePendingRemovalOnFocusLoss = canFinalizePendingRemovalOnFocusLoss
         ) {
-            if (showActions) {
+            if (actionLayerVisible) {
                 BvSmallVideoCardActions(
                     historyButtonRequester = historyButtonRequester,
                     favoriteButtonRequester = favoriteButtonRequester,
@@ -285,12 +315,14 @@ private fun SmallVideoCardCore(
                     canHistory = canHistory,
                     canFavorite = canFavorite,
                     canGoToUpPage = canGoToUpPage,
-                    canWatchLater = canWatchLater,
+                    canWatchLater = canWatchLater && !pendingRemoval,
                     isFavorite = isFavorite,
                     hasMultipleCoAuthors = hasMultipleCoAuthors,
                     onBack = {
-                        showActions = false
-                        cardFocusRequester.requestFocus(scope)
+                        if (!pendingRemoval) {
+                            restoreFocusToCardAfterActionsClose = true
+                            showActions = false
+                        }
                     },
                     onHistoryClick = {
                         if (!releaseLongPress) {
@@ -353,16 +385,18 @@ private fun SmallVideoCardCore(
             }
         }
 
-        CardInfo(
-            modifier = Modifier.fillMaxWidth(),
-            title = data.title,
-            titleMaxLines = titleMaxLines,
-            upName = data.upName,
-            pubTime = data.pubTime,
-            hasMultipleCoAuthors = hasMultipleCoAuthors,
-            infoDensityMultiplier = infoDensityMultiplier,
-            infoFontScaleMultiplier = infoFontScaleMultiplier
-        )
+        if (!pendingRemoval) {
+            CardInfo(
+                modifier = Modifier.fillMaxWidth(),
+                title = data.title,
+                titleMaxLines = titleMaxLines,
+                upName = data.upName,
+                pubTime = data.pubTime,
+                hasMultipleCoAuthors = hasMultipleCoAuthors,
+                infoDensityMultiplier = infoDensityMultiplier,
+                infoFontScaleMultiplier = infoFontScaleMultiplier
+            )
+        }
     }
 }
 
@@ -374,9 +408,12 @@ private fun BvSmallVideoCardFrame(
     allowDismissActionsOnFocusLoss: Boolean,
     cardFocusRequester: FocusRequester,
     focusedScale: Float,
+    pendingRemoval: Boolean,
+    canFinalizePendingRemovalOnFocusLoss: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onDismissActions: () -> Unit,
+    onPendingRemovalFocusLost: (() -> Unit)?,
     content: @Composable BoxScope.() -> Unit
 ) {
     var cardIsFocused by remember { mutableStateOf(false) }
@@ -416,6 +453,9 @@ private fun BvSmallVideoCardFrame(
                 .onFocusChanged { focusState ->
                     cardIsFocused = focusState.isFocused
                     cardHasFocus = focusState.hasFocus
+                    if (pendingRemoval && canFinalizePendingRemovalOnFocusLoss && !focusState.hasFocus) {
+                        onPendingRemovalFocusLost?.invoke()
+                    }
                     if (!focusState.hasFocus && allowDismissActionsOnFocusLoss) {
                         onDismissActions()
                     }
