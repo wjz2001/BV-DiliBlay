@@ -37,7 +37,7 @@ class UgcRepositoryTest {
     @Test
     fun `get region data`() = runBlocking {
         UgcType.entries
-            .filter { it.locId != -1 }
+            .filter { it.channelId != -1 }
             .forEach { ugcType ->
                 println("ugcType: $ugcType")
                 val result = ugcRepository.getRegionData(ugcType)
@@ -48,7 +48,7 @@ class UgcRepositoryTest {
     @Test
     fun `get region more data`() = runBlocking {
         UgcType.entries
-            .filter { it.locId != -1 }
+            .filter { it.channelId != -1 }
             .forEach { ugcType ->
                 println("ugcType: $ugcType")
                 val result = ugcRepository.getRegionMoreData(ugcType)

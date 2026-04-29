@@ -1,26 +1,18 @@
 package dev.aaa1115910.bv.viewmodel.ugc
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.setValue
 import dev.aaa1115910.biliapi.entity.ugc.region.UgcFeedPage
 import dev.aaa1115910.biliapi.repositories.UgcRepository
-import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.component.UgcTopNavItem
 import dev.aaa1115910.bv.screen.main.ugc.UgcScaffoldState
-import dev.aaa1115910.bv.util.fInfo
-import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.common.DebouncedActivationController
 import dev.aaa1115910.bv.viewmodel.common.LoadState
 import dev.aaa1115910.bv.viewmodel.common.canAutoLoad
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.withLock
 import org.koin.core.annotation.KoinViewModel
 
@@ -85,7 +77,7 @@ class UgcViewModel(private val ugcRepository: UgcRepository) : ViewModel() {
         if (!_ugcScaffoldStateMap.containsKey(item)) {
             addUgcScaffoldState(
                 item,
-                UgcScaffoldState(ugcType = item.ugcTypeV2)
+                UgcScaffoldState(ugcType = item.ugcType)
             )
         }
         ensureLoaded(item)

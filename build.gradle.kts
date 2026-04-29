@@ -1,7 +1,6 @@
-import com.android.build.api.dsl.ApplicationExtension
-import com.android.build.api.dsl.LibraryExtension
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.gradle.api.plugins.JavaPluginExtension
+import org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension
+import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
 
 plugins {
     alias(gradleLibs.plugins.android.application) apply false
@@ -16,26 +15,29 @@ plugins {
 }
 
 subprojects {
-    // 所有 Android Application 模块：Java source/target = 17
-    plugins.withId("com.android.application") {
-        extensions.configure<ApplicationExtension> {
-            compileOptions {
-                sourceCompatibility = JavaVersion.VERSION_17
-                targetCompatibility = JavaVersion.VERSION_17
-            }
+    // --- 统一所有纯 JVM(Java) 模块的 Java 编译版本 ---
+    plugins.withId("java") {
+        extensions.configure<JavaPluginExtension> {
+            toolchain.languageVersion.set(JavaLanguageVersion.of(17))
         }
     }
-    // 所有 Android Library 模块：Java source/target = 17
-    plugins.withId("com.android.library") {
-        extensions.configure<LibraryExtension> {
-            compileOptions {
-                sourceCompatibility = JavaVersion.VERSION_17
-                targetCompatibility = JavaVersion.VERSION_17
-            }
+    plugins.withId("java-library") {
+        extensions.configure<JavaPluginExtension> {
+            toolchain.languageVersion.set(JavaLanguageVersion.of(17))
         }
     }
-    // 所有 Kotlin 编译任务：jvmTarget = 17
-    tasks.withType<KotlinCompile>().configureEach {
-        compilerOptions.jvmTarget.set(JvmTarget.fromTarget("17"))
+
+    // --- 统一所有 Kotlin JVM 模块的 Kotlin toolchain ---
+    plugins.withId("org.jetbrains.kotlin.jvm") {
+        extensions.configure<KotlinJvmProjectExtension> {
+            jvmToolchain(17)
+        }
+    }
+
+    // --- Android Kotlin 也显式用 toolchain ---
+    plugins.withId("org.jetbrains.kotlin.android") {
+        extensions.configure<KotlinAndroidProjectExtension> {
+            jvmToolchain(17)
+        }
     }
 }

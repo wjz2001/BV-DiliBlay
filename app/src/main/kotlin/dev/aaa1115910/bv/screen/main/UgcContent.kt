@@ -110,7 +110,7 @@ fun UgcContent(
         if (activeTab !in ugcViewModel.ugcScaffoldStateMap) {
             ugcViewModel.addUgcScaffoldState(
                 activeTab,
-                UgcScaffoldState(ugcType = activeTab.ugcTypeV2)
+                UgcScaffoldState(ugcType = activeTab.ugcType)
             )
         }
         ugcViewModel.ensureLoaded(activeTab)
@@ -173,7 +173,7 @@ fun UgcContent(
                     ugcViewModel.addUgcScaffoldState(
                         item,
                         UgcScaffoldState(
-                            ugcType = item.ugcTypeV2
+                            ugcType = item.ugcType
                         )
                     )
                 }
