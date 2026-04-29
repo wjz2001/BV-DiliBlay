@@ -68,6 +68,7 @@ import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.ResponseException
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -1171,6 +1172,16 @@ class VideoPlayerV3ViewModel(
     }
 
     private fun syncDanmakuHostStateFromPlayerState() {
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            viewModelScope.launch(Dispatchers.Main.immediate) {
+                syncDanmakuHostStateFromPlayerStateOnMain()
+            }
+            return
+        }
+        syncDanmakuHostStateFromPlayerStateOnMain()
+    }
+
+    private fun syncDanmakuHostStateFromPlayerStateOnMain() {
         val state = _uiState.value
         val currentPositionMs = (videoPlayer?.currentPosition ?: 0L).coerceAtLeast(0L)
         val hasVisibleSubtitle = state.subtitleId != -1L &&
@@ -1199,7 +1210,7 @@ class VideoPlayerV3ViewModel(
                 mask = state.danmakuMask,
                 aid = state.aid,
                 cid = state.cid,
-                currentPositionMs = (videoPlayer?.currentPosition ?: 0L).coerceAtLeast(0L),
+                currentPositionMs = currentPositionMs,
                 isPlaying = state.playerState == PlayerState.Playing,
                 playbackSpeed = tempPlaySpeedOverride ?: state.playSpeed
             )

@@ -206,8 +206,7 @@ fun FavoriteScreen(
 
     val visibleFavorites by remember {
         derivedStateOf {
-            val folderId = currentFolderId
-            if (folderId == null) return@derivedStateOf favoriteViewModel.favorites
+            val folderId = currentFolderId ?: return@derivedStateOf favoriteViewModel.favorites
 
             val q = folderQueryStates[folderId]?.debouncedQuery?.trim().orEmpty()
             if (q.isBlank()) {
