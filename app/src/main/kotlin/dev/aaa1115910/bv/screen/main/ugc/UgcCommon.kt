@@ -18,7 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.biliapi.entity.ugc.UgcItem
-import dev.aaa1115910.biliapi.entity.ugc.UgcTypeV2
+import dev.aaa1115910.biliapi.entity.ugc.UgcType
 import dev.aaa1115910.biliapi.entity.ugc.region.UgcFeedPage
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.LoadingTip
@@ -108,7 +108,7 @@ fun UgcRegionScaffold(
 
 
 data class UgcScaffoldState(
-    val ugcType: UgcTypeV2,
+    val ugcType: UgcType,
     val ugcItems: List<UgcItem> = emptyList(),
     val nextPage: UgcFeedPage = UgcFeedPage(),
     val hasMore: Boolean = true,
