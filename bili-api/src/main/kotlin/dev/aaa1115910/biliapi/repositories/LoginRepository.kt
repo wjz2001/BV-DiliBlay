@@ -8,12 +8,14 @@ import dev.aaa1115910.biliapi.entity.login.SmsLoginResult
 import dev.aaa1115910.biliapi.entity.login.WebCookies
 import dev.aaa1115910.biliapi.http.BiliPassportHttpApi
 import io.ktor.util.date.toJvmDate
+import kotlinx.serialization.json.Json
 import org.koin.core.annotation.Single
 import java.util.Date
 import java.util.UUID
 
 @Single
 class LoginRepository {
+    private val exportJson = Json { prettyPrint = true }
     /**
      * 请求扫码登录的二维码，仅支持 Http 接口使用
      */
@@ -92,8 +94,8 @@ class LoginRepository {
             localId = "0",
             ts = (System.currentTimeMillis() / 1000).toInt(),
         )
-        println(response)
         var resultCookies: WebCookies? = null
+        val rawResponseJson = exportJson.encodeToString(response)
         val resultState = when (response.code) {
             0 -> {
                 resultCookies = WebCookies(
@@ -121,7 +123,8 @@ class LoginRepository {
             state = resultState,
             accessToken = response.data?.accessToken,
             refreshToken = response.data?.refreshToken,
-            cookies = resultCookies
+            cookies = resultCookies,
+            rawResponseJson = rawResponseJson
         )
     }
 

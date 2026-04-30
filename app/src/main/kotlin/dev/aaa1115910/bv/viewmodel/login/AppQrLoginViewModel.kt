@@ -12,9 +12,10 @@ import androidx.lifecycle.viewModelScope
 import dev.aaa1115910.biliapi.entity.login.QrLoginState
 import dev.aaa1115910.biliapi.repositories.LoginRepository
 import dev.aaa1115910.bv.BVApp
+import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.entity.AuthData
 import dev.aaa1115910.bv.repository.UserRepository
-import dev.aaa1115910.bv.util.Prefs
+import dev.aaa1115910.bv.util.ApiTestLoginExportPayload
 import dev.aaa1115910.bv.util.fError
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.timeTask
@@ -40,11 +41,14 @@ class AppQrLoginViewModel(
     private var loginUrl by mutableStateOf("")
     var qrImage by mutableStateOf(ImageBitmap(1, 1, ImageBitmapConfig.Argb8888))
     private var key = ""
+    var pendingApiTestExport by mutableStateOf<ApiTestLoginExportPayload?>(null)
+        private set
 
     private var timer = Timer()
 
     fun requestQRCode() {
         state = QrLoginState.Ready
+        clearPendingApiTestExport()
         logger.fInfo { "Request login qr code" }
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
@@ -109,6 +113,13 @@ class AppQrLoginViewModel(
                         refreshToken = qrLoginResult.refreshToken!!
                     )
 
+                    if (BuildConfig.ENABLE_API_TEST_LOGIN_DUMP) {
+                        pendingApiTestExport = ApiTestLoginExportPayload(
+                            authData = authData,
+                            rawResponseJson = qrLoginResult.rawResponseJson.orEmpty()
+                        )
+                    }
+
                     userRepository.addUser(authData)
 
                     timer.cancel()
@@ -137,5 +148,9 @@ class AppQrLoginViewModel(
         val input = ByteArrayInputStream(output.toByteArray())
         qrImage = BitmapFactory.decodeStream(input).asImageBitmap()
         logger.fInfo { "Generated qr image" }
+    }
+
+    fun clearPendingApiTestExport() {
+        pendingApiTestExport = null
     }
 }

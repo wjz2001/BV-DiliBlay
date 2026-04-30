@@ -102,6 +102,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            buildConfigField("boolean", "ENABLE_API_TEST_LOGIN_DUMP", "false")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -110,6 +111,7 @@ android {
         }
         debug {
             isMinifyEnabled = false
+            buildConfigField("boolean", "ENABLE_API_TEST_LOGIN_DUMP", "false")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -119,11 +121,23 @@ android {
         }
         create("r8Test") {
             isMinifyEnabled = true
+            buildConfigField("boolean", "ENABLE_API_TEST_LOGIN_DUMP", "false")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
             applicationIdSuffix = ".r8test"
+            if (signingProp.exists()) signingConfig = signingConfigs.getByName("release")
+        }
+        create("apitest") {
+            isMinifyEnabled = true
+            buildConfigField("boolean", "ENABLE_API_TEST_LOGIN_DUMP", "true")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            applicationIdSuffix = ".apitest"
+            matchingFallbacks += listOf("release")
             if (signingProp.exists()) signingConfig = signingConfigs.getByName("release")
         }
     }

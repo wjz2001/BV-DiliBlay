@@ -81,6 +81,9 @@
     <string name="log_type_manual">手动</string>
 
     <string name="login_error">出现错误</string>
+    <string name="login_export_permission_denied">存储权限被拒绝，未导出测试数据</string>
+    <string name="login_export_success">测试数据已导出到 %1$s</string>
+    <string name="login_export_failed">测试数据导出失败：%1$s</string>
     <string name="login_expired">二维码已过期</string>
     <string name="login_requesting">请求二维码中</string>
     <string name="login_retry">按下 确认键 重试</string>

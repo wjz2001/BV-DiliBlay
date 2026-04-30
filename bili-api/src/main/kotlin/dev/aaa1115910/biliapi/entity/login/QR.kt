@@ -23,7 +23,8 @@ data class QrLoginResult(
     val state: QrLoginState,
     val accessToken: String? = null,
     val refreshToken: String? = null,
-    val cookies: WebCookies? = null
+    val cookies: WebCookies? = null,
+    val rawResponseJson: String? = null
 )
 
 enum class QrLoginState {
