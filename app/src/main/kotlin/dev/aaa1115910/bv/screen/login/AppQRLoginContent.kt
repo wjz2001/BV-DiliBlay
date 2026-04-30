@@ -1,8 +1,12 @@
 package dev.aaa1115910.bv.screen.login
 
+import android.Manifest
 import android.app.Activity
+import android.content.pm.PackageManager
 import android.view.KeyEvent
 import android.widget.Toast.LENGTH_LONG
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -17,8 +21,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -26,6 +34,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.nativeKeyCode
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.Font
@@ -35,13 +45,19 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.login.QrLoginState
+import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppRed
 import dev.aaa1115910.bv.ui.theme.AppWhite
+import dev.aaa1115910.bv.util.ApiTestLoginExportPayload
+import dev.aaa1115910.bv.util.ApiTestLoginExportUtil
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.login.AppQrLoginViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -50,8 +66,66 @@ fun AppQRLoginContent(
     appQrLoginViewModel: AppQrLoginViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
-    LaunchedEffect(Unit) {
+    val coroutineScope = rememberCoroutineScope()
+    var exportResultText by remember { mutableStateOf<String?>(null) }
+    var permissionPendingPayload by remember { mutableStateOf<ApiTestLoginExportPayload?>(null) }
+    val loginSuccessText = stringResource(R.string.login_success)
+    val exportPermissionDeniedText = stringResource(R.string.login_export_permission_denied)
+    val exportSuccessFormat = stringResource(R.string.login_export_success, "%s")
+    val exportFailedFormat = stringResource(R.string.login_export_failed, "%s")
+
+    suspend fun exportPayload(payload: ApiTestLoginExportPayload) {
+        val result = withContext(Dispatchers.IO) {
+            ApiTestLoginExportUtil.exportToDownloads(context, payload)
+        }
+        val message = result.fold(
+            onSuccess = { exportSuccessFormat.format(it) },
+            onFailure = { exportFailedFormat.format(it.message ?: it.javaClass.simpleName) }
+        )
+        exportResultText = message
+        message.toast(context, LENGTH_LONG)
+        appQrLoginViewModel.clearPendingApiTestExport()
+    }
+
+    val legacyStoragePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val payload = permissionPendingPayload
+        permissionPendingPayload = null
+        if (granted && payload != null) {
+            coroutineScope.launch {
+                exportPayload(payload)
+            }
+        } else {
+            exportResultText = exportPermissionDeniedText
+            exportPermissionDeniedText.toast(context, LENGTH_LONG)
+            appQrLoginViewModel.clearPendingApiTestExport()
+        }
+    }
+
+    fun requestQRCode() {
+        exportResultText = null
+        permissionPendingPayload = null
         appQrLoginViewModel.requestQRCode()
+    }
+
+    LaunchedEffect(Unit) {
+        requestQRCode()
+    }
+
+    LaunchedEffect(appQrLoginViewModel.pendingApiTestExport) {
+        val payload = appQrLoginViewModel.pendingApiTestExport ?: return@LaunchedEffect
+        if (ApiTestLoginExportUtil.requiresLegacyWritePermission() &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            permissionPendingPayload = payload
+            legacyStoragePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        } else {
+            exportPayload(payload)
+        }
     }
 
     // 用“事件组”去重：避免 Ready/RequestingQRCode 状态切换时重复弹同一句
@@ -88,7 +162,11 @@ fun AppQRLoginContent(
             }
 
             QrLoginState.Success -> {
-                (context as? Activity)?.finish()
+                if (BuildConfig.ENABLE_API_TEST_LOGIN_DUMP) {
+                    loginSuccessText.toast(context, LENGTH_LONG)
+                } else {
+                    (context as? Activity)?.finish()
+                }
             }
 
             else -> Unit // WaitingForScan / WaitingForConfirm 等：不弹
@@ -115,7 +193,7 @@ fun AppQRLoginContent(
                         if (listOf(QrLoginState.Expired, QrLoginState.Error)
                                 .contains(appQrLoginViewModel.state)
                         ) {
-                            appQrLoginViewModel.requestQRCode()
+                            requestQRCode()
                         }
                         return@onKeyEvent true
                     }
@@ -171,36 +249,28 @@ fun AppQRLoginContent(
                             .weight(1f)
                             .fillMaxHeight()
                     )
-                    /*
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
+                }
+            }
+            AnimatedVisibility(
+                visible = BuildConfig.ENABLE_API_TEST_LOGIN_DUMP &&
+                    appQrLoginViewModel.state == QrLoginState.Success,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(32.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = when (appQrLoginViewModel.state) {
-                            QrLoginState.Ready, QrLoginState.RequestingQRCode -> stringResource(R.string.login_requesting)
-                            QrLoginState.WaitingForScan -> stringResource(R.string.login_wait_for_scan)
-                            QrLoginState.WaitingForConfirm -> stringResource(R.string.login_wait_for_confirm)
-                            QrLoginState.Expired -> stringResource(R.string.login_expired)
-                            QrLoginState.Success -> stringResource(R.string.login_success)
-                            QrLoginState.Error, QrLoginState.Unknown -> stringResource(R.string.login_error)
-                        },
+                        text = loginSuccessText,
                         style = MaterialTheme.typography.displaySmall,
                         color = AppWhite
                     )
-                    AnimatedVisibility(
-                        visible = listOf(QrLoginState.Expired, QrLoginState.Error)
-                            .contains(appQrLoginViewModel.state)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.login_retry),
-                            style = MaterialTheme.typography.displaySmall,
-                            color = AppWhite,
-                            fontSize = 26.sp
-                        )
-                    }
-                }
-                */
+                    Text(
+                        modifier = Modifier.padding(top = 16.dp),
+                        text = exportResultText.orEmpty(),
+                        style = MaterialTheme.typography.displaySmall,
+                        color = AppWhite,
+                        fontSize = 26.sp
+                    )
                 }
             }
         }
