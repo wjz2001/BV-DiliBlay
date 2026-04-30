@@ -154,10 +154,13 @@ tasks.register("assembleAllChannelsRelease") {
 }
 
 composeCompiler {
-    reportsDestination = layout.buildDirectory.dir("compose_build_reports")
     stabilityConfigurationFiles.addAll(
         layout.projectDirectory.file("compose_compiler_config.conf")
     )
+    // 开启报告（输出具体哪个类、哪个函数不稳定）
+    reportsDestination = layout.buildDirectory.dir("compose_compiler_reports")
+    // 开启指标（输出整个项目的稳定性百分比统计）
+    metricsDestination = layout.buildDirectory.dir("compose_compiler_metrics")
 }
 
 ksp {
