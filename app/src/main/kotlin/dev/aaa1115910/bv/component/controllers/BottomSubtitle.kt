@@ -2,6 +2,7 @@ package dev.aaa1115910.bv.component.controllers
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -47,18 +48,25 @@ fun BottomSubtitle(
     Box(
         modifier = modifier.fillMaxSize()
     ) {
-        if (currentText != "") {
-            Text(
+        if (currentText.isNotEmpty()) {
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = padding)
-                    .background(AppBlack.copy(alpha = opacity))
-                    .padding(vertical = 4.dp, horizontal = 12.dp),
-                text = currentText,
-                fontSize = fontSize,
-                color = AppWhite,
-                textAlign = TextAlign.Center
-            )
+                    .padding(bottom = padding),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                currentText.lines().forEach { line ->
+                    Text(
+                        modifier = Modifier
+                            .background(AppBlack.copy(alpha = opacity))
+                            .padding(vertical = 4.dp, horizontal = 12.dp),
+                        text = line,
+                        fontSize = fontSize,
+                        color = AppWhite,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
         }
     }
 }
