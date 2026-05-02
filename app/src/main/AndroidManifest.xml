@@ -109,6 +109,11 @@
             android:label="@string/title_activity_settings"
             android:theme="@style/Theme.BV" />
         <activity
+            android:name=".activities.settings.NewSettingsActivity"
+            android:exported="false"
+            android:label="@string/title_activity_settings"
+            android:theme="@style/Theme.BV" />
+        <activity
             android:name=".activities.user.LoginActivity"
             android:exported="false"
             android:label="@string/title_activity_login"

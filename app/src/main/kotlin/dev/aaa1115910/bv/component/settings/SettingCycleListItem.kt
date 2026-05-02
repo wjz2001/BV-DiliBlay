@@ -13,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ListItem
+import androidx.tv.material3.ListItemColors
+import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.Text
 
 @Composable
@@ -22,6 +24,7 @@ fun <T> SettingCycleListItem(
     options: List<T>,
     checked: T,
     defaultHasFocus: Boolean = false,
+    colors: ListItemColors = ListItemDefaults.colors(),
     supportText: (T) -> String = { "" },
     trailingText: (T) -> String = { "" },
     onCheckedChange: (T) -> Unit
@@ -59,6 +62,7 @@ fun <T> SettingCycleListItem(
             val nextIndex = (currentIndex + 1) % options.size
             onCheckedChange(options[nextIndex])
         },
-        selected = hasFocus
+        selected = hasFocus,
+        colors = colors
     )
 }

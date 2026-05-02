@@ -172,7 +172,7 @@ enum class SettingsMenuNavItem(private val strRes: Int) {
     Storage(R.string.settings_item_storage),
     Network(R.string.settings_item_network),
     Info(R.string.settings_item_info),
-    About(R.string.settings_item_about);
+    About(R.string.settings_app_version);
 
     fun getDisplayName(context: Context) = context.getString(strRes)
 }

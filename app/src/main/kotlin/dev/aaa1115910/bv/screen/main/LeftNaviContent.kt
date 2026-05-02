@@ -1,7 +1,6 @@
 package dev.aaa1115910.bv.screen.main
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -85,6 +84,7 @@ fun LeftNaviContent(
     pgcFocusRequester: FocusRequester,
     onLeftNaviItemChanged: (LeftNaviItem) -> Unit,
     onLeftNaviItemPreload: (LeftNaviItem) -> Unit = {},
+    onOpenNewSettings: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenUserSwitch: () -> Unit,
     onFocusToContent: (MainContentFocusTarget) -> Unit,
@@ -93,9 +93,11 @@ fun LeftNaviContent(
     val scope = rememberCoroutineScope()
 
     val userFocusRequester = remember { FocusRequester() }
+    val newSettingsFocusRequester = remember { FocusRequester() }
     val settingsFocusRequester = remember { FocusRequester() }
 
     var userArmedEntryTarget by remember { mutableStateOf<MainContentFocusTarget?>(null) }
+    var newSettingsArmedEntryTarget by remember { mutableStateOf<MainContentFocusTarget?>(null) }
     var settingsArmedEntryTarget by remember { mutableStateOf<MainContentFocusTarget?>(null) }
 
     val contentItems = listOf(
@@ -484,6 +486,97 @@ fun LeftNaviContent(
             }
         }
 
+        // 底部新版设置按钮
+        var newSettingsIsFocused by remember { mutableStateOf(false) }
+        val newSettingsIconColor by animateColorAsState(
+            targetValue = if (newSettingsIsFocused) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+            label = "newSettingsIconColor"
+        )
+        val newSettingsIndicatorColor by animateColorAsState(
+            targetValue = if (newSettingsIsFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+            label = "newSettingsIndicatorColor"
+        )
+
+        NavigationRailItem(
+            modifier = Modifier
+                .size(railButtonSize)
+                .focusRequester(newSettingsFocusRequester)
+                .onFocusChanged {
+                    newSettingsIsFocused = it.hasFocus
+                    if (!it.hasFocus) {
+                        newSettingsArmedEntryTarget = null
+                    }
+                }
+                .onPreviewKeyEvent { keyEvent ->
+                    when {
+                        keyEvent.isDpadDown() -> {
+                            if (keyEvent.isKeyDown()) {
+                                settingsFocusRequester.requestFocus()
+                                return@onPreviewKeyEvent true
+                            }
+                            true
+                        }
+
+                        keyEvent.key == Key.DirectionRight -> {
+                            when {
+                                keyEvent.isKeyDown() -> {
+                                    newSettingsArmedEntryTarget = MainContentFocusTarget.LeftEntry
+                                    true
+                                }
+
+                                keyEvent.isKeyUp() -> {
+                                    val armed = newSettingsArmedEntryTarget
+                                    newSettingsArmedEntryTarget = null
+                                    if (armed == MainContentFocusTarget.LeftEntry) {
+                                        onFocusToContent(MainContentFocusTarget.LeftEntry)
+                                    }
+                                    true
+                                }
+
+                                else -> false
+                            }
+                        }
+
+                        keyEvent.key == Key.DirectionLeft -> {
+                            when {
+                                keyEvent.isKeyDown() -> {
+                                    newSettingsArmedEntryTarget = MainContentFocusTarget.RightEntry
+                                    true
+                                }
+
+                                keyEvent.isKeyUp() -> {
+                                    val armed = newSettingsArmedEntryTarget
+                                    newSettingsArmedEntryTarget = null
+                                    if (armed == MainContentFocusTarget.RightEntry) {
+                                        onFocusToContent(MainContentFocusTarget.RightEntry)
+                                    }
+                                    true
+                                }
+
+                                else -> false
+                            }
+                        }
+
+                        else -> false
+                    }
+                },
+            onClick = onOpenNewSettings,
+            selected = newSettingsIsFocused,
+            colors = NavigationRailItemDefaults.colors(
+                selectedIconColor = newSettingsIconColor,
+                selectedTextColor = newSettingsIconColor,
+                indicatorColor = newSettingsIndicatorColor,
+                unselectedIconColor = newSettingsIconColor,
+                unselectedTextColor = newSettingsIconColor
+            ),
+            icon = {
+                Icon(
+                    imageVector = LeftNaviItem.Settings.displayIcon,
+                    contentDescription = null
+                )
+            }
+        )
+
         // 底部设置按钮
         var settingsIsFocused by remember { mutableStateOf(false) }
         val settingsIconColor by animateColorAsState(
@@ -507,6 +600,14 @@ fun LeftNaviContent(
                 }
                 .onPreviewKeyEvent { keyEvent ->
                     when {
+                        keyEvent.isDpadUp() -> {
+                            if (keyEvent.isKeyDown()) {
+                                newSettingsFocusRequester.requestFocus()
+                                return@onPreviewKeyEvent true
+                            }
+                            true
+                        }
+
                         keyEvent.isDpadDown() -> {
                             if (keyEvent.isKeyDown()) {
                                 userFocusRequester.requestFocus()
@@ -614,6 +715,7 @@ private fun LeftNaviContentPreview() {
             pgcFocusRequester = remember { FocusRequester() },
             onLeftNaviItemChanged = {},
             onLeftNaviItemPreload = {},
+            onOpenNewSettings = {},
             onOpenSettings = {},
             onOpenUserSwitch = {},
             onFocusToContent = {},

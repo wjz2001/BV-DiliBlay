@@ -244,7 +244,7 @@
     <string name="settings_info_soc">SOC: %1$s %2$s</string>
     <string name="settings_info_storage">存储: 可用 %1$s 共 %2$s</string>
     <string name="settings_info_system">系统: Android %1$s</string>
-    <string name="settings_item_about">关于</string>
+    <string name="settings_app_version">应用版本</string>
     <string name="settings_item_api">接口偏好</string>
     <string name="settings_item_audio">默认音频编码</string>
     <string name="settings_item_codec">默认视频编码</string>
@@ -308,9 +308,6 @@
     <string name="settings_ui_homepage_title">更改主页</string>
     <string name="theme_mode_light">浅色</string>
     <string name="theme_mode_dark">深色</string>
-    <string name="settings_version_check_update_button">爷要更新</string>
-    <string name="settings_version_current_version">当前版本: %1$s</string>
-    <string name="settings_version_latest_version">最新版本: %1$s</string>
 
     <string name="sms_login_button_login">登录</string>
     <string name="sms_login_button_send_sms">发送短信</string>
