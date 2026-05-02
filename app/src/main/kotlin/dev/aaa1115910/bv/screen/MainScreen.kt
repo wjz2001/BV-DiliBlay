@@ -21,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.tv.material3.MaterialTheme
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.activities.settings.NewSettingsActivity
 import dev.aaa1115910.bv.activities.settings.SettingsActivity
 import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.activities.user.UserSwitchActivity
@@ -338,7 +337,6 @@ fun MainScreen(
             pgcFocusRequester = pgcDrawerFocusRequester,
             onLeftNaviItemChanged = { requestedDrawerItem = it },
             onLeftNaviItemPreload = onLeftNaviItemPreload,
-            onOpenNewSettings = { context.startActivity(Intent(context, NewSettingsActivity::class.java)) },
             onOpenSettings = { context.startActivity(Intent(context, SettingsActivity::class.java)) },
             onFocusToContent = onFocusToContent,
             onOpenUserSwitch = { context.startActivity(Intent(context, UserSwitchActivity::class.java)) },
