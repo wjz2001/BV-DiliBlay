@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -18,12 +17,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.material3.VerticalDivider
 import androidx.tv.material3.MaterialTheme
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.activities.settings.NewSettingsActivity
 import dev.aaa1115910.bv.activities.settings.SettingsActivity
 import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.activities.user.UserSwitchActivity
@@ -40,7 +38,6 @@ import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
 import dev.aaa1115910.bv.screen.main.common.MainDrawerPreloadHost
 import dev.aaa1115910.bv.screen.search.MainDrawerSearchInputScreen
 import dev.aaa1115910.bv.screen.search.SearchRightEntryToken
-import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.requestFocus
@@ -228,9 +225,7 @@ fun MainScreen(
     }
 
     val onFocusToContent: (MainContentFocusTarget) -> Unit = { entryTarget ->
-        val item = requestedDrawerItem
-
-        when (item) {
+        when (val item = requestedDrawerItem) {
             LeftNaviItem.Search -> {
                 if (currentReadyItem == LeftNaviItem.Search) {
                     when (entryTarget) {
@@ -343,6 +338,7 @@ fun MainScreen(
             pgcFocusRequester = pgcDrawerFocusRequester,
             onLeftNaviItemChanged = { requestedDrawerItem = it },
             onLeftNaviItemPreload = onLeftNaviItemPreload,
+            onOpenNewSettings = { context.startActivity(Intent(context, NewSettingsActivity::class.java)) },
             onOpenSettings = { context.startActivity(Intent(context, SettingsActivity::class.java)) },
             onFocusToContent = onFocusToContent,
             onOpenUserSwitch = { context.startActivity(Intent(context, UserSwitchActivity::class.java)) },

@@ -94,6 +94,7 @@ internal fun <T> RadioMenuSelectDialog(
                 itemKey = itemKey,
                 defaultFocusKey = defaultFocusKey,
                 defaultFocusIndex = defaultFocusIndex,
+                requestDefaultFocus = true,
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(itemSpacing),
             )
@@ -108,7 +109,7 @@ internal fun <T> RadioMenuSelectDialog(
 }
 
 @Composable
-private fun <T> RadioMenuSelectListContent(
+internal fun <T> RadioMenuSelectListContent(
     modifier: Modifier = Modifier, // ✅ 作用于 LazyColumn（heightIn/maxHeight/padding 等）
     items: List<T>,
     selected: (T) -> Boolean,
@@ -119,6 +120,7 @@ private fun <T> RadioMenuSelectListContent(
     itemKey: ((T) -> Any)? = null,
     defaultFocusKey: Any? = null,
     defaultFocusIndex: Int? = null,
+    requestDefaultFocus: Boolean = true,
 
     // layout
     horizontalAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
@@ -138,13 +140,18 @@ private fun <T> RadioMenuSelectListContent(
 
     /**
      * 请求默认焦点的策略：
-     * 1) 先滚动到目标 item，保证它可见
-     * 2) TV 场景下节点可能还没“挂稳”，做短暂重试更可靠
+     * 1) 目标 item 不可见时先滚动到目标 item，保证它能被组合出来
+     * 2) 目标 item 已可见时不主动滚动，避免焦点请求把上方内容顶出视口
+     * 3) TV 场景下节点可能还没“挂稳”，做短暂重试更可靠
      */
-    LaunchedEffect(targetIndex) {
+    LaunchedEffect(targetIndex, requestDefaultFocus) {
+        if (!requestDefaultFocus) return@LaunchedEffect
         if (targetIndex == null) return@LaunchedEffect
 
-        runCatching { listState.scrollToItem(targetIndex) }
+        val targetVisible = listState.layoutInfo.visibleItemsInfo.any { it.index == targetIndex }
+        if (!targetVisible) {
+            runCatching { listState.scrollToItem(targetIndex) }
+        }
 
         repeat(5) {
             runCatching { focusRequester.requestFocus() }
