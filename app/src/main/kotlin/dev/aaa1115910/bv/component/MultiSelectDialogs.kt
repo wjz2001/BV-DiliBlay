@@ -26,6 +26,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.FilterChip
@@ -37,6 +39,9 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.block.BlockPage
 import dev.aaa1115910.bv.ui.theme.C
 import kotlinx.coroutines.delay
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.tv.material3.Border
 
 private const val DialogAutoFocusRetryCount = 20
 private const val DialogAutoFocusRetryDelayMillis = 50L
@@ -103,8 +108,8 @@ private fun <T> SnapshotStateList<T>.replaceWith(items: Collection<T>) {
 @Composable
 private fun multiSelectChipColors() = FilterChipDefaults.colors(
     // 默认（未聚焦/未按压/未选中）
-    containerColor = C.surfaceVariant,
-    contentColor = C.onSurfaceVariant,
+    containerColor = Color.Transparent,
+    contentColor = Color.Transparent,
 
     // focused = TV 上的“激活/高亮”
     focusedContainerColor = C.primary,
@@ -199,7 +204,11 @@ private fun BaseMultiSelectChip(
         selected = selected,
         enabled = enabled,
         onClick = onClick,
-        shape = FilterChipDefaults.shape(),
+        shape = FilterChipDefaults.shape(shape = RectangleShape),
+        border = filterChipBorder(
+            normalColor = C.inverseSurface,
+            focusedColor = Color.Transparent
+        ),
         colors = multiSelectChipColors(),
         leadingIcon = {
             Row {
@@ -216,6 +225,44 @@ private fun BaseMultiSelectChip(
         content()
     }
 }
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun filterChipBorder(
+    normalColor: Color,
+    focusedColor: Color,
+    width: Dp = 1.dp
+) = run {
+    val shape = RectangleShape
+    val normalBorder = remember(normalColor, width) {
+        Border(
+            border = BorderStroke(width, normalColor),
+            inset = 0.dp,
+            shape = shape
+        )
+    }
+
+    val focusedBorder = remember(focusedColor) {
+        Border(
+            border = BorderStroke(0.dp, focusedColor),
+            inset = 0.dp,
+            shape = shape
+        )
+    }
+
+    FilterChipDefaults.border(
+        border = normalBorder,
+        focusedBorder = focusedBorder,
+        selectedBorder = normalBorder,
+        disabledBorder = normalBorder,
+        focusedSelectedBorder = focusedBorder,
+        focusedDisabledBorder = focusedBorder,
+        pressedSelectedBorder = focusedBorder,
+        selectedDisabledBorder = normalBorder,
+        focusedSelectedDisabledBorder = focusedBorder
+    )
+}
+
 
 /**
  * 通用“简单多选弹框”。
