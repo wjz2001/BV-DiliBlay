@@ -7,20 +7,22 @@ import android.content.Intent
 import android.os.Build
 import android.os.Environment
 import android.os.StatFs
+import androidx.core.graphics.toColorInt
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
@@ -35,6 +37,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +54,8 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -59,8 +64,10 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -90,6 +97,7 @@ import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
+import dev.aaa1115910.bv.screen.settings.content.BlockSetting
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.ui.theme.ThemeMode
@@ -103,11 +111,13 @@ import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.requestFocus
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import java.io.File
 import java.text.DecimalFormat
 import kotlin.math.pow
+import androidx.compose.ui.platform.LocalResources
 
 private enum class SettingsColumn {
     Category,
@@ -155,26 +165,6 @@ private data class SettingsEntry(
 fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
-    var currentCategory by remember { mutableStateOf(SettingsMenuNavItem.AudioVideo) }
-    val currentItems = settingsEntries(currentCategory)
-    var currentItemId by remember(currentCategory) {
-        mutableStateOf(currentItems.firstOrNull()?.id.orEmpty())
-    }
-    var contentActivated by remember { mutableStateOf(Prefs.settingsContentActivated) }
-    val currentItem = if (contentActivated) {
-        currentItems.firstOrNull { it.id == currentItemId }
-            ?: currentItems.firstOrNull()
-    } else {
-        null
-    }
-    var focusColumn by remember { mutableStateOf(SettingsColumn.Category) }
-
-    LaunchedEffect(currentCategory, currentItems.size) {
-        if (currentItem == null || currentItems.none { it.id == currentItemId }) {
-            currentItemId = currentItems.firstOrNull()?.id.orEmpty()
-        }
-    }
-
     CompositionLocalProvider(
         LocalDensity provides Density(
             density = LocalDensity.current.density * 1.5f,
@@ -183,34 +173,193 @@ fun SettingsScreen(
     ) {
         Scaffold(
             modifier = modifier,
-            containerColor = C.background,
+            containerColor = Color.Transparent,
         ) { innerPadding ->
-            SettingsColumns(
+            SettingsMotionHost(
                 modifier = Modifier
                     .padding(innerPadding)
-                    .fillMaxSize(),
-                currentCategory = currentCategory,
-                currentItems = currentItems,
-                currentItem = currentItem,
-                focusColumn = focusColumn,
-                contentActivated = contentActivated,
-                onContentActivated = {
-                    contentActivated = true
-                    Prefs.settingsContentActivated = true
-                },
-                onCategoryFocused = { category ->
-                    currentCategory = category
-                    currentItemId = ""
-                    focusColumn = SettingsColumn.Category
-                },
-                onItemFocused = { item ->
-                    currentItemId = item.id
-                    focusColumn = SettingsColumn.Item
-                },
-                onDetailFocused = {
-                    focusColumn = SettingsColumn.Detail
-                }
+                    .fillMaxSize()
             )
+        }
+    }
+}
+
+@Composable
+private fun SettingsMotionHost(
+    modifier: Modifier = Modifier
+) {
+    val gallery_scrim_max_alpha = 0.65f
+    var currentCategory by remember { mutableStateOf(SettingsMenuNavItem.AudioVideo) }
+    var lastContentCategory by remember { mutableStateOf(currentCategory) }
+    val displayCategory = if (currentCategory == SettingsMenuNavItem.About) {
+        lastContentCategory
+    } else {
+        currentCategory
+    }
+    val currentItems = settingsEntries(displayCategory)
+    var currentItemId by remember(displayCategory) {
+        mutableStateOf(currentItems.firstOrNull()?.id.orEmpty())
+    }
+    val activity = LocalContext.current.findActivity()
+    var contentActivated by remember { mutableStateOf(Prefs.settingsContentActivated) }
+    val currentItem = if (contentActivated) {
+        currentItems.firstOrNull { it.id == currentItemId }
+            ?: currentItems.firstOrNull()
+    } else {
+        null
+    }
+    var focusColumn by remember { mutableStateOf(SettingsColumn.Category) }
+    val scope = rememberCoroutineScope()
+    val motion = remember(scope) { SettingsMotionController(scope) }
+    var galleryImageRes by remember { mutableIntStateOf(R.drawable.versionbadge) }
+
+    LaunchedEffect(currentCategory, currentItems.size) {
+        if (currentItem == null || currentItems.none { it.id == currentItemId }) {
+            currentItemId = currentItems.firstOrNull()?.id.orEmpty()
+        }
+    }
+
+    LaunchedEffect(currentCategory) {
+        if (currentCategory != SettingsMenuNavItem.About) {
+            lastContentCategory = currentCategory
+        }
+    }
+
+    LaunchedEffect(currentCategory) {
+        if (currentCategory == SettingsMenuNavItem.About) {
+            // 稍作延迟等待UI稳定后触发进场
+            delay(100)
+            motion.enterGallery()
+        }
+    }
+
+    LaunchedEffect(motion.inGallery) {
+        galleryImageRes = R.drawable.versionbadge
+        if (motion.inGallery) {
+            //  15s 切换
+            delay(15000)
+            galleryImageRes = R.drawable.sleepingcharacter
+        }
+    }
+
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxSize()
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                if (motion.locked) return@onPreviewKeyEvent true
+                if (event.key == Key.Back && motion.inGallery) {
+                    motion.exitGallery(activity)
+                    return@onPreviewKeyEvent true
+                }
+                false
+            }
+    ) {
+        val widthPx = with(LocalDensity.current) { maxWidth.toPx() }
+
+        // 只在 About/过渡期间显示底图层，避免平时浪费绘制
+        val showGalleryLayer =
+            currentCategory == SettingsMenuNavItem.About || motion.inGallery || motion.locked
+
+        // ======= 底图层：始终“在底下”，不滑入，只负责承接“露出来” =======
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(C.background)
+                .graphicsLayer {
+                    alpha = if (showGalleryLayer) 1f else 0f
+                }
+        ) {
+            // 你的图片切换逻辑保持不变
+            Crossfade(
+                targetState = galleryImageRes,
+                animationSpec = tween(durationMillis = 650),
+                label = "galleryImageCrossfade"
+            ) { resId ->
+                val painter = painterResource(resId)
+                Box(Modifier.fillMaxSize()) {
+                    Image(
+                        modifier = Modifier.fillMaxSize(),
+                        painter = painter,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop
+                    )
+
+                    if (resId == R.drawable.versionbadge) {
+                        val resources = LocalResources.current
+                        val iwF = painter.intrinsicSize.width
+                        val ihF = painter.intrinsicSize.height
+                        val (iw, ih) = remember(iwF, ihF) {
+                            if (iwF.isFinite() && ihF.isFinite() && iwF > 0f && ihF > 0f) {
+                                iwF.toInt() to ihF.toInt()
+                            } else {
+                                readBitmapBoundsNoDecode(resources, R.drawable.versionbadge)
+                            }
+                        }
+                        VersionBadgeOverlay(
+                            modifier = Modifier.matchParentSize(),
+                            srcImageWidthPx = iw,
+                            srcImageHeightPx = ih,
+                            fontResId = R.font.brushuplife,
+                            textColor = "#C2AEA5".toColorInt(),
+                            oversample = 2.0f
+                        )
+                        // 聚光灯遮罩
+                        SpotlightRevealScrim(
+                            menuPullProgress = motion.menuPull.value,
+                            darkness = motion.bgScrim.value,
+                            modifier = Modifier.matchParentSize()
+                        )
+                    }
+                }
+            }
+        }
+
+        // ======= 菜单主视图：三列先对齐堆叠，再整块被扯走露出底图 =======
+        if (motion.showMenu) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        val pullProgress = motion.menuPull.value
+                        val tension = motion.menuTension.value
+
+                        val tensionX = 12.dp.toPx() * tension
+                        val tensionScaleX = 1f + 0.02f * tension
+
+                        // ✅ 菜单整块被扯走（露出底下图片）
+                        translationX = -widthPx * pullProgress + tensionX
+                        scaleX = tensionScaleX
+                        transformOrigin = TransformOrigin(0f, 0.5f)
+                    }
+            ) {
+                SettingsColumns(
+                    modifier = Modifier.fillMaxSize(),
+                    currentCategory = currentCategory,
+                    currentItems = currentItems,
+                    currentItem = currentItem,
+                    focusColumn = focusColumn,
+                    contentActivated = contentActivated,
+                    onContentActivated = {
+                        contentActivated = true
+                        Prefs.settingsContentActivated = true
+                    },
+                    onCategoryFocused = { category ->
+                        currentCategory = category
+                        if (category != SettingsMenuNavItem.About) currentItemId = ""
+                        focusColumn = SettingsColumn.Category
+                    },
+                    onItemFocused = { item ->
+                        currentItemId = item.id
+                        focusColumn = SettingsColumn.Item
+                    },
+                    onDetailFocused = {
+                        focusColumn = SettingsColumn.Detail
+                    },
+                    motion = motion,
+                    contentColor = C.onBackground
+                )
+            }
         }
     }
 }
@@ -226,7 +375,9 @@ private fun SettingsColumns(
     onContentActivated: () -> Unit,
     onCategoryFocused: (SettingsMenuNavItem) -> Unit,
     onItemFocused: (SettingsEntry) -> Unit,
-    onDetailFocused: () -> Unit
+    onDetailFocused: () -> Unit,
+    motion: SettingsMotionController,
+    contentColor: Color
 ) {
     val categoryFocusRequester = remember { FocusRequester() }
     val itemFocusRequester = remember { FocusRequester() }
@@ -237,74 +388,52 @@ private fun SettingsColumns(
         categoryFocusRequester.requestFocus(scope)
     }
 
-    Row(
-        modifier = modifier
-            .background(C.background)
-            .onPreviewKeyEvent {
-                if (
-                    !contentActivated
-                    && it.type == KeyEventType.KeyDown
-                    && it.key.issettingsActivationKey()
-                ) {
-                    onContentActivated()
-                }
-                false
-            }
-    ) {
-        SettingsCategoryColumn(
-            modifier = Modifier
-                .width(IntrinsicSize.Max)
-                .fillMaxHeight(),
-            focusRequester = categoryFocusRequester,
-            selectedCategory = currentCategory,
-            focused = focusColumn == SettingsColumn.Category,
-            onCategoryFocused = onCategoryFocused,
-            onRight = { itemFocusRequester.requestFocus(scope) }
-        )
-
-        SettingsDivider()
-
-        SettingsItemColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight(),
-            focusRequester = itemFocusRequester,
-            items = currentItems,
-            selectedItem = currentItem,
-            focused = focusColumn == SettingsColumn.Item,
-            onItemFocused = onItemFocused,
-            onLeft = { categoryFocusRequester.requestFocus(scope) },
-            onRight = {
-                if (currentItem?.canFocusDetail == true) {
-                    onDetailFocused()
-                    detailFocusRequester.requestFocus(scope)
-                }
-            }
-        )
-
-        SettingsDivider()
-
-        if (currentItem != null) {
-            SettingsDetailColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .background(C.background),
-                focusRequester = detailFocusRequester,
-                item = currentItem,
-                focused = focusColumn == SettingsColumn.Detail,
-                onFocused = onDetailFocused,
-                onLeft = { itemFocusRequester.requestFocus(scope) }
+    SettingsMotionColumnsLayout(
+        modifier = modifier,
+        motion = motion,
+        contentColor = contentColor,
+        contentActivated = contentActivated,
+        onContentActivated = onContentActivated,
+        categoryColumn = { columnModifier ->
+            SettingsCategoryColumn(
+                modifier = columnModifier,
+                focusRequester = categoryFocusRequester,
+                selectedCategory = currentCategory,
+                focused = focusColumn == SettingsColumn.Category,
+                onCategoryFocused = onCategoryFocused,
+                onRight = { itemFocusRequester.requestFocus(scope) }
             )
-        } else {
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .background(C.background)
-            ) {}
+        },
+        itemColumn = { columnModifier ->
+            SettingsItemColumn(
+                modifier = columnModifier,
+                focusRequester = itemFocusRequester,
+                items = currentItems,
+                selectedItem = currentItem,
+                focused = focusColumn == SettingsColumn.Item,
+                onItemFocused = onItemFocused,
+                onLeft = { categoryFocusRequester.requestFocus(scope) },
+                onRight = {
+                    if (currentItem?.canFocusDetail == true) {
+                        onDetailFocused()
+                        detailFocusRequester.requestFocus(scope)
+                    }
+                }
+            )
+        },
+        detailColumn = { columnModifier ->
+            if (currentItem != null) {
+                SettingsDetailColumn(
+                    modifier = columnModifier,
+                    focusRequester = detailFocusRequester,
+                    item = currentItem,
+                    focused = focusColumn == SettingsColumn.Detail,
+                    onFocused = onDetailFocused,
+                    onLeft = { itemFocusRequester.requestFocus(scope) }
+                )
+            }
         }
-    }
+    )
 }
 
 @Composable
@@ -339,7 +468,7 @@ private fun SettingsCategoryColumn(
 
                     else -> false
                 }
-        },
+            },
         verticalArrangement = Arrangement.SpaceEvenly
     ) {
         categories
@@ -445,7 +574,7 @@ private fun SettingsItemColumn(
 
                     else -> false
                 }
-        },
+            },
         contentPadding = PaddingValues(vertical = 8.dp),
         verticalArrangement = Arrangement.SpaceEvenly
     ) {
@@ -576,6 +705,8 @@ private fun SettingsListItem(
     colors: ListItemColors,
     onFocus: () -> Unit
 ) {
+    val contentColor = LocalSettingsContentColor.current
+
     ListItem(
         modifier = modifier
             .onFocusChanged {
@@ -587,7 +718,7 @@ private fun SettingsListItem(
         headlineContent = {
             Text(
                 text = title,
-                color = C.onBackground
+                color = contentColor
             )
         },
         supportingContent = if (description.isBlank()) {
@@ -596,7 +727,7 @@ private fun SettingsListItem(
             {
                 Text(
                     text = description,
-                    color = C.onBackground
+                    color = contentColor
                 )
             }
         }
@@ -645,30 +776,19 @@ private fun Modifier.settingsBottomIndicator(
     }
 }
 
-private fun Key.issettingsActivationKey(): Boolean {
-    return when (this) {
-        Key.DirectionUp,
-        Key.DirectionDown,
-        Key.DirectionLeft,
-        Key.DirectionRight,
-        Key.MediaRewind,
-        Key.MediaFastForward -> true
 
-        else -> false
-    }
-}
 
 @Composable
 private fun onePixel(): Dp = with(LocalDensity.current) { 1.toDp() }
 
 @Composable
-private fun SettingsDivider() {
+internal fun SettingsDivider(alpha: Float) {
     VerticalDivider(
         modifier = Modifier
             .fillMaxHeight()
             .padding(vertical = 32.dp),
         thickness = onePixel(),
-        color = C.onBackground
+        color = C.onBackground.copy(alpha = alpha)
     )
 }
 @Composable
@@ -680,7 +800,7 @@ private fun settingsEntries(category: SettingsMenuNavItem): List<SettingsEntry> 
         SettingsMenuNavItem.Network -> networkSettingsEntries()
         SettingsMenuNavItem.Storage -> storageSettingsEntries()
         SettingsMenuNavItem.Info -> infoSettingsEntries()
-        SettingsMenuNavItem.About -> aboutSettingsEntries()
+        SettingsMenuNavItem.About -> emptyList()
         SettingsMenuNavItem.Block -> blockSettingsEntries()
     }
 }
@@ -1034,7 +1154,7 @@ private fun deviceInfoEntry(): SettingsEntry {
                     Text(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                         text = "解码器摘要",
-                        color = C.onBackground,
+                        color = LocalSettingsContentColor.current,
                         style = MaterialTheme.typography.headlineSmall
                     )
                     codecStats.forEach { (label, value) ->
@@ -1054,7 +1174,7 @@ private fun SettingsDeviceInfoLine(
     Text(
         modifier = Modifier.padding(horizontal = 12.dp),
         text = "$title：$text",
-        color = C.onBackground,
+        color = LocalSettingsContentColor.current,
         style = MaterialTheme.typography.bodyLarge
     )
 }
@@ -1305,13 +1425,6 @@ private fun infoSettingsEntries(): List<SettingsEntry> {
     }
 }
 
-@Suppress("UNUSED_VARIABLE")
-@Composable
-private fun aboutSettingsEntries(): List<SettingsEntry> {
-    val currentVersionName = BuildConfig.VERSION_NAME
-    return emptyList()
-}
-
 @Composable
 private fun blockSettingsEntries(): List<SettingsEntry> {
     return listOf(
@@ -1320,7 +1433,7 @@ private fun blockSettingsEntries(): List<SettingsEntry> {
             title = stringResource(R.string.settings_item_block),
             supportText = "屏蔽分组、页面与更新",
         ) {
-            dev.aaa1115910.bv.screen.settings.content.BlockSetting(
+            BlockSetting(
                 modifier = Modifier.fillMaxSize(),
                 contentActive = it
             )
@@ -1348,7 +1461,7 @@ private fun <T> radioEntry(
             Text(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                 text = title,
-                color = C.onBackground,
+                color = LocalSettingsContentColor.current,
                 style = MaterialTheme.typography.headlineSmall
             )
             RadioMenuSelectListContent(
@@ -1519,12 +1632,12 @@ private fun SettingsSupportTextDetail(
     ) {
         Text(
             text = "说明：",
-            color = C.onBackground,
+            color = LocalSettingsContentColor.current,
             style = MaterialTheme.typography.headlineSmall
         )
         Text(
             text = supportText,
-            color = C.onBackground,
+            color = LocalSettingsContentColor.current,
             style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 28.sp)
         )
     }
@@ -1537,7 +1650,7 @@ private fun SettingsTextDetail(
     Text(
         modifier = Modifier.padding(horizontal = 12.dp),
         text = text,
-        color = C.onBackground,
+        color = LocalSettingsContentColor.current,
         style = MaterialTheme.typography.bodyLarge
     )
 }
@@ -1691,9 +1804,11 @@ private fun rememberDeviceScreenInfo(context: Context): Triple<Int, Int, Float> 
     }
 }
 
+
+
 @Preview(device = "id:tv_1080p")
 @Composable
-private fun settingsScreenPreview() {
+private fun SettingsScreenPreview() {
     BVTheme {
         SettingsScreen()
     }
