@@ -78,8 +78,10 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
+import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.TvGridBringIntoViewMode
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.UpIcon
@@ -197,6 +199,8 @@ private fun SmallVideoCardCore(
     val canWatchLater = onAddWatchLater != null
     val canFavorite = hostUiState.capabilities.canFavorite
     val canHistory = hostUiState.capabilities.canHistory
+    val isPrivateFlavor = BuildConfig.IS_PRIVATE
+    val canOpenVideoInfo = !isPrivateFlavor
 
     val isFavorite = itemUiState.isFavorite
     val hasMultipleCoAuthors = itemUiState.hasMultipleCoAuthors
@@ -218,6 +222,10 @@ private fun SmallVideoCardCore(
 
     fun navigateToUp(mid: Long, name: String) {
         UpInfoActivity.actionStart(context, mid = mid, name = name)
+    }
+
+    fun navigateToVideoInfo() {
+        VideoInfoActivity.actionStart(context, data.avid)
     }
 
     fun navigateToUpFallback() {
@@ -312,10 +320,12 @@ private fun SmallVideoCardCore(
                     favoriteButtonRequester = favoriteButtonRequester,
                     upButtonRequester = upButtonRequester,
                     watchLaterButtonRequester = watchLaterButtonRequester,
+                    isPrivateFlavor = isPrivateFlavor,
                     canHistory = canHistory,
                     canFavorite = canFavorite,
                     canGoToUpPage = canGoToUpPage,
                     canWatchLater = canWatchLater && !pendingRemoval,
+                    canOpenVideoInfo = canOpenVideoInfo,
                     isFavorite = isFavorite,
                     hasMultipleCoAuthors = hasMultipleCoAuthors,
                     onBack = {
@@ -331,6 +341,14 @@ private fun SmallVideoCardCore(
                         }
                         if (!canHistory) return@BvSmallVideoCardActions
                         hostVm?.reportHistory(data.avid)
+                    },
+                    onInfoClick = {
+                        if (!releaseLongPress) {
+                            releaseLongPress = true
+                            return@BvSmallVideoCardActions
+                        }
+                        if (!canOpenVideoInfo) return@BvSmallVideoCardActions
+                        navigateToVideoInfo()
                     },
                     onFavoriteClick = {
                         if (!releaseLongPress) {
@@ -498,14 +516,17 @@ private fun BvSmallVideoCardActions(
     favoriteButtonRequester: FocusRequester,
     upButtonRequester: FocusRequester,
     watchLaterButtonRequester: FocusRequester,
+    isPrivateFlavor: Boolean,
     canHistory: Boolean,
     canFavorite: Boolean,
     canGoToUpPage: Boolean,
     canWatchLater: Boolean,
+    canOpenVideoInfo: Boolean,
     isFavorite: Boolean,
     hasMultipleCoAuthors: Boolean,
     onBack: () -> Unit,
     onHistoryClick: () -> Unit,
+    onInfoClick: () -> Unit,
     onFavoriteClick: () -> Unit,
     onUpClick: () -> Unit,
     onWatchLaterClick: () -> Unit
@@ -539,13 +560,19 @@ private fun BvSmallVideoCardActions(
                 ) {
                     BvActionIconButton(
                         modifier = Modifier.focusRequester(historyButtonRequester),
-                        canClick = canHistory,
-                        onClick = onHistoryClick
+                        canClick = if (isPrivateFlavor) canHistory else canOpenVideoInfo,
+                        onClick = if (isPrivateFlavor) onHistoryClick else onInfoClick
                     ) {
                         Icon(
                             modifier = Modifier.size(ActionIconSize),
-                            painter = painterResource(id = R.drawable.add_to_list),
-                            contentDescription = "History"
+                            painter = painterResource(
+                                id = if (isPrivateFlavor) {
+                                    R.drawable.add_to_list
+                                } else {
+                                    R.drawable.info_24px
+                                }
+                            ),
+                            contentDescription = if (isPrivateFlavor) "History" else "Video info"
                         )
                     }
                 }
