@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -34,6 +35,8 @@ import dev.aaa1115910.bv.screen.main.home.PopularScreen
 import dev.aaa1115910.bv.screen.main.home.RecommendScreen
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
 import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
+import dev.aaa1115910.bv.screen.search.SearchInputScreen
+import dev.aaa1115910.bv.screen.search.SearchResultScreen
 import dev.aaa1115910.bv.screen.user.FavoriteScreen
 import dev.aaa1115910.bv.screen.user.FollowingSeasonScreen
 import dev.aaa1115910.bv.screen.user.HistoryScreen
@@ -46,11 +49,18 @@ import dev.aaa1115910.bv.viewmodel.home.DynamicViewModel
 import dev.aaa1115910.bv.viewmodel.home.PopularViewModel
 import dev.aaa1115910.bv.viewmodel.home.RecommendViewModel
 import dev.aaa1115910.bv.viewmodel.main.HomeContentViewModel
+import dev.aaa1115910.bv.viewmodel.search.SearchInputViewModel
+import dev.aaa1115910.bv.viewmodel.search.SearchResultViewModel
 import dev.aaa1115910.bv.viewmodel.user.FavoriteViewModel
 import dev.aaa1115910.bv.viewmodel.user.FollowingSeasonViewModel
 import dev.aaa1115910.bv.viewmodel.user.HistoryViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import org.koin.androidx.compose.koinViewModel
+
+private enum class HomeSearchPage {
+    Input,
+    Result
+}
 
 @Composable
 fun HomeContent(
@@ -67,13 +77,19 @@ fun HomeContent(
     favouriteViewModel: FavoriteViewModel = koinViewModel(),
     historyViewModel: HistoryViewModel = koinViewModel(),
     toViewViewModel: ToViewViewModel = koinViewModel(),
-    followingSeasonViewModel: FollowingSeasonViewModel = koinViewModel()
+    followingSeasonViewModel: FollowingSeasonViewModel = koinViewModel(),
+    searchInputViewModel: SearchInputViewModel = koinViewModel(),
+    searchResultViewModel: SearchResultViewModel = koinViewModel()
 ){
     val firstTab = remember { Prefs.firstHomeTopNavItem }
     val focusedTab = homeContentViewModel.focusedTab
     val activeTab = homeContentViewModel.activeTab
     var focusOnContent by remember { mutableStateOf(false) }
     val composeScope = rememberCoroutineScope()
+    val searchFocusRequester = remember { FocusRequester() }
+    var searchPage by rememberSaveable { mutableStateOf(HomeSearchPage.Input) }
+    var searchKeyword by rememberSaveable { mutableStateOf("") }
+    var searchEnableProxy by rememberSaveable { mutableStateOf(false) }
 
     // 1. 在这里定义 backToTabRow 函数
     // 它会使用从外部传入的 navFocusRequester 来请求焦点
@@ -161,6 +177,7 @@ fun HomeContent(
     PersistLazyGridViewportEffect(followingSeasonGridState) { index, offset -> homeContentViewModel.updateViewport(HomeTopNavItem.FollowingSeason, index, offset) }
 
     fun homeActivationBehaviorOf(tab: HomeTopNavItem): ActivationBehavior = when (tab) {
+        HomeTopNavItem.Search,
         HomeTopNavItem.Dynamics,
         HomeTopNavItem.ToView -> ActivationBehavior.KeepPosition
         HomeTopNavItem.Recommend,
@@ -171,6 +188,7 @@ fun HomeContent(
     }
 
     fun homeGridStateOf(tab: HomeTopNavItem): LazyGridState = when (tab) {
+        HomeTopNavItem.Search -> error("Search tab has no grid state")
         HomeTopNavItem.Recommend -> recommendGridState
         HomeTopNavItem.Popular -> popularGridState
         HomeTopNavItem.Dynamics -> dynamicsGridState
@@ -181,6 +199,7 @@ fun HomeContent(
     }
 
     fun homeRetryStateOf(tab: HomeTopNavItem): LoadState = when (tab) {
+        HomeTopNavItem.Search -> LoadState.Idle
         HomeTopNavItem.Recommend -> recommendViewModel.initialLoadState
         HomeTopNavItem.Popular -> popularViewModel.initialLoadState
         HomeTopNavItem.Dynamics -> dynamicViewModel.initialLoadState
@@ -194,6 +213,7 @@ fun HomeContent(
         if (state != LoadState.Error) return false
 
         return when (tab) {
+            HomeTopNavItem.Search -> false
             HomeTopNavItem.Recommend -> !recommendViewModel.lastFailureWasAuth
             HomeTopNavItem.Popular -> !popularViewModel.lastFailureWasAuth
             HomeTopNavItem.Dynamics -> !dynamicViewModel.lastFailureWasAuth
@@ -206,6 +226,7 @@ fun HomeContent(
 
     fun ensureHomeTabLoadedSilent(tab: HomeTopNavItem) {
         when (tab) {
+            HomeTopNavItem.Search -> Unit
             HomeTopNavItem.Recommend -> recommendViewModel.ensureLoaded(showErrorToast = false)
             HomeTopNavItem.Popular -> popularViewModel.ensureLoaded(showErrorToast = false)
             HomeTopNavItem.Dynamics -> dynamicViewModel.ensureLoaded(showErrorToast = false)
@@ -218,6 +239,7 @@ fun HomeContent(
 
     fun refreshHomeTabSilent(tab: HomeTopNavItem) {
         when (tab) {
+            HomeTopNavItem.Search -> Unit
             HomeTopNavItem.Recommend -> recommendViewModel.reloadAll(showErrorToast = false)
             HomeTopNavItem.Popular -> popularViewModel.reloadAll(showErrorToast = false)
             HomeTopNavItem.Dynamics -> dynamicViewModel.reloadAll(
@@ -232,6 +254,7 @@ fun HomeContent(
     }
 
     fun homeShouldScrollTopOnUserRefresh(tab: HomeTopNavItem): Boolean = when (tab) {
+        HomeTopNavItem.Search,
         HomeTopNavItem.Dynamics -> false
         HomeTopNavItem.ToView,
         HomeTopNavItem.Recommend,
@@ -258,6 +281,7 @@ fun HomeContent(
         if (activeTab != tab) return false
 
         return when (tab) {
+            HomeTopNavItem.Search -> false
             HomeTopNavItem.Dynamics -> {
                 dynamicViewModel.requestScrollToTop()
                 true
@@ -282,6 +306,7 @@ fun HomeContent(
 
     fun toastHomeFinalFailure(tab: HomeTopNavItem) {
         val message = when (tab) {
+            HomeTopNavItem.Search -> "搜索失败"
             HomeTopNavItem.Recommend ->
                 if (recommendViewModel.lastFailureWasAuth) {
                     BVApp.context.getString(R.string.exception_auth_failure)
@@ -335,18 +360,20 @@ fun HomeContent(
         message.toast(BVApp.context)
     }
 
-    UnifiedTabActivationEffects(
-        activeTab = activeTab,
-        behaviorOf = ::homeActivationBehaviorOf,
-        gridStateOf = ::homeGridStateOf,
-        guard = activationGuard,
-        currentRetryStateOf = ::homeRetryStateOf,
-        shouldRetryOf = ::homeShouldRetry,
-        onEnsureLoadedSilent = ::ensureHomeTabLoadedSilent,
-        onActivationRefreshSilent = ::refreshHomeTabSilent,
-        onRetrySilent = ::retryHomeTabSilent,
-        onFinalFailureToast = ::toastHomeFinalFailure
-    )
+    if (activeTab != HomeTopNavItem.Search) {
+        UnifiedTabActivationEffects(
+            activeTab = activeTab,
+            behaviorOf = ::homeActivationBehaviorOf,
+            gridStateOf = ::homeGridStateOf,
+            guard = activationGuard,
+            currentRetryStateOf = ::homeRetryStateOf,
+            shouldRetryOf = ::homeShouldRetry,
+            onEnsureLoadedSilent = ::ensureHomeTabLoadedSilent,
+            onActivationRefreshSilent = ::refreshHomeTabSilent,
+            onRetrySilent = ::retryHomeTabSilent,
+            onFinalFailureToast = ::toastHomeFinalFailure
+        )
+    }
 
     LaunchedEffect(userViewModel.isLogin) {
         if (userViewModel.isLogin) {
@@ -379,7 +406,9 @@ fun HomeContent(
                 onClick = { nav ->
                     val target = nav as HomeTopNavItem
                     homeContentViewModel.onTabClicked(target)
-                    refreshHomeTabByUser(target)
+                    if (target != HomeTopNavItem.Search) {
+                        refreshHomeTabByUser(target)
+                    }
                 }
             )
         }
@@ -390,6 +419,11 @@ fun HomeContent(
                 .onFocusChanged { focusOnContent = it.hasFocus }
                 .onPreviewKeyEvent {
                     if (it.key == Key.Back) {
+                        if (activeTab == HomeTopNavItem.Search &&
+                            searchPage == HomeSearchPage.Result
+                        ) {
+                            return@onPreviewKeyEvent false
+                        }
                         if (it.type == KeyEventType.KeyUp && focusOnContent) {
                             backToTabRow()
                             return@onPreviewKeyEvent true
@@ -397,6 +431,7 @@ fun HomeContent(
                     }
 
                     if (it.key == Key.Menu) {
+                        if (activeTab == HomeTopNavItem.Search) return@onPreviewKeyEvent false
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
                         refreshHomeTabByUser(activeTab)
                         navFocusRequester.requestFocus()
@@ -406,6 +441,29 @@ fun HomeContent(
                 },
         ) {
             when (activeTab) {
+                HomeTopNavItem.Search -> {
+                    when (searchPage) {
+                        HomeSearchPage.Input -> SearchInputScreen(
+                            defaultFocusRequester = searchFocusRequester,
+                            onDefaultFocusReady = handleDefaultFocusReady,
+                            onSearchSubmit = { keyword, enableProxy ->
+                                searchKeyword = keyword
+                                searchEnableProxy = enableProxy
+                                searchPage = HomeSearchPage.Result
+                            },
+                            searchInputViewModel = searchInputViewModel
+                        )
+
+                        HomeSearchPage.Result -> SearchResultScreen(
+                            keyword = searchKeyword,
+                            enableProxy = searchEnableProxy,
+                            onBackToInput = { searchPage = HomeSearchPage.Input },
+                            searchResultViewModel = searchResultViewModel,
+                            toViewViewModel = toViewViewModel
+                        )
+                    }
+                }
+
                 HomeTopNavItem.Recommend -> RecommendScreen(gridState = recommendGridState)
                 HomeTopNavItem.Popular -> PopularScreen(gridState = popularGridState)
                 HomeTopNavItem.Dynamics -> DynamicsScreen(gridState = dynamicsGridState)

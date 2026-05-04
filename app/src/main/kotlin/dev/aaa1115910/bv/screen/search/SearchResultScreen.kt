@@ -10,10 +10,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -64,6 +62,7 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.SearchTypeTopNavItem
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
@@ -85,6 +84,7 @@ import dev.aaa1115910.bv.util.removeHtmlTags
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.util.toast
+import dev.aaa1115910.bv.viewmodel.common.LoadState
 import dev.aaa1115910.bv.viewmodel.search.SearchResultViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -95,6 +95,9 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun SearchResultScreen(
     modifier: Modifier = Modifier,
+    keyword: String? = null,
+    enableProxy: Boolean? = null,
+    onBackToInput: (() -> Unit)? = null,
     searchResultViewModel: SearchResultViewModel = koinViewModel(),
     toViewViewModel: ToViewViewModel = koinViewModel()
 ) {
@@ -106,7 +109,6 @@ fun SearchResultScreen(
 
     var rowSize by remember { mutableIntStateOf(4) }
 
-    var searchKeyword by remember { mutableStateOf("") }
     val focusedSearchType = searchResultViewModel.focusedSearchType
     val activeSearchType = searchResultViewModel.activeSearchType
 
@@ -116,9 +118,11 @@ fun SearchResultScreen(
         SearchType.MediaFt -> searchResultViewModel.mediaFtSearchResult
         SearchType.BiliUser -> searchResultViewModel.biliUserSearchResult
     }
+    val loadState = searchResultViewModel.loadStateOf(activeSearchType)
 
     var showFilter by remember { mutableStateOf(false) }
     var focusOnContent by remember { mutableStateOf(false) }
+    var filterInitialized by remember { mutableStateOf(false) }
 
     val isVideoSearchViaWebApi by remember {
         derivedStateOf {
@@ -180,18 +184,27 @@ fun SearchResultScreen(
         SearchType.BiliUser -> SearchTypeTopNavItem.BiliUser
     }
 
-    LaunchedEffect(Unit) {
-        val intent = (context as Activity).intent
-        if (intent.hasExtra("keyword")) {
-            searchKeyword = intent.getStringExtra("keyword") ?: ""
-            val enableProxy = intent.getBooleanExtra("enableProxy", false)
-            if (searchKeyword == "") context.finish()
-            searchResultViewModel.onKeywordChanged(
-                newKeyword = searchKeyword,
-                enableProxy = enableProxy
-            )
+    LaunchedEffect(keyword, enableProxy) {
+        if (keyword != null && enableProxy != null) {
+            if (keyword.isNotBlank()) {
+                searchResultViewModel.onKeywordChanged(
+                    newKeyword = keyword,
+                    enableProxy = enableProxy
+                )
+            }
         } else {
-            context.finish()
+            val intent = (context as Activity).intent
+            if (intent.hasExtra("keyword")) {
+                val intentKeyword = intent.getStringExtra("keyword") ?: ""
+                val intentEnableProxy = intent.getBooleanExtra("enableProxy", false)
+                if (intentKeyword == "") context.finish()
+                searchResultViewModel.onKeywordChanged(
+                    newKeyword = intentKeyword,
+                    enableProxy = intentEnableProxy
+                )
+            } else {
+                context.finish()
+            }
         }
     }
 
@@ -220,6 +233,11 @@ fun SearchResultScreen(
     LaunchedEffect(
         selectedOrder, selectedDuration, selectedPartition, selectedChildPartition
     ) {
+        if (!filterInitialized) {
+            filterInitialized = true
+            return@LaunchedEffect
+        }
+        if (searchResultViewModel.keyword.isBlank()) return@LaunchedEffect
         logger.fInfo { "Start update search result because filter updated" }
         searchResultViewModel.updateActiveType()
     }
@@ -253,48 +271,50 @@ fun SearchResultScreen(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Bottom
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = searchKeyword,
+                        text = searchResultViewModel.keyword,
                         fontSize = 24.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
+                    TopNav(
+                        modifier = Modifier
+                            .weight(2f)
+                            .focusRequester(tabRowFocusRequester),
+                        items = SearchTypeTopNavItem.entries,
+                        selectedItem = focusedSearchType.toTopNavItem(),
+                        onSelectedChanged = { nav ->
+                            val target = (nav as SearchTypeTopNavItem).toSearchType()
+                            searchResultViewModel.onSearchTypeFocused(target)
+                        },
+                        onClick = { nav ->
+                            val target = (nav as SearchTypeTopNavItem).toSearchType()
+                            searchResultViewModel.onSearchTypeClicked(target)
+                        }
+                    )
                     Text(
                         text = (if (isVideoSearchViaWebApi) "菜单键打开筛选 | " else "") +
                                 stringResource(R.string.load_data_count, searchResult.count),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.End
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
         }
     ) { innerPadding ->
-        BackHandler(focusOnContent) { backToTabRow() }
+        if (onBackToInput != null) {
+            BackHandler { onBackToInput() }
+        } else {
+            BackHandler(focusOnContent) { backToTabRow() }
+        }
 
         Column(
             modifier = Modifier.padding(innerPadding)
         ) {
-            TopNav(
-                modifier = Modifier
-                    .focusRequester(tabRowFocusRequester),
-                items = SearchTypeTopNavItem.entries,
-                isLargePadding = !focusOnContent,
-                selectedItem = focusedSearchType.toTopNavItem(),
-                onSelectedChanged = { nav ->
-                    val target = (nav as SearchTypeTopNavItem).toSearchType()
-                    searchResultViewModel.onSearchTypeFocused(target)
-                },
-                onClick = { nav ->
-                    val target = (nav as SearchTypeTopNavItem).toSearchType()
-                    searchResultViewModel.onSearchTypeClicked(target)
-                }
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
             val currentItems: List<SearchTypeResult.SearchTypeResultItem> = when (searchResult.type) {
                 SearchType.Video -> searchResult.videos
                 SearchType.MediaBangumi -> searchResult.mediaBangumis
@@ -302,46 +322,68 @@ fun SearchResultScreen(
                 SearchType.BiliUser -> searchResult.biliUsers
             }
 
-            SmallVideoCardGridHost(
-                modifier = Modifier
-                    .onFocusChanged { focusOnContent = it.hasFocus },
-                state = gridState,
-                columns = GridCells.Fixed(rowSize),
-                contentPadding = PaddingValues(24.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp),
-                horizontalArrangement = Arrangement.spacedBy(24.dp),
-                horizontalWrapItemCount = currentItems.size,
-                horizontalWrapColumnCount = rowSize
-            ) {
-                itemsIndexed(
-                    items = currentItems,
-                    key = { _, item ->
-                        when (item) {
-                            is SearchTypeResult.Video -> "video_${item.aid}"
-                            is SearchTypeResult.Pgc -> "pgc_${item.seasonId}"
-                            is SearchTypeResult.User -> "user_${item.mid}"
-                            else -> item.hashCode().toString()
-                        }
+            if (currentItems.isEmpty() && loadState != LoadState.Idle) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    when (loadState) {
+                        LoadState.Loading -> LoadingTip()
+                        LoadState.Error -> Text(
+                            text = "搜索结果加载失败，请稍后重试",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        LoadState.Success -> Text(
+                            text = "暂无搜索结果",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        LoadState.Idle -> Unit
                     }
-                ) { index, item ->
-                    SearchResultListItem(
-                        modifier = rememberGridRowWrapModifier(index),
-                        searchResult = item,
-                        onClick = { onClickResult(item) },
-                        onAddWatchLater = { aid ->
-                            toViewViewModel.addToView(aid)
-                        },
-                        onGoToDetailPage = { aid ->
-                            VideoInfoActivity.actionStart(
-                                context = context,
-                                fromController = true,
-                                aid = aid
-                            )
-                        },
-                        onGoToUpPage = { mid, upName ->
-                            UpInfoActivity.actionStart(context, mid, upName)
+                }
+            } else {
+                SmallVideoCardGridHost(
+                    modifier = Modifier
+                        .onFocusChanged { focusOnContent = it.hasFocus },
+                    state = gridState,
+                    columns = GridCells.Fixed(rowSize),
+                    contentPadding = PaddingValues(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    horizontalWrapItemCount = currentItems.size,
+                    horizontalWrapColumnCount = rowSize
+                ) {
+                    itemsIndexed(
+                        items = currentItems,
+                        key = { _, item ->
+                            when (item) {
+                                is SearchTypeResult.Video -> "video_${item.aid}"
+                                is SearchTypeResult.Pgc -> "pgc_${item.seasonId}"
+                                is SearchTypeResult.User -> "user_${item.mid}"
+                                else -> item.hashCode().toString()
+                            }
                         }
-                    )
+                    ) { index, item ->
+                        SearchResultListItem(
+                            modifier = rememberGridRowWrapModifier(index),
+                            searchResult = item,
+                            onClick = { onClickResult(item) },
+                            onAddWatchLater = { aid ->
+                                toViewViewModel.addToView(aid)
+                            },
+                            onGoToDetailPage = { aid ->
+                                VideoInfoActivity.actionStart(
+                                    context = context,
+                                    fromController = true,
+                                    aid = aid
+                                )
+                            },
+                            onGoToUpPage = { mid, upName ->
+                                UpInfoActivity.actionStart(context, mid, upName)
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -467,7 +509,7 @@ private fun SearchResultListItem(
                     seasonId = searchResult.seasonId,
                     title = searchResult.title.removeHtmlTags(),
                     cover = searchResult.cover,
-                    rating = String.format(Locale.getDefault(), "%.1f", searchResult.star)
+                    rating = stringResource(R.string.rating_format, searchResult.star)
                 ),
                 onClick = onClick,
                 onFocus = {}

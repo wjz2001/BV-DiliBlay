@@ -79,16 +79,6 @@
             android:label="@string/title_activity_anime_timeline"
             android:theme="@style/Theme.BV" />
         <activity
-            android:name=".activities.search.SearchResultActivity"
-            android:exported="false"
-            android:label="@string/title_activity_search_result"
-            android:theme="@style/Theme.BV" />
-        <activity
-            android:name=".activities.search.SearchInputActivity"
-            android:exported="false"
-            android:label="@string/title_activity_search_input"
-            android:theme="@style/Theme.BV" />
-        <activity
             android:name=".activities.video.SeasonInfoActivity"
             android:exported="false"
             android:label="@string/title_activity_season_info"

@@ -278,7 +278,8 @@ enum class HomeTopNavItem(val code: Int, private val displayName: String) : TopN
     ToView(3, "稍后再看"),
     Recommend(4, "推荐"),
     Popular(5, "热门"),
-    FollowingSeason(6, "我追的番");
+    FollowingSeason(6, "我追的番"),
+    Search(7, "搜索");
 
     companion object {
         fun fromCode(code: Int): HomeTopNavItem {

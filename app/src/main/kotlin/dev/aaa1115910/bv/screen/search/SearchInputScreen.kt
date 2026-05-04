@@ -43,7 +43,6 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
@@ -64,7 +63,6 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.search.Hotword
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.activities.search.SearchResultActivity
 import dev.aaa1115910.bv.component.search.SearchKeyword
 import dev.aaa1115910.bv.component.search.SoftKeyboard
 import dev.aaa1115910.bv.entity.db.SearchHistoryDB
@@ -157,12 +155,14 @@ fun SearchInputScreen(
     modifier: Modifier = Modifier,
     defaultFocusRequester: FocusRequester,
     onDefaultFocusReady: (() -> Unit)? = null,
+    onSearchSubmit: ((String, Boolean) -> Unit)? = null,
     searchInputViewModel: SearchInputViewModel = koinViewModel()
 ) {
     SearchInputRoute(
         modifier = modifier,
         defaultFocusRequester = defaultFocusRequester,
         onDefaultFocusReady = onDefaultFocusReady,
+        onSearchSubmit = onSearchSubmit,
         searchInputViewModel = searchInputViewModel
     )
 }
@@ -176,6 +176,7 @@ fun MainDrawerSearchInputScreen(
     onDefaultFocusReady: (() -> Unit)? = null,
     onCurrentRightEntryTokenChanged: ((SearchRightEntryToken?) -> Unit)? = null,
     onRightEntryFocusReady: ((SearchRightEntryToken) -> Unit)? = null,
+    onSearchSubmit: ((String, Boolean) -> Unit)? = null,
     searchInputViewModel: SearchInputViewModel = koinViewModel()
 ) {
     SearchInputRoute(
@@ -186,6 +187,7 @@ fun MainDrawerSearchInputScreen(
         onDefaultFocusReady = onDefaultFocusReady,
         onCurrentRightEntryTokenChanged = onCurrentRightEntryTokenChanged,
         onRightEntryFocusReady = onRightEntryFocusReady,
+        onSearchSubmit = onSearchSubmit,
         searchInputViewModel = searchInputViewModel
     )
 }
@@ -199,17 +201,17 @@ private fun SearchInputRoute(
     onDefaultFocusReady: (() -> Unit)? = null,
     onCurrentRightEntryTokenChanged: ((SearchRightEntryToken?) -> Unit)? = null,
     onRightEntryFocusReady: ((SearchRightEntryToken) -> Unit)? = null,
+    onSearchSubmit: ((String, Boolean) -> Unit)? = null,
     searchInputViewModel: SearchInputViewModel = koinViewModel()
 ) {
-    val context = LocalContext.current
-
     val searchKeyword = searchInputViewModel.keyword
     val hotwords = searchInputViewModel.hotwords
     val searchHistories = searchInputViewModel.searchHistories
     val suggests = searchInputViewModel.suggests
 
-    val onSearch: (String) -> Unit = { keyword ->
-        SearchResultActivity.actionStart(context, keyword, searchInputViewModel.enableProxy)
+    val onSearch: (String) -> Unit = onSearch@{ keyword ->
+        if (keyword.isBlank()) return@onSearch
+        onSearchSubmit?.invoke(keyword, searchInputViewModel.enableProxy)
         searchInputViewModel.keyword = keyword
         searchInputViewModel.addSearchHistory(keyword)
     }

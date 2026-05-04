@@ -17,7 +17,6 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.HowToReg
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.OndemandVideo
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationRail
@@ -77,7 +76,6 @@ fun LeftNaviContent(
     isLogin: Boolean = false,
     avatar: String = "",
     selectedItem: LeftNaviItem,
-    searchFocusRequester: FocusRequester,
     homeFocusRequester: FocusRequester,
     followFocusRequester: FocusRequester,
     ugcFocusRequester: FocusRequester,
@@ -98,7 +96,6 @@ fun LeftNaviContent(
     var settingsArmedEntryTarget by remember { mutableStateOf<MainContentFocusTarget?>(null) }
 
     val contentItems = listOf(
-        LeftNaviItem.Search,
         LeftNaviItem.Home,
         LeftNaviItem.Follow,
         LeftNaviItem.UGC,
@@ -353,7 +350,6 @@ fun LeftNaviContent(
             ) {
                 contentItems.forEach { item ->
                     val itemFocusRequester = when (item) {
-                        LeftNaviItem.Search -> searchFocusRequester
                         LeftNaviItem.Home -> homeFocusRequester
                         LeftNaviItem.Follow -> followFocusRequester
                         LeftNaviItem.UGC -> ugcFocusRequester
@@ -589,7 +585,6 @@ enum class LeftNaviItem(
     val displayIcon: ImageVector
 ) {
     User(displayIcon = Icons.Default.AccountCircle),
-    Search(displayIcon = Icons.Default.Search),
     Home(displayIcon = Icons.Default.Home),
     Follow(displayIcon = Icons.Default.HowToReg),
     UGC(displayIcon = Icons.Default.OndemandVideo),
@@ -614,7 +609,6 @@ private fun LeftNaviContentPreview() {
     BVTheme {
         LeftNaviContent(
             selectedItem = LeftNaviItem.Home,
-            searchFocusRequester = remember { FocusRequester() },
             homeFocusRequester = remember { FocusRequester() },
             followFocusRequester = remember { FocusRequester() },
             ugcFocusRequester = remember { FocusRequester() },

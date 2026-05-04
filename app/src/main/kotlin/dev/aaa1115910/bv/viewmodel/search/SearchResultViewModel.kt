@@ -24,6 +24,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.sync.withLock
 import org.koin.core.annotation.KoinViewModel
 
@@ -33,6 +34,7 @@ class SearchResultViewModel(
 ) : ViewModel() {
     companion object {
         private val logger = KotlinLogging.logger { }
+        private const val SEARCH_RESULT_TIMEOUT_MS = 8_000L
     }
 
     var keyword by mutableStateOf("")
@@ -66,7 +68,7 @@ class SearchResultViewModel(
     private val requestTokenMap = mutableMapOf<SearchType, Long>()
     private val requestMutexMap = mutableMapOf<SearchType, kotlinx.coroutines.sync.Mutex>()
 
-    private fun loadStateOf(type: SearchType): LoadState = loadStateMap[type] ?: LoadState.Idle
+    fun loadStateOf(type: SearchType): LoadState = loadStateMap[type] ?: LoadState.Idle
 
     private fun setLoadState(type: SearchType, state: LoadState) {
         loadStateMap[type] = state
@@ -85,6 +87,7 @@ class SearchResultViewModel(
         requestMutexMap.getOrPut(type) { kotlinx.coroutines.sync.Mutex() }
 
     fun onKeywordChanged(newKeyword: String, enableProxy: Boolean) {
+        if (keyword == newKeyword && enableProxySearchResult == enableProxy) return
         keyword = newKeyword
         enableProxySearchResult = enableProxy
         resetAllForNewKeyword()
@@ -172,16 +175,18 @@ class SearchResultViewModel(
 
                     logger.fInfo { "Load search result: [keyword=$keyword, type=$searchType, page=$page]" }
 
-                    val response = searchRepository.searchType(
-                        keyword = keyword,
-                        type = searchType,
-                        page = page,
-                        tid = selectedChildPartition?.tid ?: selectedPartition?.tid,
-                        order = selectedOrder,
-                        duration = selectedDuration,
-                        preferApiType = Prefs.apiType,
-                        enableProxy = enableProxySearchResult
-                    )
+                    val response = withTimeout(SEARCH_RESULT_TIMEOUT_MS) {
+                        searchRepository.searchType(
+                            keyword = keyword,
+                            type = searchType,
+                            page = page,
+                            tid = selectedChildPartition?.tid ?: selectedPartition?.tid,
+                            order = selectedOrder,
+                            duration = selectedDuration,
+                            preferApiType = Prefs.apiType,
+                            enableProxy = enableProxySearchResult
+                        )
+                    }
 
                     val filteredResponse = if (
                         searchType == SearchType.Video &&

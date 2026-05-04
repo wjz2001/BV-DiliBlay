@@ -11,12 +11,17 @@ import dev.aaa1115910.biliapi.http.BiliHttpApi
 import dev.aaa1115910.biliapi.http.BiliHttpProxyApi
 import org.koin.core.annotation.Single
 import dev.aaa1115910.biliapi.http.util.smartDate
+import java.util.concurrent.TimeUnit
 
 @Single
 class SearchRepository(
     private val authRepository: AuthRepository,
     private val channelRepository: ChannelRepository
 ) {
+    companion object {
+        private const val SEARCH_RESULT_GRPC_DEADLINE_SECONDS = 8L
+    }
+
     private val searchSuggestStub
         get() = runCatching {
             bilibili.app.interfaces.v1.SearchGrpcKt.SearchCoroutineStub(channelRepository.defaultChannel!!)
@@ -158,10 +163,14 @@ class SearchRepository(
                         }
                     }
                     if (enableProxy) {
-                        proxySearchResultStub?.searchByType(searchTypeRequest)
+                        proxySearchResultStub
+                            ?.withDeadlineAfter(SEARCH_RESULT_GRPC_DEADLINE_SECONDS, TimeUnit.SECONDS)
+                            ?.searchByType(searchTypeRequest)
                             ?: throw IllegalStateException("Proxy search result stub is not initialized")
                     } else {
-                        searchResultStub?.searchByType(searchTypeRequest)
+                        searchResultStub
+                            ?.withDeadlineAfter(SEARCH_RESULT_GRPC_DEADLINE_SECONDS, TimeUnit.SECONDS)
+                            ?.searchByType(searchTypeRequest)
                             ?: throw IllegalStateException("Search result stub is not initialized")
                     }
                 }.onFailure { handleGrpcException(it) }.getOrThrow()
