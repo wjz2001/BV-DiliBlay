@@ -282,7 +282,7 @@ private fun normalizeText(s: String): String {
  * 最终 token 规范化：
  * 合并相邻 Text（用 StringBuilder 缓冲）
  * 对 Text 做 normalizeText（去空行保留换行）
- * 强制前面和后面只有一个空格
+ * 强制前面和后面只有一个空格（解决长短不一的空格问题），并对标点符号做智能适配
  */
 private fun normalizeTokens(tokens: List<RichTextToken>): List<RichTextToken> {
     if (tokens.isEmpty()) return emptyList()
@@ -293,18 +293,29 @@ private fun normalizeTokens(tokens: List<RichTextToken>): List<RichTextToken> {
     fun appendText(raw: String) {
         if (raw.isEmpty()) return
         var s = normalizeText(raw)
-        if (s.isEmpty()) return
 
         if (needSpaceBeforeNextText) {
+            // 去除 API 文本自带的行内前导空格，避免与强制加的空格叠加
+            s = s.trimStart(' ', '\t')
+
+            // 如果去掉空格后为空，直接返回，同时保留 needSpaceBeforeNextText=true 供下个 token 使用
+            if (s.isEmpty()) return
+
             val prevTextEndsWithNewline =
                 (out.lastOrNull() as? RichTextToken.Text)?.text?.endsWith("\n") == true
 
             // 如果下一段文本一上来就是换行，或上一段以换行结尾，则不插空格
             if (!s.startsWith("\n") && !prevTextEndsWithNewline) {
-                s = " $s"
+                // 如果 Mention 后面紧跟着中文或英文的标点符号，就不加空格，排版更好看
+                val isPunctuation = s.firstOrNull()?.let { it in "，。！？、：；”’)]}》,.!?:;)" } == true
+                if (!isPunctuation) {
+                    s = " $s"
+                }
             }
             needSpaceBeforeNextText = false
         }
+
+        if (s.isEmpty()) return
 
         val last = out.lastOrNull()
         if (last is RichTextToken.Text) {
@@ -321,9 +332,13 @@ private fun normalizeTokens(tokens: List<RichTextToken>): List<RichTextToken> {
         when (last) {
             is RichTextToken.Text -> {
                 val t = last.text
-                // 如果上一段以换行结尾，不要在换行后面补空格（避免行首空格）
-                if (t.isNotEmpty() && !t.endsWith("\n")) {
-                    out[out.lastIndex] = RichTextToken.Text(t.trimEnd(' ', '\t') + " ")
+                val trimmed = t.trimEnd(' ', '\t')
+                // 先做 trim，再判断是否换行结尾。
+                // 否则如果原文是 "\n  "，原逻辑会误判并强制在行首加一个空格。
+                if (trimmed.isNotEmpty() && !trimmed.endsWith("\n")) {
+                    out[out.lastIndex] = RichTextToken.Text(trimmed + " ")
+                } else {
+                    out[out.lastIndex] = RichTextToken.Text(trimmed)
                 }
             }
             else -> {
@@ -356,17 +371,16 @@ private fun normalizeTokens(tokens: List<RichTextToken>): List<RichTextToken> {
         if (trimmed.isEmpty()) out.removeAt(out.lastIndex) else out[out.lastIndex] = RichTextToken.Text(trimmed)
     }
 
-    // 对所有 Text 再 normalizeText，并合并相邻 Text
+    // 最后再合并一次所有的 Text，由于前置逻辑已经处理好了全部的空格，此处不要再粗暴调用 normalizeText，直接合并内容即可。
     val finalOut = mutableListOf<RichTextToken>()
     for (t in out) {
         if (t is RichTextToken.Text) {
-            val s = normalizeText(t.text)
-            if (s.isEmpty()) continue
+            if (t.text.isEmpty()) continue
             val last = finalOut.lastOrNull()
             if (last is RichTextToken.Text) {
-                finalOut[finalOut.lastIndex] = RichTextToken.Text(last.text + s)
+                finalOut[finalOut.lastIndex] = RichTextToken.Text(last.text + t.text)
             } else {
-                finalOut += RichTextToken.Text(s)
+                finalOut += t
             }
         } else {
             finalOut += t

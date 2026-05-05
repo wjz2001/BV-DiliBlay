@@ -2087,7 +2087,7 @@ fun DurationUnitText(
     }
     // 在调用 Text 组件时，将 Int 转换为 .sp
     Text(
-        text = String.format(Locale.getDefault(), "%02d", value),
+        text = value.toString().padStart(2, '0'),
         fontSize = fontSize.sp,
         fontWeight = FontWeight.Bold
     )
