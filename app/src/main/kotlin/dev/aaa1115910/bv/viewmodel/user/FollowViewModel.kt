@@ -7,25 +7,31 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.aaa1115910.biliapi.entity.ApiType
+import dev.aaa1115910.biliapi.entity.user.SpaceVideoPage
+import dev.aaa1115910.biliapi.http.BiliHttpApi
+import dev.aaa1115910.biliapi.http.entity.relation.RelationTag
+import dev.aaa1115910.biliapi.repositories.UserRepository as BiliUserRepository
 import dev.aaa1115910.bv.block.BlockManager
 import dev.aaa1115910.bv.relation.RelationGroupKind
 import dev.aaa1115910.bv.relation.RelationGroupSnapshot
 import dev.aaa1115910.bv.relation.RelationGroupUser
 import dev.aaa1115910.bv.relation.RelationGroupsDataSource
 import dev.aaa1115910.bv.relation.RelationRefreshTrigger
-import dev.aaa1115910.biliapi.repositories.UserRepository
-import dev.aaa1115910.biliapi.http.entity.relation.RelationTag
+import dev.aaa1115910.bv.relation.SPECIAL_RELATION_GROUP_ID
+import dev.aaa1115910.bv.repository.UserRepository as AppUserRepository
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.Prefs
+import dev.aaa1115910.bv.viewmodel.common.DebouncedActivationController
 import io.github.oshai.kotlinlogging.KotlinLogging
+import java.text.Collator
+import java.util.Locale
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.KoinViewModel
-import java.text.Collator
-import java.util.Locale
 
 @Immutable
 data class FollowGroupCardUi(
@@ -48,25 +54,25 @@ data class FollowUserUi(
     val mid: Long,
     val name: String,
     val avatar: String,
-    val sign: String
+    val sign: String,
+    val isSelfEntry: Boolean = false
 ) {
-    val stableKey: String = "user-$groupId-$mid"
+    val stableKey: String = if (isSelfEntry) {
+        "self-$groupId-$mid"
+    } else {
+        "user-$groupId-$mid"
+    }
 }
 
 @KoinViewModel
 class FollowViewModel(
-    private val userRepository: UserRepository
+    private val biliUserRepository: BiliUserRepository,
+    private val appUserRepository: AppUserRepository
 ) : ViewModel() {
     var groupCards by mutableStateOf<List<FollowGroupCardUi>>(emptyList())
         private set
 
     var usersByGroupId by mutableStateOf<Map<Int, List<FollowUserUi>>>(emptyMap())
-        private set
-
-    var selectedGroupId by mutableStateOf<Int?>(null)
-        private set
-
-    var preferredGroupFocusId by mutableStateOf<Int?>(null)
         private set
 
     var updating by mutableStateOf(true)
@@ -76,16 +82,33 @@ class FollowViewModel(
         private set
 
     private var groupCardById: Map<Int, FollowGroupCardUi> = emptyMap()
+    private var selfEntryAvailable by mutableStateOf(false)
+    private var selfName by mutableStateOf("")
+    private var selfAvatar by mutableStateOf("")
+    private var selfSign by mutableStateOf("")
+
+    private val groupActivation = DebouncedActivationController<Int?>(
+        initial = null,
+        scope = viewModelScope
+    )
+
+    val focusedGroupId get() = groupActivation.focused
+    val activeGroupId get() = groupActivation.active
+
+    val currentGroupId: Int?
+        get() = activeGroupId ?: groupCards.firstOrNull()?.groupId
+
+    val preferredGroupFocusId: Int?
+        get() = focusedGroupId ?: currentGroupId
 
     val currentTitle: String
-        get() = selectedGroupId?.let { groupCardById[it]?.title }.orEmpty()
+        get() = currentGroupId?.let { groupCardById[it]?.title }.orEmpty()
 
     val currentCount: Int
-        get() = selectedGroupId?.let { usersByGroupId[it]?.size ?: groupCardById[it]?.count ?: 0 }
-            ?: totalUsers
+        get() = currentUsers.size
 
     val currentUsers: List<FollowUserUi>
-        get() = selectedGroupId?.let { usersByGroupId[it].orEmpty() } ?: emptyList()
+        get() = currentGroupId?.let { usersByGroupId[it].orEmpty() } ?: emptyList()
 
     val preferredDetailUserKey: String?
         get() = currentUsers.firstOrNull()?.stableKey
@@ -107,8 +130,8 @@ class FollowViewModel(
     var followGroupDialogTargetMid by mutableStateOf<Long?>(null)
         private set
 
-    private val _uiEffect = MutableSharedFlow<UiEffect>()
-    val uiEvent = _uiEffect.asSharedFlow()
+    private val uiEffect = MutableSharedFlow<UiEffect>()
+    val uiEvent = uiEffect.asSharedFlow()
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -116,23 +139,16 @@ class FollowViewModel(
         }
     }
 
-    fun enterGroup(groupId: Int) {
-        val group = groupCardById[groupId] ?: return
-        if (group.state == FollowGroupCardState.EMPTY) return
-
-        preferredGroupFocusId = groupId
-        selectedGroupId = groupId
-    }
-
-    fun exitGroupDetail() {
-        preferredGroupFocusId = selectedGroupId ?: preferredGroupFocusId
-        selectedGroupId = null
-    }
-
     fun onGroupFocused(groupId: Int) {
-        if (preferredGroupFocusId != groupId) {
-            preferredGroupFocusId = groupId
-        }
+        groupActivation.onFocused(groupId)
+    }
+
+    fun onGroupClicked(groupId: Int) {
+        groupActivation.onClicked(groupId)
+    }
+
+    fun syncGroupActivationToCurrent() {
+        currentGroupId?.let(groupActivation::onClicked)
     }
 
     fun hideFollowGroupDialog() {
@@ -140,12 +156,12 @@ class FollowViewModel(
     }
 
     fun openFollowGroupDialog(user: FollowUserUi) {
-        if (showFollowGroupDialog) return
+        if (showFollowGroupDialog || user.isSelfEntry) return
 
         viewModelScope.launch {
             val tagsOk = runCatching { loadFollowTagsIfNeeded() }.getOrDefault(false)
             if (!tagsOk) {
-                _uiEffect.emit(UiEffect.ShowToast("未获取到关注分组列表，已取消打开以避免误操作"))
+                uiEffect.emit(UiEffect.ShowToast("未获取到关注分组列表，已取消打开以避免误操作"))
                 return@launch
             }
 
@@ -165,7 +181,7 @@ class FollowViewModel(
                 else -> filteredInitial
             }
             if (wasFollowing && safeInitial.isEmpty()) {
-                _uiEffect.emit(UiEffect.ShowToast("未能解析当前关注分组，已取消打开以避免误操作"))
+                uiEffect.emit(UiEffect.ShowToast("未能解析当前关注分组，已取消打开以避免误操作"))
                 return@launch
             }
 
@@ -186,7 +202,7 @@ class FollowViewModel(
 
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
-                val success = userRepository.submitFollowGroupSelection(
+                val success = biliUserRepository.submitFollowGroupSelection(
                     mid = upMid,
                     wasFollowing = wasFollowing,
                     beforeTagIds = initialSelected,
@@ -202,7 +218,7 @@ class FollowViewModel(
                 }
             }.onFailure {
                 viewModelScope.launch {
-                    _uiEffect.emit(UiEffect.ShowToast("更新关注分组失败"))
+                    uiEffect.emit(UiEffect.ShowToast("更新关注分组失败"))
                 }
             }
         }
@@ -214,6 +230,8 @@ class FollowViewModel(
     }
 
     private suspend fun initFollowedUsers() {
+        refreshSelfEntryInfo()
+
         RelationGroupsDataSource.getSnapshotOrNull()?.let { cachedSnapshot ->
             applySnapshot(cachedSnapshot)
             withContext(Dispatchers.Main) {
@@ -223,6 +241,7 @@ class FollowViewModel(
 
         val result = RelationGroupsDataSource.refresh(RelationRefreshTrigger.FollowScreen)
         result.snapshot?.let { refreshedSnapshot ->
+            refreshSelfEntryInfo()
             applySnapshot(refreshedSnapshot)
             BlockManager.rebuildBlockedMidsFromSnapshot(refreshedSnapshot)
         }
@@ -232,36 +251,64 @@ class FollowViewModel(
         }
     }
 
+    private suspend fun refreshSelfEntryInfo() {
+        if (!Prefs.isLogin || Prefs.uid == 0L) {
+            withContext(Dispatchers.Main) {
+                selfEntryAvailable = false
+                selfName = ""
+                selfAvatar = ""
+                selfSign = ""
+            }
+            return
+        }
+
+        val selfInfo = runCatching {
+            BiliHttpApi.getUserSelfInfo(sessData = Prefs.sessData).getResponseData()
+        }.getOrNull()
+
+        val hasVideos = checkSelfHasVideos()
+
+        withContext(Dispatchers.Main) {
+            selfEntryAvailable = hasVideos
+            selfName = selfInfo?.name ?: appUserRepository.username
+            selfAvatar = selfInfo?.face ?: appUserRepository.avatar
+            selfSign = selfInfo?.sign.orEmpty()
+        }
+    }
+
     private suspend fun applySnapshot(snapshot: RelationGroupSnapshot) {
-        val newUsersByGroupId = buildUsersByGroupId(snapshot)
-        val newGroupCards = snapshot.groups.map { group ->
+        val displayGroups = snapshot.groups.sortedWith(
+            compareBy<dev.aaa1115910.bv.relation.RelationGroup> {
+                specialGroupPriority(it.groupId, it.kind, it.name)
+            }.thenBy {
+                when (it.groupId) {
+                    0 -> 1
+                    else -> 2
+                }
+            }.thenBy { it.order }
+        )
+        val newUsersByGroupId = buildUsersByGroupId(snapshot, displayGroups.map { it.groupId })
+        val newGroupCards = displayGroups.map { group ->
             val count = newUsersByGroupId[group.groupId]?.size ?: 0
             FollowGroupCardUi(
                 groupId = group.groupId,
                 title = group.name,
                 kind = group.kind,
                 count = count,
-                state = if (count > 0) {
-                    FollowGroupCardState.NORMAL
-                } else {
-                    FollowGroupCardState.EMPTY
-                }
+                state = if (count > 0) FollowGroupCardState.NORMAL else FollowGroupCardState.EMPTY
             )
         }
         val newGroupCardById = newGroupCards.associateBy { it.groupId }
-        val focusableGroupIds = newGroupCards
-            .asSequence()
-            .filter { it.state == FollowGroupCardState.NORMAL }
-            .map { it.groupId }
-            .toSet()
-
-        val resolvedSelectedGroupId = selectedGroupId?.takeIf {
-            it in newGroupCardById && newUsersByGroupId[it].orEmpty().isNotEmpty()
+        val availableGroupIds = newGroupCards.map { it.groupId }.toSet()
+        val resolvedFocusedGroupId = when {
+            focusedGroupId in availableGroupIds -> focusedGroupId
+            activeGroupId in availableGroupIds -> activeGroupId
+            else -> newGroupCards.firstOrNull()?.groupId
         }
-        val resolvedPreferredGroupFocusId = when {
-            preferredGroupFocusId in focusableGroupIds -> preferredGroupFocusId
-            resolvedSelectedGroupId in focusableGroupIds -> resolvedSelectedGroupId
-            else -> newGroupCards.firstOrNull { it.count > 0 }?.groupId
+        val resolvedActiveGroupId = when {
+            activeGroupId in availableGroupIds -> activeGroupId
+            resolvedFocusedGroupId in availableGroupIds -> resolvedFocusedGroupId
+            else -> newGroupCards.firstOrNull()?.groupId
         }
 
         withContext(Dispatchers.Main) {
@@ -269,9 +316,26 @@ class FollowViewModel(
             groupCardById = newGroupCardById
             groupCards = newGroupCards
             usersByGroupId = newUsersByGroupId
-            selectedGroupId = resolvedSelectedGroupId
-            preferredGroupFocusId = resolvedPreferredGroupFocusId
+
+            resolvedFocusedGroupId?.let(groupActivation::onFocused)
+            (resolvedActiveGroupId ?: resolvedFocusedGroupId)?.let(groupActivation::onClicked)
         }
+    }
+
+    private suspend fun checkSelfHasVideos(): Boolean {
+        val apiCandidates = listOf(Prefs.apiType, Prefs.apiType.fallback()).distinct()
+        apiCandidates.forEach { apiType ->
+            val hasVideos = runCatching {
+                val data = biliUserRepository.getSpaceVideos(
+                    mid = Prefs.uid,
+                    page = SpaceVideoPage(nextWebPageSize = 1),
+                    preferApiType = apiType
+                )
+                (data.totalCount ?: data.videos.size) > 0
+            }.getOrNull()
+            if (hasVideos == true) return true
+        }
+        return false
     }
 
     private suspend fun loadFollowTagsIfNeeded(): Boolean {
@@ -279,7 +343,7 @@ class FollowViewModel(
         if (followTags.isNotEmpty()) return true
 
         val tags = withContext(Dispatchers.IO) {
-            userRepository.getFollowTags(preferApiType = Prefs.apiType)
+            biliUserRepository.getFollowTags(preferApiType = Prefs.apiType)
         }
         followTags = tags
         return tags.isNotEmpty()
@@ -287,17 +351,20 @@ class FollowViewModel(
 
     private suspend fun getUpFollowStateAndTagIds(upMid: Long): Pair<Boolean, List<Int>> {
         return withContext(Dispatchers.IO) {
-            userRepository.getUpFollowStateAndTagIds(
+            biliUserRepository.getUpFollowStateAndTagIds(
                 mid = upMid,
                 preferApiType = Prefs.apiType
             )
         }
     }
 
-    private fun buildUsersByGroupId(snapshot: RelationGroupSnapshot): Map<Int, List<FollowUserUi>> {
+    private fun buildUsersByGroupId(
+        snapshot: RelationGroupSnapshot,
+        orderedGroupIds: List<Int>
+    ): Map<Int, List<FollowUserUi>> {
         val usersByGroupId = linkedMapOf<Int, MutableList<RelationGroupUser>>()
-        snapshot.groups.forEach { group ->
-            usersByGroupId[group.groupId] = mutableListOf()
+        orderedGroupIds.forEach { groupId ->
+            usersByGroupId[groupId] = mutableListOf()
         }
 
         snapshot.users.forEach { user ->
@@ -306,8 +373,9 @@ class FollowViewModel(
             }
         }
 
-        return usersByGroupId.mapValues { (groupId, users) ->
-            sortUsers(users).map { user ->
+        val result = linkedMapOf<Int, List<FollowUserUi>>()
+        orderedGroupIds.forEach { groupId ->
+            val users = sortUsers(usersByGroupId[groupId].orEmpty()).map { user ->
                 FollowUserUi(
                     groupId = groupId,
                     mid = user.mid,
@@ -315,8 +383,30 @@ class FollowViewModel(
                     avatar = user.avatar,
                     sign = user.sign
                 )
+            }.toMutableList()
+
+            val groupMeta = snapshot.groups.firstOrNull { it.groupId == groupId }
+            val isSpecial = groupMeta?.let {
+                specialGroupPriority(it.groupId, it.kind, it.name) == 0
+            } == true
+            if (isSpecial && selfEntryAvailable) {
+                users.add(
+                    0,
+                    FollowUserUi(
+                        groupId = groupId,
+                        mid = Prefs.uid,
+                        name = selfName.ifBlank { appUserRepository.username },
+                        avatar = selfAvatar.ifBlank { appUserRepository.avatar },
+                        sign = selfSign,
+                        isSelfEntry = true
+                    )
+                )
             }
+
+            result[groupId] = users
         }
+
+        return result
     }
 
     private fun sortUsers(users: List<RelationGroupUser>): List<RelationGroupUser> {
@@ -334,5 +424,26 @@ class FollowViewModel(
         }
 
         return usersStartWithoutChinese + usersStartWithChinese
+    }
+
+    private fun specialGroupPriority(
+        groupId: Int,
+        kind: RelationGroupKind,
+        title: String
+    ): Int {
+        return when {
+            groupId == SPECIAL_RELATION_GROUP_ID -> 0
+            kind == RelationGroupKind.SPECIAL -> 0
+            title.contains("特别关注") -> 0
+            else -> 1
+        }
+    }
+
+    private fun ApiType.fallback(): ApiType =
+        if (this == ApiType.Web) ApiType.App else ApiType.Web
+
+    override fun onCleared() {
+        groupActivation.cancel()
+        super.onCleared()
     }
 }

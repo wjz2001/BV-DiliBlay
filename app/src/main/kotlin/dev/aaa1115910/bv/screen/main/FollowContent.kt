@@ -1,67 +1,76 @@
 package dev.aaa1115910.bv.screen.main
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.FolderOff
-import androidx.compose.material.icons.rounded.FolderShared
-import androidx.compose.material.icons.rounded.FolderSpecial
-import androidx.compose.material.icons.rounded.QuestionMark
-import androidx.compose.material3.Scaffold
+import androidx.compose.material.icons.rounded.FilterList
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.PlatformTextStyle
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
+import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
-import androidx.tv.material3.SurfaceDefaults
+import androidx.tv.material3.Tab
+import androidx.tv.material3.TabDefaults
+import androidx.tv.material3.TabRow
+import androidx.tv.material3.TabRowDefaults
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import dev.aaa1115910.bv.R
@@ -69,84 +78,35 @@ import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.BlockTagItem
 import dev.aaa1115910.bv.component.FollowGroupSelectDialog
 import dev.aaa1115910.bv.component.LoadingTip
+import dev.aaa1115910.bv.component.MainChromeDefaults
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
-import dev.aaa1115910.bv.relation.RelationGroupKind
+import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
 import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
 import dev.aaa1115910.bv.screen.user.EmptyTip
+import dev.aaa1115910.bv.tv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.theme.C
-
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.toast
-import dev.aaa1115910.bv.viewmodel.user.FollowGroupCardState
-import dev.aaa1115910.bv.viewmodel.user.FollowGroupCardUi
-import dev.aaa1115910.bv.viewmodel.user.FollowUserUi
 import dev.aaa1115910.bv.viewmodel.user.FollowViewModel
-import kotlin.math.max
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
-private data class GridHorizontalFocusLink(
-    val leftIndex: Int?,
-    val rightIndex: Int?
-)
-
-private fun buildGridHorizontalFocusLinks(
-    itemCount: Int,
-    columns: Int,
-    isFocusable: (Int) -> Boolean
-): Map<Int, GridHorizontalFocusLink> {
-    if (itemCount <= 0 || columns <= 0) return emptyMap()
-
-    val result = mutableMapOf<Int, GridHorizontalFocusLink>()
-
-    fun findPreviousFocusable(index: Int): Int? {
-        val rowStart = (index / columns) * columns
-        for (i in index - 1 downTo rowStart) {
-            if (isFocusable(i)) return i
-        }
-
-        var previousRowEnd = rowStart - 1
-        while (previousRowEnd >= 0) {
-            val previousRowStart = maxOf(0, previousRowEnd - columns + 1)
-            for (i in previousRowEnd downTo previousRowStart) {
-                if (isFocusable(i)) return i
-            }
-            previousRowEnd = previousRowStart - 1
-        }
-        return null
-    }
-
-    fun findNextFocusable(index: Int): Int? {
-        val rowStart = (index / columns) * columns
-        val rowEnd = minOf(rowStart + columns - 1, itemCount - 1)
-
-        for (i in index + 1..rowEnd) {
-            if (isFocusable(i)) return i
-        }
-
-        var nextRowStart = rowEnd + 1
-        while (nextRowStart < itemCount) {
-            val nextRowEnd = minOf(nextRowStart + columns - 1, itemCount - 1)
-            for (i in nextRowStart..nextRowEnd) {
-                if (isFocusable(i)) return i
-            }
-            nextRowStart = nextRowEnd + 1
-        }
-        return null
-    }
-
-    for (index in 0 until itemCount) {
-        if (!isFocusable(index)) continue
-
-        result[index] = GridHorizontalFocusLink(
-            leftIndex = findPreviousFocusable(index),
-            rightIndex = findNextFocusable(index)
-        )
-    }
-
-    return result
+private class GroupQueryState {
+    var rawQuery by mutableStateOf("")
+    var debouncedQuery by mutableStateOf("")
+    var debounceJob: Job? = null
 }
+
+private data class GridFocusLink(
+    val leftIndex: Int,
+    val rightIndex: Int,
+    val upIndex: Int,
+    val downIndex: Int
+)
 
 @Composable
 fun FollowContent(
@@ -155,26 +115,196 @@ fun FollowContent(
     pendingDrawerEntryRequest: MainContentEntryRequest? = null,
     onDrawerEntryConsumed: (Long) -> Unit = {},
     onDefaultFocusReady: (() -> Unit)? = null,
+    lazyGridState: LazyGridState = rememberLazyGridState(),
     followViewModel: FollowViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val groupGridState = rememberLazyGridState()
-    val detailGridState = rememberLazyGridState()
-    var focusOnContent by remember { mutableStateOf(false) }
+    val contentEntryFocusRequester = remember { FocusRequester() }
 
-    val selectedGroupId = followViewModel.selectedGroupId
-    val title = if (selectedGroupId == null) {
-        stringResource(R.string.user_homepage_follow)
-    } else {
-        followViewModel.currentTitle.ifBlank { stringResource(R.string.user_homepage_follow) }
+    var focusOnTabs by remember { mutableStateOf(true) }
+    var readyFocusTargetGroupId by remember { mutableStateOf<Int?>(null) }
+    var showSearchDialog by remember { mutableStateOf(false) }
+    var searchDialogGroupId by remember { mutableStateOf<Int?>(null) }
+    var searchFieldHasFocus by remember { mutableStateOf(false) }
+
+    val groupQueryStates = remember { mutableStateMapOf<Int, GroupQueryState>() }
+
+    fun getQueryState(groupId: Int): GroupQueryState {
+        return groupQueryStates.getOrPut(groupId) { GroupQueryState() }
     }
-    val count = if (selectedGroupId == null) {
-        followViewModel.totalUsers
-    } else {
-        followViewModel.currentCount
+
+    fun clearGroupQuery(groupId: Int) {
+        val state = groupQueryStates[groupId] ?: return
+        state.debounceJob?.cancel()
+        state.debounceJob = null
+        state.rawQuery = ""
+        state.debouncedQuery = ""
     }
-    val currentUsers = followViewModel.currentUsers
+
+    fun onGroupQueryChange(groupId: Int, newText: String) {
+        val state = getQueryState(groupId)
+        state.rawQuery = newText
+        state.debounceJob?.cancel()
+        state.debounceJob = scope.launch {
+            delay(900)
+            state.debouncedQuery = state.rawQuery
+        }
+    }
+
+    fun onGroupSearchAction(groupId: Int) {
+        val state = getQueryState(groupId)
+        state.debounceJob?.cancel()
+        state.debounceJob = null
+        state.debouncedQuery = state.rawQuery
+    }
+
+    fun closeSearchDialog(apply: Boolean) {
+        val groupId = searchDialogGroupId
+        if (apply && groupId != null) {
+            onGroupSearchAction(groupId)
+        }
+        showSearchDialog = false
+        searchDialogGroupId = null
+    }
+
+    val groupList = followViewModel.groupCards
+    val focusedGroupId = followViewModel.focusedGroupId
+    val currentGroupId = followViewModel.currentGroupId
+
+    fun resolveGroupIdInList(candidate: Int?): Int? {
+        if (candidate == null) return null
+        return candidate.takeIf { id -> groupList.any { it.groupId == id } }
+    }
+
+    val displayFocusedGroupId by remember(
+        focusOnTabs,
+        focusedGroupId,
+        currentGroupId,
+        groupList
+    ) {
+        derivedStateOf {
+            val focusedGroupIdInList = resolveGroupIdInList(focusedGroupId)
+            val currentGroupIdInList = resolveGroupIdInList(currentGroupId)
+
+            when {
+                focusOnTabs ->
+                    focusedGroupIdInList
+                        ?: currentGroupIdInList
+                        ?: groupList.firstOrNull()?.groupId
+
+                else ->
+                    currentGroupIdInList
+                        ?: groupList.firstOrNull()?.groupId
+            }
+        }
+    }
+
+    val currentTabIndex by remember(displayFocusedGroupId, groupList) {
+        derivedStateOf {
+            if (groupList.isEmpty()) return@derivedStateOf 0
+            groupList.indexOfFirst { it.groupId == displayFocusedGroupId }
+                .takeIf { it >= 0 }
+                ?: 0
+        }
+    }
+
+    val navFocusTabIndex by remember(displayFocusedGroupId, groupList) {
+        derivedStateOf {
+            if (groupList.isEmpty()) return@derivedStateOf 0
+            groupList.indexOfFirst { it.groupId == displayFocusedGroupId }
+                .takeIf { it >= 0 }
+                ?: 0
+        }
+    }
+
+    val requestedGroupFocusId = remember(
+        pendingDrawerEntryRequest?.id,
+        groupList,
+        followViewModel.preferredGroupFocusId
+    ) {
+        when (pendingDrawerEntryRequest?.target) {
+            MainContentFocusTarget.LeftEntry -> groupList.firstOrNull()?.groupId
+            MainContentFocusTarget.RightEntry -> groupList.lastOrNull()?.groupId
+            null -> resolveGroupIdInList(followViewModel.preferredGroupFocusId)
+                ?: groupList.firstOrNull()?.groupId
+        }
+    }
+
+    LaunchedEffect(
+        pendingDrawerEntryRequest?.id,
+        requestedGroupFocusId,
+        groupList,
+        followViewModel.activeGroupId,
+        followViewModel.focusedGroupId
+    ) {
+        if (pendingDrawerEntryRequest == null) return@LaunchedEffect
+        val desiredGroupId = requestedGroupFocusId ?: return@LaunchedEffect
+        if (groupList.none { it.groupId == desiredGroupId }) return@LaunchedEffect
+
+        if (followViewModel.activeGroupId != desiredGroupId) {
+            followViewModel.onGroupClicked(desiredGroupId)
+        } else if (followViewModel.focusedGroupId != desiredGroupId) {
+            followViewModel.onGroupFocused(desiredGroupId)
+        }
+    }
+
+    val focusTargetIndex by remember(requestedGroupFocusId, groupList) {
+        derivedStateOf {
+            if (groupList.isEmpty()) return@derivedStateOf 0
+            groupList.indexOfFirst { it.groupId == requestedGroupFocusId }
+                .takeIf { it >= 0 }
+                ?: 0
+        }
+    }
+
+    val focusTargetGroupId by remember(focusTargetIndex, groupList) {
+        derivedStateOf {
+            groupList.getOrNull(focusTargetIndex)?.groupId
+        }
+    }
+
+    val visibleUsers by remember {
+        derivedStateOf {
+            val groupId = followViewModel.currentGroupId
+            val currentUsers = followViewModel.currentUsers
+            if (groupId == null) return@derivedStateOf currentUsers
+
+            val query = groupQueryStates[groupId]?.debouncedQuery?.trim().orEmpty()
+            if (query.isBlank()) {
+                currentUsers
+            } else {
+                currentUsers.filter {
+                    it.name.contains(query, ignoreCase = true) ||
+                            it.sign.contains(query, ignoreCase = true)
+                }
+            }
+        }
+    }
+
+    val tabRequesters = remember { mutableMapOf<Int, FocusRequester>() }
+    groupList.forEach { group ->
+        tabRequesters.getOrPut(group.groupId) { FocusRequester() }
+    }
+
+    val userRequesters = remember { mutableMapOf<String, FocusRequester>() }
+    visibleUsers.forEach { user ->
+        userRequesters.getOrPut(user.stableKey) { FocusRequester() }
+    }
+    val contentFocusLinks = remember(visibleUsers) {
+        buildGridFocusLinks(
+            itemCount = visibleUsers.size,
+            columns = 4
+        )
+    }
+
+    fun contentRequesterForIndex(index: Int): FocusRequester {
+        return if (index == 0) {
+            contentEntryFocusRequester
+        } else {
+            userRequesters.getValue(visibleUsers[index].stableKey)
+        }
+    }
 
     LaunchedEffect(Unit) {
         followViewModel.uiEvent.collect { event ->
@@ -184,604 +314,446 @@ fun FollowContent(
         }
     }
 
-    val focusableGroups = remember(followViewModel.groupCards) {
-        followViewModel.groupCards.filter { it.state == FollowGroupCardState.NORMAL }
-    }
-    val focusableGroupIds = remember(focusableGroups) {
-        focusableGroups.map { it.groupId }
-    }
-    val requestedGroupFocusId = remember(
-        pendingDrawerEntryRequest?.id,
-        focusableGroupIds,
-        followViewModel.preferredGroupFocusId
-    ) {
-        when (pendingDrawerEntryRequest?.target) {
-            MainContentFocusTarget.LeftEntry -> focusableGroupIds.firstOrNull()
-            MainContentFocusTarget.RightEntry -> focusableGroupIds.lastOrNull()
-            null -> when {
-                followViewModel.preferredGroupFocusId in focusableGroupIds -> {
-                    followViewModel.preferredGroupFocusId
-                }
+    DisposableEffect(Unit) {
+        followViewModel.syncGroupActivationToCurrent()
 
-                else -> focusableGroupIds.firstOrNull()
-            }
+        onDispose {
+            followViewModel.syncGroupActivationToCurrent()
+            groupQueryStates.values.forEach { it.debounceJob?.cancel() }
+            groupQueryStates.clear()
         }
     }
 
-    val focusableUserKeys = remember(currentUsers) {
-        currentUsers.map { it.stableKey }
-    }
-    val requestedUserFocusKey = remember(
-        pendingDrawerEntryRequest?.id,
-        focusableUserKeys,
-        followViewModel.preferredDetailUserKey
-    ) {
-        when (pendingDrawerEntryRequest?.target) {
-            MainContentFocusTarget.LeftEntry -> focusableUserKeys.firstOrNull()
-            MainContentFocusTarget.RightEntry -> focusableUserKeys.lastOrNull()
-            null -> followViewModel.preferredDetailUserKey ?: focusableUserKeys.firstOrNull()
+    LaunchedEffect(followViewModel.activeGroupId, groupList) {
+        if (followViewModel.activeGroupId == null && groupList.isNotEmpty()) {
+            followViewModel.onGroupClicked(groupList.first().groupId)
         }
     }
 
-    BackHandler(enabled = selectedGroupId != null && !followViewModel.showFollowGroupDialog) {
-        followViewModel.exitGroupDetail()
+    LaunchedEffect(groupList, focusTargetGroupId) {
+        readyFocusTargetGroupId = null
     }
 
-    LaunchedEffect(
-        followViewModel.updating,
-        selectedGroupId,
-        requestedGroupFocusId
-    ) {
-        if (!followViewModel.updating &&
-            selectedGroupId == null &&
-            requestedGroupFocusId != null
-        ) {
-            navFocusRequester.requestFocus(scope)
-        }
-    }
-
-    LaunchedEffect(
-        followViewModel.updating,
-        selectedGroupId,
-        requestedUserFocusKey
-    ) {
-        if (!followViewModel.updating &&
-            selectedGroupId != null &&
-            requestedUserFocusKey != null
-        ) {
-            navFocusRequester.requestFocus(scope)
-        }
-    }
-
-    LaunchedEffect(selectedGroupId) {
-        if (selectedGroupId != null) {
-            detailGridState.scrollToItem(0)
-        }
-    }
-
-    LaunchedEffect(
-        selectedGroupId,
-        requestedGroupFocusId,
-        requestedUserFocusKey
-    ) {
-        val ready = if (selectedGroupId == null) {
-            requestedGroupFocusId != null
-        } else {
-            requestedUserFocusKey != null
-        }
-        if (ready) {
+    LaunchedEffect(readyFocusTargetGroupId, focusTargetGroupId) {
+        val targetGroupId = focusTargetGroupId ?: return@LaunchedEffect
+        if (readyFocusTargetGroupId == targetGroupId) {
             onDefaultFocusReady?.invoke()
         }
     }
 
     LaunchedEffect(
         pendingDrawerEntryRequest?.id,
-        selectedGroupId,
-        requestedGroupFocusId,
-        requestedUserFocusKey
+        readyFocusTargetGroupId,
+        focusTargetGroupId,
+        followViewModel.activeGroupId,
+        followViewModel.focusedGroupId
     ) {
         val request = pendingDrawerEntryRequest ?: return@LaunchedEffect
-        val ready = if (selectedGroupId == null) {
-            requestedGroupFocusId != null
-        } else {
-            requestedUserFocusKey != null
-        }
-        if (!ready) return@LaunchedEffect
+        val targetGroupId = focusTargetGroupId ?: return@LaunchedEffect
+        if (readyFocusTargetGroupId != targetGroupId) return@LaunchedEffect
+        if (followViewModel.activeGroupId != targetGroupId) return@LaunchedEffect
+        if (followViewModel.focusedGroupId != targetGroupId) return@LaunchedEffect
 
         navFocusRequester.requestFocus(scope)
         onDrawerEntryConsumed(request.id)
     }
 
-    CompositionLocalProvider(
-        LocalDensity provides Density(
-            density = LocalDensity.current.density * 1.25f,
-            fontScale = LocalDensity.current.fontScale * 1.25f
-        )
+    val visibleCount = visibleUsers.size
+    val density = LocalDensity.current
+    val tabLabelFontSize = MaterialTheme.typography.labelLarge.fontSize
+    val filterIconSizeDp = with(density) { tabLabelFontSize.toDp() }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .onPreviewKeyEvent {
+                if (showSearchDialog && it.key == Key.Back && it.type == KeyEventType.KeyUp) {
+                    closeSearchDialog(apply = true)
+                    return@onPreviewKeyEvent true
+                }
+                false
+            }
     ) {
-        Scaffold(
-            topBar = {
+        when {
+            groupList.isEmpty() && followViewModel.updating -> {
                 Box(
-                    modifier = Modifier.padding(
-                        start = 48.dp,
-                        top = 24.dp,
-                        bottom = 8.dp,
-                        end = 48.dp
-                    )
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.Bottom,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                    LoadingTip()
+                }
+            }
+
+            groupList.isEmpty() -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    EmptyTip()
+                }
+            }
+
+            else -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(MainChromeDefaults.Size)
+                        .padding(12.dp, MainChromeDefaults.TopNavVerticalPadding)
+                ) {
+                    TabRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 12.dp, end = 12.dp)
+                            .onFocusChanged { state ->
+                                focusOnTabs = state.hasFocus
+                                if (!state.hasFocus) {
+                                    followViewModel.syncGroupActivationToCurrent()
+                                }
+                            }
+                            .focusRestorer(navFocusRequester),
+                        selectedTabIndex = currentTabIndex,
+                        separator = { Spacer(modifier = Modifier.width(12.dp)) },
+                        indicator = { tabPositions, doesTabRowHaveFocus ->
+                            tabPositions.getOrNull(currentTabIndex)?.let { currentTabPosition ->
+                                TabRowDefaults.PillIndicator(
+                                    currentTabPosition = currentTabPosition,
+                                    doesTabRowHaveFocus = doesTabRowHaveFocus,
+                                    activeColor = MaterialTheme.colorScheme.primary,
+                                    inactiveColor = MaterialTheme.colorScheme.primaryContainer
+                                )
+                            }
+                        }
                     ) {
-                        Text(
-                            text = title,
-                            fontSize = 24.sp
-                        )
-                        Text(
-                            text = stringResource(R.string.load_data_count, count),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        groupList.forEachIndexed { index, group ->
+                            val groupId = group.groupId
+                            val queryState = groupQueryStates[groupId]
+                            val isSearching = queryState?.debouncedQuery?.isNotBlank() == true
+                            var longPressTriggered by remember(groupId) { mutableStateOf(false) }
+
+                            Tab(
+                                colors = TabDefaults.pillIndicatorTabColors(
+                                    contentColor = MaterialTheme.colorScheme.onSurface,
+                                    inactiveContentColor = MaterialTheme.colorScheme.onSurface,
+                                    selectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    focusedContentColor = MaterialTheme.colorScheme.onPrimary,
+                                    focusedSelectedContentColor = MaterialTheme.colorScheme.onPrimary
+                                ),
+                                modifier = Modifier
+                                    .ifElse(
+                                        index == navFocusTabIndex,
+                                        Modifier
+                                            .focusRequester(navFocusRequester)
+                                            .onGloballyPositioned {
+                                                readyFocusTargetGroupId = groupId
+                                            }
+                                    )
+                                    .ifElse(
+                                        index != focusTargetIndex,
+                                        Modifier.focusRequester(tabRequesters.getValue(groupId))
+                                    )
+                                    .focusProperties {
+                                        left = if (index == 0) {
+                                            drawerFocusRequester
+                                        } else {
+                                            tabRequesters.getValue(groupList[index - 1].groupId)
+                                        }
+                                        right = if (index == groupList.lastIndex) {
+                                            drawerFocusRequester
+                                        } else {
+                                            tabRequesters.getValue(groupList[index + 1].groupId)
+                                        }
+                                        up = FocusRequester.Cancel
+                                        down = if (visibleUsers.isNotEmpty()) {
+                                            contentEntryFocusRequester
+                                        } else {
+                                            FocusRequester.Cancel
+                                        }
+                                    }
+                                    .onPreviewKeyEvent { event ->
+                                        val isConfirmKey =
+                                            event.key == Key.DirectionCenter ||
+                                                    event.key == Key.Enter ||
+                                                    event.key == Key.Spacebar
+
+                                        if (event.type == KeyEventType.KeyDown) {
+                                            if (event.key == Key.DirectionLeft && index == 0) {
+                                                drawerFocusRequester.requestFocus(scope)
+                                                return@onPreviewKeyEvent true
+                                            }
+                                            if (event.key == Key.DirectionRight && index == groupList.lastIndex) {
+                                                drawerFocusRequester.requestFocus(scope)
+                                                return@onPreviewKeyEvent true
+                                            }
+                                            if (event.key == Key.DirectionDown && visibleUsers.isNotEmpty()) {
+                                                contentEntryFocusRequester.requestFocus(scope)
+                                                return@onPreviewKeyEvent true
+                                            }
+                                        }
+
+                                        if (!isConfirmKey) return@onPreviewKeyEvent false
+
+                                        if (event.type == KeyEventType.KeyDown) {
+                                            if (event.nativeKeyEvent.isLongPress) {
+                                                if (!longPressTriggered) {
+                                                    longPressTriggered = true
+                                                    followViewModel.onGroupClicked(groupId)
+                                                    val isSearchingNow =
+                                                        groupQueryStates[groupId]?.debouncedQuery?.isNotBlank() == true
+                                                    if (isSearchingNow) {
+                                                        clearGroupQuery(groupId)
+                                                    } else {
+                                                        showSearchDialog = true
+                                                        searchDialogGroupId = groupId
+                                                    }
+                                                }
+                                                return@onPreviewKeyEvent true
+                                            }
+                                            return@onPreviewKeyEvent false
+                                        }
+
+                                        if (event.type == KeyEventType.KeyUp && longPressTriggered) {
+                                            longPressTriggered = false
+                                            return@onPreviewKeyEvent true
+                                        }
+
+                                        false
+                                    },
+                                selected = displayFocusedGroupId == groupId,
+                                onFocus = {
+                                    if (focusedGroupId != groupId) {
+                                        followViewModel.onGroupFocused(groupId)
+                                    }
+                                },
+                                onClick = {
+                                    followViewModel.onGroupClicked(groupId)
+                                }
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(32.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        if (isSearching) {
+                                            Icon(
+                                                modifier = Modifier.size(filterIconSizeDp),
+                                                imageVector = Icons.Rounded.FilterList,
+                                                contentDescription = null
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                        }
+
+                                        Text(
+                                            text = group.title,
+                                            color = LocalContentColor.current,
+                                            style = MaterialTheme.typography.labelLarge
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Text(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 12.dp),
+                        text = stringResource(R.string.load_data_count, visibleCount),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                TvLazyVerticalGrid(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .focusRestorer(contentEntryFocusRequester)
+                        .onPreviewKeyEvent {
+                            if (it.key == Key.Back && it.type == KeyEventType.KeyUp) {
+                                navFocusRequester.requestFocus(scope)
+                                true
+                            } else {
+                                false
+                            }
+                        },
+                    state = lazyGridState,
+                    columns = GridCells.Fixed(4),
+                    contentPadding = PaddingValues(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp)
+                ) {
+                    if (visibleUsers.isEmpty()) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            EmptyTip(
+                                text = if (
+                                    currentGroupId != null &&
+                                    groupQueryStates[currentGroupId]?.debouncedQuery?.isNotBlank() == true
+                                ) {
+                                    "没有匹配的UP主"
+                                } else {
+                                    "该分组暂无UP主"
+                                }
+                            )
+                        }
+                    } else {
+                        itemsIndexed(
+                            items = visibleUsers,
+                            key = { _, user -> user.stableKey }
+                        ) { index, user ->
+                            val focusLink = contentFocusLinks[index]
+                            UpCard(
+                                modifier = Modifier
+                                    .focusRequester(contentRequesterForIndex(index))
+                                    .focusProperties {
+                                        left = contentRequesterForIndex(focusLink.leftIndex)
+                                        right = contentRequesterForIndex(focusLink.rightIndex)
+                                        up = contentRequesterForIndex(focusLink.upIndex)
+                                        down = contentRequesterForIndex(focusLink.downIndex)
+                                    },
+                                face = user.avatar,
+                                sign = if (user.isSelfEntry && user.sign.isBlank()) {
+                                    "我的主页"
+                                } else {
+                                    user.sign
+                                },
+                                username = user.name,
+                                onFocusChange = {},
+                                onClick = {
+                                    UpInfoActivity.actionStart(
+                                        context = context,
+                                        mid = user.mid,
+                                        name = user.name
+                                    )
+                                },
+                                onLongClick = {
+                                    if (!user.isSelfEntry) {
+                                        followViewModel.openFollowGroupDialog(user)
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             }
-        ) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .onFocusChanged { focusOnContent = it.hasFocus }
-                    .onPreviewKeyEvent {
-                        if (it.key == Key.Back) {
-                            if (it.type == KeyEventType.KeyUp && focusOnContent) {
-                                drawerFocusRequester.requestFocus()
-                                return@onPreviewKeyEvent true
-                            }
-                        }
-                        false
-                    }
-            ) {
-                when {
-                    followViewModel.groupCards.isEmpty() && followViewModel.updating -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            LoadingTip()
-                        }
-                    }
+        }
+    }
 
-                    followViewModel.groupCards.isEmpty() -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            EmptyTip()
-                        }
-                    }
+    FollowGroupSelectDialog(
+        show = followViewModel.showFollowGroupDialog,
+        title = "选择关注分组",
+        tags = followViewModel.followTags.map { BlockTagItem(it.tagid, it.name, it.count) },
+        initialSelectedTagIds = followViewModel.followGroupDialogInitialSelectedTagIds,
+        onHideDialog = { followViewModel.hideFollowGroupDialog() },
+        onSubmit = { selectedTagIds ->
+            followViewModel.submitFollowGroupSelection(selectedTagIds)
+        }
+    )
 
-                    selectedGroupId == null -> {
-                        FollowGroupGrid(
-                            state = groupGridState,
-                            groups = followViewModel.groupCards,
-                            requestedFocusGroupId = requestedGroupFocusId,
-                            navFocusRequester = navFocusRequester,
-                            onGroupFocused = followViewModel::onGroupFocused,
-                            onGroupClick = followViewModel::enterGroup
-                        )
-                    }
+    if (showSearchDialog) {
+        val groupId = searchDialogGroupId
+        val groupTitle = groupList.firstOrNull { it.groupId == groupId }?.title.orEmpty()
 
-                    else -> {
-                        FollowUserGrid(
-                            state = detailGridState,
-                            users = currentUsers,
-                            requestedFocusUserKey = requestedUserFocusKey,
-                            navFocusRequester = navFocusRequester,
-                            onUserClick = { user ->
-                                UpInfoActivity.actionStart(
-                                    context = context,
-                                    mid = user.mid,
-                                    name = user.name
+        if (groupId != null) {
+            val state = getQueryState(groupId)
+            val searchFocusedLineColor = C.primary
+            val searchUnfocusedLineColor = C.onSurfaceVariant
+
+            TvAlertDialog(
+                onDismissRequest = {
+                    closeSearchDialog(apply = true)
+                },
+                title = {
+                    Text(text = "在 $groupTitle 中搜索")
+                },
+                text = {
+                    TextField(
+                        modifier = Modifier
+                            .width(600.dp)
+                            .onFocusChanged { searchFieldHasFocus = it.hasFocus }
+                            .drawWithContent {
+                                drawContent()
+                                val stroke = 3.dp.toPx()
+                                val y = size.height - stroke / 2f
+                                drawLine(
+                                    color = if (searchFieldHasFocus) {
+                                        searchFocusedLineColor
+                                    } else {
+                                        searchUnfocusedLineColor
+                                    },
+                                    start = Offset(0f, y),
+                                    end = Offset(size.width, y),
+                                    strokeWidth = stroke
                                 )
                             },
-                            onUserLongClick = { user ->
-                                followViewModel.openFollowGroupDialog(user)
-                            }
+                        value = state.rawQuery,
+                        onValueChange = { onGroupQueryChange(groupId, it) },
+                        singleLine = true,
+                        textStyle = TextStyle(fontSize = 26.sp, lineHeight = 30.sp),
+                        shape = RectangleShape,
+                        colors = TextFieldDefaults.colors(
+                            focusedIndicatorColor = Color.Transparent,
+                            errorIndicatorColor = Color.Transparent
+                        ),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(
+                            onSearch = { onGroupSearchAction(groupId) }
                         )
-                    }
-                }
-            }
-        }
-
-        FollowGroupSelectDialog(
-            show = followViewModel.showFollowGroupDialog,
-            title = "选择关注分组",
-            tags = followViewModel.followTags.map { BlockTagItem(it.tagid, it.name, it.count) },
-            initialSelectedTagIds = followViewModel.followGroupDialogInitialSelectedTagIds,
-            onHideDialog = { followViewModel.hideFollowGroupDialog() },
-            onSubmit = { selectedTagIds ->
-                followViewModel.submitFollowGroupSelection(selectedTagIds)
-            }
-        )
-    }
-}
-
-@Composable
-private fun FollowGroupGrid(
-    modifier: Modifier = Modifier,
-    state: LazyGridState,
-    groups: List<FollowGroupCardUi>,
-    requestedFocusGroupId: Int?,
-    navFocusRequester: FocusRequester,
-    onGroupFocused: (Int) -> Unit,
-    onGroupClick: (Int) -> Unit
-) {
-    val groupRequesters = remember(groups) {
-        groups
-            .filter { it.state == FollowGroupCardState.NORMAL }
-            .associate { it.groupId to FocusRequester() }
-    }
-    val focusLinks = remember(groups) {
-        buildGridHorizontalFocusLinks(
-            itemCount = groups.size,
-            columns = 4
-        ) { index ->
-            groups[index].state == FollowGroupCardState.NORMAL
-        }
-    }
-
-    val firstFocusableGroupId = remember(groups) {
-        groups.firstOrNull { it.state == FollowGroupCardState.NORMAL }?.groupId
-    }
-    val lastFocusableGroupId = remember(groups) {
-        groups.lastOrNull { it.state == FollowGroupCardState.NORMAL }?.groupId
-    }
-
-    fun requesterForGroupId(groupId: Int?): FocusRequester {
-        return when (groupId) {
-            null -> navFocusRequester
-            requestedFocusGroupId -> navFocusRequester
-            else -> groupRequesters.getValue(groupId)
-        }
-    }
-
-    fun requesterForIndex(index: Int): FocusRequester {
-        val groupId = groups[index].groupId
-        return requesterForGroupId(groupId)
-    }
-
-    TvLazyVerticalGrid(
-        modifier = modifier,
-        state = state,
-        columns = GridCells.Fixed(4),
-        contentPadding = PaddingValues(24.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-        horizontalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
-        itemsIndexed(
-            items = groups,
-            key = { _, item -> item.groupId }
-        ) { index, group ->
-            val enabled = group.state == FollowGroupCardState.NORMAL
-            val focusLink = focusLinks[index]
-
-            val cardModifier = when {
-                !enabled -> Modifier.focusProperties { canFocus = false }
-                else -> Modifier
-                    .focusRequester(
-                        if (group.groupId == requestedFocusGroupId) {
-                            navFocusRequester
-                        } else {
-                            groupRequesters.getValue(group.groupId)
-                        }
                     )
-                    .focusProperties {
-                        left = focusLink?.leftIndex?.let(::requesterForIndex)
-                            ?: requesterForGroupId(lastFocusableGroupId)
-                        right = focusLink?.rightIndex?.let(::requesterForIndex)
-                            ?: requesterForGroupId(firstFocusableGroupId)
-                    }
-            }
-
-            FollowGroupCard(
-                modifier = cardModifier,
-                group = group,
-                onFocusChange = { hasFocus ->
-                    if (hasFocus && enabled) {
-                        onGroupFocused(group.groupId)
-                    }
                 },
-                onClick = {
-                    if (enabled) {
-                        onGroupClick(group.groupId)
-                    }
-                }
+                confirmButton = {},
+                properties = DialogProperties(usePlatformDefaultWidth = false)
             )
         }
     }
 }
 
-@Composable
-private fun FollowUserGrid(
-    modifier: Modifier = Modifier,
-    state: LazyGridState,
-    users: List<FollowUserUi>,
-    requestedFocusUserKey: String?,
-    navFocusRequester: FocusRequester,
-    onUserClick: (FollowUserUi) -> Unit,
-    onUserLongClick: (FollowUserUi) -> Unit
-) {
-    val userRequesters = remember(users) {
-        users.associate { it.stableKey to FocusRequester() }
-    }
-    val focusLinks = remember(users) {
-        buildGridHorizontalFocusLinks(
-            itemCount = users.size,
-            columns = 3
-        ) { true }
-    }
+private fun buildGridFocusLinks(
+    itemCount: Int,
+    columns: Int
+): List<GridFocusLink> {
+    if (itemCount <= 0 || columns <= 0) return emptyList()
 
-    val firstFocusableUserKey = remember(users) {
-        users.firstOrNull()?.stableKey
-    }
-    val lastFocusableUserKey = remember(users) {
-        users.lastOrNull()?.stableKey
-    }
+    val rowCount = ((itemCount - 1) / columns) + 1
 
-    fun requesterForUserKey(userKey: String?): FocusRequester {
-        return when (userKey) {
-            null -> navFocusRequester
-            requestedFocusUserKey -> navFocusRequester
-            else -> userRequesters.getValue(userKey)
+    fun rowStart(index: Int): Int = (index / columns) * columns
+    fun rowEnd(index: Int): Int = minOf(rowStart(index) + columns - 1, itemCount - 1)
+    fun column(index: Int): Int = index % columns
+    fun row(index: Int): Int = index / columns
+
+    fun findUp(index: Int): Int {
+        val col = column(index)
+        for (step in 1..rowCount) {
+            val candidateRow = (row(index) - step + rowCount) % rowCount
+            val candidate = candidateRow * columns + col
+            if (candidate < itemCount) return candidate
         }
+        return index
     }
 
-    fun requesterForIndex(index: Int): FocusRequester {
-        val userKey = users[index].stableKey
-        return requesterForUserKey(userKey)
-    }
-
-    TvLazyVerticalGrid(
-        modifier = modifier,
-        state = state,
-        columns = GridCells.Fixed(3),
-        contentPadding = PaddingValues(24.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
-        horizontalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
-        if (users.isEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                EmptyTip(text = "该分组暂无UP主")
-            }
-        } else {
-            itemsIndexed(
-                items = users,
-                key = { _, item -> item.stableKey }
-            ) { index, user ->
-                val focusLink = focusLinks[index]
-
-                val cardModifier = Modifier
-                    .focusRequester(
-                        if (user.stableKey == requestedFocusUserKey) {
-                            navFocusRequester
-                        } else {
-                            userRequesters.getValue(user.stableKey)
-                        }
-                    )
-                    .focusProperties {
-                        left = focusLink?.leftIndex?.let(::requesterForIndex)
-                            ?: requesterForUserKey(lastFocusableUserKey)
-                        right = focusLink?.rightIndex?.let(::requesterForIndex)
-                            ?: requesterForUserKey(firstFocusableUserKey)
-                    }
-
-                UpCard(
-                    modifier = cardModifier,
-                    face = user.avatar,
-                    sign = user.sign,
-                    username = user.name,
-                    onFocusChange = {},
-                    onClick = {
-                        onUserClick(user)
-                    },
-                    onLongClick = {
-                        onUserLongClick(user)
-                    }
-                )
-            }
+    fun findDown(index: Int): Int {
+        val col = column(index)
+        for (step in 1..rowCount) {
+            val candidateRow = (row(index) + step) % rowCount
+            val candidate = candidateRow * columns + col
+            if (candidate < itemCount) return candidate
         }
-    }
-}
-
-@Composable
-private fun FollowGroupCard(
-    modifier: Modifier = Modifier,
-    group: FollowGroupCardUi,
-    onFocusChange: (Boolean) -> Unit,
-    onClick: () -> Unit
-) {
-    val enabled = group.state == FollowGroupCardState.NORMAL
-    val cardModifier = modifier
-        .onFocusChanged { onFocusChange(it.hasFocus) }
-        .fillMaxWidth()
-        .height(148.dp)
-
-    if (enabled) {
-        Surface(
-            modifier = cardModifier,
-            colors = ClickableSurfaceDefaults.colors(
-                containerColor = MaterialTheme.colorScheme.surface,
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                pressedContainerColor = MaterialTheme.colorScheme.surface
-            ),
-            shape = ClickableSurfaceDefaults.shape(shape = RectangleShape),
-            border = ClickableSurfaceDefaults.border(
-                focusedBorder = Border(
-                    border = BorderStroke(width = 3.dp, color = C.selectedBorder),
-                    shape = RectangleShape
-                )
-            ),
-            onClick = onClick
-        ) {
-            FollowGroupCardContent(group = group)
-        }
-    } else {
-        Surface(
-            modifier = cardModifier,
-            colors = SurfaceDefaults.colors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            shape = RectangleShape
-        ) {
-            FollowGroupCardContent(group = group)
-        }
-    }
-}
-
-@Composable
-private fun FollowGroupCardContent(group: FollowGroupCardUi) {
-    val subtitle = when (group.state) {
-        FollowGroupCardState.NORMAL -> "${group.count} 位UP主"
-        FollowGroupCardState.EMPTY -> "空"
+        return index
     }
 
-    val titleStyle = MaterialTheme.typography.titleLarge.copy(
-        fontSize = 24.sp,
-        platformStyle = PlatformTextStyle(includeFontPadding = false)
-    )
-    val subtitleStyle = MaterialTheme.typography.bodyLarge.copy(
-        fontSize = 18.sp,
-        platformStyle = PlatformTextStyle(includeFontPadding = false)
-    )
-
-    SubcomposeLayout(
-        modifier = Modifier.fillMaxSize()
-    ) { constraints ->
-        val maxTextWidth = 220.dp.roundToPx()
-        val iconTextGap = 42.dp.roundToPx()
-
-        val looseMaxWidth = minOf(maxTextWidth, constraints.maxWidth)
-
-        val looseTitle = subcompose("title_loose") {
-            Text(
-                text = group.title,
-                style = titleStyle,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }.first().measure(
-            Constraints(
-                minWidth = 0,
-                maxWidth = looseMaxWidth
-            )
+    return List(itemCount) { index ->
+        val currentRowStart = rowStart(index)
+        val currentRowEnd = rowEnd(index)
+        GridFocusLink(
+            leftIndex = if (index == currentRowStart) currentRowEnd else index - 1,
+            rightIndex = if (index == currentRowEnd) currentRowStart else index + 1,
+            upIndex = findUp(index),
+            downIndex = findDown(index)
         )
-
-        val looseSubtitle = subcompose("subtitle_loose") {
-            Text(
-                text = subtitle,
-                style = subtitleStyle,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }.first().measure(
-            Constraints(
-                minWidth = 0,
-                maxWidth = looseMaxWidth
-            )
-        )
-
-        var textBlockWidth = max(looseTitle.width, looseSubtitle.width).coerceAtLeast(1)
-
-        val equalSpace = ((constraints.maxHeight - looseTitle.height - looseSubtitle.height) / 3)
-            .coerceAtLeast(0)
-
-        var iconSize = (looseTitle.height + equalSpace + looseSubtitle.height)
-            .coerceAtLeast(1)
-
-        val availableTextWidth = (constraints.maxWidth - iconSize - iconTextGap).coerceAtLeast(1)
-        textBlockWidth = minOf(textBlockWidth, maxTextWidth, availableTextWidth)
-
-        val titlePlaceable = subcompose("title_final") {
-            Text(
-                text = group.title,
-                style = titleStyle,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center
-            )
-        }.first().measure(
-            Constraints(
-                minWidth = textBlockWidth,
-                maxWidth = textBlockWidth
-            )
-        )
-
-        val subtitlePlaceable = subcompose("subtitle_final") {
-            Text(
-                text = subtitle,
-                style = subtitleStyle,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center
-            )
-        }.first().measure(
-            Constraints(
-                minWidth = textBlockWidth,
-                maxWidth = textBlockWidth
-            )
-        )
-
-        val desiredLineGap = 6.dp.roundToPx()
-        val maxAvailableGap = (
-                constraints.maxHeight - titlePlaceable.height - subtitlePlaceable.height
-                ).coerceAtLeast(0)
-        val lineGap = minOf(desiredLineGap, maxAvailableGap)
-
-        iconSize = (titlePlaceable.height + lineGap + subtitlePlaceable.height)
-            .coerceAtLeast(1)
-
-        val iconPlaceable = subcompose("icon") {
-            Icon(
-                modifier = Modifier.fillMaxSize(),
-                imageVector = relationGroupIcon(group),
-                contentDescription = null
-            )
-        }.first().measure(
-            Constraints.fixed(iconSize, iconSize)
-        )
-
-        val sidePadding = 10.dp.roundToPx()
-        val contentWidth = iconPlaceable.width + iconTextGap + textBlockWidth
-        val availableWidth = (constraints.maxWidth - sidePadding * 2).coerceAtLeast(0)
-        val startX = sidePadding + ((availableWidth - contentWidth) / 2).coerceAtLeast(0)
-
-        val iconX = startX
-        val textX = iconX + iconPlaceable.width + iconTextGap
-
-        val textBlockHeight = titlePlaceable.height + lineGap + subtitlePlaceable.height
-        val titleY = ((constraints.maxHeight - textBlockHeight) / 2).coerceAtLeast(0)
-        val subtitleY = titleY + titlePlaceable.height + lineGap
-        val iconY = titleY - 5.dp.roundToPx()
-
-        layout(constraints.maxWidth, constraints.maxHeight) {
-            iconPlaceable.placeRelative(iconX, iconY)
-            titlePlaceable.placeRelative(textX, titleY)
-            subtitlePlaceable.placeRelative(textX, subtitleY)
-        }
-    }
-}
-
-private fun relationGroupIcon(group: FollowGroupCardUi): ImageVector {
-    if (group.state == FollowGroupCardState.EMPTY) {
-        return Icons.Rounded.FolderOff
-    }
-
-    return when (group.kind) {
-        RelationGroupKind.DEFAULT -> Icons.Rounded.FolderShared
-        RelationGroupKind.SPECIAL -> Icons.Rounded.FolderSpecial
-        RelationGroupKind.NORMAL -> Icons.Rounded.FolderShared
-        RelationGroupKind.ORPHAN -> Icons.Rounded.QuestionMark
     }
 }
 
@@ -833,7 +805,9 @@ private fun UpCard(
                 )
             }
 
-            Column {
+            Column(
+                modifier = Modifier.padding(end = 12.dp)
+            ) {
                 Text(
                     text = username,
                     style = MaterialTheme.typography.titleLarge,
@@ -841,7 +815,7 @@ private fun UpCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = sign,
+                    text = sign.ifBlank { " " },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
