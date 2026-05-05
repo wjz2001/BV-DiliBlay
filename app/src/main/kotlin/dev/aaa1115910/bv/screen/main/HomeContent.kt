@@ -394,7 +394,6 @@ fun HomeContent(
             TopNav(
                 modifier = Modifier,
                 items = reorderedItems,
-                isLargePadding = !focusOnContent,
                 selectedItem = focusedTab,
                 defaultFocusRequester = navFocusRequester,
                 onDefaultFocusReady = handleDefaultFocusReady,

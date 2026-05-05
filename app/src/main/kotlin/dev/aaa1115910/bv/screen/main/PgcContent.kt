@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -12,7 +11,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -95,7 +93,6 @@ fun PgcContent(
 
     val focusedTab = pgcContentViewModel.focusedTab
     val activeTab = pgcContentViewModel.activeTab
-    var focusOnContent by remember { mutableStateOf(false) }
     var topNavReadyTab by remember { mutableStateOf<PgcTopNavItem?>(null) }
 
     val desiredDrawerEntryTab = remember(pendingDrawerEntryRequest?.id) {
@@ -160,30 +157,12 @@ fun PgcContent(
         }
     }
 
-    val currentListOnTop by remember {
-        derivedStateOf {
-            with(
-                when (activeTab) {
-                    PgcTopNavItem.Anime -> animeState
-                    PgcTopNavItem.GuoChuang -> guoChuangState
-                    PgcTopNavItem.Movie -> movieState
-                    PgcTopNavItem.Documentary -> documentaryState
-                    PgcTopNavItem.Tv -> tvState
-                    PgcTopNavItem.Variety -> varietyState
-                }
-            ) {
-                firstVisibleItemIndex == 0 && firstVisibleItemScrollOffset == 0
-            }
-        }
-    }
-
     Scaffold(
         modifier = Modifier,
         topBar = {
             TopNav(
                 modifier = Modifier.padding(end = 80.dp),
                 items = PgcTopNavItem.entries,
-                isLargePadding = !focusOnContent && currentListOnTop,
                 selectedItem = focusedTab,
                 defaultFocusRequester = navFocusRequester,
                 onDefaultFocusReady = handleDefaultFocusReady,
@@ -207,10 +186,9 @@ fun PgcContent(
             )
         }
     ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .padding(innerPadding)
-                .onFocusChanged { focusOnContent = it.hasFocus }
+            Box(
+                modifier = Modifier
+                    .padding(innerPadding)
                 .onPreviewKeyEvent {
                     if (it.key == Key.Menu) {
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true

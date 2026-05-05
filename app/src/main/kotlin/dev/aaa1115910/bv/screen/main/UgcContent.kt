@@ -133,7 +133,6 @@ fun UgcContent(
             TopNav(
                 modifier = Modifier.padding(horizontal = 10.dp),
                 items = ugcTopNavItems,
-                isLargePadding = !focusOnContent,
                 selectedItem = focusedTab,
                 defaultFocusRequester = navFocusRequester,
                 onDefaultFocusReady = handleDefaultFocusReady,

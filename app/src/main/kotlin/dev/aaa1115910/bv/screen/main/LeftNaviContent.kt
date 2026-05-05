@@ -1,16 +1,15 @@
 package dev.aaa1115910.bv.screen.main
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Home
@@ -38,7 +37,6 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -50,16 +48,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Surface
-import androidx.tv.material3.SurfaceDefaults
-import coil.compose.AsyncImage
+import dev.aaa1115910.bv.component.MainChromeDefaults
 import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
-import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.isDpadDown
 import dev.aaa1115910.bv.util.isDpadUp
 import dev.aaa1115910.bv.util.isKeyDown
@@ -73,8 +68,6 @@ import kotlin.math.abs
 @Composable
 fun LeftNaviContent(
     modifier: Modifier = Modifier,
-    isLogin: Boolean = false,
-    avatar: String = "",
     selectedItem: LeftNaviItem,
     homeFocusRequester: FocusRequester,
     followFocusRequester: FocusRequester,
@@ -83,16 +76,15 @@ fun LeftNaviContent(
     onLeftNaviItemChanged: (LeftNaviItem) -> Unit,
     onLeftNaviItemPreload: (LeftNaviItem) -> Unit = {},
     onOpenSettings: () -> Unit,
-    onOpenUserSwitch: () -> Unit,
     onFocusToContent: (MainContentFocusTarget) -> Unit,
-    onLogin: () -> Unit
+    userFocusRequester: FocusRequester? = null,
+    settingsFocusRequester: FocusRequester? = null
 ) {
     val scope = rememberCoroutineScope()
 
-    val userFocusRequester = remember { FocusRequester() }
-    val settingsFocusRequester = remember { FocusRequester() }
+    val internalSettingsFocusRequester = remember { FocusRequester() }
+    val settingsFocusTarget = settingsFocusRequester ?: internalSettingsFocusRequester
 
-    var userArmedEntryTarget by remember { mutableStateOf<MainContentFocusTarget?>(null) }
     var settingsArmedEntryTarget by remember { mutableStateOf<MainContentFocusTarget?>(null) }
 
     val contentItems = listOf(
@@ -102,125 +94,14 @@ fun LeftNaviContent(
         LeftNaviItem.PGC
     )
 
-    val railButtonSize = 44.dp
+    val railButtonSize = MainChromeDefaults.Size
     NavigationRail(
         modifier = modifier
             .fillMaxHeight()
             .width(railButtonSize),
-        containerColor = Color.Transparent,
+        containerColor = C.background,
     ) {
-        var userIsFocused by remember { mutableStateOf(false) }
-
-        // 顶部的用户图标颜色逻辑
-        val userIconColor by animateColorAsState(
-            targetValue = if (userIsFocused) AppWhite else MaterialTheme.colorScheme.onSurface,
-            label = "userIconColor"
-        )
-
-        val userBorderColor by animateColorAsState(
-            targetValue = if (userIsFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-            label = "userBorderColor"
-        )
-
-        NavigationRailItem(
-            modifier = Modifier
-                .focusRequester(userFocusRequester)
-                .onFocusChanged {
-                    userIsFocused = it.hasFocus
-                    if (!it.hasFocus) {
-                        userArmedEntryTarget = null
-                    }
-                }
-                .onPreviewKeyEvent { keyEvent ->
-                    when {
-                        keyEvent.isDpadUp() -> {
-                            if (keyEvent.isKeyDown()) {
-                                userFocusRequester.requestFocus()
-                                return@onPreviewKeyEvent true
-                            }
-                            true
-                        }
-
-                        keyEvent.key == Key.DirectionRight -> {
-                            when {
-                                keyEvent.isKeyDown() -> {
-                                    userArmedEntryTarget = MainContentFocusTarget.LeftEntry
-                                    true
-                                }
-
-                                keyEvent.isKeyUp() -> {
-                                    val armed = userArmedEntryTarget
-                                    userArmedEntryTarget = null
-                                    if (armed == MainContentFocusTarget.LeftEntry) {
-                                        onFocusToContent(MainContentFocusTarget.LeftEntry)
-                                    }
-                                    true
-                                }
-
-                                else -> false
-                            }
-                        }
-
-                        keyEvent.key == Key.DirectionLeft -> {
-                            when {
-                                keyEvent.isKeyDown() -> {
-                                    userArmedEntryTarget = MainContentFocusTarget.RightEntry
-                                    true
-                                }
-
-                                keyEvent.isKeyUp() -> {
-                                    val armed = userArmedEntryTarget
-                                    userArmedEntryTarget = null
-                                    if (armed == MainContentFocusTarget.RightEntry) {
-                                        onFocusToContent(MainContentFocusTarget.RightEntry)
-                                    }
-                                    true
-                                }
-
-                                else -> false
-                            }
-                        }
-
-                        else -> false
-                    }
-                },
-            onClick = {
-                if (isLogin) onOpenUserSwitch() else onLogin()
-            },
-            selected = userIsFocused,
-            // 统一下发用户图标的颜色和背景颜色
-            colors = NavigationRailItemDefaults.colors(
-                selectedIconColor = userIconColor,
-                unselectedIconColor = userIconColor
-            ),
-            icon = {
-                if (isLogin) {
-                    Surface(
-                        modifier = Modifier
-                            .size(railButtonSize)
-                            .border(width = 2.dp, color = userBorderColor, shape = CircleShape)
-                            .padding(2.dp),
-                        colors = SurfaceDefaults.colors(
-                            containerColor = Color.Transparent
-                        )
-                    ) {
-                        AsyncImage(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape),
-                            model = avatar,
-                            contentDescription = null,
-                            contentScale = ContentScale.FillBounds
-                        )
-                    }
-                } else {
-                    Icon(
-                        imageVector = LeftNaviItem.User.displayIcon,
-                        contentDescription = null
-                    )
-                }
-            }
-        )
+        Spacer(modifier = Modifier.height(MainChromeDefaults.Size))
 
         // ====== 中间 contentItems：移动高亮块 + 固定选中块 + 左侧指示条（按你的规则） ======
 
@@ -454,6 +335,30 @@ fun LeftNaviContent(
                                         }
                                     }
 
+                                    Key.DirectionUp -> {
+                                        if (item == LeftNaviItem.Home) {
+                                            if (keyEvent.isKeyDown()) {
+                                                userFocusRequester?.requestFocus()
+                                                return@onPreviewKeyEvent true
+                                            }
+                                            true
+                                        } else {
+                                            false
+                                        }
+                                    }
+
+                                    Key.DirectionDown -> {
+                                        if (item == LeftNaviItem.PGC) {
+                                            if (keyEvent.isKeyDown()) {
+                                                settingsFocusTarget.requestFocus()
+                                                return@onPreviewKeyEvent true
+                                            }
+                                            true
+                                        } else {
+                                            false
+                                        }
+                                    }
+
                                     else -> false
                                 }
                             },
@@ -493,7 +398,7 @@ fun LeftNaviContent(
         NavigationRailItem(
             modifier = Modifier
                 .size(railButtonSize)
-                .focusRequester(settingsFocusRequester)
+                .focusRequester(settingsFocusTarget)
                 .onFocusChanged {
                     settingsIsFocused = it.hasFocus
                     if (!it.hasFocus) {
@@ -504,7 +409,7 @@ fun LeftNaviContent(
                     when {
                         keyEvent.isDpadUp() -> {
                             if (keyEvent.isKeyDown()) {
-                                settingsFocusRequester.requestFocus()
+                                pgcFocusRequester.requestFocus()
                                 return@onPreviewKeyEvent true
                             }
                             true
@@ -512,7 +417,7 @@ fun LeftNaviContent(
 
                         keyEvent.isDpadDown() -> {
                             if (keyEvent.isKeyDown()) {
-                                userFocusRequester.requestFocus()
+                                userFocusRequester?.requestFocus()
                                 return@onPreviewKeyEvent true
                             }
                             true
@@ -616,9 +521,7 @@ private fun LeftNaviContentPreview() {
             onLeftNaviItemChanged = {},
             onLeftNaviItemPreload = {},
             onOpenSettings = {},
-            onOpenUserSwitch = {},
             onFocusToContent = {},
-            onLogin = {}
         )
     }
 }

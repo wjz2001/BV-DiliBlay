@@ -1,7 +1,6 @@
 package dev.aaa1115910.bv.component
 
 import android.content.Context
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -52,7 +51,6 @@ import dev.aaa1115910.bv.util.getDisplayName
 fun TopNav(
     modifier: Modifier = Modifier,
     items: List<TopNavItem>,
-    isLargePadding: Boolean,
     selectedItem: TopNavItem? = null,
     defaultFocusRequester: FocusRequester? = null,
     onDefaultFocusReady: (() -> Unit)? = null,
@@ -74,11 +72,6 @@ fun TopNav(
         ?: 0
 
     var defaultFocusReadyNotified by remember(focusTargetIndex) { mutableStateOf(false) }
-    val verticalPadding by animateDpAsState(
-        targetValue = if (isLargePadding) 12.dp else 6.dp,
-        label = "top nav vertical padding"
-    )
-
     LaunchedEffect(items, selectedItem) {
         val selectedIndex = selectedItem
             ?.let(items::indexOf)
@@ -93,7 +86,8 @@ fun TopNav(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(12.dp, verticalPadding),
+            .height(MainChromeDefaults.Size)
+            .padding(12.dp, MainChromeDefaults.TopNavVerticalPadding),
         horizontalArrangement = Arrangement.Center
     ) {
         TabRow(
@@ -234,7 +228,7 @@ private fun TabRowScope.NavItemTab(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(32.dp),
+                    .height(MainChromeDefaults.TopNavTabHeight),
                 contentAlignment = Alignment.Center
             ) {
                 Row(
@@ -257,7 +251,7 @@ private fun TabRowScope.NavItemTab(
         } else {
             Text(
                 modifier = Modifier
-                    .height(32.dp)
+                    .height(MainChromeDefaults.TopNavTabHeight)
                     .padding(horizontal = 16.dp, vertical = 6.dp),
                 text = topNavItem.getDisplayName(context),
                 color = LocalContentColor.current,
