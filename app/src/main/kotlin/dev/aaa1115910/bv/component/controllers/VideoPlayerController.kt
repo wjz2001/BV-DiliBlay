@@ -34,12 +34,15 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.video.Subtitle
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.activities.video.CheeseSeasonActivity
+import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.comments.VideoCommentsDialog
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoFlip
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.VideoRotation
+import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.repository.StartupCoverRepository
@@ -61,7 +64,7 @@ import kotlinx.coroutines.launch
 fun VideoPlayerController(
     modifier: Modifier = Modifier,
     aid: Long,
-    fromSeason: Boolean,
+    source: VideoSource,
     proxyArea: ProxyArea,
 
     // play state
@@ -453,7 +456,7 @@ fun VideoPlayerController(
                 videoShotCache = videoShotCache,
                 videoRotation = uiState.videoRotation,
                 videoFlip = uiState.videoFlip,
-                fromSeason = fromSeason,
+                source = source,
                 danmakuEnabled = uiState.danmakuState.danmakuEnabled,
                 isLooping = isLooping,
                 onDirectionLeft = { onDirectionLeft() },
@@ -477,13 +480,20 @@ fun VideoPlayerController(
                 },
                 onGoToVideoInfo = {
                     StartupCoverRepository.put(aid, uiState.startupCover)
-                    VideoInfoActivity.actionStart(
-                        context = context,
-                        aid = aid,
-                        fromSeason = fromSeason,
-                        fromController = true,
-                        proxyArea = proxyArea
-                    )
+                    val targetSeasonId = uiState.seasonId.toLong().takeIf { it > 0L }
+                    if (source == VideoSource.Cheese && targetSeasonId == null) {
+                        "课程详情缺少 seasonId".toast(context)
+                    } else {
+                        VideoInfoActivity.actionStart(
+                            context = context,
+                            aid = aid,
+                            source = source,
+                            epid = uiState.epid,
+                            seasonId = targetSeasonId,
+                            fromController = true,
+                            proxyArea = proxyArea
+                        )
+                    }
                 },
                 onToggleLoop = onToggleLoop,
                 onGoToUpPage = onGoToUpPage,

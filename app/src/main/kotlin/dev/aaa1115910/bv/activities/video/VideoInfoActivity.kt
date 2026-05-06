@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.screen.VideoInfoScreen
 import dev.aaa1115910.bv.ui.theme.BVTheme
@@ -15,29 +16,41 @@ class VideoInfoActivity : ComponentActivity() {
     companion object {
         fun actionStart(
             context: Context,
-            aid: Long,
+            aid: Long = 0,
+            source: VideoSource = VideoSource.Ugc,
             epid: Int? = null,
-            fromSeason: Boolean = false,
+            seasonId: Long? = null,
             fromController: Boolean = false,
             proxyArea: ProxyArea = ProxyArea.MainLand
         ) {
-            if (epid != null) {
-                SeasonInfoActivity.actionStart(
-                    context = context,
-                    epId = epid,
-                    proxyArea = proxyArea
-                )
-                return
-            }
-
-            context.startActivity(
-                Intent(context, VideoInfoActivity::class.java).apply {
-                    putExtra("aid", aid)
-                    putExtra("fromSeason", fromSeason)
-                    putExtra("fromController", fromController)
-                    putExtra("proxy_area", proxyArea.ordinal)
+            when (source) {
+                VideoSource.Ugc -> {
+                    context.startActivity(
+                        Intent(context, VideoInfoActivity::class.java).apply {
+                            putExtra("aid", aid)
+                            putExtra("fromController", fromController)
+                            putExtra("proxy_area", proxyArea.ordinal)
+                        }
+                    )
                 }
-            )
+
+                VideoSource.Pgc -> {
+                    SeasonInfoActivity.actionStart(
+                        context = context,
+                        epId = epid,
+                        seasonId = seasonId?.toInt(),
+                        proxyArea = proxyArea
+                    )
+                }
+
+                VideoSource.Cheese -> {
+                    val targetSeasonId = requireNotNull(seasonId) { "Cheese detail requires seasonId" }
+                    CheeseSeasonActivity.actionStart(
+                        context = context,
+                        seasonId = targetSeasonId
+                    )
+                }
+            }
         }
     }
 
@@ -56,13 +69,11 @@ class VideoInfoActivity : ComponentActivity() {
     private fun getParamsFromIntent() {
         if (intent.hasExtra("aid")) {
             val aid = intent.getLongExtra("aid", 170001)
-            val fromSeason = intent.getBooleanExtra("fromSeason", false)
             val fromController = intent.getBooleanExtra("fromController", false)
             val proxyArea = ProxyArea.entries[intent.getIntExtra("proxy_area", 0)]
 
             videoDetailViewModel.init(
                 aid = aid,
-                fromSeason = fromSeason,
                 fromController = fromController,
                 proxyArea = proxyArea,
             )

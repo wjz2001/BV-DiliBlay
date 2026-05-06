@@ -141,8 +141,7 @@ fun SearchResultScreen(
             is SearchTypeResult.Video -> {
                 VideoInfoActivity.actionStart(
                     context = context,
-                    aid = resultItem.aid,
-                    fromSeason = false
+                    aid = resultItem.aid
                 )
             }
 

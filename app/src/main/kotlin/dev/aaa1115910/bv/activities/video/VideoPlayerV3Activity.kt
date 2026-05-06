@@ -12,6 +12,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import dev.aaa1115910.biliapi.entity.user.Author
+import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.screen.VideoPlayerV3Screen
 import dev.aaa1115910.bv.ui.theme.BVTheme
@@ -38,12 +39,11 @@ class VideoPlayerV3Activity : ComponentActivity() {
             title: String,
             partTitle: String,
             played: Long,
-            fromSeason: Boolean,
+            source: VideoSource = VideoSource.Ugc,
             subType: Int? = null,
             epid: Int? = null,
             seasonId: Int? = null,
             proxyArea: ProxyArea = ProxyArea.MainLand,
-            fromCheese: Boolean = false,
             author: Author? = null
         ) {
             currentInstance?.finish()
@@ -54,8 +54,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
                     putExtra("title", title)
                     putExtra("partTitle", partTitle)
                     putExtra("played", played)
-                    putExtra("fromSeason", fromSeason)
-                    putExtra("fromCheese", fromCheese)
+                    putExtra("video_source", source.name)
                     putExtra("subType", subType)
                     putExtra("epid", epid)
                     putExtra("seasonId", seasonId)
@@ -180,8 +179,9 @@ class VideoPlayerV3Activity : ComponentActivity() {
             val title = intent.getStringExtra("title") ?: "Unknown Title"
             val partTitle = intent.getStringExtra("partTitle").orEmpty()
             val played = intent.getLongExtra("played", 0)
-            val fromSeason = intent.getBooleanExtra("fromSeason", false)
-            val fromCheese = intent.getBooleanExtra("fromCheese", false)
+            val source = intent.getStringExtra("video_source")
+                ?.let { value -> VideoSource.entries.firstOrNull { it.name == value } }
+                ?: VideoSource.Ugc
             val subType = intent.getIntExtra("subType", 0)
             val epid = intent.getIntExtra("epid", 0)
             val seasonId = intent.getIntExtra("seasonId", 0)
@@ -198,8 +198,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
                 title = title,
                 partTitle = partTitle,
                 lastPlayed = played,
-                fromSeason = fromSeason,
-                fromCheese = fromCheese,
+                source = source,
                 subType = subType,
                 seasonId = seasonId,
                 proxyArea = proxyArea,

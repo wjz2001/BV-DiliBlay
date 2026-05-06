@@ -129,7 +129,7 @@ fun VideoPlayerV3Screen(
     VideoPlayerController(
         modifier = modifier,
         aid = uiState.aid,
-        fromSeason = uiState.fromSeason,
+        source = uiState.source,
         proxyArea = uiState.proxyArea,
         isLooping = isLooping,
         isPlaying = videoPlayer.isPlaying,

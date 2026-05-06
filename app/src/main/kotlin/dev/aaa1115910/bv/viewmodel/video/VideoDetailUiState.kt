@@ -18,7 +18,6 @@ data class VideoDetailUiState(
     val isFollowingUp: Boolean = false,
     val followTags: List<RelationTag> = emptyList(),
     val showVideoInfo: Boolean = true,
-    val fromSeason: Boolean = false,
     val fromController: Boolean = false,
     val favoriteFolders: List<FavoriteFolderMetadata> = emptyList(),
     val videoFavoriteFolderIds: Set<Long> = emptySet()
@@ -26,7 +25,6 @@ data class VideoDetailUiState(
     val shouldShowLoading: Boolean
         get() = loadingState == VideoInfoState.Loading ||
                 videoDetailState?.redirectToEp == true ||
-                fromSeason ||
                 (!fromController && !showVideoInfo)
 }
 

@@ -485,7 +485,6 @@ fun MainScreen(
                 .zIndex(3f),
             isLogin = userViewModel.isLogin,
             avatar = userViewModel.face,
-            userName = userViewModel.username,
             focusRequester = userFocusRequester,
             isFocused = userIsFocused,
             onFocusChanged = {

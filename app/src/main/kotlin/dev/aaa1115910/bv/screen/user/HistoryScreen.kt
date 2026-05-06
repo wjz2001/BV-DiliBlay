@@ -46,6 +46,7 @@ import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
+import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.tv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.effect.UiEffect
@@ -152,6 +153,7 @@ fun HistoryScreen(
                                 context = context,
                                 aid = history.avid,
                                 epid = history.epId,
+                                source = if (history.epId != null) VideoSource.Pgc else VideoSource.Ugc,
                                 proxyArea = ProxyArea.checkProxyArea(history.title)
                             )
                         },
@@ -163,7 +165,8 @@ fun HistoryScreen(
                                 context = context,
                                 fromController = true,
                                 aid = history.avid,
-                                epid = history.epId
+                                epid = history.epId,
+                                source = if (history.epId != null) VideoSource.Pgc else VideoSource.Ugc
                             )
                         },
                         onGoToUpPage = history.upMid?.let {

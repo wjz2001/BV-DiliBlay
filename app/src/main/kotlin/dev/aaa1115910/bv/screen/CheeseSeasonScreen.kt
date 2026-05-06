@@ -61,6 +61,7 @@ import dev.aaa1115910.biliapi.entity.cheese.CheeseSeasonDetail
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.UpIcon
+import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.focusedBorder
@@ -121,8 +122,7 @@ fun CheeseSeasonScreen(
                                     title = detail.title,
                                     partTitle = episode.title,
                                     played = episode.watchedHistory.coerceAtLeast(0) * 1000L,
-                                    fromSeason = false,
-                                    fromCheese = true,
+                                    source = VideoSource.Cheese,
                                     epid = epId,
                                     seasonId = seasonId
                                 )

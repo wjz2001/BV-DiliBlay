@@ -12,6 +12,7 @@ import dev.aaa1115910.bv.component.controllers.DanmakuType
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
+import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.VideoRotation
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
@@ -35,8 +36,7 @@ data class PlayerUiState(
     val videoHeight: Int = 0,
     val videoWidth: Int = 0,
     val lastPlayed: Long = 0L,
-    val fromSeason: Boolean = false,
-    val fromCheese: Boolean = false,
+    val source: VideoSource = VideoSource.Ugc,
     val proxyArea: ProxyArea = ProxyArea.MainLand,
     val subType: Int = 0,
 

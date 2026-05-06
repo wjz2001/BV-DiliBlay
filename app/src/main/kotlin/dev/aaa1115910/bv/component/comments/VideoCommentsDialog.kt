@@ -84,6 +84,7 @@ import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.biliapi.repositories.CommentRepository
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.richtext.RichText
+import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.buildRichTextTokens
@@ -619,7 +620,7 @@ fun VideoCommentsDialog(
                                                         title = link.title,
                                                         partTitle = "",
                                                         played = 0L,
-                                                        fromSeason = false
+                                                        source = VideoSource.Ugc
                                                     )
                                                 }
                                             },
@@ -712,7 +713,7 @@ fun VideoCommentsDialog(
                                                                 title = link.title,
                                                                 partTitle = "",
                                                                 played = 0L,
-                                                                fromSeason = false
+                                                                source = VideoSource.Ugc
                                                             )
                                                         }
                                                     },
@@ -758,7 +759,7 @@ fun VideoCommentsDialog(
                                                 title = link.title,
                                                 partTitle = "",
                                                 played = 0L,
-                                                fromSeason = false
+                                                source = VideoSource.Ugc
                                             )
                                         }
                                     },

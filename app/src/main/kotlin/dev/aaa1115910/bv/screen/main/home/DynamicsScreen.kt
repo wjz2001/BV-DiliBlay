@@ -33,6 +33,7 @@ import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
+import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.ui.effect.UiEffect
@@ -77,7 +78,8 @@ fun DynamicsScreen(
                 context = context,
                 aid = dynamic.aid,
                 epid = dynamic.epid,
-            proxyArea = proxyArea
+                source = if (dynamic.epid != null) VideoSource.Pgc else VideoSource.Ugc,
+                proxyArea = proxyArea
             )
         }
     }
@@ -180,6 +182,7 @@ fun DynamicsScreen(
                                 fromController = true,
                                 aid = item.aid,
                                 epid = item.epid,
+                                source = if (item.epid != null) VideoSource.Pgc else VideoSource.Ugc,
                             )
                         }
                     },

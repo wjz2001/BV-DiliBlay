@@ -63,6 +63,7 @@ import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.ui.state.SeekerState
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppWhite
@@ -92,7 +93,7 @@ fun ControllerVideoInfo(
     videoShotCache: VideoShotImageCache,
     videoRotation: VideoRotation?,
     videoFlip: VideoFlip?,
-    fromSeason: Boolean,
+    source: VideoSource,
     danmakuEnabled: Boolean,
     isLooping: Boolean,
     onDirectionLeft: () -> Unit,
@@ -152,7 +153,7 @@ fun ControllerVideoInfo(
                 videoShotCache = videoShotCache,
                 videoRotation = videoRotation,
                 videoFlip = videoFlip,
-                fromSeason = fromSeason,
+                source = source,
                 danmakuEnabled = danmakuEnabled,
                 isLooping = isLooping,
                 onDirectionLeft = onDirectionLeft,
@@ -240,7 +241,7 @@ fun ControllerVideoInfoBottom(
     videoShotCache: VideoShotImageCache,
     videoRotation: VideoRotation?,
     videoFlip: VideoFlip?,
-    fromSeason: Boolean,
+    source: VideoSource,
     danmakuEnabled: Boolean,
     isLooping: Boolean,
     onDirectionLeft: () -> Unit,
@@ -396,9 +397,9 @@ fun ControllerVideoInfoBottom(
                     onDanmakuSwitchChange,
             (R.drawable.comment_24px to "评论") to onShowComments,
             (R.drawable.manage_history_24px to "时间跳转") to onShowTimeJump,
-            if (!fromSeason) ((if (hasMultipleCoAuthors) R.drawable.group_24px else R.drawable.contact_page_24px) to
+            if (source.isUgc) ((if (hasMultipleCoAuthors) R.drawable.group_24px else R.drawable.contact_page_24px) to
                     "up主页") to onGoToUpPage else null,
-            if (!fromSeason) (R.drawable.related_videos_24px to "相关视频") to onShowRelatedVideos else null,
+            if (source.isUgc) (R.drawable.related_videos_24px to "相关视频") to onShowRelatedVideos else null,
             ((if (isLooping) (R.drawable.repeat_one_on_24px) else (R.drawable.repeat_one_24px)) to "循环播放") to
                     onToggleLoop,
         )
@@ -580,7 +581,7 @@ private fun ControllerVideoInfoPreview() {
             videoShotCache = VideoShotImageCache(),
             videoRotation = null,
             videoFlip = null,
-            fromSeason = false,
+            source = VideoSource.Ugc,
             danmakuEnabled = false,
             isLooping = false,
             onDirectionRight = {},
@@ -629,7 +630,7 @@ private fun ControllerVideoInfoLightPreview() {
             videoShotCache = VideoShotImageCache(),
             videoRotation = null,
             videoFlip = null,
-            fromSeason = false,
+            source = VideoSource.Ugc,
             danmakuEnabled = false,
             isLooping = false,
             onDirectionRight = {},

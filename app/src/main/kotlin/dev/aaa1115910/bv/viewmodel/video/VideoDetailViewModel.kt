@@ -52,17 +52,15 @@ class VideoDetailViewModel(
 
     fun init(
         aid: Long,
-        fromSeason: Boolean = false,
         fromController: Boolean = false,
         proxyArea: ProxyArea = ProxyArea.MainLand
     ) {
         mProxyArea = proxyArea
-        val shouldDirectlyPlay = !fromController && (fromSeason || !Prefs.showVideoInfo)
+        val shouldDirectlyPlay = !fromController && !Prefs.showVideoInfo
 
         _uiState.update {
             it.copy(
                 showVideoInfo = Prefs.showVideoInfo,
-                fromSeason = fromSeason,
                 fromController = fromController
             )
         }

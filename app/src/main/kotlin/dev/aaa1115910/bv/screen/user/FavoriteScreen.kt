@@ -64,16 +64,20 @@ import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Tab
 import androidx.tv.material3.TabRow
-import androidx.tv.material3.TabRowDefaults
-import androidx.tv.material3.TabDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.component.MainTopBarContainer
+import dev.aaa1115910.bv.component.MainTopTabDefaults
+import dev.aaa1115910.bv.component.MainTopTabIndicator
+import dev.aaa1115910.bv.component.MainTopTabSeparator
 import dev.aaa1115910.bv.component.ifElse
+import dev.aaa1115910.bv.component.mainTopTabColors
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
+import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.tv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.theme.C
@@ -475,32 +479,24 @@ fun FavoriteScreen(
 
     ) {
         if (folderList.isNotEmpty()) {
-            TabRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
-                    .onFocusChanged { state ->
-                        focusOnTabs = state.hasFocus
-                        if (state.hasFocus) {
-                            pendingBackToTabsFocus = false
-                        } else {
-                            favoriteViewModel.syncFolderActivationToCurrent()
+            MainTopBarContainer {
+                TabRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = MainTopTabDefaults.TabRowHorizontalPadding)
+                        .onFocusChanged { state ->
+                            focusOnTabs = state.hasFocus
+                            if (state.hasFocus) {
+                                pendingBackToTabsFocus = false
+                            } else {
+                                favoriteViewModel.syncFolderActivationToCurrent()
+                            }
                         }
-                    }
-                    .focusRestorer(defaultFocusRequester),
-                selectedTabIndex = currentTabIndex,
-                separator = { Spacer(modifier = Modifier.width(12.dp)) },
-                indicator = { tabPositions, doesTabRowHaveFocus ->
-                    tabPositions.getOrNull(currentTabIndex)?.let { currentTabPosition ->
-                        TabRowDefaults.PillIndicator(
-                            currentTabPosition = currentTabPosition,
-                            doesTabRowHaveFocus = doesTabRowHaveFocus,
-                            activeColor = MaterialTheme.colorScheme.primary,
-                            inactiveColor = MaterialTheme.colorScheme.primaryContainer
-                        )
-                    }
-                },
-            ) {
+                        .focusRestorer(defaultFocusRequester),
+                    selectedTabIndex = currentTabIndex,
+                    separator = { MainTopTabSeparator() },
+                    indicator = MainTopTabIndicator(currentTabIndex),
+                ) {
                 folderList.forEachIndexed { index, folderMetadata ->
                     val folderId = folderMetadata.id
                     val queryState = folderQueryStates[folderId]
@@ -508,13 +504,7 @@ fun FavoriteScreen(
                     var longPressTriggered by remember(folderId) { mutableStateOf(false) }
 
                     Tab(
-                        colors = TabDefaults.pillIndicatorTabColors(
-                            contentColor = MaterialTheme.colorScheme.onSurface,
-                            inactiveContentColor = MaterialTheme.colorScheme.onSurface,
-                            selectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            focusedContentColor = MaterialTheme.colorScheme.onPrimary,
-                            focusedSelectedContentColor = MaterialTheme.colorScheme.onPrimary
-                        ),
+                        colors = mainTopTabColors(),
                         modifier = Modifier
                             .ifElse(
                                 index == focusTargetIndex,
@@ -576,11 +566,11 @@ fun FavoriteScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(32.dp),
+                                .height(MainTopTabDefaults.TabContentHeight),
                             contentAlignment = Alignment.Center
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                                modifier = Modifier.padding(MainTopTabDefaults.TabContentPadding),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 if (isSearching) {
@@ -600,6 +590,7 @@ fun FavoriteScreen(
                             }
                         }
                     }
+                }
                 }
             }
         }
@@ -629,6 +620,7 @@ fun FavoriteScreen(
                                     context = context,
                                     aid = favorite.avid,
                                     epid = favorite.epId,
+                                    source = if (favorite.epId != null) VideoSource.Pgc else VideoSource.Ugc,
                                 )
                             },
                             onAddWatchLater = {
@@ -640,6 +632,7 @@ fun FavoriteScreen(
                                     fromController = true,
                                     aid = favorite.avid,
                                     epid = favorite.epId,
+                                    source = if (favorite.epId != null) VideoSource.Pgc else VideoSource.Ugc,
                                 )
                             },
                             onGoToUpPage = favorite.upMid?.let {

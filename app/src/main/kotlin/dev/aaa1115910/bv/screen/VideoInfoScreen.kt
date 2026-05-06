@@ -157,6 +157,7 @@ import dev.aaa1115910.bv.component.buttons.CommentButton
 import dev.aaa1115910.bv.component.buttons.FavoriteButton
 import dev.aaa1115910.bv.component.buttons.LikeButton
 import dev.aaa1115910.bv.entity.VideoListItem
+import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.repository.StartupCoverRepository
@@ -302,8 +303,7 @@ fun VideoInfoScreen(
         targetAid: Long,
         targetCid: Long,
         targetTitle: String,
-        targetPartTitle: String,
-        isFromSeason: Boolean
+        targetPartTitle: String
     ) {
         val videoDetailState = uiState.videoDetailState ?: return
 
@@ -325,7 +325,7 @@ fun VideoInfoScreen(
             title = targetTitle,
             partTitle = targetPartTitle,
             played = playedTime,
-            fromSeason = isFromSeason,
+            source = VideoSource.Ugc,
             author = videoDetailState.author
         )
     }
@@ -370,8 +370,7 @@ fun VideoInfoScreen(
             targetAid = videoDetailState.aid,
             targetCid = targetCid,
             targetTitle = videoDetailState.title,
-            targetPartTitle = partTitle,
-            isFromSeason = uiState.fromSeason
+            targetPartTitle = partTitle
         )
     }
 
@@ -648,8 +647,7 @@ fun VideoInfoScreen(
                                                     targetAid = episode.aid,
                                                     targetCid = episode.cid,
                                                     targetTitle = episodeDisplayTitle,
-                                                    targetPartTitle = "",
-                                                    isFromSeason = true
+                                                    targetPartTitle = ""
                                                 )
                                             }
                                         }
@@ -1470,8 +1468,7 @@ fun VideoDescriptionDialog(
                                         cid = link.cid,
                                         title = link.title,
                                         partTitle = "",
-                                        played = 0L,
-                                        fromSeason = false
+                                        played = 0L
                                     )
                                 }
                             },
@@ -1538,8 +1535,7 @@ fun VideoDescriptionDialog(
                         cid = link.cid,
                         title = link.title,
                         partTitle = "",
-                        played = 0L,
-                        fromSeason = false
+                        played = 0L
                     )
                 }
             },

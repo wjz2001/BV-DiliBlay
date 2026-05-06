@@ -62,16 +62,20 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Tab
-import androidx.tv.material3.TabDefaults
 import androidx.tv.material3.TabRow
-import androidx.tv.material3.TabRowDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.component.MainTopBarContainer
+import dev.aaa1115910.bv.component.MainTopTabDefaults
+import dev.aaa1115910.bv.component.MainTopTabIndicator
+import dev.aaa1115910.bv.component.MainTopTabSeparator
 import dev.aaa1115910.bv.component.RadioMenuSelectDialog
 import dev.aaa1115910.bv.component.ifElse
+import dev.aaa1115910.bv.component.mainTopTabColors
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
+import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.tv.component.TvAlertDialog
@@ -274,122 +278,109 @@ fun ToViewScreen(
                 false
             }
     ) {
-        TabRow(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp)
-                .onFocusChanged { state ->
-                    focusOnTabs = state.hasFocus
-                    if (state.hasFocus) {
-                        pendingBackToTabsFocus = false
+        MainTopBarContainer {
+            TabRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = MainTopTabDefaults.TabRowHorizontalPadding)
+                    .onFocusChanged { state ->
+                        focusOnTabs = state.hasFocus
+                        if (state.hasFocus) {
+                            pendingBackToTabsFocus = false
+                        }
                     }
-                }
-                .focusRestorer(defaultFocusRequester),
-            selectedTabIndex = selectedTabIndex,
-            separator = { Spacer(modifier = Modifier.width(12.dp)) },
-            indicator = { tabPositions, doesTabRowHaveFocus ->
-                tabPositions.getOrNull(selectedTabIndex)?.let { currentTabPosition ->
-                    TabRowDefaults.PillIndicator(
-                        currentTabPosition = currentTabPosition,
-                        doesTabRowHaveFocus = doesTabRowHaveFocus,
-                        activeColor = MaterialTheme.colorScheme.primary,
-                        inactiveColor = MaterialTheme.colorScheme.primaryContainer
-                    )
-                }
-            }
-        ) {
-            tabTitles.forEachIndexed { index, title ->
-                var longPressTriggered by remember(index) { mutableStateOf(false) }
-                Tab(
-                    colors = TabDefaults.pillIndicatorTabColors(
-                        contentColor = MaterialTheme.colorScheme.onSurface,
-                        inactiveContentColor = MaterialTheme.colorScheme.onSurface,
-                        selectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        focusedContentColor = MaterialTheme.colorScheme.onPrimary,
-                        focusedSelectedContentColor = MaterialTheme.colorScheme.onPrimary
-                    ),
-                    modifier = Modifier
-                        .ifElse(
-                            index == selectedTabIndex,
-                            Modifier
-                                .focusRequester(defaultFocusRequester)
-                                .onGloballyPositioned { readyFocusTargetTabIndex = index }
-                        )
-                        .onPreviewKeyEvent { event ->
-                            val isConfirmKey =
-                                event.key == Key.DirectionCenter ||
-                                        event.key == Key.Enter ||
-                                        event.key == Key.Spacebar
+                    .focusRestorer(defaultFocusRequester),
+                selectedTabIndex = selectedTabIndex,
+                separator = { MainTopTabSeparator() },
+                indicator = MainTopTabIndicator(selectedTabIndex)
+            ) {
+                tabTitles.forEachIndexed { index, title ->
+                    var longPressTriggered by remember(index) { mutableStateOf(false) }
+                    Tab(
+                        colors = mainTopTabColors(),
+                        modifier = Modifier
+                            .ifElse(
+                                index == selectedTabIndex,
+                                Modifier
+                                    .focusRequester(defaultFocusRequester)
+                                    .onGloballyPositioned { readyFocusTargetTabIndex = index }
+                            )
+                            .onPreviewKeyEvent { event ->
+                                val isConfirmKey =
+                                    event.key == Key.DirectionCenter ||
+                                            event.key == Key.Enter ||
+                                            event.key == Key.Spacebar
 
-                            if (!isConfirmKey) return@onPreviewKeyEvent false
+                                if (!isConfirmKey) return@onPreviewKeyEvent false
 
-                            if (event.type == KeyEventType.KeyDown) {
-                                if (event.nativeKeyEvent.isLongPress) {
-                                    if (!longPressTriggered) {
-                                        longPressTriggered = true
-                                        selectedTabIndex = index
-                                        if (index == 1) {
-                                            openDeleteWatchedDialogOnKeyUp = true
-                                        } else {
-                                            openDeleteWatchedDialogOnKeyUp = false
-                                            val isSearching =
-                                                tabQueryStates[0]?.debouncedQuery?.isNotBlank() == true
-                                            if (isSearching) {
-                                                clearTabQuery(0)
+                                if (event.type == KeyEventType.KeyDown) {
+                                    if (event.nativeKeyEvent.isLongPress) {
+                                        if (!longPressTriggered) {
+                                            longPressTriggered = true
+                                            selectedTabIndex = index
+                                            if (index == 1) {
+                                                openDeleteWatchedDialogOnKeyUp = true
                                             } else {
-                                                showSearchDialog = true
-                                                searchDialogTabIndex = 0
+                                                openDeleteWatchedDialogOnKeyUp = false
+                                                val isSearching =
+                                                    tabQueryStates[0]?.debouncedQuery?.isNotBlank() == true
+                                                if (isSearching) {
+                                                    clearTabQuery(0)
+                                                } else {
+                                                    showSearchDialog = true
+                                                    searchDialogTabIndex = 0
+                                                }
                                             }
                                         }
+                                        return@onPreviewKeyEvent true
+                                    }
+                                    return@onPreviewKeyEvent false
+                                }
+
+                                if (event.type == KeyEventType.KeyUp && longPressTriggered) {
+                                    longPressTriggered = false
+                                    if (openDeleteWatchedDialogOnKeyUp && index == 1) {
+                                        openDeleteWatchedDialogOnKeyUp = false
+                                        showDeleteWatchedDialog = true
                                     }
                                     return@onPreviewKeyEvent true
                                 }
-                                return@onPreviewKeyEvent false
-                            }
 
-                            if (event.type == KeyEventType.KeyUp && longPressTriggered) {
-                                longPressTriggered = false
-                                if (openDeleteWatchedDialogOnKeyUp && index == 1) {
-                                    openDeleteWatchedDialogOnKeyUp = false
-                                    showDeleteWatchedDialog = true
-                                }
-                                return@onPreviewKeyEvent true
+                                false
+                            },
+                        selected = selectedTabIndex == index,
+                        onFocus = {
+                            if (selectedTabIndex != index) {
+                                selectedTabIndex = index
                             }
-
-                            false
                         },
-                    selected = selectedTabIndex == index,
-                    onFocus = {
-                        if (selectedTabIndex != index) {
-                            selectedTabIndex = index
-                        }
-                    },
-                    onClick = { selectedTabIndex = index }
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(32.dp),
-                        contentAlignment = Alignment.Center
+                        onClick = { selectedTabIndex = index }
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(MainTopTabDefaults.TabContentHeight),
+                            contentAlignment = Alignment.Center
                         ) {
-                            if (index == 0 && tabQueryStates[0]?.debouncedQuery?.isNotBlank() == true) {
-                                Icon(
-                                    modifier = Modifier.size(filterIconSizeDp),
-                                    imageVector = Icons.Rounded.FilterList,
-                                    contentDescription = null
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                            }
+                            Row(
+                                modifier = Modifier.padding(MainTopTabDefaults.TabContentPadding),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (index == 0 && tabQueryStates[0]?.debouncedQuery?.isNotBlank() == true) {
+                                    Icon(
+                                        modifier = Modifier.size(filterIconSizeDp),
+                                        imageVector = Icons.Rounded.FilterList,
+                                        contentDescription = null
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                }
 
-                            Text(
-                                text = title,
-                                color = LocalContentColor.current,
-                                style = MaterialTheme.typography.labelLarge
-                            )
+                                Text(
+                                    text = title,
+                                    color = LocalContentColor.current,
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            }
                         }
                     }
                 }
@@ -428,6 +419,7 @@ fun ToViewScreen(
                                     context = context,
                                     aid = item.avid,
                                     epid = item.epId,
+                                    source = if (item.epId != null) VideoSource.Pgc else VideoSource.Ugc,
                                     proxyArea = ProxyArea.checkProxyArea(item.title)
                                 )
                             },
@@ -443,7 +435,8 @@ fun ToViewScreen(
                                     context = context,
                                     fromController = true,
                                     aid = item.avid,
-                                    epid = item.epId
+                                    epid = item.epId,
+                                    source = if (item.epId != null) VideoSource.Pgc else VideoSource.Ugc
                                 )
                             },
                             onGoToUpPage = item.upMid?.let {

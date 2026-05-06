@@ -33,6 +33,7 @@ import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.entity.VideoFlip
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.VideoRotation
+import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.player.AbstractVideoPlayer
 import dev.aaa1115910.bv.player.VideoPlayerListener
@@ -438,8 +439,7 @@ class VideoPlayerV3ViewModel(
         title: String,
         partTitle: String,
         lastPlayed: Long,
-        fromSeason: Boolean,
-        fromCheese: Boolean,
+        source: VideoSource,
         subType: Int,
         seasonId: Int,
         proxyArea: ProxyArea = ProxyArea.MainLand,
@@ -456,8 +456,7 @@ class VideoPlayerV3ViewModel(
                 partTitle = partTitle,
                 startupCover = StartupCoverRepository[aid],
                 lastPlayed = lastPlayed,
-                fromSeason = fromSeason,
-                fromCheese = fromCheese,
+                source = source,
                 subType = subType,
                 proxyArea = proxyArea,
                 authorMid = authorMid,
@@ -1814,7 +1813,7 @@ class VideoPlayerV3ViewModel(
         }
 
         val effectiveApi = matchedOverride?.apiType ?: preferApi
-        val playbackApi = if (_uiState.value.fromCheese) ApiType.Web else effectiveApi
+        val playbackApi = if (_uiState.value.source.isCheese) ApiType.Web else effectiveApi
         val effectivePreferredQualityId = matchedOverride?.preferredQualityId
 
         logger.fInfo {
@@ -1935,7 +1934,7 @@ class VideoPlayerV3ViewModel(
         preferApi: ApiType,
         proxyArea: ProxyArea
     ): PlayData {
-        return if (_uiState.value.fromCheese) {
+        return if (_uiState.value.source.isCheese) {
             videoPlayRepository.getCheesePlayData(
                 aid = avid,
                 cid = cid,
@@ -1943,7 +1942,7 @@ class VideoPlayerV3ViewModel(
                 seasonId = _uiState.value.seasonId.takeIf { it != 0 },
                 preferApiType = preferApi
             )
-        } else if (_uiState.value.fromSeason) {
+        } else if (_uiState.value.source.isPgc) {
             videoPlayRepository.getPgcPlayData(
                 aid = avid,
                 cid = cid,
@@ -2320,38 +2319,44 @@ class VideoPlayerV3ViewModel(
             with(uiState) {
                 val currentApiType = Prefs.apiType
 
-                if (fromCheese) {
-                    logger.info { "Send cheese heartbeat:[avid=$aid, cid=$cid, epid=$epid, sid=$seasonId, time=$time]" }
-                    videoPlayRepository.sendHeartbeat(
-                        aid = aid,
-                        cid = cid,
-                        time = time,
-                        type = HeartbeatVideoType.Course,
-                        subType = subType.takeIf { it != 0 },
-                        epid = epid,
-                        seasonId = seasonId,
-                        preferApiType = ApiType.Web
-                    )
-                } else if (!fromSeason) {
-                    logger.info { "Send heartbeat:[avid=$aid, cid=$cid, time=$time]" }
-                    videoPlayRepository.sendHeartbeat(
-                        aid = aid,
-                        cid = cid,
-                        time = time,
-                        preferApiType = currentApiType
-                    )
-                } else {
-                    logger.info { "Send heartbeat:[avid=$aid, cid=$cid, epid=$epid, sid=$seasonId, time=$time]" }
-                    videoPlayRepository.sendHeartbeat(
-                        aid = aid,
-                        cid = cid,
-                        time = time,
-                        type = HeartbeatVideoType.Season,
-                        subType = subType,
-                        epid = epid,
-                        seasonId = seasonId,
-                        preferApiType = currentApiType
-                    )
+                when (source) {
+                    VideoSource.Cheese -> {
+                        logger.info { "Send cheese heartbeat:[avid=$aid, cid=$cid, epid=$epid, sid=$seasonId, time=$time]" }
+                        videoPlayRepository.sendHeartbeat(
+                            aid = aid,
+                            cid = cid,
+                            time = time,
+                            type = HeartbeatVideoType.Course,
+                            subType = subType.takeIf { it != 0 },
+                            epid = epid,
+                            seasonId = seasonId,
+                            preferApiType = ApiType.Web
+                        )
+                    }
+
+                    VideoSource.Ugc -> {
+                        logger.info { "Send heartbeat:[avid=$aid, cid=$cid, time=$time]" }
+                        videoPlayRepository.sendHeartbeat(
+                            aid = aid,
+                            cid = cid,
+                            time = time,
+                            preferApiType = currentApiType
+                        )
+                    }
+
+                    VideoSource.Pgc -> {
+                        logger.info { "Send heartbeat:[avid=$aid, cid=$cid, epid=$epid, sid=$seasonId, time=$time]" }
+                        videoPlayRepository.sendHeartbeat(
+                            aid = aid,
+                            cid = cid,
+                            time = time,
+                            type = HeartbeatVideoType.Season,
+                            subType = subType,
+                            epid = epid,
+                            seasonId = seasonId,
+                            preferApiType = currentApiType
+                        )
+                    }
                 }
             }
             logger.info { "Send heartbeat success" }

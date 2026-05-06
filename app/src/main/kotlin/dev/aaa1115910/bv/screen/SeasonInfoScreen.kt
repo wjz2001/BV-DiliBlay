@@ -101,6 +101,7 @@ import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.buttons.SeasonInfoButtons
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.VideoListItem
+import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.repository.VideoInfoRepository
 import dev.aaa1115910.bv.ui.theme.AppBlack
@@ -172,7 +173,7 @@ fun SeasonInfoScreen(
                     title = seasonData!!.title,
                     partTitle = episodeTitle,
                     played = startTime * 1000L,
-                    fromSeason = true,
+                    source = VideoSource.Pgc,
                     subType = seasonData?.subType,
                     epid = epid,
                     seasonId = seasonData?.seasonId,
