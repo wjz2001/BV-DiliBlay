@@ -6,6 +6,7 @@ import dev.aaa1115910.biliapi.http.BiliHttpApi.getRegionDynamic
 import dev.aaa1115910.biliapi.http.entity.BiliResponse
 import dev.aaa1115910.biliapi.http.entity.BiliResponseWithoutData
 import dev.aaa1115910.biliapi.http.entity.danmaku.DanmakuData
+import dev.aaa1115910.biliapi.http.entity.cheese.CheesePaidData
 import dev.aaa1115910.biliapi.http.entity.dynamic.DynamicData
 import dev.aaa1115910.biliapi.http.entity.history.HistoryData
 import dev.aaa1115910.biliapi.http.entity.home.RcmdIndexData
@@ -303,6 +304,45 @@ object BiliHttpApi {
         buvid3?.let { cookieParts.add("buvid3=$it") }
         if (cookieParts.isNotEmpty()) header("Cookie", cookieParts.joinToString(";"))
         //必须得加上 referer 才能通过账号身份验证
+        header("referer", "https://www.bilibili.com")
+    }.body()
+
+    /**
+     * 获取课程视频流
+     */
+    suspend fun getCheeseVideoPlayUrl(
+        av: Long,
+        epid: Int,
+        cid: Long,
+        seasonId: Int? = null,
+        qn: Int? = null,
+        fnval: Int? = null,
+        fnver: Int? = null,
+        fourk: Int? = null,
+        sessData: String? = null,
+        dedeUserID: Long? = null,
+        buvid3: String? = null
+    ): BiliResponse<PlayUrlData> = client.get("/pugv/player/web/playurl") {
+        parameter("avid", av)
+        parameter("ep_id", epid)
+        parameter("cid", cid)
+        seasonId?.let { parameter("season_id", it) }
+        qn?.let { parameter("qn", it) }
+        fnval?.let { parameter("fnval", it) }
+        fnver?.let { parameter("fnver", it) }
+        fourk?.let { parameter("fourk", it) }
+        parameter("web_location", "1315873")
+        parameter("gaia_source", "pre-load")
+        parameter("isGaiaAvoided", "true")
+        val cookieParts = mutableListOf<String>()
+        sessData?.let { cookieParts.add("SESSDATA=$it") }
+        dedeUserID?.let { cookieParts.add("DedeUserID=$it") }
+        buvid3?.takeIf { it.isNotBlank() }?.let { cookieParts.add("buvid3=$it") }
+        if (cookieParts.isNotEmpty()) header("Cookie", cookieParts.joinToString(";"))
+        header("env", "prod")
+        header("app-key", "android64")
+        header("x-bili-aurora-zone", "sh001")
+        dedeUserID?.let { header("x-bili-mid", it.toString()) }
         header("referer", "https://www.bilibili.com")
     }.body()
 
@@ -1537,6 +1577,39 @@ object BiliHttpApi {
         parameter("coursor", cursor)
         parameter("new_cursor_status", true)
     }.body()
+
+    suspend fun getPurchasedCoursesRaw(
+        pageNumber: Int = 1,
+        pageSize: Int = 20,
+        sessData: String
+    ): String = client.get("/pugv/pay/web/my/paid") {
+        parameter("pn", pageNumber)
+        parameter("ps", pageSize)
+        header("Cookie", "SESSDATA=$sessData;")
+        header("referer", "https://www.bilibili.com")
+    }.bodyAsText()
+
+    suspend fun getPurchasedCourses(
+        pageNumber: Int = 1,
+        pageSize: Int = 20,
+        sessData: String
+    ): BiliResponse<CheesePaidData> = client.get("/pugv/pay/web/my/paid") {
+        parameter("pn", pageNumber)
+        parameter("ps", pageSize)
+        header("Cookie", "SESSDATA=$sessData;")
+        header("referer", "https://www.bilibili.com")
+    }.body()
+
+    suspend fun getCheeseSeasonRaw(
+        seasonId: Long? = null,
+        epId: Long? = null,
+        sessData: String
+    ): String = client.get("/pugv/view/web/season") {
+        seasonId?.let { parameter("season_id", it) }
+        epId?.let { parameter("ep_id", it) }
+        header("Cookie", "SESSDATA=$sessData;")
+        header("referer", "https://www.bilibili.com")
+    }.bodyAsText()
 
 
     /**

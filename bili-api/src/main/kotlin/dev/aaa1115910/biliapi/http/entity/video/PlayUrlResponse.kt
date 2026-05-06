@@ -282,8 +282,10 @@ data class Durl(
 //TODO
 @Serializable
 data class Dash(
-    val duration: Int,
-    val minBufferTime: Float,
+    val duration: Int = 0,
+    val solution: JsonElement? = null,
+    @SerialName("min_buffer_time")
+    val minBufferTime: Float = 0f,
     val video: List<DashData> = emptyList(),
     val audio: List<DashData>? = null,
     val dolby: DashDolby = DashDolby(),
@@ -298,7 +300,7 @@ data class DashDolby(
 
 @Serializable
 data class DashFlac(
-    val display: Boolean,
+    val display: Boolean = false,
     val audio: DashData? = null
 )
 
@@ -307,6 +309,7 @@ data class DashData(
     val id: Int,
     @SerialName("base_url")
     val baseUrl: String,
+    @SerialName("backup_url")
     val backupUrl: List<String> = emptyList(),
     val bandwidth: Int,
     @SerialName("mime_type")

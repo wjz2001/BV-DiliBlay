@@ -43,6 +43,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
             epid: Int? = null,
             seasonId: Int? = null,
             proxyArea: ProxyArea = ProxyArea.MainLand,
+            fromCheese: Boolean = false,
             author: Author? = null
         ) {
             currentInstance?.finish()
@@ -54,6 +55,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
                     putExtra("partTitle", partTitle)
                     putExtra("played", played)
                     putExtra("fromSeason", fromSeason)
+                    putExtra("fromCheese", fromCheese)
                     putExtra("subType", subType)
                     putExtra("epid", epid)
                     putExtra("seasonId", seasonId)
@@ -179,6 +181,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
             val partTitle = intent.getStringExtra("partTitle").orEmpty()
             val played = intent.getLongExtra("played", 0)
             val fromSeason = intent.getBooleanExtra("fromSeason", false)
+            val fromCheese = intent.getBooleanExtra("fromCheese", false)
             val subType = intent.getIntExtra("subType", 0)
             val epid = intent.getIntExtra("epid", 0)
             val seasonId = intent.getIntExtra("seasonId", 0)
@@ -196,6 +199,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
                 partTitle = partTitle,
                 lastPlayed = played,
                 fromSeason = fromSeason,
+                fromCheese = fromCheese,
                 subType = subType,
                 seasonId = seasonId,
                 proxyArea = proxyArea,

@@ -36,6 +36,7 @@ data class PlayerUiState(
     val videoWidth: Int = 0,
     val lastPlayed: Long = 0L,
     val fromSeason: Boolean = false,
+    val fromCheese: Boolean = false,
     val proxyArea: ProxyArea = ProxyArea.MainLand,
     val subType: Int = 0,
 

@@ -13,6 +13,7 @@ fun launchPlayerActivity(
     partTitle: String,
     played: Long,
     fromSeason: Boolean,
+    fromCheese: Boolean = false,
     subType: Int? = null,
     epid: Int? = null,
     seasonId: Int? = null,
@@ -21,6 +22,6 @@ fun launchPlayerActivity(
 ) {
     VideoPlayerV3Activity.actionStart(
         context, avid, cid, title, partTitle, played, fromSeason, subType, epid, seasonId,
-        proxyArea, author
+        proxyArea, fromCheese, author
     )
 }

@@ -40,6 +40,7 @@ import dev.aaa1115910.bv.screen.search.SearchResultScreen
 import dev.aaa1115910.bv.screen.user.FavoriteScreen
 import dev.aaa1115910.bv.screen.user.FollowingSeasonScreen
 import dev.aaa1115910.bv.screen.user.HistoryScreen
+import dev.aaa1115910.bv.screen.user.MyClassroomScreen
 import dev.aaa1115910.bv.screen.user.ToViewScreen
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.util.Prefs
@@ -54,6 +55,7 @@ import dev.aaa1115910.bv.viewmodel.search.SearchResultViewModel
 import dev.aaa1115910.bv.viewmodel.user.FavoriteViewModel
 import dev.aaa1115910.bv.viewmodel.user.FollowingSeasonViewModel
 import dev.aaa1115910.bv.viewmodel.user.HistoryViewModel
+import dev.aaa1115910.bv.viewmodel.user.MyClassroomViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import org.koin.androidx.compose.koinViewModel
 
@@ -78,6 +80,7 @@ fun HomeContent(
     historyViewModel: HistoryViewModel = koinViewModel(),
     toViewViewModel: ToViewViewModel = koinViewModel(),
     followingSeasonViewModel: FollowingSeasonViewModel = koinViewModel(),
+    myClassroomViewModel: MyClassroomViewModel = koinViewModel(),
     searchInputViewModel: SearchInputViewModel = koinViewModel(),
     searchResultViewModel: SearchResultViewModel = koinViewModel()
 ){
@@ -114,6 +117,7 @@ fun HomeContent(
     val historyGridState = rememberRestoredLazyGridState(homeContentViewModel.viewportOf(HomeTopNavItem.History))
     val favoriteGridState = rememberRestoredLazyGridState(homeContentViewModel.viewportOf(HomeTopNavItem.Favorite))
     val followingSeasonGridState = rememberRestoredLazyGridState(homeContentViewModel.viewportOf(HomeTopNavItem.FollowingSeason))
+    val myClassroomGridState = rememberRestoredLazyGridState(homeContentViewModel.viewportOf(HomeTopNavItem.MyClassroom))
     val activationGuard = remember { TabActivationGuard<HomeTopNavItem>() }
     var topNavReadyTab by remember { mutableStateOf<HomeTopNavItem?>(null) }
 
@@ -175,6 +179,7 @@ fun HomeContent(
     PersistLazyGridViewportEffect(historyGridState) { index, offset -> homeContentViewModel.updateViewport(HomeTopNavItem.History, index, offset) }
     PersistLazyGridViewportEffect(favoriteGridState) { index, offset -> homeContentViewModel.updateViewport(HomeTopNavItem.Favorite, index, offset) }
     PersistLazyGridViewportEffect(followingSeasonGridState) { index, offset -> homeContentViewModel.updateViewport(HomeTopNavItem.FollowingSeason, index, offset) }
+    PersistLazyGridViewportEffect(myClassroomGridState) { index, offset -> homeContentViewModel.updateViewport(HomeTopNavItem.MyClassroom, index, offset) }
 
     fun homeActivationBehaviorOf(tab: HomeTopNavItem): ActivationBehavior = when (tab) {
         HomeTopNavItem.Search,
@@ -184,7 +189,8 @@ fun HomeContent(
         HomeTopNavItem.Popular,
         HomeTopNavItem.History,
         HomeTopNavItem.Favorite,
-        HomeTopNavItem.FollowingSeason -> ActivationBehavior.RefreshAndScrollTop
+        HomeTopNavItem.FollowingSeason,
+        HomeTopNavItem.MyClassroom -> ActivationBehavior.RefreshAndScrollTop
     }
 
     fun homeGridStateOf(tab: HomeTopNavItem): LazyGridState = when (tab) {
@@ -196,6 +202,7 @@ fun HomeContent(
         HomeTopNavItem.History -> historyGridState
         HomeTopNavItem.Favorite -> favoriteGridState
         HomeTopNavItem.FollowingSeason -> followingSeasonGridState
+        HomeTopNavItem.MyClassroom -> myClassroomGridState
     }
 
     fun homeRetryStateOf(tab: HomeTopNavItem): LoadState = when (tab) {
@@ -207,6 +214,7 @@ fun HomeContent(
         HomeTopNavItem.History -> historyViewModel.initialLoadState
         HomeTopNavItem.Favorite -> favouriteViewModel.initialLoadState
         HomeTopNavItem.FollowingSeason -> followingSeasonViewModel.initialLoadState
+        HomeTopNavItem.MyClassroom -> myClassroomViewModel.initialLoadState
     }
 
     fun homeShouldRetry(tab: HomeTopNavItem, state: LoadState?): Boolean {
@@ -221,6 +229,7 @@ fun HomeContent(
             HomeTopNavItem.History -> !historyViewModel.lastFailureWasAuth
             HomeTopNavItem.Favorite -> !favouriteViewModel.lastFailureWasAuth
             HomeTopNavItem.FollowingSeason -> !followingSeasonViewModel.lastFailureWasAuth
+            HomeTopNavItem.MyClassroom -> !myClassroomViewModel.lastFailureWasAuth
         }
     }
 
@@ -234,6 +243,7 @@ fun HomeContent(
             HomeTopNavItem.History -> historyViewModel.ensureLoaded(showErrorToast = false)
             HomeTopNavItem.Favorite -> favouriteViewModel.ensureLoaded()
             HomeTopNavItem.FollowingSeason -> followingSeasonViewModel.ensureLoaded()
+            HomeTopNavItem.MyClassroom -> myClassroomViewModel.ensureLoaded()
         }
     }
 
@@ -250,6 +260,7 @@ fun HomeContent(
             HomeTopNavItem.History -> historyViewModel.reloadAll(showErrorToast = false)
             HomeTopNavItem.Favorite -> favouriteViewModel.reloadAll()
             HomeTopNavItem.FollowingSeason -> followingSeasonViewModel.reloadAll()
+            HomeTopNavItem.MyClassroom -> myClassroomViewModel.reloadAll()
         }
     }
 
@@ -261,7 +272,8 @@ fun HomeContent(
         HomeTopNavItem.Popular,
         HomeTopNavItem.History,
         HomeTopNavItem.Favorite,
-        HomeTopNavItem.FollowingSeason -> true
+        HomeTopNavItem.FollowingSeason,
+        HomeTopNavItem.MyClassroom -> true
     }
 
     fun refreshHomeTabByUser(tab: HomeTopNavItem) {
@@ -355,6 +367,13 @@ fun HomeContent(
                 } else {
                     "加载追番追剧失败"
                 }
+
+            HomeTopNavItem.MyClassroom ->
+                if (myClassroomViewModel.lastFailureWasAuth) {
+                    BVApp.context.getString(R.string.exception_auth_failure)
+                } else {
+                    "加载我的课堂失败"
+                }
         }
 
         message.toast(BVApp.context)
@@ -385,6 +404,7 @@ fun HomeContent(
             toViewViewModel.clearData()
             favouriteViewModel.clearData()
             followingSeasonViewModel.clearData()
+            myClassroomViewModel.clearData()
         }
     }
 
@@ -477,6 +497,9 @@ fun HomeContent(
                 )
                 HomeTopNavItem.FollowingSeason -> FollowingSeasonScreen(
                     lazyGridState = followingSeasonGridState
+                )
+                HomeTopNavItem.MyClassroom -> MyClassroomScreen(
+                    gridState = myClassroomGridState
                 )
             }
         }

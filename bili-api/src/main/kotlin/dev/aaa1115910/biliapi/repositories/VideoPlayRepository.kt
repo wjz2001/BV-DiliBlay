@@ -203,6 +203,34 @@ class VideoPlayRepository(
         }
     }
 
+    suspend fun getCheesePlayData(
+        aid: Long,
+        cid: Long,
+        epid: Int,
+        seasonId: Int? = null,
+        preferApiType: ApiType = ApiType.Web
+    ): PlayData {
+        if (preferApiType == ApiType.App) {
+            println("cheese app play data is not supported, fallback to web: [aid=$aid, cid=$cid, epid=$epid]")
+        }
+
+        val playUrlData = BiliHttpApi.getCheeseVideoPlayUrl(
+            av = aid,
+            cid = cid,
+            epid = epid,
+            seasonId = seasonId,
+            fnval = 4048,
+            qn = 127,
+            fnver = 0,
+            fourk = 1,
+            sessData = authRepository.sessionData,
+            dedeUserID = authRepository.mid,
+            buvid3 = authRepository.buvid3
+        ).getResponseData()
+
+        return PlayData.fromPlayUrlData(playUrlData)
+    }
+
     suspend fun getSubtitle(
         aid: Long,
         cid: Long,

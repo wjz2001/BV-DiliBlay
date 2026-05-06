@@ -17,7 +17,7 @@ data class BiliResponse<T>(
     fun getResponseData(): T {
         when (code) {
             0 -> {}
-            -101 -> throw AuthFailureException(message)
+            -101, -663 -> throw AuthFailureException(message)
             -352 -> throw RiskControlException(message)
             else -> throw IllegalStateException(message)
         }

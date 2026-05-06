@@ -439,6 +439,7 @@ class VideoPlayerV3ViewModel(
         partTitle: String,
         lastPlayed: Long,
         fromSeason: Boolean,
+        fromCheese: Boolean,
         subType: Int,
         seasonId: Int,
         proxyArea: ProxyArea = ProxyArea.MainLand,
@@ -456,6 +457,7 @@ class VideoPlayerV3ViewModel(
                 startupCover = StartupCoverRepository[aid],
                 lastPlayed = lastPlayed,
                 fromSeason = fromSeason,
+                fromCheese = fromCheese,
                 subType = subType,
                 proxyArea = proxyArea,
                 authorMid = authorMid,
@@ -1812,10 +1814,11 @@ class VideoPlayerV3ViewModel(
         }
 
         val effectiveApi = matchedOverride?.apiType ?: preferApi
+        val playbackApi = if (_uiState.value.fromCheese) ApiType.Web else effectiveApi
         val effectivePreferredQualityId = matchedOverride?.preferredQualityId
 
         logger.fInfo {
-            "Load play url:[av=$avid, cid=$cid, preferApi=$preferApi, effectiveApi=$effectiveApi, proxyArea=$proxyArea, generation=$generation]"
+            "Load play url:[av=$avid, cid=$cid, preferApi=$preferApi, effectiveApi=$effectiveApi, playbackApi=$playbackApi, proxyArea=$proxyArea, generation=$generation]"
         }
 
         return try {
@@ -1823,7 +1826,7 @@ class VideoPlayerV3ViewModel(
                 avid = avid,
                 cid = cid,
                 epid = epid,
-                preferApi = effectiveApi,
+                preferApi = playbackApi,
                 proxyArea = proxyArea
             )
 
@@ -1874,7 +1877,7 @@ class VideoPlayerV3ViewModel(
 
             val targetCodec = getTargetVideoCodec(
                 playData = localPlayData,
-                apiType = effectiveApi
+                apiType = playbackApi
             )
 
             if (!isCurrentLoadRequest(generation, avid, cid, epid.takeIf { it != 0 })) {
@@ -1892,11 +1895,11 @@ class VideoPlayerV3ViewModel(
                 }
 
                 playData = localPlayData
-                currentPlayApiType = effectiveApi
+                currentPlayApiType = playbackApi
 
                 playQuality(
                     playData = localPlayData,
-                    apiType = effectiveApi,
+                    apiType = playbackApi,
                     qn = targetQualityId,
                     codec = targetCodec,
                     audio = targetAudio,
@@ -1932,7 +1935,15 @@ class VideoPlayerV3ViewModel(
         preferApi: ApiType,
         proxyArea: ProxyArea
     ): PlayData {
-        return if (_uiState.value.fromSeason) {
+        return if (_uiState.value.fromCheese) {
+            videoPlayRepository.getCheesePlayData(
+                aid = avid,
+                cid = cid,
+                epid = epid,
+                seasonId = _uiState.value.seasonId.takeIf { it != 0 },
+                preferApiType = preferApi
+            )
+        } else if (_uiState.value.fromSeason) {
             videoPlayRepository.getPgcPlayData(
                 aid = avid,
                 cid = cid,
@@ -2309,7 +2320,19 @@ class VideoPlayerV3ViewModel(
             with(uiState) {
                 val currentApiType = Prefs.apiType
 
-                if (!fromSeason) {
+                if (fromCheese) {
+                    logger.info { "Send cheese heartbeat:[avid=$aid, cid=$cid, epid=$epid, sid=$seasonId, time=$time]" }
+                    videoPlayRepository.sendHeartbeat(
+                        aid = aid,
+                        cid = cid,
+                        time = time,
+                        type = HeartbeatVideoType.Course,
+                        subType = subType.takeIf { it != 0 },
+                        epid = epid,
+                        seasonId = seasonId,
+                        preferApiType = ApiType.Web
+                    )
+                } else if (!fromSeason) {
                     logger.info { "Send heartbeat:[avid=$aid, cid=$cid, time=$time]" }
                     videoPlayRepository.sendHeartbeat(
                         aid = aid,

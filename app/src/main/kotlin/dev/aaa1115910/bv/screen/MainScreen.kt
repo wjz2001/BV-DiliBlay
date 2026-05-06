@@ -466,6 +466,14 @@ fun MainScreen(
             )
         }
 
+        fun openUserPage() {
+            if (userViewModel.isLogin) {
+                context.startActivity(Intent(context, UserSwitchActivity::class.java))
+            } else {
+                context.startActivity(Intent(context, LoginActivity::class.java))
+            }
+        }
+
         LeftNaviUserButton(
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -474,13 +482,16 @@ fun MainScreen(
                     val overShootX = maxOf(0f, drawerX).roundToInt()
                     IntOffset(x = overShootX, y = 0)
                 }
-                .size(MainChromeDefaults.Size)
                 .zIndex(3f),
             isLogin = userViewModel.isLogin,
             avatar = userViewModel.face,
+            userName = userViewModel.username,
             focusRequester = userFocusRequester,
             isFocused = userIsFocused,
-            onFocusChanged = { userIsFocused = it },
+            onFocusChanged = {
+                userIsFocused = it
+                if (!it) userLongPressTriggered = false
+            },
             onPreviewKeyEvent = { keyEvent ->
                 val isConfirmKey = keyEvent.key == Key.DirectionCenter ||
                         keyEvent.key == Key.Enter ||
@@ -492,19 +503,20 @@ fun MainScreen(
                             keyEvent.nativeKeyEvent.isLongPress -> {
                         if (!userLongPressTriggered) {
                             userLongPressTriggered = true
-                            if (leftNaviExpanded) {
-                                collapseLeftNavi()
-                            } else {
-                                expandLeftNavi()
-                            }
+                            openUserPage()
                         }
                         true
                     }
 
                     isConfirmKey &&
-                            keyEvent.type == KeyEventType.KeyUp &&
-                            userLongPressTriggered -> {
-                        userLongPressTriggered = false
+                            keyEvent.type == KeyEventType.KeyUp -> {
+                        if (userLongPressTriggered) {
+                            // 这是长按后的抬起：不要再触发短按逻辑
+                            userLongPressTriggered = false
+                        } else {
+                            // 短按：切换抽屉
+                            if (leftNaviExpanded) collapseLeftNavi() else expandLeftNavi()
+                        }
                         true
                     }
 
@@ -541,13 +553,7 @@ fun MainScreen(
                     else -> false
                 }
             },
-            onClick = {
-                if (userViewModel.isLogin) {
-                    context.startActivity(Intent(context, UserSwitchActivity::class.java))
-                } else {
-                    context.startActivity(Intent(context, LoginActivity::class.java))
-                }
-            }
+            onClick = { if (leftNaviExpanded) collapseLeftNavi() else expandLeftNavi() }
         )
     }
 }

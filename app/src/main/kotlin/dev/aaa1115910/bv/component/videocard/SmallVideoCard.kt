@@ -130,6 +130,8 @@ fun SmallVideoCard(
     pendingRemoval: Boolean = false,
     onPendingRemovalFocusLost: (() -> Unit)? = null,
     interactive: Boolean = true,
+    classroomDirectUpNavigation: Boolean = false,
+    upButtonOnly: Boolean = false,
     focusedScale: Float = 1.1f,
     coverDensityMultiplier: Float = 1.5f,
     coverFontScaleMultiplier: Float = 1.5f,
@@ -147,6 +149,8 @@ fun SmallVideoCard(
         pendingRemoval = pendingRemoval,
         onPendingRemovalFocusLost = onPendingRemovalFocusLost,
         interactive = interactive,
+        classroomDirectUpNavigation = classroomDirectUpNavigation,
+        upButtonOnly = upButtonOnly,
         focusedScale = focusedScale,
         coverDensityMultiplier = coverDensityMultiplier,
         coverFontScaleMultiplier = coverFontScaleMultiplier,
@@ -167,6 +171,8 @@ private fun SmallVideoCardCore(
     pendingRemoval: Boolean = false,
     onPendingRemovalFocusLost: (() -> Unit)? = null,
     interactive: Boolean = true,
+    classroomDirectUpNavigation: Boolean = false,
+    upButtonOnly: Boolean = false,
     focusedScale: Float = 1.1f,
     coverDensityMultiplier: Float = 1.5f,
     coverFontScaleMultiplier: Float = 1.5f,
@@ -201,6 +207,9 @@ private fun SmallVideoCardCore(
     val canHistory = hostUiState.capabilities.canHistory
     val isPrivateFlavor = BuildConfig.IS_PRIVATE
     val canOpenVideoInfo = !isPrivateFlavor
+    val canUseHistory = canHistory && !upButtonOnly
+    val canUseFavorite = canFavorite && !upButtonOnly
+    val canUseWatchLater = canWatchLater && !upButtonOnly
 
     val isFavorite = itemUiState.isFavorite
     val hasMultipleCoAuthors = itemUiState.hasMultipleCoAuthors
@@ -239,10 +248,10 @@ private fun SmallVideoCardCore(
 
     fun requestDefaultActionFocus() {
         val target = when {
-            canHistory -> historyButtonRequester
-            canFavorite -> favoriteButtonRequester
+            canUseHistory -> historyButtonRequester
+            canUseFavorite -> favoriteButtonRequester
             canGoToUpPage -> upButtonRequester
-            canWatchLater -> watchLaterButtonRequester
+            canUseWatchLater -> watchLaterButtonRequester
             else -> null
         }
         target?.requestFocus(scope)
@@ -261,7 +270,7 @@ private fun SmallVideoCardCore(
 
             hostVm?.onActionsShown(
                 aid = data.avid,
-                canGoToUpPage = canGoToUpPage
+                canGoToUpPage = canGoToUpPage && !classroomDirectUpNavigation
             )
         } else {
             releaseLongPress = false
@@ -321,11 +330,11 @@ private fun SmallVideoCardCore(
                     upButtonRequester = upButtonRequester,
                     watchLaterButtonRequester = watchLaterButtonRequester,
                     isPrivateFlavor = isPrivateFlavor,
-                    canHistory = canHistory,
-                    canFavorite = canFavorite,
+                    canHistory = canUseHistory,
+                    canFavorite = canUseFavorite,
                     canGoToUpPage = canGoToUpPage,
-                    canWatchLater = canWatchLater && !pendingRemoval,
-                    canOpenVideoInfo = canOpenVideoInfo,
+                    canWatchLater = canUseWatchLater && !pendingRemoval,
+                    canOpenVideoInfo = canOpenVideoInfo && !upButtonOnly,
                     isFavorite = isFavorite,
                     hasMultipleCoAuthors = hasMultipleCoAuthors,
                     onBack = {
@@ -339,7 +348,7 @@ private fun SmallVideoCardCore(
                             releaseLongPress = true
                             return@BvSmallVideoCardActions
                         }
-                        if (!canHistory) return@BvSmallVideoCardActions
+                        if (!canUseHistory) return@BvSmallVideoCardActions
                         hostVm?.reportHistory(data.avid)
                     },
                     onInfoClick = {
@@ -355,7 +364,7 @@ private fun SmallVideoCardCore(
                             releaseLongPress = true
                             return@BvSmallVideoCardActions
                         }
-                        if (!canFavorite) return@BvSmallVideoCardActions
+                        if (!canUseFavorite) return@BvSmallVideoCardActions
                         hostVm?.openFavoriteDialog(data.avid)
                     },
                     onUpClick = {
@@ -365,7 +374,7 @@ private fun SmallVideoCardCore(
                         }
                         if (!canGoToUpPage) return@BvSmallVideoCardActions
 
-                        if (isHostMode) {
+                        if (isHostMode && !classroomDirectUpNavigation) {
                             val fallbackMid = data.upMid
                             val fallbackName = data.upName
 
@@ -545,7 +554,7 @@ private fun BvSmallVideoCardActions(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(C.surface)
+                .background(C.surfaceVariant)
         ) {
             Row(
                 modifier = Modifier
@@ -661,6 +670,7 @@ private fun BvActionIconButton(
 ) {
     IconButton(
         modifier = modifier
+            .focusProperties { canFocus = canClick }
             .size(ActionButtonSize)
             .aspectRatio(1f),
         enabled = canClick,
