@@ -285,6 +285,7 @@ fun filterChipBorder(
  * - dismissOrder: 关闭与提交的顺序
  * - onToggle: 点击某个 item 后怎么修改 selectedIds
  *   默认是普通多选；如果业务有特殊规则，可自定义
+ * - maxSelectedCount: 最多可选数量；达到上限后，未选中的 chip 会被禁用
  */
 @Composable
 private fun <T, ID> SimpleMultiSelectDialog(
@@ -299,6 +300,7 @@ private fun <T, ID> SimpleMultiSelectDialog(
     submitMode: SubmitMode,
     dismissOrder: DismissOrder = DismissOrder.SubmitThenHide,
     itemEnabled: (T) -> Boolean = { true },
+    maxSelectedCount: Int? = null,
     onToggle: SnapshotStateList<ID>.(id: ID, selected: Boolean, item: T) -> Unit = { id, selected, _ ->
         if (selected) remove(id) else add(id)
     },
@@ -307,10 +309,14 @@ private fun <T, ID> SimpleMultiSelectDialog(
     // 弹框内部维护一份“临时选中状态”
     // 注意：这份状态只存在于 dialog 内部
     val selectedIds = remember { mutableStateListOf<ID>() }
+    val isMaxSelectedCountReached = maxSelectedCount != null && selectedIds.size >= maxSelectedCount
 
     // 默认给第一个 item 聚焦，适合 TV 场景
     val defaultFocusRequester = remember { FocusRequester() }
-    val defaultFocusItemKey = items.firstOrNull { itemEnabled(it) }?.let(itemId)
+    val defaultFocusItemKey = items.firstOrNull { item ->
+        val id = itemId(item)
+        itemEnabled(item) && (!isMaxSelectedCountReached || selectedIds.contains(id))
+    }?.let(itemId)
     val didDefaultItemReceiveFocus = remember { mutableStateOf(false) }
 
     LaunchedEffect(show, defaultFocusItemKey) {
@@ -362,7 +368,8 @@ private fun <T, ID> SimpleMultiSelectDialog(
         items.forEach { item ->
             val id = itemId(item)
             val selected = selectedIds.contains(id)
-            val enabled = itemEnabled(item)
+            val reachedMaxSelectedCount = isMaxSelectedCountReached && !selected
+            val enabled = itemEnabled(item) && !reachedMaxSelectedCount
             val isDefaultFocusItem = id == defaultFocusItemKey
 
             val itemModifier = if (isDefaultFocusItem) {
@@ -568,6 +575,51 @@ internal fun BlockGroupSelectDialog(
         onSubmit = { ids -> onSubmit(ids.distinct().sorted()) },
         submitMode = SubmitMode.OnDismiss,
         dismissOrder = DismissOrder.SubmitThenHide
+    ) { tag ->
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = tag.name)
+            Text(text = "${tag.count}")
+        }
+    }
+}
+
+/**
+ * 限制最大选择数量的分组多选框：dismiss 时统一提交。
+ *
+ * 达到 maxSelectedCount 后：
+ * - 已选中的 chip 仍可取消
+ * - 未选中的 chip 会被禁用，不能继续选择
+ */
+@Composable
+internal fun LimitedBlockTagSelectDialog(
+    modifier: Modifier = Modifier,
+    show: Boolean,
+    title: String,
+    tags: List<BlockTagItem>,
+    initialSelectedTagIds: List<Int>,
+    maxSelectedCount: Int,
+    onHideDialog: () -> Unit,
+    onSubmit: (selectedTagIds: List<Int>) -> Unit
+) {
+    require(maxSelectedCount < tags.size) {
+        "maxSelectedCount must be less than tags size"
+    }
+
+    SimpleMultiSelectDialog(
+        modifier = modifier,
+        show = show,
+        title = title,
+        items = tags,
+        initialSelectedIds = initialSelectedTagIds.distinct(),
+        itemId = { it.tagid },
+        onHideDialog = onHideDialog,
+        onSubmit = { ids -> onSubmit(ids.distinct().sorted()) },
+        submitMode = SubmitMode.OnDismiss,
+        dismissOrder = DismissOrder.SubmitThenHide,
+        maxSelectedCount = maxSelectedCount
     ) { tag ->
         Row(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
