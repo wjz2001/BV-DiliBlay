@@ -133,16 +133,19 @@ private enum class SettingsMenuNavItem(private val strRes: Int) {
     Storage(R.string.settings_item_storage),
     Network(R.string.settings_item_network),
     Info(R.string.settings_item_info),
-    About(R.string.settings_app_version);
+    About(R.string.settings_item_about);
 
     fun getDisplayName(context: Context) = context.getString(strRes)
 }
+
+private const val AppVersionEntryId = "app_version"
 
 private data class SettingsEntry(
     val id: String,
     val title: String,
     val supportText: String,
     val canFocusDetail: Boolean = true,
+    val autoScrollableDetail: Boolean = true,
     val showSupportTextInItem: Boolean = true,
     val detailKeyEvent: ((KeyEvent) -> Boolean)? = null,
     val itemContent: @Composable (
@@ -190,12 +193,10 @@ private fun SettingsMotionHost(
 ) {
     val gallery_scrim_max_alpha = 0.65f
     var currentCategory by remember { mutableStateOf(SettingsMenuNavItem.AudioVideo) }
-    var lastContentCategory by remember { mutableStateOf(currentCategory) }
-    val displayCategory = if (currentCategory == SettingsMenuNavItem.About) {
-        lastContentCategory
-    } else {
-        currentCategory
-    }
+    var appVersionGalleryActive by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val motion = remember(scope) { SettingsMotionController(scope) }
+    val displayCategory = currentCategory
     val currentItems = settingsEntries(displayCategory)
     var currentItemId by remember(displayCategory) {
         mutableStateOf(currentItems.firstOrNull()?.id.orEmpty())
@@ -208,9 +209,19 @@ private fun SettingsMotionHost(
     } else {
         null
     }
+    var lastDetailItemId by remember(displayCategory) {
+        mutableStateOf(currentItems.firstOrNull()?.id.orEmpty())
+    }
+    val currentDetailItem = if (
+        currentCategory == SettingsMenuNavItem.About &&
+        currentItemId == AppVersionEntryId
+    ) {
+        currentItems.firstOrNull { it.id == lastDetailItemId }
+            ?: currentItems.firstOrNull()
+    } else {
+        currentItem
+    }
     var focusColumn by remember { mutableStateOf(SettingsColumn.Category) }
-    val scope = rememberCoroutineScope()
-    val motion = remember(scope) { SettingsMotionController(scope) }
     var galleryImageRes by remember { mutableIntStateOf(R.drawable.versionbadge) }
 
     LaunchedEffect(currentCategory, currentItems.size) {
@@ -219,14 +230,8 @@ private fun SettingsMotionHost(
         }
     }
 
-    LaunchedEffect(currentCategory) {
-        if (currentCategory != SettingsMenuNavItem.About) {
-            lastContentCategory = currentCategory
-        }
-    }
-
-    LaunchedEffect(currentCategory) {
-        if (currentCategory == SettingsMenuNavItem.About) {
+    LaunchedEffect(appVersionGalleryActive) {
+        if (appVersionGalleryActive) {
             // 稍作延迟等待UI稳定后触发进场
             delay(100)
             motion.enterGallery()
@@ -250,6 +255,7 @@ private fun SettingsMotionHost(
                 if (motion.locked) return@onPreviewKeyEvent true
                 if (event.key == Key.Back && motion.inGallery) {
                     motion.exitGallery(activity)
+                    appVersionGalleryActive = false
                     return@onPreviewKeyEvent true
                 }
                 false
@@ -259,7 +265,7 @@ private fun SettingsMotionHost(
 
         // 只在 About/过渡期间显示底图层，避免平时浪费绘制
         val showGalleryLayer =
-            currentCategory == SettingsMenuNavItem.About || motion.inGallery || motion.locked
+            appVersionGalleryActive || motion.inGallery || motion.locked
 
         // ======= 底图层：始终“在底下”，不滑入，只负责承接“露出来” =======
         Box(
@@ -338,6 +344,7 @@ private fun SettingsMotionHost(
                     currentCategory = currentCategory,
                     currentItems = currentItems,
                     currentItem = currentItem,
+                    currentDetailItem = currentDetailItem,
                     focusColumn = focusColumn,
                     contentActivated = contentActivated,
                     onContentActivated = {
@@ -346,11 +353,17 @@ private fun SettingsMotionHost(
                     },
                     onCategoryFocused = { category ->
                         currentCategory = category
-                        if (category != SettingsMenuNavItem.About) currentItemId = ""
+                        appVersionGalleryActive = false
+                        currentItemId = ""
                         focusColumn = SettingsColumn.Category
                     },
                     onItemFocused = { item ->
+                        if (item.id != AppVersionEntryId) {
+                            lastDetailItemId = item.id
+                        }
                         currentItemId = item.id
+                        appVersionGalleryActive =
+                            currentCategory == SettingsMenuNavItem.About && item.id == AppVersionEntryId
                         focusColumn = SettingsColumn.Item
                     },
                     onDetailFocused = {
@@ -370,6 +383,7 @@ private fun SettingsColumns(
     currentCategory: SettingsMenuNavItem,
     currentItems: List<SettingsEntry>,
     currentItem: SettingsEntry?,
+    currentDetailItem: SettingsEntry?,
     focusColumn: SettingsColumn,
     contentActivated: Boolean,
     onContentActivated: () -> Unit,
@@ -414,7 +428,7 @@ private fun SettingsColumns(
                 onItemFocused = onItemFocused,
                 onLeft = { categoryFocusRequester.requestFocus(scope) },
                 onRight = {
-                    if (currentItem?.canFocusDetail == true) {
+                    if (currentItem?.canRequestDetailFocus() == true) {
                         onDetailFocused()
                         detailFocusRequester.requestFocus(scope)
                     }
@@ -422,11 +436,11 @@ private fun SettingsColumns(
             )
         },
         detailColumn = { columnModifier ->
-            if (currentItem != null) {
+            if (currentDetailItem != null) {
                 SettingsDetailColumn(
                     modifier = columnModifier,
                     focusRequester = detailFocusRequester,
-                    item = currentItem,
+                    item = currentDetailItem,
                     focused = focusColumn == SettingsColumn.Detail,
                     onFocused = onDetailFocused,
                     onLeft = { itemFocusRequester.requestFocus(scope) }
@@ -566,7 +580,7 @@ private fun SettingsItemColumn(
                     }
 
                     Key.DirectionRight -> {
-                        if (it.type == KeyEventType.KeyDown && selectedItem?.canFocusDetail == true) {
+                        if (it.type == KeyEventType.KeyDown && selectedItem?.canRequestDetailFocus() == true) {
                             onRight()
                         }
                         selectedItem != null
@@ -576,7 +590,7 @@ private fun SettingsItemColumn(
                 }
             },
         contentPadding = PaddingValues(vertical = 8.dp),
-        verticalArrangement = Arrangement.SpaceEvenly
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items.forEachIndexed { index, item ->
             val selected = item.id == selectedItem?.id
@@ -609,7 +623,7 @@ private fun SettingsItemColumn(
                         }
 
                         Key.DirectionRight -> {
-                            if (it.type == KeyEventType.KeyDown && item.canFocusDetail) {
+                            if (it.type == KeyEventType.KeyDown && item.canRequestDetailFocus()) {
                                 onRight()
                             }
                             true
@@ -657,11 +671,20 @@ private fun SettingsDetailColumn(
     onFocused: () -> Unit,
     onLeft: () -> Unit
 ) {
+    val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+    val scrollStep = with(LocalDensity.current) { 72.dp.toPx() }
+    val useAutoScroll = item.autoScrollableDetail && item.detailKeyEvent == null
+    val hasAutoScrollOverflow by remember(useAutoScroll) {
+        derivedStateOf { useAutoScroll && scrollState.maxValue > 0 }
+    }
+    val canFocusDetail = item.canFocusDetail || useAutoScroll
+
     Column(
         modifier = modifier
             .padding(24.dp)
             .then(
-                if (item.canFocusDetail) {
+                if (canFocusDetail) {
                     Modifier
                         .focusProperties {
                             onExit = {
@@ -685,8 +708,34 @@ private fun SettingsDetailColumn(
                             if (it.hasFocus) onFocused()
                         }
                         .onPreviewKeyEvent {
-                            item.detailKeyEvent?.invoke(it) == true
+                            when {
+                                item.detailKeyEvent?.invoke(it) == true -> true
+                                useAutoScroll && hasAutoScrollOverflow && it.type == KeyEventType.KeyDown -> {
+                                    when (it.key) {
+                                        Key.DirectionUp -> {
+                                            coroutineScope.launch { scrollState.animateScrollBy(-scrollStep) }
+                                            true
+                                        }
+
+                                        Key.DirectionDown -> {
+                                            coroutineScope.launch { scrollState.animateScrollBy(scrollStep) }
+                                            true
+                                        }
+
+                                        else -> false
+                                    }
+                                }
+
+                                else -> false
+                            }
                         }
+                } else {
+                    Modifier
+                }
+            )
+            .then(
+                if (useAutoScroll) {
+                    Modifier.verticalScroll(scrollState)
                 } else {
                     Modifier
                 }
@@ -696,6 +745,8 @@ private fun SettingsDetailColumn(
         item.detailContent(focused)
     }
 }
+
+private fun SettingsEntry.canRequestDetailFocus() = canFocusDetail || autoScrollableDetail
 
 @Composable
 private fun SettingsListItem(
@@ -800,9 +851,42 @@ private fun settingsEntries(category: SettingsMenuNavItem): List<SettingsEntry> 
         SettingsMenuNavItem.Network -> networkSettingsEntries()
         SettingsMenuNavItem.Storage -> storageSettingsEntries()
         SettingsMenuNavItem.Info -> infoSettingsEntries()
-        SettingsMenuNavItem.About -> emptyList()
+        SettingsMenuNavItem.About -> aboutSettingsEntries()
         SettingsMenuNavItem.Block -> blockSettingsEntries()
     }
+}
+
+@Composable
+private fun aboutSettingsEntries(): List<SettingsEntry> {
+    return listOf(
+        textEntry(
+            id = "thanks",
+            title = stringResource(R.string.settings_about_thanks),
+            supportText = "项目与贡献者",
+            text = settingsThanksText()
+        ),
+        SettingsEntry(
+            id = AppVersionEntryId,
+            title = stringResource(R.string.settings_app_version),
+            supportText = "",
+            canFocusDetail = false,
+            autoScrollableDetail = false,
+            showSupportTextInItem = false,
+            detailContent = {}
+        )
+    )
+}
+@Composable
+private fun settingsThanksText(): String {
+    return """
+        鸣谢：
+        哔哩哔哩电视版1.66
+        https://github.com/aaa1115910/bv
+        https://github.com/Frost819/bv
+        https://github.com/fantasytyx/bv
+        https://github.com/bggRGjQaUbCoE/PiliPlus
+        https://github.com/open-ani/animeko
+    """.trimIndent()
 }
 
 @Suppress("UNUSED_VARIABLE", "UNUSED_VALUE", "ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
@@ -1454,6 +1538,7 @@ private fun <T> radioEntry(
     id = id,
     title = title,
     supportText = supportText,
+    autoScrollableDetail = false,
     detailContent = { focused ->
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -1585,6 +1670,7 @@ private fun customEntry(
     id = id,
     title = title,
     supportText = supportText,
+    autoScrollableDetail = false,
     detailContent = detailContent
 )
 
