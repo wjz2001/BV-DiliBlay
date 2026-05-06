@@ -68,7 +68,7 @@ import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.MainTopBarContainer
 import dev.aaa1115910.bv.component.MainTopTabDefaults
-import dev.aaa1115910.bv.component.MainTopTabIndicator
+import dev.aaa1115910.bv.component.mainTopTabIndicator
 import dev.aaa1115910.bv.component.MainTopTabSeparator
 import dev.aaa1115910.bv.component.RadioMenuSelectDialog
 import dev.aaa1115910.bv.component.ifElse
@@ -292,7 +292,7 @@ fun ToViewScreen(
                     .focusRestorer(defaultFocusRequester),
                 selectedTabIndex = selectedTabIndex,
                 separator = { MainTopTabSeparator() },
-                indicator = MainTopTabIndicator(selectedTabIndex)
+                indicator = mainTopTabIndicator(selectedTabIndex)
             ) {
                 tabTitles.forEachIndexed { index, title ->
                     var longPressTriggered by remember(index) { mutableStateOf(false) }

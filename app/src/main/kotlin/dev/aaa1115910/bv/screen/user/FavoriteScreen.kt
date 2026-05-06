@@ -70,7 +70,7 @@ import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.MainTopBarContainer
 import dev.aaa1115910.bv.component.MainTopTabDefaults
-import dev.aaa1115910.bv.component.MainTopTabIndicator
+import dev.aaa1115910.bv.component.mainTopTabIndicator
 import dev.aaa1115910.bv.component.MainTopTabSeparator
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.mainTopTabColors
@@ -495,7 +495,7 @@ fun FavoriteScreen(
                         .focusRestorer(defaultFocusRequester),
                     selectedTabIndex = currentTabIndex,
                     separator = { MainTopTabSeparator() },
-                    indicator = MainTopTabIndicator(currentTabIndex),
+                    indicator = mainTopTabIndicator(currentTabIndex),
                 ) {
                 folderList.forEachIndexed { index, folderMetadata ->
                     val folderId = folderMetadata.id

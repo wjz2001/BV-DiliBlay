@@ -1,6 +1,11 @@
 package dev.aaa1115910.bv.component
 
 import android.content.Context
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -32,15 +37,14 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Tab
 import androidx.tv.material3.TabRow
-import androidx.tv.material3.TabRowDefaults
 import androidx.tv.material3.TabRowScope
-import androidx.tv.material3.TabDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
 import dev.aaa1115910.biliapi.entity.ugc.UgcType
@@ -55,6 +59,7 @@ fun TopNav(
     defaultFocusRequester: FocusRequester? = null,
     onDefaultFocusReady: (() -> Unit)? = null,
     isHistorySearching: Boolean = false,
+    focusedLeadingIcon: ((TopNavItem) -> ImageVector?)? = null,
     onTabConfirmLongPress: ((TopNavItem) -> Boolean)? = null,
     onLeftBoundaryExit: (() -> Unit)? = null,
     onRightBoundaryExit: (() -> Unit)? = null,
@@ -83,59 +88,50 @@ fun TopNav(
         }
     }
 
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(MainChromeDefaults.Size)
-            .padding(12.dp, MainChromeDefaults.TopNavVerticalPadding),
-        horizontalArrangement = Arrangement.Center
-    ) {
-        TabRow(
-            modifier = Modifier.focusRestorer(entryFocusRequester),
-            selectedTabIndex = selectedTabIndex,
-            separator = { Spacer(modifier = Modifier.width(12.dp)) },
-            indicator = { tabPositions, doesTabRowHaveFocus ->
-                tabPositions.getOrNull(selectedTabIndex)?.let { currentTabPosition ->
-                    TabRowDefaults.PillIndicator(
-                        currentTabPosition = currentTabPosition,
-                        doesTabRowHaveFocus = doesTabRowHaveFocus,
-                        activeColor = MaterialTheme.colorScheme.primary,
-                        inactiveColor = MaterialTheme.colorScheme.primaryContainer
+    MainTopBarContainer(modifier = modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            TabRow(
+                modifier = Modifier.focusRestorer(entryFocusRequester),
+                selectedTabIndex = selectedTabIndex,
+                separator = { MainTopTabSeparator() },
+                indicator = mainTopTabIndicator(selectedTabIndex)
+            ) {
+                items.forEachIndexed { index, tab ->
+                    val isHistoryTab = tab is HomeTopNavItem && tab == HomeTopNavItem.History
+
+                    NavItemTab(
+                        modifier = Modifier.ifElse(
+                            index == focusTargetIndex,
+                            Modifier
+                                .focusRequester(entryFocusRequester)
+                                .onGloballyPositioned {
+                                    if (!defaultFocusReadyNotified) {
+                                        defaultFocusReadyNotified = true
+                                        onDefaultFocusReady?.invoke()
+                                    }
+                                }
+                        ),
+                        topNavItem = tab,
+                        selected = index == selectedTabIndex,
+                        showHistorySearchIcon = isHistoryTab && isHistorySearching,
+                        focusedLeadingIcon = focusedLeadingIcon?.invoke(tab),
+                        onTabConfirmLongPress = onTabConfirmLongPress?.let { callback ->
+                            { callback(tab) }
+                        },
+                        onLeftBoundaryExit = onLeftBoundaryExit.takeIf { index == 0 },
+                        onRightBoundaryExit = onRightBoundaryExit.takeIf { index == items.lastIndex },
+                        onFocus = {
+                            if (selectedTabIndex != index) {
+                                selectedTabIndex = index
+                                onSelectedChanged(tab)
+                            }
+                        },
+                        onClick = { onClick(tab) }
                     )
                 }
-            },
-        ) {
-            items.forEachIndexed { index, tab ->
-                val isHistoryTab = tab is HomeTopNavItem && tab == HomeTopNavItem.History
-
-                NavItemTab(
-                    modifier = Modifier.ifElse(
-                        index == focusTargetIndex,
-                        Modifier
-                            .focusRequester(entryFocusRequester)
-                            .onGloballyPositioned {
-                                if (!defaultFocusReadyNotified) {
-                                    defaultFocusReadyNotified = true
-                                    onDefaultFocusReady?.invoke()
-                                }
-                            }
-                    ),
-                    topNavItem = tab,
-                    selected = index == selectedTabIndex,
-                    showHistorySearchIcon = isHistoryTab && isHistorySearching,
-                    onTabConfirmLongPress = onTabConfirmLongPress?.let { callback ->
-                        { callback(tab) }
-                    },
-                    onLeftBoundaryExit = onLeftBoundaryExit.takeIf { index == 0 },
-                    onRightBoundaryExit = onRightBoundaryExit.takeIf { index == items.lastIndex },
-                    onFocus = {
-                        if (selectedTabIndex != index) {
-                            selectedTabIndex = index
-                            onSelectedChanged(tab)
-                        }
-                    },
-                    onClick = { onClick(tab) }
-                )
             }
         }
     }
@@ -147,6 +143,7 @@ private fun TabRowScope.NavItemTab(
     topNavItem: TopNavItem,
     selected: Boolean,
     showHistorySearchIcon: Boolean = false,
+    focusedLeadingIcon: ImageVector? = null,
     onTabConfirmLongPress: (() -> Boolean)? = null,
     onLeftBoundaryExit: (() -> Unit)? = null,
     onRightBoundaryExit: (() -> Unit)? = null,
@@ -161,13 +158,7 @@ private fun TabRowScope.NavItemTab(
     var confirmLongPressTriggered by remember(topNavItem) { mutableStateOf(false) }
 
     Tab(
-        colors = TabDefaults.pillIndicatorTabColors(
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            inactiveContentColor = MaterialTheme.colorScheme.onSurface,
-            selectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            focusedContentColor = MaterialTheme.colorScheme.onPrimary,
-            focusedSelectedContentColor = MaterialTheme.colorScheme.onPrimary
-        ),
+        colors = mainTopTabColors(),
         modifier = modifier.onPreviewKeyEvent { event ->
             val isDirectionLeft = event.key == Key.DirectionLeft
             val isDirectionRight = event.key == Key.DirectionRight
@@ -228,11 +219,11 @@ private fun TabRowScope.NavItemTab(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(MainChromeDefaults.TopNavTabHeight),
+                    .height(MainTopTabDefaults.TabContentHeight),
                 contentAlignment = Alignment.Center
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(MainTopTabDefaults.TabContentPadding),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
@@ -249,14 +240,36 @@ private fun TabRowScope.NavItemTab(
                 }
             }
         } else {
-            Text(
+            Box(
                 modifier = Modifier
-                    .height(MainChromeDefaults.TopNavTabHeight)
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                text = topNavItem.getDisplayName(context),
-                color = LocalContentColor.current,
-                style = MaterialTheme.typography.labelLarge
-            )
+                    .height(MainTopTabDefaults.TabContentHeight)
+                    .padding(MainTopTabDefaults.TabContentPadding),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AnimatedVisibility(
+                        visible = selected && focusedLeadingIcon != null,
+                        enter = expandHorizontally() + fadeIn(),
+                        exit = shrinkHorizontally() + fadeOut()
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                modifier = Modifier.size(filterIconSizeDp),
+                                imageVector = focusedLeadingIcon ?: Icons.Rounded.FilterList,
+                                contentDescription = null
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                        }
+                    }
+                    Text(
+                        text = topNavItem.getDisplayName(context),
+                        color = LocalContentColor.current,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+            }
         }
     }
 }
