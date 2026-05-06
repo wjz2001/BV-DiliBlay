@@ -16,7 +16,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -44,10 +46,14 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.OutlinedButton
+import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.settings.SettingsActivity
 import dev.aaa1115910.bv.activities.user.LoginActivity
@@ -140,6 +146,7 @@ fun MainScreen(
     var drawerX by remember { mutableFloatStateOf(0f) }
     var showContentScrim by remember { mutableStateOf(false) }
     var showLeftNaviContent by remember { mutableStateOf(false) }
+    var showFirstLaunchMainDialog by remember { mutableStateOf(Prefs.showFirstLaunchMainDialog) }
     var userIsFocused by remember { mutableStateOf(false) }
     var userLongPressTriggered by remember { mutableStateOf(false) }
     val scrimAlpha by animateFloatAsState(
@@ -554,5 +561,37 @@ fun MainScreen(
             },
             onClick = { if (leftNaviExpanded) collapseLeftNavi() else expandLeftNavi() }
         )
+
+        if (showFirstLaunchMainDialog) {
+            val closeFirstLaunchMainDialog = {
+                showFirstLaunchMainDialog = false
+                Prefs.showFirstLaunchMainDialog = false
+            }
+
+            CompositionLocalProvider(
+                LocalDensity provides Density(
+                    density = LocalDensity.current.density * 1.5f,
+                    fontScale = LocalDensity.current.fontScale * 1.5f
+                )
+            ) {
+                AlertDialog(
+                    onDismissRequest = closeFirstLaunchMainDialog,
+                    title = {
+                        Text(text = "温馨提示")
+                    },
+                    text = {
+                        Text(
+                            text = """
+                            1.点击左上角头像按钮有惊喜（如果你已经登录了的话）；
+                            2.常来设置这里看看；
+                            3.某些地方长按会有不一样的东西出现；
+                            4.■■■■亡■■■■■■■■否■■■■要■■■■■。
+                        """.trimIndent()
+                        )
+                    },
+                    confirmButton = {}
+                )
+            }
+        }
     }
 }
