@@ -38,13 +38,13 @@ class VideoMetricsFacadeImpl(
             bv = bvid,
             sessData = sessionData ?: ""
         ).getResponseData()
-        val isVipVideo = fetchVipVideoFlag(
+        val playbackAccessFlags = fetchPlaybackAccessFlags(
             view = detail.view,
             sessionData = sessionData,
             dedeUserId = authRepository.mid,
             buvid3 = authRepository.buvid3
         )
-        CanonicalStatMapper.fromWebDetail(detail).withResolvedAccessFlags(isVipVideo)
+        CanonicalStatMapper.fromWebDetail(detail).withResolvedAccessFlags(playbackAccessFlags)
     }
     private var config: VideoMetricsFacadeConfig = VideoMetricsFacadeConfig()
     private var timeProvider: () -> Long = System::currentTimeMillis
@@ -516,16 +516,21 @@ class VideoMetricsFacadeImpl(
         inFlightLoads.entries.removeAll { it.value === deferred }
     }
 
-    private suspend fun fetchVipVideoFlag(
+    private suspend fun fetchPlaybackAccessFlags(
         view: VideoInfo,
         sessionData: String?,
         dedeUserId: Long?,
         buvid3: String?
-    ): Boolean? {
-        val cid = view.cid.takeIf { it > 0L } ?: return null
-        val playUrlData = runCatching {
+    ): VideoAccessClassifier.PlaybackAccessFlags {
+        val unknownFlags = VideoAccessClassifier.PlaybackAccessFlags(
+            source = VideoAccessClassifier.PlaybackAccessSource.UNKNOWN,
+            isVipVideo = null,
+            hasPaid = null
+        )
+        val cid = view.cid.takeIf { it > 0L } ?: return unknownFlags
+        return runCatching {
             if (view.isOgv || view.redirectUrl != null || view.rights.pay == 1) {
-                BiliHttpApi.getPgcVideoPlayUrlV2(
+                val playUrlV2Data = BiliHttpApi.getPgcVideoPlayUrlV2(
                     av = view.aid,
                     bv = view.bvid,
                     cid = cid,
@@ -535,9 +540,16 @@ class VideoMetricsFacadeImpl(
                     fourk = 1,
                     sessData = sessionData,
                     buvid3 = buvid3
-                ).getResponseData().videoInfo
+                ).getResponseData()
+                val videoInfo = playUrlV2Data.videoInfo
+                VideoAccessClassifier.PlaybackAccessFlags(
+                    source = VideoAccessClassifier.PlaybackAccessSource.WEB_PGC,
+                    isVipVideo = VideoAccessClassifier.inferVipVideo(videoInfo),
+                    hasPaid = videoInfo.hasPaid ||
+                            playUrlV2Data.playViewBusinessInfo.userStatus.payInfo.payPackPaid == 1
+                )
             } else {
-                BiliHttpApi.getVideoPlayUrl(
+                val playUrlData = BiliHttpApi.getVideoPlayUrl(
                     av = view.aid,
                     bv = view.bvid,
                     cid = cid,
@@ -548,17 +560,22 @@ class VideoMetricsFacadeImpl(
                     sessData = sessionData,
                     dedeUserID = dedeUserId
                 ).getResponseData()
+                VideoAccessClassifier.PlaybackAccessFlags(
+                    source = VideoAccessClassifier.PlaybackAccessSource.WEB_UGC,
+                    isVipVideo = VideoAccessClassifier.inferVipVideo(playUrlData),
+                    hasPaid = playUrlData.hasPaid
+                )
             }
-        }.getOrNull() ?: return null
-        return VideoAccessClassifier.inferVipVideo(playUrlData)
+        }.getOrNull() ?: unknownFlags
     }
 
     private fun StatEnvelope.withResolvedAccessFlags(
-        isVipVideo: Boolean?
+        playbackAccessFlags: VideoAccessClassifier.PlaybackAccessFlags
     ): StatEnvelope {
         val resolvedFlags = VideoAccessClassifier.resolveAccessFlags(
             rawPaidVideo = stat.isPaidVideo,
-            isVipVideo = isVipVideo
+            isVipVideo = playbackAccessFlags.isVipVideo,
+            hasPaid = playbackAccessFlags.hasPaid
         )
         return copy(
             stat = stat.copy(

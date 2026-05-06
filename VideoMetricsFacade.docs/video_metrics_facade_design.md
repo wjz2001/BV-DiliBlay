@@ -8,8 +8,9 @@
 - `snapshot` 直接复用 `CanonicalMetricsSnapshot`（即 `CanonicalStat`）
 - `snapshot` 除统计值外，当前也包含 `isVipVideo` / `isPaidVideo` / `isVerticalVideo` 三个稿件级布尔属性
 - `runtime` 提供 `contextKey` / `statKey` / `aliasKey` / batch / degraded 等运行时信息
-- 数据源固定为 `SRC-WEB-DETAIL`
-- 不做 Web / gRPC 多源互备
+- 统计与详情主数据源固定为 `SRC-WEB-DETAIL`
+- 不做 Web detail / gRPC detail 多源互备
+- 访问状态补齐会额外调用 Web 播放接口；当前只区分并处理 Web UGC / Web PGC，不接入 App 播放链路
 
 ## 已落地 Public API
 
@@ -121,9 +122,16 @@
 ## 稿件级属性规则
 
 - `isVipVideo` 由 Facade 在拿到 Web detail 后，最佳努力补一次播放权限并从 `supportFormats.needVip` 推导。
-- `isPaidVideo` 先沿用 Web detail 的原始付费标记，再按 `isVipVideo == true -> false` 收口成“非 VIP 的付费视频”。
+- `isPaidVideo` 先沿用 Web detail 的原始付费标记，再按播放权限补齐结果收口：
+  - `isVipVideo == true -> false`
+  - `hasPaid == true -> false`
+  - 其他情况保留 Web detail 的原始付费标记
+- 当前播放权限来源：
+  - Web UGC：`BiliHttpApi.getVideoPlayUrl(...)`，读取 `PlayUrlData.hasPaid` 与 `supportFormats.needVip`
+  - Web PGC：`BiliHttpApi.getPgcVideoPlayUrlV2(...)`，读取 `videoInfo.hasPaid`、`payInfo.payPackPaid` 与 `videoInfo.supportFormats.needVip`
+  - App UGC / App PGC：`PlaybackAccessSource` 已预留枚举值，但当前 Facade 未接入 App 播放接口
 - `isVerticalVideo` 由 Web detail 的 `View.dimension.width < View.dimension.height` 推导。
-- 这三个字段都跟随稿件级 `statKey(aid)` 缓存，不表达当前 `cid` 分P状态。
+- 这三个字段都跟随稿件级 `statKey(aid)` 缓存，不表达当前 `cid` 分P状态；其中 `isPaidVideo` 会受当前账号已购状态影响。
 
 ## Code References
 
@@ -133,7 +141,8 @@
 - `bili-api/src/main/kotlin/dev/aaa1115910/biliapi/metrics/VideoMetricsKeys.kt:3`
 - `bili-api/src/main/kotlin/dev/aaa1115910/biliapi/metrics/VideoMetricsFacadeImpl.kt:80`
 - `bili-api/src/main/kotlin/dev/aaa1115910/biliapi/metrics/VideoMetricsFacadeImpl.kt:172`
-- `bili-api/src/main/kotlin/dev/aaa1115910/biliapi/metrics/VideoMetricsFacadeImpl.kt:510`
-- `bili-api/src/main/kotlin/dev/aaa1115910/biliapi/metrics/VideoMetricsFacadeImpl.kt:528`
-- `bili-api/src/main/kotlin/dev/aaa1115910/biliapi/metrics/VideoMetricsFacadeImpl.kt:562`
+- `bili-api/src/main/kotlin/dev/aaa1115910/biliapi/metrics/VideoAccessClassifier.kt:6`
+- `bili-api/src/main/kotlin/dev/aaa1115910/biliapi/metrics/VideoMetricsFacadeImpl.kt:516`
+- `bili-api/src/main/kotlin/dev/aaa1115910/biliapi/metrics/VideoMetricsFacadeImpl.kt:533`
+- `bili-api/src/main/kotlin/dev/aaa1115910/biliapi/metrics/VideoMetricsFacadeImpl.kt:564`
 - `bili-api/src/test/kotlin/dev/aaa1115910/biliapi/metrics/VideoMetricsFacadeImplTest.kt:321`

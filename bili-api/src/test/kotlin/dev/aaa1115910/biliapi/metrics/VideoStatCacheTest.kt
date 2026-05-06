@@ -163,6 +163,7 @@ class VideoStatCacheTest {
                 share = 9L,
                 like = 10L,
                 durationSec = 120,
+                isVipVideo = false,
                 isPaidVideo = false,
                 isVerticalVideo = false,
                 source = CanonicalSource.DETAIL_SUPPLEMENT,

@@ -27,8 +27,8 @@
 | `share` | `Long?` | `number \| null` | 是 | 分享数。 |
 | `like` | `Long?` | `number \| null` | 是 | 点赞数。 |
 | `durationSec` | `Int?` | `number \| null` | 是 | 时长，单位秒。 |
-| `isVipVideo` | `Boolean?` | `boolean \| null` | 是 | 稿件级是否大会员视频；当前优先由播放权限中的 `supportFormats.needVip` 推导，拿不到播放权限时为 `null`。 |
-| `isPaidVideo` | `Boolean?` | `boolean \| null` | 是 | 稿件级是否非 VIP 的付费视频；先由 `is_chargeable_season`、`rights.pay`、`rights.ugc_pay`、`rights.arc_pay` 计算原始付费标记，再按 `isVipVideo == true -> false` 收口为互斥语义。 |
+| `isVipVideo` | `Boolean?` | `boolean \| null` | 是 | 是否大会员视频；当前优先由播放权限中的 `supportFormats.needVip` 推导，拿不到播放权限时为 `null`。 |
+| `isPaidVideo` | `Boolean?` | `boolean \| null` | 是 | 当前用户视角下是否仍按非 VIP 付费视频处理；先由 Web detail 计算原始付费标记，再按 `isVipVideo == true` 或已购状态收口为 `false`。 |
 | `isVerticalVideo` | `Boolean?` | `boolean \| null` | 是 | 稿件级是否竖屏视频；当前由 `View.dimension.width < View.dimension.height` 推导，不按 `cid` 区分分P。 |
 | `source` | `CanonicalSource` | `string` | 否 | 实现层为枚举，契约层输出稳定字符串。 |
 | `updatedAt` | `Long` | `number` | 否 | 当前快照生成时间。 |
@@ -105,20 +105,27 @@
 - 原因是 `VideoStat.view` 在 `_view > Int.MAX_VALUE` 时会返回 `Int.MIN_VALUE` 哨兵。
 - 该规则已由 `CanonicalStatMapperTest` 覆盖，属于当前实现的硬约束，而不是建议。
 
-## 稿件级布尔属性规则
+## 访问状态布尔属性规则
 
-- `isVipVideo` 当前为稿件级属性，优先来自播放权限：
+- `isVipVideo` 当前优先来自播放权限：
   - 通过播放接口返回的 `supportFormats.needVip`
   - 只要 `supportFormats` 非空且任一格式 `needVip == true`，则为 `true`
   - 若 `supportFormats` 非空且全部为 `false`，则为 `false`
   - 若当前未拿到播放权限，或播放接口未提供 `supportFormats`，则为 `null`
-- `isPaidVideo` 当前为稿件级属性，但语义已收口为“非 VIP 的付费视频”：
-  - 先计算原始付费标记：
-  - `View.is_chargeable_season == true`
-  - 或 `View.rights.pay == 1`
-  - 或 `View.rights.ugc_pay == 1`
-  - 或 `View.rights.arc_pay == 1`
-  - 再按 `isVipVideo == true -> isPaidVideo = false` 处理，保证 `isVipVideo` 与 `isPaidVideo` 互斥
+- `isPaidVideo` 分两阶段计算：
+  - Mapper 阶段先计算 Web detail 的原始付费标记：
+    - `View.is_chargeable_season == true`
+    - 或 `View.rights.pay == 1`
+    - 或 `View.rights.ugc_pay == 1`
+    - 或 `View.rights.arc_pay == 1`
+  - Facade 阶段补齐播放权限后统一收口：
+    - `isVipVideo == true -> isPaidVideo = false`
+    - `hasPaid == true -> isPaidVideo = false`
+    - 其他情况保留原始付费标记
+- 当前已购状态只覆盖 Facade 已接入的 Web UGC / Web PGC 播放接口：
+  - Web UGC：`BiliHttpApi.getVideoPlayUrl(...)` -> `PlayUrlData.hasPaid`
+  - Web PGC：`BiliHttpApi.getPgcVideoPlayUrlV2(...)` -> `videoInfo.hasPaid` 或 `playViewBusinessInfo.userStatus.payInfo.payPackPaid == 1`
+  - App UGC / App PGC 来源在 `PlaybackAccessSource` 中有枚举预留，但当前 Facade 未接入 App 播放链路，不参与判断
 - `isVerticalVideo` 当前为稿件级属性，直接使用 `View.dimension` 判断宽高。
 - `isVerticalVideo` 不读取 `pages`，也不按 `cid` 判断当前分P方向。
 - 空降级快照中这三个字段为 `null`，表示未知。
@@ -183,7 +190,8 @@
 - `ttlMs` / `expireAt` 的语义严格限定为 fresh，不承载 stale / degrade 窗口。
 - `BigDecimal` 的 approximate 规则以“是否发生截断”为准。
 - `view` 的正确输入源是 `rawView`，不是 `Int` getter。
-- `isVipVideo` / `isPaidVideo` / `isVerticalVideo` 是稿件级属性，不表达当前分P状态。
+- `isVipVideo` / `isPaidVideo` 不表达当前分P状态；其中 `isPaidVideo` 已包含当前用户已购状态对 UGC/PGC Web 播放权限的收口。
+- `isVerticalVideo` 是稿件级属性，不表达当前分P状态。
 
 ## Code References
 
@@ -192,10 +200,11 @@
 - `bili-api/src/main/kotlin/dev/aaa1115910/biliapi/metrics/CanonicalStatMapper.kt:44`
 - `bili-api/src/main/kotlin/dev/aaa1115910/biliapi/metrics/CanonicalStatMapper.kt:52`
 - `bili-api/src/main/kotlin/dev/aaa1115910/biliapi/metrics/VideoAccessClassifier.kt:3`
+- `bili-api/src/main/kotlin/dev/aaa1115910/biliapi/metrics/VideoAccessClassifier.kt:6`
 - `bili-api/src/main/kotlin/dev/aaa1115910/biliapi/http/entity/video/VideoInfo.kt:239`
 - `bili-api/src/main/kotlin/dev/aaa1115910/biliapi/http/entity/video/VideoInfo.kt:259`
 - `bili-api/src/main/kotlin/dev/aaa1115910/biliapi/metrics/CanonicalStatMapper.kt:128`
-- `bili-api/src/main/kotlin/dev/aaa1115910/biliapi/metrics/VideoMetricsFacadeImpl.kt:510`
+- `bili-api/src/main/kotlin/dev/aaa1115910/biliapi/metrics/VideoMetricsFacadeImpl.kt:516`
 - `bili-api/src/main/kotlin/dev/aaa1115910/biliapi/http/entity/video/PlayUrlResponse.kt:346`
 - `bili-api/src/test/kotlin/dev/aaa1115910/biliapi/metrics/CanonicalStatMapperTest.kt:12`
 - `bili-api/src/test/kotlin/dev/aaa1115910/biliapi/metrics/CanonicalStatMapperTest.kt:80`

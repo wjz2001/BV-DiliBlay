@@ -532,6 +532,7 @@ class VideoMetricsFacadeImplTest {
                 share = 9L,
                 like = 10L,
                 durationSec = 120,
+                isVipVideo = false,
                 isPaidVideo = true,
                 isVerticalVideo = true,
                 source = CanonicalSource.DETAIL_SUPPLEMENT,

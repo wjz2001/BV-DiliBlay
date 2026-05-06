@@ -4,6 +4,20 @@ import dev.aaa1115910.biliapi.http.entity.video.PlayUrlData
 import dev.aaa1115910.biliapi.http.entity.video.VideoInfo
 
 internal object VideoAccessClassifier {
+    enum class PlaybackAccessSource {
+        WEB_UGC,
+        WEB_PGC,
+        APP_UGC,
+        APP_PGC,
+        UNKNOWN
+    }
+
+    data class PlaybackAccessFlags(
+        val source: PlaybackAccessSource,
+        val isVipVideo: Boolean?,
+        val hasPaid: Boolean?
+    )
+
     data class ResolvedAccessFlags(
         val isVipVideo: Boolean?,
         val isPaidVideo: Boolean?
@@ -26,10 +40,12 @@ internal object VideoAccessClassifier {
 
     fun resolveAccessFlags(
         rawPaidVideo: Boolean?,
-        isVipVideo: Boolean?
+        isVipVideo: Boolean?,
+        hasPaid: Boolean? = null
     ): ResolvedAccessFlags {
         val resolvedPaidVideo = when {
             isVipVideo == true -> false
+            hasPaid == true -> false
             rawPaidVideo == null -> null
             else -> rawPaidVideo
         }

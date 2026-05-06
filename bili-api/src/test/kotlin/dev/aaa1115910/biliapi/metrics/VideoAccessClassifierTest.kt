@@ -40,6 +40,28 @@ class VideoAccessClassifierTest {
                 isVipVideo = null
             )
         )
+        assertEquals(
+            VideoAccessClassifier.ResolvedAccessFlags(
+                isVipVideo = false,
+                isPaidVideo = false
+            ),
+            VideoAccessClassifier.resolveAccessFlags(
+                rawPaidVideo = true,
+                isVipVideo = false,
+                hasPaid = true
+            )
+        )
+        assertEquals(
+            VideoAccessClassifier.ResolvedAccessFlags(
+                isVipVideo = false,
+                isPaidVideo = true
+            ),
+            VideoAccessClassifier.resolveAccessFlags(
+                rawPaidVideo = true,
+                isVipVideo = false,
+                hasPaid = null
+            )
+        )
     }
 
     @Test

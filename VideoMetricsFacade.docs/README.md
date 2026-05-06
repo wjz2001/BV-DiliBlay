@@ -1,6 +1,6 @@
 # bili-api.metrics Docs (Implementation-Synced)
 
-这份目录下的 Markdown 文档用于解释并“固化” `dev.aaa1115910.biliapi.metrics` 当前已经落地的行为：Canonical 映射、L1 内存缓存、Facade 加载与预取调度、去重/并发限制/cooldown，以及 UI 接入要点。当前 `CanonicalStat` 额外承载 `isVipVideo` / `isPaidVideo` / `isVerticalVideo` 三个稿件级布尔属性，其中 `isVipVideo` 与 `isPaidVideo` 按互斥语义收口。
+这份目录下的 Markdown 文档用于解释并“固化” `dev.aaa1115910.biliapi.metrics` 当前已经落地的行为：Canonical 映射、L1 内存缓存、Facade 加载与预取调度、去重/并发限制/cooldown，以及 UI 接入要点。当前 `CanonicalStat` 额外承载 `isVipVideo` / `isPaidVideo` / `isVerticalVideo` 三个布尔属性，其中 `isPaidVideo` 会在 Facade 阶段按 VIP 与 UGC/PGC Web 已购状态收口。
 
 **重要原则：**
 - 文档以“当前实现 + 可执行测试”为准。
@@ -35,13 +35,13 @@
 - <!--citation:6-->  
   主题：`CanonicalStatMapper` 的字段映射与解析规则（rawView、字符串/BigDecimal、precision 聚合，以及 `isVipVideo` 在 Mapper 阶段固定为 `null` 的边界）。
 - <!--citation:2-->  
-  主题：Facade API、边界、配置项与运行时元信息的解释，以及播放权限补齐 `isVipVideo`、再收口 `isPaidVideo` 的职责边界。
+  主题：Facade API、边界、配置项与运行时元信息的解释，以及播放权限补齐 `isVipVideo` / UGC-PGC 已购状态、再收口 `isPaidVideo` 的职责边界。
 - <!--citation:1-->  
   主题：哪些结论由哪些测试证明；如何运行验证命令。
 
 ### B. 契约/语义汇总（Contract / Semantics）
 - <!--citation:7-->  
-  主题：`CanonicalStat` / `StatEnvelope` 的字段语义与枚举值含义；`isVipVideo` / `isPaidVideo` 互斥语义；rawView 硬约束；时间字段语义边界。  
+  主题：`CanonicalStat` / `StatEnvelope` 的字段语义与枚举值含义；`isVipVideo` / `isPaidVideo` / 已购状态收口语义；rawView 硬约束；时间字段语义边界。
   注：若未来对外序列化/跨语言传输，应另行定义版本化 schema；当前仓库内部以 enum 表达为主。
 
 ### C. 接入建议（Integration）

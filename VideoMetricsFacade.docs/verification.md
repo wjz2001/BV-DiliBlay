@@ -5,6 +5,7 @@
 ## 覆盖范围
 
 - `CanonicalStatMapper`
+- `VideoAccessClassifier`
 - `VideoStatCache`
 - `VideoMetricsFacadeImpl`
 - `VideoMetricsGlobalConcurrencyLimiter`
@@ -12,7 +13,7 @@
 ## 推荐测试入口
 
 ```powershell
-.\gradlew.bat :bili-api:test --tests dev.aaa1115910.biliapi.metrics.CanonicalStatMapperTest --tests dev.aaa1115910.biliapi.metrics.VideoStatCacheTest --tests dev.aaa1115910.biliapi.metrics.VideoMetricsFacadeImplTest --no-daemon
+.\gradlew.bat :bili-api:test --tests dev.aaa1115910.biliapi.metrics.VideoAccessClassifierTest --tests dev.aaa1115910.biliapi.metrics.CanonicalStatMapperTest --tests dev.aaa1115910.biliapi.metrics.VideoStatCacheTest --tests dev.aaa1115910.biliapi.metrics.VideoMetricsFacadeImplTest --no-daemon
 ```
 
 ## 关键验证项
@@ -39,7 +40,21 @@
 - `BigDecimal("123")` -> `approximate = false`
 - `BigDecimal("1.2")` -> `approximate = true`
 
-### 3. same-key / alias 去重
+### 3. 访问状态收口
+
+测试：
+
+- `VideoAccessClassifierTest.resolve access flags keeps vip and paid mutually exclusive`
+- `VideoAccessClassifierTest.infer vip video uses support formats when available`
+
+确认：
+
+- `isVipVideo == true` 时，`isPaidVideo = false`
+- `hasPaid == true` 时，`isPaidVideo = false`
+- `hasPaid == null` 时保持原始付费标记
+- `supportFormats.needVip` 可推导 VIP 视频状态
+
+### 4. same-key / alias 去重
 
 测试：
 
@@ -51,7 +66,7 @@
 - 同一稿件并发请求只发一次真实网络请求
 - aid/bvid 可以向同一个 in-flight 收敛
 
-### 4. fresh hit 不触网、不进 limiter
+### 5. fresh hit 不触网、不进 limiter
 
 测试：
 
@@ -62,7 +77,7 @@
 - `remoteFetcher` 调用数为 `0`
 - limiter 进入数为 `0`
 
-### 5. stale immediate return
+### 6. stale immediate return
 
 测试：
 
@@ -74,7 +89,7 @@
 - `runtime.degraded = false`
 - 后台刷新仍会实际触发一次 `remoteFetcher`
 
-### 6. global concurrency / visible bypass
+### 7. global concurrency / visible bypass
 
 测试：
 
@@ -87,7 +102,7 @@
 - deferred 默认最多占用 `4`
 - `VISIBLE` 请求可绕过 deferred 饱和
 
-### 7. cooldown
+### 8. cooldown
 
 测试：
 
@@ -105,6 +120,7 @@
 
 - `bili-api/src/test/kotlin/dev/aaa1115910/biliapi/metrics/CanonicalStatMapperTest.kt:12`
 - `bili-api/src/test/kotlin/dev/aaa1115910/biliapi/metrics/CanonicalStatMapperTest.kt:80`
+- `bili-api/src/test/kotlin/dev/aaa1115910/biliapi/metrics/VideoAccessClassifierTest.kt:8`
 - `bili-api/src/test/kotlin/dev/aaa1115910/biliapi/metrics/VideoStatCacheTest.kt:16`
 - `bili-api/src/test/kotlin/dev/aaa1115910/biliapi/metrics/VideoMetricsFacadeImplTest.kt:28`
 - `bili-api/src/test/kotlin/dev/aaa1115910/biliapi/metrics/VideoMetricsFacadeImplTest.kt:185`

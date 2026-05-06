@@ -25,7 +25,7 @@
 | `view.stat.like` | `CanonicalStat.like` | 非负 `Int -> Long`。 |
 | `view.duration` | `CanonicalStat.durationSec` | `Int` 输入：非负则保留；负数则置 `null`（由 `parseDurationSec` 统一约束）。 |
 | 固定 `null` | `CanonicalStat.isVipVideo` | Mapper 只消费 Web detail，不直接拉播放权限，因此此阶段固定为 `null`。 |
-| `view.isChargeableSeason` / `view.rights.pay` / `view.rights.ugcPay` / `view.rights.arcPay` | `CanonicalStat.isPaidVideo` | 此阶段写入原始付费标记；是否需要按 VIP 互斥收口，由 Facade 在补齐播放权限后统一处理。 |
+| `view.isChargeableSeason` / `view.rights.pay` / `view.rights.ugcPay` / `view.rights.arcPay` | `CanonicalStat.isPaidVideo` | 此阶段写入原始付费标记；是否需要按 VIP 或已购状态收口，由 Facade 在补齐播放权限后统一处理。 |
 | `view.dimension.width` / `view.dimension.height` | `CanonicalStat.isVerticalVideo` | 稿件级方向判断，`width < height` 时为 `true`，不按 `cid` 读取分P。 |
 | 固定 `CanonicalSource.DETAIL_SUPPLEMENT` | `CanonicalStat.source` | Mapper 阶段尚未回填 `API` / `CACHE`。 |
 | `updatedAt` 参数 | `CanonicalStat.updatedAt` | 默认 `System.currentTimeMillis()`。 |
@@ -40,7 +40,7 @@
 
 注：duration 的解析统一走 `parseDurationSec(...)`，以保证不同来源（未来可能出现 `Long`/`String`）时行为一致。
 
-注：`isVipVideo`、`isPaidVideo` 与 `isVerticalVideo` 是稿件级布尔属性；空降级快照中由 Facade 填为 `null`，表示未知。
+注：Mapper 阶段的 `isPaidVideo` 只是 Web detail 原始付费标记；Facade 阶段会再结合播放权限中的 VIP 与已购状态做最终收口。空降级快照中这三个布尔字段由 Facade 填为 `null`，表示未知。
 
 ## 精度规则
 
@@ -94,7 +94,7 @@
 - Mapper 只做字段规范化，不做缓存、不做 limiter、不做 cooldown。
 - Mapper 不回填 fresh TTL；fresh 元信息由 Facade 成功拉网后统一回填。
 - 当前 `fieldSources` 恒为 `null`，因为没有字段级多来源合并。
-- Mapper 不直接判断 VIP；`isVipVideo` 的最佳努力补齐发生在 Facade 侧。
+- Mapper 不直接判断 VIP 或已购状态；`isVipVideo` 与 `hasPaid` 的最佳努力补齐发生在 Facade 侧。
 - `isVerticalVideo` 不表达当前 `cid` 对应分P方向，只表达 Web detail `View.dimension` 的稿件级方向。
 
 ## Code References
