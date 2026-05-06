@@ -3,6 +3,15 @@ package dev.aaa1115910.bv.screen.main
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.DynamicFeed
+import androidx.compose.material.icons.rounded.LiveTv
+import androidx.compose.material.icons.rounded.LocalFireDepartment
+import androidx.compose.material.icons.rounded.PsychologyAlt
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +35,8 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.component.PersistLazyGridViewportEffect
 import dev.aaa1115910.bv.component.TopNav
+import dev.aaa1115910.bv.component.TopNavLeadingIcon
+import dev.aaa1115910.bv.component.TopNavItem
 import dev.aaa1115910.bv.component.rememberRestoredLazyGridState
 import dev.aaa1115910.bv.screen.main.common.ActivationBehavior
 import dev.aaa1115910.bv.screen.main.common.TabActivationGuard
@@ -108,6 +119,22 @@ fun HomeContent(
     }
     val reorderedItems = remember {
         getReorderedItems(firstTab)
+    }
+    val homeFocusedLeadingIcon: (TopNavItem) -> TopNavLeadingIcon? = remember {
+        {
+            when (it as? HomeTopNavItem) {
+                HomeTopNavItem.Dynamics -> TopNavLeadingIcon.Vector(Icons.Rounded.DynamicFeed)
+                HomeTopNavItem.History -> TopNavLeadingIcon.DrawableRes(R.drawable.add_to_list)
+                HomeTopNavItem.Favorite -> TopNavLeadingIcon.Vector(Icons.Rounded.Star)
+                HomeTopNavItem.ToView -> TopNavLeadingIcon.Vector(Icons.Rounded.Schedule)
+                HomeTopNavItem.Recommend -> TopNavLeadingIcon.Vector(Icons.Rounded.ThumbUp)
+                HomeTopNavItem.Popular -> TopNavLeadingIcon.Vector(Icons.Rounded.LocalFireDepartment)
+                HomeTopNavItem.FollowingSeason -> TopNavLeadingIcon.Vector(Icons.Rounded.LiveTv)
+                HomeTopNavItem.Search -> TopNavLeadingIcon.Vector(Icons.Rounded.Search)
+                HomeTopNavItem.MyClassroom -> TopNavLeadingIcon.Vector(Icons.Rounded.PsychologyAlt)
+                null -> null
+            }
+        }
     }
 
     val recommendGridState = rememberRestoredLazyGridState(homeContentViewModel.viewportOf(HomeTopNavItem.Recommend))
@@ -418,6 +445,7 @@ fun HomeContent(
                 defaultFocusRequester = navFocusRequester,
                 onDefaultFocusReady = handleDefaultFocusReady,
                 isHistorySearching = historyViewModel.debouncedQuery.isNotBlank(),
+                focusedLeadingIcon = homeFocusedLeadingIcon,
                 onTabConfirmLongPress = { nav -> handleTopNavConfirmLongPress(nav as HomeTopNavItem) },
                 onLeftBoundaryExit = { drawerFocusRequester.requestFocus() },
                 onRightBoundaryExit = { drawerFocusRequester.requestFocus() },

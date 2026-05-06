@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.runtime.Composable
@@ -38,6 +39,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.LocalContentColor
@@ -59,7 +61,7 @@ fun TopNav(
     defaultFocusRequester: FocusRequester? = null,
     onDefaultFocusReady: (() -> Unit)? = null,
     isHistorySearching: Boolean = false,
-    focusedLeadingIcon: ((TopNavItem) -> ImageVector?)? = null,
+    focusedLeadingIcon: ((TopNavItem) -> TopNavLeadingIcon?)? = null,
     onTabConfirmLongPress: ((TopNavItem) -> Boolean)? = null,
     onLeftBoundaryExit: (() -> Unit)? = null,
     onRightBoundaryExit: (() -> Unit)? = null,
@@ -143,7 +145,7 @@ private fun TabRowScope.NavItemTab(
     topNavItem: TopNavItem,
     selected: Boolean,
     showHistorySearchIcon: Boolean = false,
-    focusedLeadingIcon: ImageVector? = null,
+    focusedLeadingIcon: TopNavLeadingIcon? = null,
     onTabConfirmLongPress: (() -> Boolean)? = null,
     onLeftBoundaryExit: (() -> Unit)? = null,
     onRightBoundaryExit: (() -> Unit)? = null,
@@ -243,7 +245,8 @@ private fun TabRowScope.NavItemTab(
             Box(
                 modifier = Modifier
                     .height(MainTopTabDefaults.TabContentHeight)
-                    .padding(MainTopTabDefaults.TabContentPadding),
+                    .padding(MainTopTabDefaults.TabContentPadding)
+                    .wrapContentWidth(),
                 contentAlignment = Alignment.Center
             ) {
                 Row(
@@ -255,10 +258,9 @@ private fun TabRowScope.NavItemTab(
                         exit = shrinkHorizontally() + fadeOut()
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                modifier = Modifier.size(filterIconSizeDp),
-                                imageVector = focusedLeadingIcon ?: Icons.Rounded.FilterList,
-                                contentDescription = null
+                            LeadingIcon(
+                                icon = focusedLeadingIcon ?: TopNavLeadingIcon.Vector(Icons.Rounded.FilterList),
+                                iconSizeDp = filterIconSizeDp
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                         }
@@ -272,6 +274,31 @@ private fun TabRowScope.NavItemTab(
             }
         }
     }
+}
+
+@Composable
+private fun LeadingIcon(
+    icon: TopNavLeadingIcon,
+    iconSizeDp: androidx.compose.ui.unit.Dp
+) {
+    when (icon) {
+        is TopNavLeadingIcon.Vector -> Icon(
+            modifier = Modifier.size(iconSizeDp),
+            imageVector = icon.imageVector,
+            contentDescription = null
+        )
+
+        is TopNavLeadingIcon.DrawableRes -> Icon(
+            modifier = Modifier.size(iconSizeDp),
+            painter = painterResource(icon.resId),
+            contentDescription = null
+        )
+    }
+}
+
+sealed interface TopNavLeadingIcon {
+    data class Vector(val imageVector: ImageVector) : TopNavLeadingIcon
+    data class DrawableRes(val resId: Int) : TopNavLeadingIcon
 }
 
 interface TopNavItem {
