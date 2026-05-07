@@ -76,7 +76,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         setContentWhenStartupReady(
-            gate = StartupGate.Prefs,
+            gate = StartupGate.StartupWork,
             onReady = {
                 initViewModelFromIntent()
                 playerViewModel.initVideoPlayer(applicationContext)

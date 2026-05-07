@@ -4,4 +4,5 @@
     <color name="app_window_background">#000000</color>
     <color name="ic_launcher_background">#000000</color>
     <color name="ic_banner_background">#000000</color>
+    <color name="splash_blue">#0092e4</color>
 </resources>

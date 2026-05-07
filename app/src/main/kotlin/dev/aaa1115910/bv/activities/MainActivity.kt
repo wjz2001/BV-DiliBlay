@@ -16,14 +16,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -35,74 +36,65 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.screen.MainScreen
-import dev.aaa1115910.bv.screen.user.lock.UnlockUserScreen
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.ThemeMode
 import dev.aaa1115910.bv.util.Prefs
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
+import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : ComponentActivity() {
 
     private val userRepository: UserRepository by inject()
     private val logger = KotlinLogging.logger {}
 
+    //  控制系统 Splash 什么时候撤退
+    private val composeReady = AtomicBoolean(false)
+
     enum class MainStartupPhase { Shell, RealUi }
-    enum class LockState { Unknown, Locked, Unlocked }
-    enum class AppScreen { Shell, Error, Main, Unlock }
+    enum class AppScreen { Shell, Error, Main }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen().apply {
-            setKeepOnScreenCondition { false }
+            // 只要 Compose 还没画好，就先用纯色屏幕
+            setKeepOnScreenCondition { !composeReady.get() }
         }
         super.onCreate(savedInstanceState)
 
         setContent {
             var phase by remember { mutableStateOf(MainStartupPhase.Shell) }
-            var lockState by remember { mutableStateOf(LockState.Unknown) }
+            var showStartupShell by remember { mutableStateOf(true) }
             var startupError by remember { mutableStateOf(false) }
             var startupErrorMessage by remember { mutableStateOf("启动失败") }
             var retryNonce by remember { mutableIntStateOf(0) }
 
             LaunchedEffect(retryNonce) {
                 phase = MainStartupPhase.Shell
-                lockState = LockState.Unknown
+                showStartupShell = true
                 startupError = false
                 startupErrorMessage = "启动失败"
 
                 runCatching {
-                    withFrameNanos {}
-
                     val app = BVApp.instance
-                    app?.startDeferredStartupWork()
-                    val prefsReady = app?.awaitPrefsReady(timeoutMillis = 1500) == true
-                    if (!prefsReady) error("Prefs not ready")
+                    app?.startDeferredStartupWork(forceRestart = retryNonce > 0)
+                    val startupReady = app?.awaitStartupWorkReady(timeoutMillis = 10_000) == true
+                    if (!startupReady) error("Startup not ready")
 
-                    val user = withContext(Dispatchers.IO) {
-                        userRepository.findUserByUid(Prefs.uid)
-                    }
-                    logger.info { "default user: ${user?.username}" }
-
-                    lockState = if (user?.lock?.isNotBlank() == true) {
-                        LockState.Locked
-                    } else {
-                        LockState.Unlocked
-                    }
+                    // 启动时不再读取 user.lock
                     phase = MainStartupPhase.RealUi
                 }.onFailure {
                     logger.error(it) { "Main startup failed" }
                     startupError = true
+                    showStartupShell = false
                 }
             }
 
             var hasTriggeredAutoLogin by remember { mutableStateOf(false) }
-            LaunchedEffect(phase, lockState) {
+            LaunchedEffect(phase) {
                 if (phase != MainStartupPhase.RealUi) return@LaunchedEffect
-                if (lockState != LockState.Unlocked || hasTriggeredAutoLogin) return@LaunchedEffect
+                if (hasTriggeredAutoLogin) return@LaunchedEffect
                 if (!Prefs.autoOpenLoginOnFirstLaunch) return@LaunchedEffect
 
                 if (Prefs.autoOpenLoginOnFirstLaunch) {
@@ -114,18 +106,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            val currentScreen = remember(startupError, phase, lockState) {
+            val currentScreen = remember(startupError, phase) {
                 when {
                     startupError -> AppScreen.Error
-                    phase == MainStartupPhase.Shell -> AppScreen.Shell
-                    phase == MainStartupPhase.RealUi -> {
-                        when (lockState) {
-                            LockState.Unlocked -> AppScreen.Main
-                            LockState.Locked -> AppScreen.Unlock
-                            LockState.Unknown -> AppScreen.Shell
-                        }
-                    }
-
+                    phase == MainStartupPhase.RealUi -> AppScreen.Main
                     else -> AppScreen.Shell
                 }
             }
@@ -135,16 +119,13 @@ class MainActivity : ComponentActivity() {
                 Box(modifier = Modifier.fillMaxSize()) {
 
                     // 底层：实际的应用界面
-                    // 一旦状态变为 RealUi，这里就会立刻挂载并开始加载主页内部的请求
+                    // 启动链完成后挂载主页，避免 Prefs 未就绪时读到默认值
                     when (currentScreen) {
-                        AppScreen.Main -> MainScreen()
-                        AppScreen.Unlock -> UnlockUserScreen(
-                            onUnlockSuccess = { user ->
-                                logger.info { "unlock user lock for user ${user.uid}" }
-                                lockState = LockState.Unlocked
+                        AppScreen.Main -> MainScreenReady(
+                            onReady = {
+                                showStartupShell = false
                             }
                         )
-
                         AppScreen.Error -> MainStartupError(
                             message = startupErrorMessage,
                             onRetry = { retryNonce++ }
@@ -156,13 +137,13 @@ class MainActivity : ComponentActivity() {
                     }
 
                     // 顶层：开屏 Banner (遮罩层)
-                    // 当 currentScreen 不是 Shell 时，它会触发 fadeOut 渐渐消失
+                    // 启动检查完成后触发 fadeOut 渐渐消失
                     AnimatedVisibility(
-                        visible = currentScreen == AppScreen.Shell,
+                        visible = showStartupShell,
                         enter = fadeIn(),
                         exit = fadeOut(
                             // 淡出时间
-                            animationSpec = tween(durationMillis = 500)
+                            animationSpec = tween(durationMillis = 800)
                         ),
                         modifier = Modifier.fillMaxSize()
                     ) {
@@ -175,42 +156,57 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun MainStartupShell() {
+        SideEffect {
+            composeReady.set(true)
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(if (Prefs.themeMode == ThemeMode.DARK) AppBlack else AppWhite),
+                // 把背景改成和系统 Splash一样，可以无缝的转换
+                .background(Color(0xFF0092E4)),
             contentAlignment = Alignment.Center
         ) {
             Image(
                 painter = painterResource(id = R.drawable.ic_banner),
-                contentDescription = "Banner",
+                contentDescription = "Logo",
                 modifier = Modifier.fillMaxSize(),
                 alignment = Alignment.Center,
                 contentScale = ContentScale.Crop
             )
         }
     }
-}
 
     @Composable
-    private fun MainStartupError(
-        message: String,
-        onRetry: () -> Unit
+    private fun MainScreenReady(
+        onReady: () -> Unit
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(if (Prefs.themeMode == ThemeMode.DARK) AppBlack else AppWhite),
-            contentAlignment = Alignment.Center
+        SideEffect {
+            onReady()
+        }
+        MainScreen()
+    }
+}
+
+@Composable
+private fun MainStartupError(
+    message: String,
+    onRetry: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(if (Prefs.themeMode == ThemeMode.DARK) AppBlack else AppWhite),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
-                Text(text = message)
-                Button(onClick = onRetry) {
-                    Text(text = "重试")
-                }
+            Text(text = message)
+            Button(onClick = onRetry) {
+                Text(text = "重试")
             }
         }
     }
+}

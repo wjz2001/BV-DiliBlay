@@ -1,4 +1,13 @@
 <resources>
+    <!-- SplashScreen（冷启动瞬间）用的启动主题 -->
+    <style name="Theme.BV.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_blue</item>
+        <!-- 隐藏正中间默认的应用图标 -->
+        <item name="windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <!-- 底层的背景展示完后，自动切回主题 Theme.BV -->
+        <item name="postSplashScreenTheme">@style/Theme.BV</item>
+    </style>
+
     <style name="Theme.BV" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowBackground">@color/app_window_background</item>
     </style>

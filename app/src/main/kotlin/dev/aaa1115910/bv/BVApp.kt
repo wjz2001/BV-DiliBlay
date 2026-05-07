@@ -27,7 +27,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
 import org.koin.android.ext.koin.androidContext
@@ -92,11 +91,6 @@ class BVApp : Application(), KoinComponent {
 
         initCoreLibraries()
 
-        runBlocking { Prefs.init() }
-        AppCompatDelegate.setDefaultNightMode(Prefs.themeMode.toNightMode())
-        BlockManager.reloadFromPrefs()
-        initRepository()
-        initProxy()
         BiliAppConf.osVersion = Build.VERSION.RELEASE
         BiliAppConf.model = Build.MODEL
 
@@ -108,6 +102,7 @@ class BVApp : Application(), KoinComponent {
             if (forceRestart) {
                 deferredStartupJob?.cancel()
                 deferredStartupStarted.set(false)
+                Prefs.resetReadyForRetry(forceReset = true)
                 startupReadyDeferred = CompletableDeferred()
                 startupReadyGeneration++
             }
@@ -156,6 +151,14 @@ class BVApp : Application(), KoinComponent {
     }
 
     private suspend fun deferredStartup() {
+        Prefs.init()
+        withContext(Dispatchers.Main.immediate) {
+            AppCompatDelegate.setDefaultNightMode(Prefs.themeMode.toNightMode())
+        }
+        BlockManager.reloadFromPrefs()
+        initRepository()
+        initProxy()
+
         runCatching {
             BiliWebConf.webViewVersion = WebViewCompat.getCurrentWebViewPackage(applicationContext)
                 ?.versionName
