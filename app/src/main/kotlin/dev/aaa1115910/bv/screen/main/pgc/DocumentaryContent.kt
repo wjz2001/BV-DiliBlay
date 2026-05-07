@@ -7,6 +7,7 @@ import androidx.compose.material.icons.automirrored.rounded.List
 import androidx.compose.material.icons.rounded.QuestionMark
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -16,13 +17,15 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.pgc.PgcIndexActivity
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.viewmodel.pgc.PgcDocumentaryViewModel
-import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun DocumentaryContent(
     modifier: Modifier = Modifier,
     lazyListState: LazyListState,
-    pgcViewModel: PgcDocumentaryViewModel = koinViewModel()
+    pgcViewModel: PgcDocumentaryViewModel,
+    contentEntryFocusRequester: FocusRequester? = null,
+    tabFocusRequester: FocusRequester? = null,
+    active: Boolean = true
 ) {
     val context = LocalContext.current
 
@@ -34,6 +37,9 @@ fun DocumentaryContent(
         lazyListState = lazyListState,
         pgcViewModel = pgcViewModel,
         pgcType = PgcType.Documentary,
+        active = active,
+        contentEntryFocusRequester = contentEntryFocusRequester,
+        tabFocusRequester = tabFocusRequester,
         featureButtons = {
             DocumentaryFeatureButtons(
                 modifier = Modifier.padding(vertical = 24.dp),

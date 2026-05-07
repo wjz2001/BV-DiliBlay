@@ -14,7 +14,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,8 +36,6 @@ import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.login.GeetestResult
 import dev.aaa1115910.bv.viewmodel.login.SmsLoginViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import org.json.JSONObject
 import org.koin.androidx.compose.koinViewModel
@@ -50,7 +47,6 @@ fun SmsLoginContent(
 ) {
     val context = LocalContext.current
     val logger = KotlinLogging.logger { }
-    val scope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
 
     var gt3GeetestUtils: GT3GeetestUtils? by remember { mutableStateOf(null) }
@@ -70,13 +66,9 @@ fun SmsLoginContent(
 
     val sendSms = {
         keyboardController?.hide()
-        scope.launch(Dispatchers.IO) {
-            runCatching {
-                smsLoginViewModel.sendSms(phoneNumberText.toLong()) { challenge: String, gt: String ->
-                    scope.launch(Dispatchers.Main) {
-                        setConfig(challenge, gt)
-                    }
-                }
+        runCatching {
+            smsLoginViewModel.sendSms(phoneNumberText.toLong()) { challenge: String, gt: String ->
+                setConfig(challenge, gt)
             }
         }
     }
@@ -86,11 +78,9 @@ fun SmsLoginContent(
         if (smsLoginViewModel.sendSmsState != SendSmsState.Success) {
             R.string.sms_login_toast_send_sms_first.toast(context)
         } else {
-            scope.launch(Dispatchers.IO) {
-                runCatching {
-                    smsLoginViewModel.loginWithSms(codeText.toInt()) {
-                        (context as Activity).finish()
-                    }
+            runCatching {
+                smsLoginViewModel.loginWithSms(codeText.toInt()) {
+                    (context as Activity).finish()
                 }
             }
         }
@@ -140,9 +130,7 @@ fun SmsLoginContent(
                         smsLoginViewModel.geetestValidate = geetestResult.geetestValidate
                         smsLoginViewModel.sendSmsState = SendSmsState.Ready
                         gt3GeetestUtils?.showSuccessDialog()
-                        scope.launch(Dispatchers.IO) {
-                            smsLoginViewModel.sendSms(phoneNumberText.toLong()) { _, _ -> }
-                        }
+                        smsLoginViewModel.sendSms(phoneNumberText.toLong()) { _, _ -> }
                     }.onFailure {
                         gt3GeetestUtils?.showFailedDialog()
                     }

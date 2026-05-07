@@ -7,6 +7,7 @@ import dev.aaa1115910.biliapi.http.entity.user.RelationStat
 import dev.aaa1115910.biliapi.http.entity.user.UserFollowData
 import dev.aaa1115910.bv.util.Prefs
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -50,6 +51,9 @@ object RelationGroupsDataSource {
     @Volatile
     private var inFlightRefresh: Deferred<RelationRefreshResult>? = null
 
+    @Volatile
+    private var inFlightRefreshTrigger: RelationRefreshTrigger? = null
+
     fun decodeSnapshotOrNull(raw: String): RelationGroupSnapshot? {
         if (raw.isBlank()) return null
         return runCatching {
@@ -84,6 +88,14 @@ object RelationGroupsDataSource {
         return currentSnapshot
     }
 
+    fun clearSnapshotCache(clearPrefs: Boolean = false) {
+        currentSnapshot = null
+        if (clearPrefs) {
+            Prefs.followingTotalCache = 0
+            Prefs.followTagsCacheJson = ""
+        }
+    }
+
     fun hasUsableSnapshot(snapshot: RelationGroupSnapshot? = getSnapshotOrNull()): Boolean =
         snapshot != null && snapshot.groups.isNotEmpty()
 
@@ -98,7 +110,10 @@ object RelationGroupsDataSource {
             ?: refreshMutex.withLock {
                 inFlightRefresh?.takeUnless { it.isCompleted } ?: refreshScope.async {
                     performRefresh(preferredApiType)
-                }.also { inFlightRefresh = it }
+                }.also {
+                    inFlightRefresh = it
+                    inFlightRefreshTrigger = trigger
+                }
             }
 
         try {
@@ -107,7 +122,21 @@ object RelationGroupsDataSource {
             refreshMutex.withLock {
                 if (inFlightRefresh === task && task.isCompleted) {
                     inFlightRefresh = null
+                    inFlightRefreshTrigger = null
                 }
+            }
+        }
+    }
+
+    suspend fun cancelRefresh(trigger: RelationRefreshTrigger) {
+        if (trigger != RelationRefreshTrigger.FollowScreen) return
+
+        refreshMutex.withLock {
+            val task = inFlightRefresh?.takeUnless { it.isCompleted }
+            if (task != null && inFlightRefreshTrigger == RelationRefreshTrigger.FollowScreen) {
+                task.cancel()
+                inFlightRefresh = null
+                inFlightRefreshTrigger = null
             }
         }
     }
@@ -127,9 +156,14 @@ object RelationGroupsDataSource {
         var lastError: Throwable? = null
 
         candidates.forEachIndexed { index, apiType ->
-            val snapshot = runCatching { loadSnapshot(apiType) }
-                .onFailure { lastError = it }
-                .getOrNull()
+            val snapshot = try {
+                loadSnapshot(apiType)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                lastError = t
+                null
+            }
 
             if (snapshot != null) {
                 currentSnapshot = snapshot

@@ -8,13 +8,25 @@ import dev.aaa1115910.bv.util.Prefs
 
 object BlockManager {
     @Volatile
-    private var blockedMids: Set<Long> = emptySet()
+    private var enabledPagesCache: Set<BlockPage> = emptySet()
 
-    fun isPageEnabled(page: BlockPage): Boolean = Prefs.blockEnabledPages.contains(page)
+    @Volatile
+    private var blockedMidsCache: Set<Long> = emptySet()
+
+    @Volatile
+    private var loaded = false
+
+    fun isPageEnabled(page: BlockPage): Boolean {
+        return if (loaded) {
+            enabledPagesCache.contains(page)
+        } else {
+            Prefs.blockEnabledPages.contains(page)
+        }
+    }
 
     fun isBlocked(mid: Long?): Boolean {
         if (mid == null) return false
-        return blockedMids.contains(mid)
+        return blockedMidsCache.contains(mid)
     }
 
     fun <T> filterList(
@@ -23,12 +35,14 @@ object BlockManager {
         midSelector: (T) -> Long?
     ): List<T> {
         if (!isPageEnabled(page)) return list
-        if (blockedMids.isEmpty()) return list
+        if (blockedMidsCache.isEmpty()) return list
         return list.filter { item -> !isBlocked(midSelector(item)) }
     }
 
     fun reloadFromPrefs() {
-        blockedMids = readBlockedMidsFromCsv()
+        enabledPagesCache = Prefs.blockEnabledPages.toSet()
+        blockedMidsCache = readBlockedMidsFromCsv()
+        loaded = true
     }
 
     suspend fun updateByUser(): RelationRefreshResult {
@@ -36,7 +50,7 @@ object BlockManager {
         if (result.success && result.snapshot != null) {
             rebuildBlockedMidsFromSnapshot(result.snapshot)
         } else {
-            blockedMids = readBlockedMidsFromCsv()
+            blockedMidsCache = readBlockedMidsFromCsv()
         }
         return result
     }
@@ -46,14 +60,14 @@ object BlockManager {
     ) {
         val resolvedSnapshot = snapshot ?: RelationGroupsDataSource.readSnapshotFromPrefsOrNull()
         if (resolvedSnapshot == null) {
-            blockedMids = readBlockedMidsFromCsv()
+            blockedMidsCache = readBlockedMidsFromCsv()
             return
         }
 
         val selectedTagIds = Prefs.blockSelectedTagIds.toSet()
         if (selectedTagIds.isEmpty()) {
             Prefs.blockedMidsCsv = ""
-            blockedMids = emptySet()
+            blockedMidsCache = emptySet()
             return
         }
 
@@ -64,7 +78,7 @@ object BlockManager {
         }
 
         Prefs.blockedMidsCsv = mids.joinToString(",")
-        blockedMids = mids
+        blockedMidsCache = mids
     }
 
     private fun readBlockedMidsFromCsv(): Set<Long> {

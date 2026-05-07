@@ -18,6 +18,7 @@ import dev.aaa1115910.bv.util.fDebug
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.fWarn
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -172,7 +173,7 @@ class VideoDetailViewModel(
             runCatching {
                 userRepository.getFollowTags(preferApiType = Prefs.apiType)
             }.onSuccess { tags ->
-                _uiState.update { it.copy(followTags = tags) }
+                _uiState.update { it.copy(followTags = tags.toPersistentList()) }
             }.onFailure { t ->
                 logger.fWarn { "Load follow tags failed: ${t.message}" }
             }
@@ -191,7 +192,7 @@ class VideoDetailViewModel(
         val tags = withContext(Dispatchers.IO) {
             userRepository.getFollowTags(preferApiType = Prefs.apiType)
         }
-        _uiState.update { it.copy(followTags = tags) }
+        _uiState.update { it.copy(followTags = tags.toPersistentList()) }
         return tags.isNotEmpty()
     }
 
@@ -435,7 +436,7 @@ class VideoDetailViewModel(
                     preferApiType = Prefs.apiType
                 )
             }.onSuccess { result ->
-                _uiState.update { it.copy(favoriteFolders = result) }
+                _uiState.update { it.copy(favoriteFolders = result.toPersistentList()) }
                 logger.fDebug { "Update favoriteFolders size: ${result.size}" }
                 val videoInFavoriteFolderIdsResult = result
                     .filter { it.videoInThisFav }.map { it.id }

@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -42,6 +43,7 @@ import dev.aaa1115910.bv.screen.user.UserItem
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.UserSwitchViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
@@ -52,8 +54,7 @@ fun UnlockUserScreen(
     userSwitchViewModel: UserSwitchViewModel = koinViewModel(),
     onUnlockSuccess: (UserDB) -> Unit
 ) {
-    val scope = rememberCoroutineScope()
-    val userList = userSwitchViewModel.userDbList
+    val userList by userSwitchViewModel.userDbList.collectAsStateWithLifecycle()
     var selectedUser: UserDB? by remember { mutableStateOf(null) }
 
     LaunchedEffect(Unit) {
@@ -68,8 +69,7 @@ fun UnlockUserScreen(
             selectedUser = user
         },
         onUnlockSuccess = { user ->
-            scope.launch {
-                userSwitchViewModel.switchUser(user)
+            userSwitchViewModel.switchUser(user) {
                 onUnlockSuccess(user)
             }
         }
@@ -79,7 +79,7 @@ fun UnlockUserScreen(
 @Composable
 private fun UnlockUserContent(
     modifier: Modifier = Modifier,
-    userList: List<UserDB>,
+    userList: ImmutableList<UserDB>,
     selectedUser: UserDB?,
     onSelectedUserChange: (UserDB) -> Unit,
     onUnlockSuccess: (UserDB) -> Unit

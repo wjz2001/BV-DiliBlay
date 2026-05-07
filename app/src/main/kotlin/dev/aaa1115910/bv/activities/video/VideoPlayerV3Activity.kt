@@ -6,12 +6,14 @@ import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import dev.aaa1115910.biliapi.entity.user.Author
+import dev.aaa1115910.bv.activities.StartupGate
+import dev.aaa1115910.bv.activities.setContentWhenStartupReady
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.screen.VideoPlayerV3Screen
@@ -27,6 +29,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
     private val playerViewModel: VideoPlayerV3ViewModel by viewModel()
 
     private var initialLoadDispatched = false
+    private var startupReady = false
 
     companion object {
         private val logger = KotlinLogging.logger { }
@@ -72,21 +75,24 @@ class VideoPlayerV3Activity : ComponentActivity() {
         currentInstance = this
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        // 1. 初始化 viewmodel 参数（方案 B：这里只初始化状态，不自动 load）
-        initViewModelFromIntent()
-
-        // 2. 初始化播放器
-        playerViewModel.initVideoPlayer(applicationContext)
-
-        // 3. 设置 UI
-        setContent {
+        setContentWhenStartupReady(
+            gate = StartupGate.Prefs,
+            onReady = {
+                initViewModelFromIntent()
+                playerViewModel.initVideoPlayer(applicationContext)
+                startupReady = true
+                if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                    playerViewModel.onHostStartFastResumeOrRecreate()
+                }
+                if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                    dispatchInitialLoadIfNeeded()
+                }
+            }
+        ) {
             BVTheme {
                 VideoPlayerV3Screen()
             }
         }
-
-        // 4. 显式加载资源并开始播放
-        //playerViewModel.loadVideoWithResources()
     }
 
     override fun onStart() {
@@ -95,6 +101,8 @@ class VideoPlayerV3Activity : ComponentActivity() {
         Log.i("BugDebug", "VideoPlayerV3Activity onStart: suppressPlayerErrors=true (resuming)")
 
         super.onStart()
+
+        if (!startupReady) return
 
         // 快恢复（不重建）或按需重建
         playerViewModel.onHostStartFastResumeOrRecreate()
@@ -110,6 +118,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (!startupReady) return
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
@@ -118,19 +127,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
 
-        if (!initialLoadDispatched) {
-            initialLoadDispatched = true
-            Log.i("BugDebug", "VideoPlayerV3Activity onResume: schedule initial load")
-
-            window.decorView.post {
-                window.decorView.post {
-                    if (!isFinishing && !isDestroyed) {
-                        Log.i("BugDebug", "VideoPlayerV3Activity: initial loadVideoWithResources()")
-                        playerViewModel.loadVideoWithResources()
-                    }
-                }
-            }
-        }
+        dispatchInitialLoadIfNeeded()
     }
 
     override fun onPause() {
@@ -207,6 +204,21 @@ class VideoPlayerV3Activity : ComponentActivity() {
             )
         } else {
             logger.fInfo { "Null launch parameter" }
+        }
+    }
+
+    private fun dispatchInitialLoadIfNeeded() {
+        if (initialLoadDispatched) return
+        initialLoadDispatched = true
+        Log.i("BugDebug", "VideoPlayerV3Activity: schedule initial load")
+
+        window.decorView.post {
+            window.decorView.post {
+                if (!isFinishing && !isDestroyed) {
+                    Log.i("BugDebug", "VideoPlayerV3Activity: initial loadVideoWithResources()")
+                    playerViewModel.loadVideoWithResources()
+                }
+            }
         }
     }
 }

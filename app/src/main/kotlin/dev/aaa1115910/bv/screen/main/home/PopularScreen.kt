@@ -11,13 +11,18 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
@@ -29,6 +34,7 @@ import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
+import dev.aaa1115910.bv.screen.main.runtime.ContentRuntimeState
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.formatHourMinSec
@@ -36,47 +42,65 @@ import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.home.PopularViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun PopularScreen(
     modifier: Modifier = Modifier,
     gridState: LazyGridState = rememberLazyGridState(),
-    popularViewModel: PopularViewModel = koinViewModel(),
-    toViewViewModel: ToViewViewModel = koinViewModel()
+    active: Boolean = true,
+    activationSerial: Long = 0L,
+    refreshSerial: Long = 0L,
+    contentEntryFocusRequester: FocusRequester? = null,
+    tabFocusRequester: FocusRequester? = null
 ) {
-    val scope = rememberCoroutineScope()
+    val popularViewModel: PopularViewModel = koinViewModel()
+    val toViewViewModel: ToViewViewModel = koinViewModel()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val popularVideoList by popularViewModel.popularVideoList.collectAsStateWithLifecycle()
 
     val onClickVideo: (UgcItem) -> Unit = { ugcItem ->
         VideoInfoActivity.actionStart(context, ugcItem.aid)
     }
 
-    LaunchedEffect(Unit) {
-        toViewViewModel.uiEvent.collect { event ->
-            when (event) {
-                is UiEffect.ShowToast -> {
-                    event.message.toast(context)
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            toViewViewModel.uiEvent.collect { event ->
+                when (event) {
+                    is UiEffect.ShowToast -> {
+                        event.message.toast(context)
+                    }
                 }
             }
         }
     }
 
+    LaunchedEffect(active, activationSerial) {
+        popularViewModel.updateRuntimeState(
+            if (active && activationSerial > 0L) ContentRuntimeState.Active else ContentRuntimeState.Frozen
+        )
+    }
+
+    LaunchedEffect(active, refreshSerial) {
+        if (!active) return@LaunchedEffect
+        if (refreshSerial == 0L) return@LaunchedEffect
+        gridState.scrollToItem(0)
+        popularViewModel.reloadAll()
+    }
+
     // 监听可见区最后一个 item 的 index，距离尾部 20 个就翻页
-    LaunchedEffect(gridState) {
+    LaunchedEffect(gridState, active) {
+        if (!active) return@LaunchedEffect
         snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .distinctUntilChanged()
             .filter { index ->
-                index != null && index >= popularViewModel.popularVideoList.size - 20
+                index != null && index >= popularVideoList.size - 20
             }
             .collect {
-                scope.launch(Dispatchers.IO) {
-                    popularViewModel.loadMore()
-                }
+                popularViewModel.loadMore()
             }
     }
 
@@ -87,14 +111,17 @@ fun PopularScreen(
         contentPadding = PaddingValues(24.dp),
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
-        horizontalWrapItemCount = popularViewModel.popularVideoList.size
-    ) {
+        horizontalWrapItemCount = popularVideoList.size,
+        entryFocusRequester = contentEntryFocusRequester,
+        upFocusRequester = tabFocusRequester
+    ) { cardUiStateFor ->
         itemsIndexed(
-            items = popularViewModel.popularVideoList,
-            key = { index, _ -> index }
+            items = popularVideoList,
+            key = { _, item -> item.aid }
         ) { index, item ->
             SmallVideoCard(
                 frameModifier = rememberGridRowWrapModifier(index),
+                uiState = cardUiStateFor(item.aid),
                 data = remember(item) {         // `VideoCardData` 只在 item 变动时重建
                     VideoCardData(
                         avid = item.aid,
@@ -111,13 +138,6 @@ fun PopularScreen(
                 onClick = { onClickVideo(item) },
                 onAddWatchLater = {
                     toViewViewModel.addToView(item.aid)
-                },
-                onGoToDetailPage = {
-                    VideoInfoActivity.actionStart(
-                        context = context,
-                        fromController = true,
-                        aid = item.aid
-                    )
                 },
                 onGoToUpPage = if (item.authorMid != null && item.authorMid != 0L) {
                     { UpInfoActivity.actionStart(context, item.authorMid!!, item.author) }

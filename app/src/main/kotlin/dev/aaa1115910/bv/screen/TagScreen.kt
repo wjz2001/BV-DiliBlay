@@ -17,12 +17,15 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,8 +58,9 @@ fun TagScreen(
 ) {
     val gridState = rememberLazyGridState()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
 
-    val uiState = tagViewModel.uiState.collectAsState()
+    val uiState = tagViewModel.uiState.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         val intent = (context as Activity).intent
@@ -70,11 +74,13 @@ fun TagScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        toViewViewModel.uiEvent.collect { event ->
-            when (event) {
-                is UiEffect.ShowToast -> {
-                    event.message.toast(context)
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            toViewViewModel.uiEvent.collect { event ->
+                when (event) {
+                    is UiEffect.ShowToast -> {
+                        event.message.toast(context)
+                    }
                 }
             }
         }
@@ -135,7 +141,7 @@ fun TagScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             horizontalWrapItemCount = uiState.value.videoList.size
-        ) {
+        ) { cardUiStateFor ->
             itemsIndexed(
                 items = uiState.value.videoList,
                 key = { _, video -> video.aid }
@@ -145,6 +151,7 @@ fun TagScreen(
                 ) {
                     SmallVideoCard(
                         frameModifier = rememberGridRowWrapModifier(index),
+                        uiState = cardUiStateFor(video.aid),
                         data = VideoCardData(
                             avid = video.aid,
                             title = video.title,
@@ -159,13 +166,6 @@ fun TagScreen(
                         onClick = { VideoInfoActivity.actionStart(context, video.aid) },
                         onAddWatchLater = {
                             toViewViewModel.addToView(video.aid)
-                        },
-                        onGoToDetailPage = {
-                            VideoInfoActivity.actionStart(
-                                context = context,
-                                fromController = true,
-                                aid = video.aid
-                            )
                         },
                         onGoToUpPage =
                         { UpInfoActivity.actionStart(context, video.owner.mid, video.owner.name) }

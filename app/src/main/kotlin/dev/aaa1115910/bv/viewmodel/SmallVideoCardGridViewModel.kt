@@ -12,20 +12,31 @@ import dev.aaa1115910.biliapi.repositories.VideoDetailRepository
 import dev.aaa1115910.bv.component.videocard.CoAuthorCacheStore
 import dev.aaa1115910.bv.util.Prefs
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableMap
+import kotlinx.collections.immutable.PersistentMap
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.KoinViewModel
+import java.util.LinkedHashSet
 import java.util.concurrent.ConcurrentHashMap
 
 private val logger = KotlinLogging.logger {}
+private const val MAX_CARD_UI_STATES = 512
 
 /**
  * 单张卡片的外部 UI 状态。
@@ -58,8 +69,8 @@ data class SmallVideoCardCapabilitiesUiState(
 data class FavoriteDialogUiState(
     val show: Boolean = false,
     val aid: Long? = null,
-    val folders: List<FavoriteFolderMetadata> = emptyList(),
-    val selectedFolderIds: List<Long> = emptyList()
+    val folders: ImmutableList<FavoriteFolderMetadata> = persistentListOf(),
+    val selectedFolderIds: ImmutableList<Long> = persistentListOf()
 )
 
 /**
@@ -69,7 +80,7 @@ data class FavoriteDialogUiState(
 data class CoAuthorsDialogUiState(
     val show: Boolean = false,
     val ownerAid: Long? = null,
-    val authors: List<CoAuthor> = emptyList()
+    val authors: ImmutableList<CoAuthor> = persistentListOf()
 )
 
 /**
@@ -115,12 +126,18 @@ class SmallVideoCardGridViewModel(
     private val videoDetailRepository: VideoDetailRepository
 ) : ViewModel() {
 
-    /**
-     * 每张卡自己的 UI State Flow。
-     * key = aid
-     */
-    private val cardUiFlows =
-        ConcurrentHashMap<Long, MutableStateFlow<SmallVideoCardItemUiState>>()
+    private val _cardUiMap =
+        MutableStateFlow<PersistentMap<Long, SmallVideoCardItemUiState>>(persistentMapOf())
+    val cardUiMap: StateFlow<ImmutableMap<Long, SmallVideoCardItemUiState>> =
+        _cardUiMap.asStateFlow()
+    private val cardUiAccessOrder = LinkedHashSet<Long>()
+
+    fun cardUiStateFlow(aid: Long): Flow<SmallVideoCardItemUiState> {
+        touchCardUiIfPresent(aid)
+        return cardUiMap
+            .map { it[aid] ?: SmallVideoCardItemUiState() }
+            .distinctUntilChanged()
+    }
 
     /**
      * 记录哪些 aid 已经做过 favorite 轻量校准。
@@ -177,26 +194,57 @@ class SmallVideoCardGridViewModel(
         )
     }
 
-    /**
-     * 获取指定 aid 对应的卡片 UI Flow。
-     *
-     * SmallVideoCard 会只 collect 自己那一张卡的 flow，
-     * 从而避免“任意一张卡状态变化导致整页卡片一起重组”。
-     */
-    fun cardUiFlow(aid: Long): StateFlow<SmallVideoCardItemUiState> {
-        return cardUiFlows.getOrPut(aid) {
-            MutableStateFlow(SmallVideoCardItemUiState())
-        }.asStateFlow()
-    }
-
     private fun updateCardUi(
         aid: Long,
         transform: (SmallVideoCardItemUiState) -> SmallVideoCardItemUiState
     ) {
-        val flow = cardUiFlows.getOrPut(aid) {
-            MutableStateFlow(SmallVideoCardItemUiState())
+        val current = _cardUiMap.value[aid] ?: SmallVideoCardItemUiState()
+        touchCardUi(aid)
+        _cardUiMap.value = trimCardUiMap(_cardUiMap.value.put(aid, transform(current)))
+    }
+
+    private fun touchCardUiIfPresent(aid: Long) {
+        if (_cardUiMap.value.containsKey(aid)) {
+            touchCardUi(aid)
         }
-        flow.value = transform(flow.value)
+    }
+
+    private fun touchCardUi(aid: Long) {
+        cardUiAccessOrder.remove(aid)
+        cardUiAccessOrder.add(aid)
+    }
+
+    private fun trimCardUiMap(
+        map: PersistentMap<Long, SmallVideoCardItemUiState>
+    ): PersistentMap<Long, SmallVideoCardItemUiState> {
+        if (map.size <= MAX_CARD_UI_STATES) return map
+
+        val protectedFavoriteAid = _uiState.value.favoriteDialog.aid
+        val protectedCoAuthorsAid = _uiState.value.coAuthorsDialog.ownerAid
+        var trimmed = map
+        val iterator = cardUiAccessOrder.iterator()
+
+        while (trimmed.size > MAX_CARD_UI_STATES && iterator.hasNext()) {
+            val aid = iterator.next()
+            if (aid == protectedFavoriteAid || aid == protectedCoAuthorsAid) continue
+
+            iterator.remove()
+            if (trimmed.containsKey(aid)) {
+                trimmed = trimmed.remove(aid)
+            }
+        }
+
+        if (trimmed.size <= MAX_CARD_UI_STATES) return trimmed
+
+        for (aid in trimmed.keys) {
+            if (trimmed.size <= MAX_CARD_UI_STATES) break
+            if (aid == protectedFavoriteAid || aid == protectedCoAuthorsAid) continue
+
+            cardUiAccessOrder.remove(aid)
+            trimmed = trimmed.remove(aid)
+        }
+
+        return trimmed
     }
 
     /**
@@ -355,8 +403,8 @@ class SmallVideoCardGridViewModel(
                         favoriteDialog = FavoriteDialogUiState(
                             show = true,
                             aid = aid,
-                            folders = list,
-                            selectedFolderIds = selected
+                            folders = list.toPersistentList(),
+                            selectedFolderIds = selected.toPersistentList()
                         )
                     )
                 }
@@ -410,7 +458,7 @@ class SmallVideoCardGridViewModel(
                     updateCardUi(aid) { it.copy(isFavorite = folderIds.isNotEmpty()) }
                     _uiState.value = _uiState.value.copy(
                         favoriteDialog = dialog.copy(
-                            selectedFolderIds = folderIds
+                            selectedFolderIds = folderIds.toPersistentList()
                         )
                     )
                 }
@@ -493,7 +541,7 @@ class SmallVideoCardGridViewModel(
                     coAuthorsDialog = CoAuthorsDialogUiState(
                         show = true,
                         ownerAid = aid,
-                        authors = distinct
+                        authors = distinct.toPersistentList()
                     )
                 )
             }

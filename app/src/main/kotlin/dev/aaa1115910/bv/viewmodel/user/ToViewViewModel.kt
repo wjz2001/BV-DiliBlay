@@ -3,7 +3,6 @@ package dev.aaa1115910.bv.viewmodel.user
 import android.content.Context
 import android.os.SystemClock
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
@@ -21,17 +20,23 @@ import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.fWarn
 import dev.aaa1115910.bv.util.formatHourMinSec
-import dev.aaa1115910.bv.util.swapListSkipEqual
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.common.LoadState
 import dev.aaa1115910.bv.viewmodel.common.LoadState.Idle
 import dev.aaa1115910.bv.viewmodel.common.canAutoLoad
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -59,7 +64,8 @@ class ToViewViewModel(
         val noMore: Boolean
     )
 
-    var histories = mutableStateListOf<VideoCardData>()
+    private val _histories = MutableStateFlow(persistentListOf<VideoCardData>())
+    val histories: StateFlow<ImmutableList<VideoCardData>> = _histories.asStateFlow()
     var noMore by mutableStateOf(false)
 
     private var cursor = 0L
@@ -107,7 +113,7 @@ class ToViewViewModel(
     ) {
         requestGeneration++
         updateJob?.cancel()
-        histories.clear()
+        _histories.value = persistentListOf()
         cursor = 0L
         noMore = false
         updating = false
@@ -228,7 +234,11 @@ class ToViewViewModel(
     }
 
     fun removeFromLocalList(aid: Long) {
-        histories.removeAll { it.avid == aid }
+        _histories.update { list -> list.removeAll { it.avid == aid } }
+    }
+
+    fun removeWatchedFromLocalList() {
+        _histories.update { list -> list.removeAll { it.timeString == "已看完" } }
     }
 
     fun delToView(aid: Long, viewed: Boolean = false) {
@@ -245,6 +255,13 @@ class ToViewViewModel(
         resetDataState()
     }
 
+    fun cancelOngoingLoads() {
+        requestGeneration++
+        updateJob?.cancel()
+        updateJob = null
+        updating = false
+    }
+
     fun refreshSnapshotIncrementally(showErrorToast: Boolean = true) {
         ensureAccountStateFresh()
 
@@ -257,7 +274,7 @@ class ToViewViewModel(
         updating = false
 
         activationRefreshState = LoadState.Loading
-        if (histories.isEmpty()) {
+        if (_histories.value.isEmpty()) {
             initialLoadState = LoadState.Loading
         }
 
@@ -424,6 +441,7 @@ class ToViewViewModel(
             withContext(Dispatchers.Main) {
                 throwIfStale(expectedGeneration)
 
+                val histories = _histories.value
                 val existingAids = HashSet<Long>(histories.size + cards.size)
                 histories.forEach { existingAids.add(it.avid) }
 
@@ -434,7 +452,7 @@ class ToViewViewModel(
                     }
                 }
 
-                histories.addAll(distinctCards)
+                _histories.update { it.addAll(distinctCards) }
             }
 
             cursor = data.cursor
@@ -515,7 +533,7 @@ class ToViewViewModel(
 
             withContext(Dispatchers.Main) {
                 throwIfStale(expectedGeneration)
-                histories.swapListSkipEqual(snapshot.cards)
+                _histories.value = snapshot.cards.toPersistentList()
                 cursor = snapshot.cursor
                 activationRefreshState = LoadState.Success
                 lastFailureWasAuth = false

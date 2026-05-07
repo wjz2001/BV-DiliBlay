@@ -75,6 +75,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -2727,6 +2728,7 @@ class VideoPlayerV3ViewModel(
         ugcPagesPrefetchJob?.cancel()
         bufferingShowJob?.cancel()
         bufferingHideJob?.cancel()
+        detachedWorkScope.cancel()
 
         runCatching { subtitleHttpClient.close() }
 

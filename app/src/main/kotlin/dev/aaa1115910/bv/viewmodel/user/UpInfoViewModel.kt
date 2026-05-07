@@ -2,7 +2,6 @@ package dev.aaa1115910.bv.viewmodel.user
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
@@ -16,9 +15,15 @@ import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.toWanString
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -37,7 +42,8 @@ class UpInfoViewModel(
 
     var upName by mutableStateOf("")
     var upMid by mutableLongStateOf(0L)
-    var spaceVideos = mutableStateListOf<VideoCardData>()
+    private val _spaceVideos = MutableStateFlow(persistentListOf<VideoCardData>())
+    val spaceVideos: StateFlow<ImmutableList<VideoCardData>> = _spaceVideos.asStateFlow()
 
     // Web: page.count; App: count。取不到时为 null
     var totalCount by mutableStateOf<Int?>(null)
@@ -95,7 +101,7 @@ class UpInfoViewModel(
         totalCount = null
 
         page = SpaceVideoPage()
-        spaceVideos.clear()
+        _spaceVideos.value = persistentListOf()
         loadedAvids.clear()
     }
 
@@ -224,7 +230,7 @@ class UpInfoViewModel(
                 if (expectedGeneration != requestGeneration) return@withContext
                 newCards.forEach { card ->
                     if (loadedAvids.add(card.avid)) {
-                        spaceVideos.add(card)
+                        _spaceVideos.update { it.add(card) }
                     }
                 }
             }

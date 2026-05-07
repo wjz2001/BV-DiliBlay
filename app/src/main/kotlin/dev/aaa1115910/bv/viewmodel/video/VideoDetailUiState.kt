@@ -9,6 +9,8 @@ import dev.aaa1115910.biliapi.entity.video.VideoPage
 import dev.aaa1115910.biliapi.entity.video.season.UgcSeason
 import dev.aaa1115910.biliapi.http.entity.relation.RelationTag
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import java.util.Date
 
 data class VideoDetailUiState(
@@ -16,10 +18,10 @@ data class VideoDetailUiState(
     val loadingState: VideoInfoState = VideoInfoState.Loading,
     val errorTip: String = "",
     val isFollowingUp: Boolean = false,
-    val followTags: List<RelationTag> = emptyList(),
+    val followTags: ImmutableList<RelationTag> = persistentListOf(),
     val showVideoInfo: Boolean = true,
     val fromController: Boolean = false,
-    val favoriteFolders: List<FavoriteFolderMetadata> = emptyList(),
+    val favoriteFolders: ImmutableList<FavoriteFolderMetadata> = persistentListOf(),
     val videoFavoriteFolderIds: Set<Long> = emptySet()
 ) {
     val shouldShowLoading: Boolean
@@ -38,19 +40,19 @@ data class VideoDetailState(
     val publishDate: Date,
     val stat: Stat,
     val author: Author,
-    val tags: List<Tag>,
+    val tags: ImmutableList<Tag>,
     val isUpowerExclusive: Boolean = false,
     val redirectToEp: Boolean,
     val argueTip: String?,
     val description: String,
     val descriptionContent: RichTextContent,
-    val pages: List<VideoPage>,
-    val relatedVideos: List<VideoCardData>,
+    val pages: ImmutableList<VideoPage>,
+    val relatedVideos: ImmutableList<VideoCardData>,
     val ugcSeason: UgcSeason?,
     val lastPlayedCid: Long,
     val lastPlayedTime: Int,
     val isLiked: Boolean,
     val isCoined: Boolean,
     val isFavorite: Boolean,
-    val coAuthors: List<dev.aaa1115910.biliapi.entity.user.CoAuthor> = emptyList(),
+    val coAuthors: ImmutableList<dev.aaa1115910.biliapi.entity.user.CoAuthor> = persistentListOf(),
 )

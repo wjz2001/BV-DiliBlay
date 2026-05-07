@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -23,9 +24,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -36,6 +39,9 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -63,25 +69,35 @@ import androidx.tv.material3.Text
 fun HistoryScreen(
     modifier: Modifier = Modifier,
     gridState: LazyGridState = rememberLazyGridState(),
+    active: Boolean = true,
+    activationSerial: Long = 0L,
+    refreshSerial: Long = 0L,
+    longPressSerial: Long = 0L,
     historyViewModel: HistoryViewModel = koinViewModel(),
-    toViewViewModel: ToViewViewModel = koinViewModel()
+    toViewViewModel: ToViewViewModel = koinViewModel(),
+    contentEntryFocusRequester: FocusRequester? = null,
+    tabFocusRequester: FocusRequester? = null,
+    onSearchStateChanged: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     var searchFieldHasFocus by remember { mutableStateOf(false) }
+    val histories by historyViewModel.histories.collectAsStateWithLifecycle()
 
     val visibleHistories by remember {
         derivedStateOf {
             val q = historyViewModel.debouncedQuery.trim()
             if (q.isBlank()) {
-                historyViewModel.histories
+                histories
             } else {
-                historyViewModel.histories.filter { it.title.contains(q, ignoreCase = true) }
+                histories.filter { it.title.contains(q, ignoreCase = true) }
             }
         }
     }
 
     // 监听可见区最后一个 item 的 index，距离尾部 20 个就翻页
     LaunchedEffect(historyViewModel.debouncedQuery) {
+        onSearchStateChanged(historyViewModel.debouncedQuery.isNotBlank())
         val q = historyViewModel.debouncedQuery.trim()
         if (q.isBlank()) {
             historyViewModel.stopAutoLoad()
@@ -93,28 +109,64 @@ fun HistoryScreen(
     DisposableEffect(Unit) {
         onDispose {
             historyViewModel.stopAutoLoad()
+            historyViewModel.cancelOngoingLoads()
+            onSearchStateChanged(false)
+        }
+    }
+
+    DisposableEffect(active) {
+        onDispose {
+            historyViewModel.stopAutoLoad()
+            historyViewModel.cancelOngoingLoads()
+        }
+    }
+
+    LaunchedEffect(active, activationSerial) {
+        if (!active) return@LaunchedEffect
+        if (activationSerial == 0L) return@LaunchedEffect
+        withFrameNanos { }
+        historyViewModel.ensureLoaded(showErrorToast = false)
+    }
+
+    LaunchedEffect(active, refreshSerial) {
+        if (!active) return@LaunchedEffect
+        if (refreshSerial == 0L) return@LaunchedEffect
+        gridState.scrollToItem(0)
+        historyViewModel.reloadAll()
+    }
+
+    LaunchedEffect(active, longPressSerial) {
+        if (!active) return@LaunchedEffect
+        if (longPressSerial == 0L) return@LaunchedEffect
+        if (historyViewModel.debouncedQuery.isNotBlank()) {
+            historyViewModel.clearSearch()
+        } else {
+            historyViewModel.openSearchDialog()
         }
     }
 
 // 空关键词：保留触底翻页
-    LaunchedEffect(gridState, historyViewModel.debouncedQuery) {
+    LaunchedEffect(gridState, historyViewModel.debouncedQuery, active) {
+        if (!active) return@LaunchedEffect
         if (historyViewModel.debouncedQuery.trim().isNotBlank()) return@LaunchedEffect
 
         snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .distinctUntilChanged()
             .filter { index ->
-                index != null && index >= historyViewModel.histories.size - 20
+                index != null && index >= histories.size - 20
             }
             .collect {
                 historyViewModel.update()
             }
     }
 
-    LaunchedEffect(Unit) {
-        toViewViewModel.uiEvent.collect { event ->
-            when (event) {
-                is UiEffect.ShowToast -> {
-                    event.message.toast(context)
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            toViewViewModel.uiEvent.collect { event ->
+                when (event) {
+                    is UiEffect.ShowToast -> {
+                        event.message.toast(context)
+                    }
                 }
             }
         }
@@ -138,15 +190,21 @@ fun HistoryScreen(
         contentPadding = PaddingValues(24.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
         horizontalArrangement = Arrangement.spacedBy(24.dp),
-        horizontalWrapItemCount = visibleHistories.size
-    ) {
+        horizontalWrapItemCount = visibleHistories.size,
+        entryFocusRequester = contentEntryFocusRequester,
+        upFocusRequester = tabFocusRequester
+    ) { cardUiStateFor ->
             if (visibleHistories.isNotEmpty()) {
-                itemsIndexed(visibleHistories) { index, history ->
+                itemsIndexed(
+                    items = visibleHistories,
+                    key = { _, history -> "${history.avid}_${history.epId ?: 0}" }
+                ) { index, history ->
                 Box(
                     contentAlignment = Alignment.Center
                 ) {
                     SmallVideoCard(
                         frameModifier = rememberGridRowWrapModifier(index),
+                        uiState = cardUiStateFor(history.avid),
                         data = history,
                         onClick = {
                             VideoInfoActivity.actionStart(
@@ -159,15 +217,6 @@ fun HistoryScreen(
                         },
                         onAddWatchLater = {
                             toViewViewModel.addToView(history.avid)
-                        },
-                        onGoToDetailPage = {
-                            VideoInfoActivity.actionStart(
-                                context = context,
-                                fromController = true,
-                                aid = history.avid,
-                                epid = history.epId,
-                                source = if (history.epId != null) VideoSource.Pgc else VideoSource.Ugc
-                            )
                         },
                         onGoToUpPage = history.upMid?.let {
                             { UpInfoActivity.actionStart(context, it, history.upName) }

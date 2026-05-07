@@ -1,6 +1,7 @@
 *.iml
 *.bat
 .gradle
+.gradle-user-home
 /local.properties
 .DS_Store
 /build
@@ -15,4 +16,6 @@
 /.idea/codeStyles/
 /bilibili-API-collect-master
 /b-API-c
+/fantasytyx-bv
+/PiliPlus
 /.claude/settings.json

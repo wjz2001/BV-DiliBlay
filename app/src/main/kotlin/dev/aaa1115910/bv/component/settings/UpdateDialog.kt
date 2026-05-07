@@ -14,12 +14,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -29,74 +23,39 @@ import androidx.tv.material3.Button
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.BuildConfig
-import dev.aaa1115910.bv.network.GithubApi
-import dev.aaa1115910.bv.network.entity.Release
-import dev.aaa1115910.bv.util.fException
-import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.toMBString
-import io.github.oshai.kotlinlogging.KotlinLogging
-import io.ktor.client.content.ProgressListener
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
+import dev.aaa1115910.bv.viewmodel.settings.UpdateViewModel
+import org.koin.androidx.compose.koinViewModel
 import java.io.File
 
 @Composable
 fun UpdateDialog(
     modifier: Modifier = Modifier,
     show: Boolean,
-    onHideDialog: () -> Unit
+    onHideDialog: () -> Unit,
+    updateViewModel: UpdateViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val logger = KotlinLogging.logger("UpdateDialog")
-
-    var updateStatus by remember { mutableStateOf(UpdateStatus.UpdatingInfo) }
-
-    var bytesSentTotal: Long by remember { mutableLongStateOf(0L) }
-    var contentLength: Long by remember { mutableLongStateOf(0L) }
-    var targetProgress by remember { mutableFloatStateOf(0f) }
+    val updateStatus = updateViewModel.updateStatus
+    val latestReleaseBuild = updateViewModel.latestReleaseBuild
     val progress by animateFloatAsState(
-        targetValue = targetProgress,
+        targetValue = updateViewModel.targetProgress,
         label = "update progress"
     )
-    var downloadJob by remember { mutableStateOf<Job?>(null) }
-    var latestReleaseBuild by remember { mutableStateOf<Release?>(null) }
 
     DisposableEffect(show) {
         if(!show) {
-            downloadJob?.cancel()
+            updateViewModel.cancelDownload()
         }
         onDispose {
-            downloadJob?.cancel()
+            updateViewModel.cancelDownload()
         }
     }
 
-    val checkUpdate: () -> Unit = {
-        updateStatus = UpdateStatus.UpdatingInfo
-
-        scope.launch(Dispatchers.IO) {
-            runCatching {
-                latestReleaseBuild = GithubApi.getLatestBuild()
-                val revision = latestReleaseBuild!!
-                    .assets.first { it.name.startsWith("BV") }
-                    .name.split("_")[1].toInt()
-                if (revision <= BuildConfig.VERSION_CODE) {
-                    updateStatus = UpdateStatus.NoAvailableUpdate
-                    return@launch
-                }
-            }.onFailure {
-                logger.fException(it) { "Failed to get latest version" }
-                updateStatus = UpdateStatus.CheckError
-            }.onSuccess {
-                logger.fInfo { "Find latest version ${latestReleaseBuild!!.name}" }
-                updateStatus = UpdateStatus.Ready
-            }
-        }
-    }
+    val checkUpdate: () -> Unit = { updateViewModel.checkUpdate() }
 
     val installUpdate: (File) -> Unit = { file ->
-        updateStatus = UpdateStatus.Installing
+        updateViewModel.setInstalling()
         runCatching {
             val uri =
                 FileProvider.getUriForFile(context, "${BuildConfig.APPLICATION_ID}.provider", file)
@@ -108,37 +67,12 @@ fun UpdateDialog(
             }
             context.startActivity(intent)
         }.onFailure {
-            updateStatus = UpdateStatus.InstallError
+            updateViewModel.setInstallError()
         }
     }
 
     val startUpdate: () -> Unit = {
-        updateStatus = UpdateStatus.Downloading
-        downloadJob = scope.launch(Dispatchers.IO) {
-            val tempFilename = latestReleaseBuild!!.assets.first { it.name.startsWith("BV") }.name
-            val tempDir = File(context.cacheDir, "update_downloader")
-            if (!tempDir.exists()) tempDir.mkdirs()
-            val tempFile = File(tempDir, tempFilename)
-            tempFile.createNewFile()
-            runCatching {
-                GithubApi.downloadUpdate(
-                    latestReleaseBuild!!,
-                    tempFile,
-                    object : ProgressListener {
-                        override suspend fun onProgress(downloaded: Long, total: Long?) {
-                            bytesSentTotal = downloaded
-                            contentLength = total ?: 0
-                            targetProgress =
-                                runCatching { bytesSentTotal.toFloat() / contentLength }
-                                    .getOrDefault(0f)
-                        }
-                    })
-                if (show) installUpdate(tempFile)
-            }.onFailure {
-                logger.fException(it) { "Failed to download update" }
-                updateStatus = UpdateStatus.DownloadError
-            }
-        }
+        updateViewModel.startUpdate(context.cacheDir, show, installUpdate)
     }
 
     LaunchedEffect(Unit) {
@@ -149,7 +83,7 @@ fun UpdateDialog(
         if (show) {
             checkUpdate()
         } else {
-            updateStatus = UpdateStatus.UpdatingInfo
+            updateViewModel.resetStatus()
         }
     }
 
@@ -194,7 +128,7 @@ fun UpdateDialog(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.End
                             ) {
-                                Text(text = "${bytesSentTotal.toMBString()}/${contentLength.toMBString()}")
+                                Text(text = "${updateViewModel.bytesSentTotal.toMBString()}/${updateViewModel.contentLength.toMBString()}")
                             }
                         }
                     }

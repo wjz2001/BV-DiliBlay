@@ -50,12 +50,13 @@ import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.ThemeMode
 import dev.aaa1115910.bv.util.focusedBorder
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.delay
 
 @Composable
 fun PgcCarousel(
     modifier: Modifier = Modifier,
-    data: List<CarouselData.CarouselItem>,
+    data: ImmutableList<CarouselData.CarouselItem>,
     onClick: (CarouselData.CarouselItem) -> Unit
 ) {
     CarouselContent(
@@ -68,7 +69,7 @@ fun PgcCarousel(
 @Composable
 fun UgcCarousel(
     modifier: Modifier = Modifier,
-    data: List<CarouselData.CarouselItem>,
+    data: ImmutableList<CarouselData.CarouselItem>,
     onClick: (CarouselData.CarouselItem) -> Unit
 ) {
     CarouselContent(
@@ -81,7 +82,7 @@ fun UgcCarousel(
 @Composable
 fun CarouselContent(
     modifier: Modifier = Modifier,
-    data: List<CarouselData.CarouselItem>,
+    data: ImmutableList<CarouselData.CarouselItem>,
     onClick: (CarouselData.CarouselItem) -> Unit
 ) {
     Carousel(

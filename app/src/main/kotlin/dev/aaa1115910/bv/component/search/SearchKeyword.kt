@@ -1,6 +1,5 @@
 package dev.aaa1115910.bv.component.search
 
-import android.os.Build
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
@@ -11,13 +10,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.DenseListItem
 import androidx.tv.material3.Text
-import coil.ImageLoader
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
-import coil.decode.GifDecoder
-import coil.decode.ImageDecoderDecoder
+import coil.imageLoader
 import coil.request.ImageRequest
-import coil.size.Size
 
 @Composable
 fun SearchKeyword(
@@ -28,21 +24,11 @@ fun SearchKeyword(
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
-    val imageLoader = ImageLoader.Builder(context)
-        .components {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                add(ImageDecoderDecoder.Factory())
-            } else {
-                add(GifDecoder.Factory())
-            }
-        }
-        .build()
     val painter = rememberAsyncImagePainter(
         ImageRequest.Builder(context)
             .data(data = leadingIcon)
-            .size(Size.ORIGINAL)
             .build(),
-        imageLoader = imageLoader,
+        imageLoader = context.imageLoader,
         contentScale = ContentScale.FillHeight
     )
 

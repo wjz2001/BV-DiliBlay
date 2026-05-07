@@ -21,6 +21,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -36,6 +37,9 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -74,6 +78,8 @@ fun UpSpaceScreen(
 ) {
     val gridState = rememberLazyGridState()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val spaceVideos by upInfoViewModel.spaceVideos.collectAsStateWithLifecycle()
 
     // 保证进入页面焦点在网格第一张卡片
     val firstItemFocusRequester = remember { FocusRequester() }
@@ -100,10 +106,12 @@ fun UpSpaceScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        toViewViewModel.uiEvent.collect { event ->
-            when (event) {
-                is UiEffect.ShowToast -> event.message.toast(context)
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            toViewViewModel.uiEvent.collect { event ->
+                when (event) {
+                    is UiEffect.ShowToast -> event.message.toast(context)
+                }
             }
         }
     }
@@ -123,7 +131,7 @@ fun UpSpaceScreen(
         snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .distinctUntilChanged()
             .filter { index ->
-                index != null && index >= upInfoViewModel.spaceVideos.size - 20
+                index != null && index >= spaceVideos.size - 20
             }
             .collect {
                 upInfoViewModel.update()
@@ -131,8 +139,8 @@ fun UpSpaceScreen(
     }
 
     // 首批数据到来后，把焦点落到第一张卡片
-    LaunchedEffect(upInfoViewModel.spaceVideos.size) {
-        if (!requestedInitialFocus && upInfoViewModel.spaceVideos.isNotEmpty()) {
+    LaunchedEffect(spaceVideos.size) {
+        if (!requestedInitialFocus && spaceVideos.isNotEmpty()) {
             requestedInitialFocus = true
             // 等待一帧，保证 item 已经 compose 出来
             yield()
@@ -140,7 +148,7 @@ fun UpSpaceScreen(
         }
     }
 
-    val loadedCount = upInfoViewModel.spaceVideos.size
+    val loadedCount = spaceVideos.size
     val totalCount = upInfoViewModel.totalCount
     val isSearching = upInfoViewModel.debouncedQuery.trim().isNotBlank()
     val topRightText = remember(
@@ -184,9 +192,9 @@ fun UpSpaceScreen(
         derivedStateOf {
             val q = upInfoViewModel.debouncedQuery.trim()
             if (q.isBlank()) {
-                upInfoViewModel.spaceVideos
+                spaceVideos
             } else {
-                upInfoViewModel.spaceVideos.filter { it.title.contains(q, ignoreCase = true) }
+                spaceVideos.filter { it.title.contains(q, ignoreCase = true) }
             }
         }
     }
@@ -294,14 +302,8 @@ fun UpSpaceScreen(
                 contentPadding = PaddingValues(24.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp),
                 horizontalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
+            ) { cardUiStateFor ->
                 if (visibleVideos.isNotEmpty()) {
-                    /*
-                itemsIndexed(
-                    items = upInfoViewModel.spaceVideos,
-                    key = { index, _ -> index }
-                ) { _, video ->
-                    */
                     itemsIndexed(
                         items = visibleVideos,
                         key = { _, video -> video.avid }
@@ -322,6 +324,7 @@ fun UpSpaceScreen(
                             },
                         ) {
                             SmallVideoCard(
+                                uiState = cardUiStateFor(video.avid),
                                 data = video,
                                 onClick = {
                                     VideoInfoActivity.actionStart(
@@ -332,13 +335,6 @@ fun UpSpaceScreen(
                                 },
                                 onAddWatchLater = {
                                     toViewViewModel.addToView(video.avid)
-                                },
-                                onGoToDetailPage = {
-                                    VideoInfoActivity.actionStart(
-                                        context = context,
-                                        fromController = true,
-                                        aid = video.avid
-                                    )
                                 },
                             )
                         }

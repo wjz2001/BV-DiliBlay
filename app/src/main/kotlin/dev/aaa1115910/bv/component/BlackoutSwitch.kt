@@ -2,7 +2,6 @@ package dev.aaa1115910.bv.component
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -11,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import kotlinx.coroutines.delay
@@ -79,14 +79,18 @@ fun <T> BlackoutSwitch(
 
     Box(modifier = modifier) {
         content(displayedState)
-        val a = alphaAnim.value
-        if (a > 0f) {
-            // 用带 alpha 的背景色，避免 `.alpha(...)` 触发额外图层带来的开销
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(blackoutColor.copy(alpha = a))
-            )
-        }
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .drawBehind {
+                    val alpha = alphaAnim.value
+                    if (alpha > 0f) {
+                        drawRect(
+                            color = blackoutColor,
+                            alpha = alpha
+                        )
+                    }
+                }
+        )
     }
 }

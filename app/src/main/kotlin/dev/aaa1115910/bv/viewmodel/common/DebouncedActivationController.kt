@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 class DebouncedActivationController<T>(
     initial: T,
     private val scope: CoroutineScope,
+    private val debounceMillis: Long = 900L,
 ) {
     var focused by mutableStateOf(initial)
         private set
@@ -25,7 +26,7 @@ class DebouncedActivationController<T>(
         focused = target
         debounceJob?.cancel()
         debounceJob = scope.launch {
-            delay(600)
+            delay(debounceMillis)
             if (focused == target && active != target) active = target
         }
     }

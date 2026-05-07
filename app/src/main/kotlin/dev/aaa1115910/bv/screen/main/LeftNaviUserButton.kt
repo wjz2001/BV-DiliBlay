@@ -49,6 +49,7 @@ import coil.compose.AsyncImage
 import dev.aaa1115910.bv.component.MainChromeDefaults
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.C
+import dev.aaa1115910.bv.util.rememberTvImageRequest
 
 @Composable
 fun LeftNaviUserButton(
@@ -87,6 +88,11 @@ fun LeftNaviUserButton(
     val buttonHeight = if (expanded) 280.dp else MainChromeDefaults.Size
     val avatarSize = if (expanded) 136.dp else MainChromeDefaults.Size - 4.dp
     val avatarModel = remember(avatar) { avatar.asHighResolutionBiliAvatar() }
+    val avatarRequest = rememberTvImageRequest(
+        url = avatarModel,
+        widthDp = avatarSize,
+        heightDp = avatarSize
+    )
 
     Surface(
         modifier = modifier
@@ -145,7 +151,7 @@ fun LeftNaviUserButton(
                         modifier = Modifier
                             .size(avatarSize)
                             .clip(CircleShape),
-                        model = avatarModel,
+                        model = avatarRequest,
                         contentDescription = null,
                         contentScale = ContentScale.FillBounds
                     )

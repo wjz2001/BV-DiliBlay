@@ -245,7 +245,6 @@
     <string name="settings_info_storage">存储: 可用 %1$s 共 %2$s</string>
     <string name="settings_info_system">系统: Android %1$s</string>
     <string name="settings_item_about">关于</string>
-    <string name="settings_about_thanks">鸣谢</string>
     <string name="settings_app_version">应用版本</string>
     <string name="settings_item_api">接口偏好</string>
     <string name="settings_item_audio">默认音频编码</string>
@@ -285,8 +284,6 @@
     <string name="settings_other_alpha_title">Alpha 版更新</string>
     <string name="settings_other_cookies_text">该功能不适合使用遥控器操作</string>
     <string name="settings_other_cookies_title">Cookies 导入/导出</string>
-    <string name="settings_other_firebase_text">这将帮助开发者更快地发现与解决大部分问题</string>
-    <string name="settings_other_firebase_title">发送错误日志</string>
     <string name="settings_other_fps_text">在屏幕左上角显示 FPS，这需要重启 App</string>
     <string name="settings_other_fps_title">FPS 显示</string>
     <string name="settings_other_old_player_text">使用旧版播放器，旧版播放器不会再有任何新特性更新，并且将在后续版本内移除</string>
@@ -746,7 +743,7 @@
     <string name="video_codec_dvh1" tools:ignore="Typos">Dolby Vision (DVH1)</string>
     <string name="video_codec_hevc">H.265</string>
     <string name="video_codec_hvc1" tools:ignore="Typos">Dolby Vision (HVC1)</string>
-    <string name="video_controller_menu_danmaku_area_tip">按 “上键” 或 “下键” 进行调节</string>
+    <string name="video_controller_menu_danmaku_area_tip">按 “上键” 或 “下键” 调节</string>
     <string name="video_info_argue_tip_vertical_screen">温馨提示：该稿件包含竖屏视频内容</string>
     <string name="video_info_argue_tip_upower_exclusive">温馨提示：该稿件为充电专属视频</string>
     <string name="video_info_description_title">视频简介</string>

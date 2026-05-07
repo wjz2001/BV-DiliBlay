@@ -18,6 +18,10 @@ tasks.withType<JavaCompile>().configureEach {
     options.forkOptions.memoryMaximumSize = "4g"
 }
 
+tasks.withType<JavaCompile> {
+    options.encoding = "UTF-8"
+}
+
 dependencies {
     api(libs.grpc.kotlin.stub)
     api(libs.grpc.okhttp)

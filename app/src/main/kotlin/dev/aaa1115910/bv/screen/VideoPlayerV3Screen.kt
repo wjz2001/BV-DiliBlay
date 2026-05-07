@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,6 +24,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import coil.compose.AsyncImage
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.CoAuthorsDialogHost
@@ -56,11 +59,12 @@ fun VideoPlayerV3Screen(
 ) {
     val logger = KotlinLogging.logger { }
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val videoPlayer = playerViewModel.videoPlayer
 
-    val uiState by playerViewModel.uiState.collectAsState()
-    val seekerState = playerViewModel.seekerState.collectAsState()
-    val danmakuHostViewModelState by playerViewModel.danmakuHostState.collectAsState()
+    val uiState by playerViewModel.uiState.collectAsStateWithLifecycle()
+    val seekerState = playerViewModel.seekerState.collectAsStateWithLifecycle()
+    val danmakuHostViewModelState by playerViewModel.danmakuHostState.collectAsStateWithLifecycle()
     val latestPlayerState by rememberUpdatedState(uiState.playerState)
     val startupCoverAlpha by animateFloatAsState(
         targetValue = if (
@@ -87,21 +91,23 @@ fun VideoPlayerV3Screen(
         return
     }
 
-    LaunchedEffect(Unit) {
-        playerViewModel.uiEffect.collect { effect ->
-            when (effect) {
-                PlayerUiEffect.FinishActivity -> {
-                    playerViewModel.setSuppressPlayerErrors(true)
-                    (context as Activity).finish()
-                }
-
-                PlayerUiEffect.PlayEnded -> {
-                    if (isLooping) {
-                        playerViewModel.backToStart()
-                        return@collect
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            playerViewModel.uiEffect.collect { effect ->
+                when (effect) {
+                    PlayerUiEffect.FinishActivity -> {
+                        playerViewModel.setSuppressPlayerErrors(true)
+                        (context as Activity).finish()
                     }
 
-                    playerViewModel.checkAndPlayNext()
+                    PlayerUiEffect.PlayEnded -> {
+                        if (isLooping) {
+                            playerViewModel.backToStart()
+                            return@collect
+                        }
+
+                        playerViewModel.checkAndPlayNext()
+                    }
                 }
             }
         }

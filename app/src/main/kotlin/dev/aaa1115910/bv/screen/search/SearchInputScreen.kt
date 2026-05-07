@@ -32,6 +32,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -72,6 +73,8 @@ import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.viewmodel.search.SearchInputViewModel
 import dev.aaa1115910.bv.screen.main.common.mainContentLeftExit
 import dev.aaa1115910.bv.screen.main.common.mainContentRightExit
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -205,9 +208,9 @@ private fun SearchInputRoute(
     searchInputViewModel: SearchInputViewModel = koinViewModel()
 ) {
     val searchKeyword = searchInputViewModel.keyword
-    val hotwords = searchInputViewModel.hotwords
-    val searchHistories = searchInputViewModel.searchHistories
-    val suggests = searchInputViewModel.suggests
+    val hotwords by searchInputViewModel.hotwords.collectAsStateWithLifecycle()
+    val searchHistories by searchInputViewModel.searchHistories.collectAsStateWithLifecycle()
+    val suggests by searchInputViewModel.suggests.collectAsStateWithLifecycle()
 
     val onSearch: (String) -> Unit = onSearch@{ keyword ->
         if (keyword.isBlank()) return@onSearch
@@ -261,9 +264,9 @@ private fun SearchInputScreenContent(
     showProxyOptions: Boolean,
     enableProxy: Boolean,
     onEnableProxyChange: (Boolean) -> Unit,
-    hotwords: List<Hotword>,
-    suggests: List<String>,
-    histories: List<SearchHistoryDB>,
+    hotwords: ImmutableList<Hotword>,
+    suggests: ImmutableList<String>,
+    histories: ImmutableList<SearchHistoryDB>,
     onDeleteHistory: (SearchHistoryDB) -> Unit,
     onDeleteAllHistories: () -> Unit
 ) {
@@ -456,7 +459,7 @@ private fun SearchInput(
 @Composable
 private fun SearchHotwords(
     modifier: Modifier = Modifier,
-    hotwords: List<Hotword>,
+    hotwords: ImmutableList<Hotword>,
     showHotword: Boolean,
     onToggleShowHotword: () -> Unit,
     firstItemReadyToken: SearchRightEntryToken? = null,
@@ -512,7 +515,10 @@ private fun SearchHotwords(
                 modifier = Modifier,
                 contentPadding = PaddingValues(vertical = 4.dp)
             ) {
-                itemsIndexed(hotwords) { index, hotword ->
+                itemsIndexed(
+                    items = hotwords,
+                    key = { _, hotword -> hotword.showName }
+                ) { index, hotword ->
                     val itemModifier =
                         if (index == 0 &&
                             firstItemReadyToken != null &&
@@ -543,7 +549,7 @@ private fun SearchHotwords(
 @Composable
 private fun SearchSuggestion(
     modifier: Modifier = Modifier,
-    suggests: List<String>,
+    suggests: ImmutableList<String>,
     firstItemReadyToken: SearchRightEntryToken? = null,
     firstItemFocusRequester: FocusRequester? = null,
     onFirstItemPlaced: ((SearchRightEntryToken) -> Unit)? = null,
@@ -564,7 +570,10 @@ private fun SearchSuggestion(
             modifier = Modifier,
             contentPadding = PaddingValues(vertical = 4.dp)
         ) {
-            itemsIndexed(suggests) { index, suggest ->
+            itemsIndexed(
+                items = suggests,
+                key = { _, suggest -> suggest }
+            ) { index, suggest ->
                 val itemModifier =
                     if (index == 0 &&
                         firstItemReadyToken != null &&
@@ -594,7 +603,7 @@ private fun SearchSuggestion(
 private fun SearchHistory(
     modifier: Modifier = Modifier,
     drawerFocusRequester: FocusRequester = FocusRequester.Default,
-    histories: List<SearchHistoryDB>,
+    histories: ImmutableList<SearchHistoryDB>,
     firstItemReadyToken: SearchRightEntryToken? = null,
     firstItemFocusRequester: FocusRequester? = null,
     onFirstItemPlaced: ((SearchRightEntryToken) -> Unit)? = null,
@@ -650,7 +659,10 @@ private fun SearchHistory(
             modifier = Modifier,
             contentPadding = PaddingValues(vertical = 4.dp)
         ) {
-            itemsIndexed(histories) { index, searchHistory ->
+            itemsIndexed(
+                items = histories,
+                key = { _, searchHistory -> searchHistory.id ?: searchHistory.keyword }
+            ) { index, searchHistory ->
                 val itemModifier =
                     if (index == 0 &&
                         firstItemReadyToken != null &&
@@ -741,12 +753,12 @@ private fun SearchInputScreenContentPreview() {
                 showProxyOptions = true,
                 enableProxy = false,
                 onEnableProxyChange = {},
-                hotwords = listOf(
+                hotwords = persistentListOf(
                     Hotword("热搜1", "热搜1", null),
                     Hotword("热搜2", "热搜2", null)
                 ),
-                suggests = listOf("建议1", "建议2"),
-                histories = listOf(
+                suggests = persistentListOf("建议1", "建议2"),
+                histories = persistentListOf(
                     SearchHistoryDB(keyword = "历史1"),
                     SearchHistoryDB(keyword = "历史2")
                 ),

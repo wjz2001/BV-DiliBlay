@@ -1,11 +1,9 @@
 package dev.aaa1115910.bv.viewmodel.pgc
 
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.aaa1115910.biliapi.entity.CarouselData
 import dev.aaa1115910.biliapi.entity.pgc.PgcFeedData
@@ -20,10 +18,18 @@ import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.fWarn
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.common.LoadState
+import dev.aaa1115910.bv.viewmodel.common.RuntimeAwareViewModel
 import dev.aaa1115910.bv.viewmodel.common.canAutoLoad
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Job
@@ -37,16 +43,16 @@ data class PgcWarmUpOptions(
 abstract class PgcViewModel(
     open val pgcRepository: PgcRepository,
     val pgcType: PgcType,
-) : ViewModel() {
+) : RuntimeAwareViewModel() {
     private val logger = KotlinLogging.logger("PgcViewModel[$pgcType]")
 
     /**
      * 轮播图
      */
-    var carouselItems by mutableStateOf<List<CarouselData.CarouselItem>>(emptyList())
-        private set
-    var feedItems by mutableStateOf<List<FeedListItem>>(emptyList())
-        private set
+    private val _carouselItems = MutableStateFlow(persistentListOf<CarouselData.CarouselItem>())
+    val carouselItems: StateFlow<ImmutableList<CarouselData.CarouselItem>> = _carouselItems.asStateFlow()
+    private val _feedItems = MutableStateFlow(persistentListOf<FeedListItem>())
+    val feedItems: StateFlow<ImmutableList<FeedListItem>> = _feedItems.asStateFlow()
     private val restSubItems = mutableListOf<PgcItem>()
 
     private var inFlightCount by mutableIntStateOf(0)
@@ -112,6 +118,14 @@ abstract class PgcViewModel(
         launchLoadAll(expectedGeneration = requestGeneration)
     }
 
+    fun cancelOngoingLoads() {
+        requestGeneration++
+        loadAllJob?.cancel()
+        loadAllJob = null
+        inFlightFeedToken = null
+        inFlightCount = 0
+    }
+
     private fun launchLoadAll(
         expectedGeneration: Long,
         warmUpOptions: PgcWarmUpOptions = PgcWarmUpOptions(showCarouselErrorToast = true)
@@ -145,7 +159,7 @@ abstract class PgcViewModel(
                 logger.fInfo { "Find $pgcType carousels, size: ${carouselData.items.size}" }
                 withContext(Dispatchers.Main) {
                     if (expectedGeneration != requestGeneration) return@withContext
-                    carouselItems = carouselData.items
+                    _carouselItems.value = carouselData.items.toPersistentList()
                     if (initialLoadState == LoadState.Loading) {
                         initialLoadState = LoadState.Success
                     }
@@ -155,7 +169,7 @@ abstract class PgcViewModel(
                 logger.fInfo { "Update $pgcType carousel failed: ${it.stackTraceToString()}" }
                 withContext(Dispatchers.Main) {
                     if (expectedGeneration != requestGeneration) return@withContext
-                    if (carouselItems.isEmpty() && feedItems.isEmpty()) {
+                    if (_carouselItems.value.isEmpty() && _feedItems.value.isEmpty()) {
                         initialLoadState = LoadState.Error
                         if (showErrorToast) {
                             "加载 $pgcType 轮播图失败: ${it.message}".toast(BVApp.context)
@@ -215,7 +229,7 @@ abstract class PgcViewModel(
                         newBlocks.add(
                             FeedListItem(
                                 type = FeedListType.Ep,
-                                items = chunk
+                                items = chunk.toPersistentList()
                             )
                         )
                     } else {
@@ -232,7 +246,7 @@ abstract class PgcViewModel(
                     )
                 }
 
-                feedItems = (feedItems + newBlocks).takeLast(maxFeedBlocks)
+                _feedItems.update { (it + newBlocks).takeLast(maxFeedBlocks).toPersistentList() }
 
                 if (initialLoadState == LoadState.Loading) {
                     initialLoadState = LoadState.Success
@@ -244,7 +258,7 @@ abstract class PgcViewModel(
 
             withContext(Dispatchers.Main) {
                 if (expectedGeneration != requestGeneration) return@withContext
-                if (feedItems.isEmpty() && carouselItems.isEmpty()) {
+                if (_feedItems.value.isEmpty() && _carouselItems.value.isEmpty()) {
                     initialLoadState = LoadState.Error
                 }
             }
@@ -277,7 +291,7 @@ abstract class PgcViewModel(
                 newBlocks.add(
                     FeedListItem(
                         type = FeedListType.Ep,
-                        items = chunkedVCardList
+                        items = chunkedVCardList.toPersistentList()
                     )
                 )
             } else {
@@ -296,7 +310,7 @@ abstract class PgcViewModel(
 
         withContext(Dispatchers.Main) {
             if (expectedGeneration != requestGeneration) return@withContext
-            feedItems = (feedItems + newBlocks).takeLast(maxFeedBlocks)
+            _feedItems.update { (it + newBlocks).takeLast(maxFeedBlocks).toPersistentList() }
         }
     }
 
@@ -305,8 +319,8 @@ abstract class PgcViewModel(
      */
     fun clearAll() {
         logger.fInfo { "Clear all data" }
-        carouselItems = emptyList()
-        feedItems = emptyList()
+        _carouselItems.value = persistentListOf()
+        _feedItems.value = persistentListOf()
         restSubItems.clear()
         cursor = 0
         hasNext = true
@@ -317,11 +331,23 @@ abstract class PgcViewModel(
 
     data class FeedListItem(
         val type: FeedListType,
-        val items: List<PgcItem>? = emptyList(),
+        val items: ImmutableList<PgcItem>? = persistentListOf(),
         val rank: PgcFeedData.FeedRank? = null
     )
 
     enum class FeedListType {
         Ep, Rank
+    }
+
+    override fun onRuntimeActive() {
+        ensureLoaded()
+    }
+
+    override fun onRuntimeFrozen() {
+        cancelOngoingLoads()
+    }
+
+    override fun onRuntimeDisposed() {
+        cancelOngoingLoads()
     }
 }

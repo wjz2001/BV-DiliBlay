@@ -19,7 +19,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -36,31 +35,27 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.entity.season.Timeline
-import dev.aaa1115910.biliapi.entity.season.TimelineFilter
-import dev.aaa1115910.biliapi.repositories.SeasonRepository
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.component.videocard.SeasonCard
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.Prefs
-import dev.aaa1115910.bv.util.addAllWithMainContext
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.resizedImageUrl
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.ui.theme.C
+import dev.aaa1115910.bv.viewmodel.pgc.AnimeTimelineViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.koin.compose.koinInject
+import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun AnimeTimelineScreen(
     modifier: Modifier = Modifier,
-    seasonRepository: SeasonRepository = koinInject()
+    animeTimelineViewModel: AnimeTimelineViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -71,35 +66,33 @@ fun AnimeTimelineScreen(
     var currentEpisodeIndex by remember { mutableIntStateOf(0) }
 
     val defaultFocusRequester = remember { FocusRequester() }
-    val timelines = remember { mutableStateListOf<Timeline>() }
+    val timelines = animeTimelineViewModel.timelines
 
     LaunchedEffect(Unit) {
-        scope.launch(Dispatchers.IO) {
-            runCatching {
-                timelines.addAllWithMainContext {
-                    seasonRepository.getTimeline(
-                        filter = TimelineFilter.Anime,
-                        preferApiType = Prefs.apiType
-                    )
-                }
+        animeTimelineViewModel.loadTimeline(
+            onSuccess = {
                 runCatching {
-                    delay(200)
-                    logger.info { "scroll to item today" }
-                    // web 接口可以获取到最大 7 天前的数据，而 app 接口只能从 6 天前开始获取
-                    val targetIndex = when (Prefs.apiType) {
-                        ApiType.Web -> 7
-                        ApiType.App -> 6
+                    scope.launch {
+                        delay(200)
+                        logger.info { "scroll to item today" }
+                        // web 接口可以获取到最大 7 天前的数据，而 app 接口只能从 6 天前开始获取
+                        val targetIndex = when (Prefs.apiType) {
+                            ApiType.Web -> 7
+                            ApiType.App -> 6
+                        }
+                        listState.animateScrollToItem(targetIndex, 0)
+                        defaultFocusRequester.requestFocus(scope)
                     }
-                    listState.animateScrollToItem(targetIndex, 0)
-                    defaultFocusRequester.requestFocus(scope)
-                }
-            }.onFailure {
-                logger.fInfo { "Get timeline failed: ${it.stackTraceToString()}" }
-                withContext(Dispatchers.Main) {
+                }.onFailure {
+                    logger.fInfo { "Get timeline failed: ${it.stackTraceToString()}" }
                     "获取放送时间表失败: ${it.message}".toast(context)
                 }
+            },
+            onFailure = {
+                logger.fInfo { "Get timeline failed: ${it.stackTraceToString()}" }
+                "获取放送时间表失败: ${it.message}".toast(context)
             }
-        }
+        )
     }
 
     Scaffold(
@@ -120,7 +113,10 @@ fun AnimeTimelineScreen(
             modifier = Modifier.padding(innerPadding),
             contentPadding = PaddingValues(bottom = 48.dp, start = 48.dp, end = 48.dp)
         ) {
-            itemsIndexed(items = timelines) { index, timeline ->
+            itemsIndexed(
+                items = timelines,
+                key = { _, timeline -> timeline.dateString }
+            ) { index, timeline ->
                 val defaultModifier = if (timeline.isToday) {
                     Modifier.focusRequester(defaultFocusRequester)
                 } else {

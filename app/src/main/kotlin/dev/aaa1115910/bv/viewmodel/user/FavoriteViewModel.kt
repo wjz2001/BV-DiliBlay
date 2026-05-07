@@ -11,6 +11,7 @@ import dev.aaa1115910.biliapi.http.entity.AuthFailureException
 import dev.aaa1115910.biliapi.repositories.FavoriteRepository
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
+import dev.aaa1115910.bv.entity.state.GridViewportState
 import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
@@ -18,11 +19,23 @@ import dev.aaa1115910.bv.util.fWarn
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.viewmodel.common.DebouncedActivationController
 import dev.aaa1115910.bv.viewmodel.common.LoadState
+import dev.aaa1115910.bv.viewmodel.common.accountSessionKey
 import dev.aaa1115910.bv.viewmodel.common.canAutoLoad
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableMap
+import kotlinx.collections.immutable.PersistentMap
+import kotlinx.collections.immutable.persistentHashMapOf
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -30,6 +43,14 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.KoinViewModel
 import kotlin.random.Random
+
+data class FolderRuntimeState(
+    val items: ImmutableList<VideoCardData> = persistentListOf(),
+    val page: Int = 1,
+    val hasMore: Boolean = true,
+    val loadState: LoadState = LoadState.Idle,
+    val viewport: GridViewportState? = null
+)
 
 @KoinViewModel
 class FavoriteViewModel(
@@ -40,22 +61,19 @@ class FavoriteViewModel(
         private val logger = KotlinLogging.logger { }
     }
 
-    var favoriteFolderMetadataList by mutableStateOf<List<FavoriteFolderMetadata>>(emptyList())
-        private set
-    var favorites by mutableStateOf<List<VideoCardData>>(emptyList())
-        private set
+    private val _favoriteFolderMetadataList = MutableStateFlow(persistentListOf<FavoriteFolderMetadata>())
+    val favoriteFolderMetadataList: StateFlow<ImmutableList<FavoriteFolderMetadata>> =
+        _favoriteFolderMetadataList.asStateFlow()
+
+    private val _folderStates = MutableStateFlow<PersistentMap<Long, FolderRuntimeState>>(persistentHashMapOf())
+    val folderStates: StateFlow<ImmutableMap<Long, FolderRuntimeState>> = _folderStates.asStateFlow()
 
     var currentFavoriteFolderMetadata: FavoriteFolderMetadata? by mutableStateOf(null)
 
     private val pageSize = 20
-    private var pageNumber = 1
-    private var hasMore = true
 
     private var updatingFolders = false
-    private var updatingFolderItems = false
-
     private var updateFoldersJob: Job? = null
-    private var updateItemsJob: Job? = null
 
     // 1s 悬停 gate + 后台渐进加载
     // UI 在“Tab 按钮停留满 1s”后才会置 true
@@ -73,6 +91,8 @@ class FavoriteViewModel(
         private set
 
     private var autoLoadJob: Job? = null
+    private val folderLoadJobs = mutableMapOf<Long, Job>()
+    private val folderLoadJobsLock = Any()
     private val requestMutex = Mutex()
 
     var initialLoadState by mutableStateOf(LoadState.Idle)
@@ -84,6 +104,7 @@ class FavoriteViewModel(
     @Volatile
     private var requestGeneration = 0L
     private var pendingRestoreFolderId: Long? = null
+    private var loadedAccountSessionKey = userRepository.accountSessionKey()
 
     private val folderActivation = DebouncedActivationController<Long?>(
         initial = null,
@@ -105,71 +126,72 @@ class FavoriteViewModel(
     }
 
     fun ensureLoaded() {
+        ensureAccountStateFresh()
         if (!initialLoadState.canAutoLoad()) return
         initialLoadState = LoadState.Loading
         updateFoldersInfo()
     }
 
     fun reloadAll() {
+        ensureAccountStateFresh()
         pendingRestoreFolderId = currentFavoriteFolderMetadata?.id
 
         requestGeneration++
+        cancelAllFolderLoads()
         updateFoldersJob?.cancel()
-        updateItemsJob?.cancel()
         autoLoadJob?.cancel()
         updateFoldersJob = null
-        updateItemsJob = null
         autoLoadJob = null
 
-        favoriteFolderMetadataList = emptyList()
-        favorites = emptyList()
+        _favoriteFolderMetadataList.value = persistentListOf()
+        _folderStates.value = persistentHashMapOf()
         currentFavoriteFolderMetadata = null
         alignFolderActivation(null)
         updatingFolders = false
-        updatingFolderItems = false
         initialLoadState = LoadState.Loading
         lastFailureWasAuth = false
         allowAutoLoad = false
         isAutoLoading = false
         loadingPaused = false
-        resetPageNumber()
 
         updateFoldersInfo()
     }
 
     fun clearData() {
         requestGeneration++
+        cancelAllFolderLoads()
         updateFoldersJob?.cancel()
-        updateItemsJob?.cancel()
         autoLoadJob?.cancel()
         updateFoldersJob = null
-        updateItemsJob = null
         autoLoadJob = null
         pendingRestoreFolderId = null
 
-        favoriteFolderMetadataList = emptyList()
-        favorites = emptyList()
+        _favoriteFolderMetadataList.value = persistentListOf()
+        _folderStates.value = persistentHashMapOf()
         currentFavoriteFolderMetadata = null
         alignFolderActivation(null)
         updatingFolders = false
-        updatingFolderItems = false
         initialLoadState = LoadState.Idle
         lastFailureWasAuth = false
         allowAutoLoad = false
         isAutoLoading = false
         loadingPaused = false
-        resetPageNumber()
+        loadedAccountSessionKey = userRepository.accountSessionKey()
+    }
+
+    private fun ensureAccountStateFresh() {
+        val currentAccountSessionKey = userRepository.accountSessionKey()
+        if (loadedAccountSessionKey == currentAccountSessionKey) return
+        clearData()
+        loadedAccountSessionKey = currentAccountSessionKey
     }
 
     fun stopAutoLoad() {
-        // 切换收藏夹时：必须立刻停
         autoLoadJob?.cancel()
-        updateItemsJob?.cancel()
+        currentFavoriteFolderMetadata?.id?.let { cancelFolderLoad(it) }
         autoLoadJob = null
-        updateItemsJob = null
 
         isAutoLoading = false
-        updatingFolderItems = false
 
         // 退出/切换时确保不处于暂停态
         loadingPaused = false
@@ -178,20 +200,30 @@ class FavoriteViewModel(
         allowAutoLoad = false
     }
 
+    fun cancelOngoingLoads() {
+        stopAutoLoad()
+        updateLoadingPaused(true)
+    }
+
     fun switchToFolder(folderMetadata: FavoriteFolderMetadata) {
+        val oldFolderId = currentFavoriteFolderMetadata?.id
+
         // 切换收藏夹：先停掉旧的自动加载/翻页任务
         stopAutoLoad()
+        if (oldFolderId != null && oldFolderId != folderMetadata.id) {
+            cancelFolderLoad(oldFolderId)
+        }
 
-        // 切到新收藏夹并重置当前列表
         currentFavoriteFolderMetadata = folderMetadata
-        favorites = emptyList()
-        resetPageNumber()
 
-        // 立即拉取新收藏夹第一页
-        updateFolderItems(force = true)
+        val state = folderStateOf(folderMetadata.id)
+        if (state.items.isEmpty() && state.loadState.canAutoLoad()) {
+            updateFolderItems(force = true)
+        }
     }
 
     fun updateFoldersInfo() {
+        ensureAccountStateFresh()
         if (updatingFolders) return
         val expectedGeneration = requestGeneration
         updatingFolders = true
@@ -210,7 +242,7 @@ class FavoriteViewModel(
                     if (expectedGeneration != requestGeneration) return@withContext
 
                     val restoreFolderId = pendingRestoreFolderId
-                    favoriteFolderMetadataList = folderList
+                    _favoriteFolderMetadataList.value = folderList.toPersistentList()
                     currentFavoriteFolderMetadata =
                         folderList.firstOrNull { it.id == restoreFolderId }
                             ?: folderList.firstOrNull()
@@ -251,6 +283,7 @@ class FavoriteViewModel(
     }
 
     fun startAutoLoad() {
+        ensureAccountStateFresh()
         if (!allowAutoLoad) return
         if (autoLoadJob?.isActive == true) return
 
@@ -274,7 +307,7 @@ class FavoriteViewModel(
                 }
 
                 if (currentFavoriteFolderMetadata?.id != expectedFolderId) break
-                if (!hasMore) break
+                if (!folderStateOf(expectedFolderId).hasMore) break
 
                 val ok = loadNextPage(
                     expectedFolderId = expectedFolderId,
@@ -282,7 +315,7 @@ class FavoriteViewModel(
                 )
 
                 if (currentFavoriteFolderMetadata?.id != expectedFolderId) break
-                if (!hasMore) break
+                if (!folderStateOf(expectedFolderId).hasMore) break
 
                 if (ok) {
                     backoffMs = 0L
@@ -298,28 +331,38 @@ class FavoriteViewModel(
     }
 
     fun updateFolderItems(force: Boolean = false) {
-        if (force) {
-            updateItemsJob?.cancel()
-            resetPageNumber()
-            updatingFolderItems = false
-        }
-
+        ensureAccountStateFresh()
         if (loadingPaused) return
 
         val expectedFolderId = currentFavoriteFolderMetadata?.id ?: return
         val expectedGeneration = requestGeneration
 
-        updateItemsJob = viewModelScope.launch(Dispatchers.Default) {
+        if (force) {
+            cancelFolderLoad(expectedFolderId)
+            updateFolderState(expectedFolderId) { FolderRuntimeState(viewport = it.viewport) }
+        }
+
+        val state = folderStateOf(expectedFolderId)
+        if (hasActiveFolderLoad(expectedFolderId)) return
+        if (!state.hasMore) return
+
+        val job = viewModelScope.launch(Dispatchers.Default) {
             loadNextPage(
                 expectedFolderId = expectedFolderId,
                 expectedGeneration = expectedGeneration
             )
         }
+
+        putFolderLoadJob(expectedFolderId, job)
+        job.invokeOnCompletion {
+            removeFolderLoadJob(expectedFolderId, job)
+        }
     }
 
-    fun resetPageNumber() {
-        pageNumber = 1
-        hasMore = true
+    fun updateFolderViewport(folderId: Long, viewport: GridViewportState) {
+        updateFolderState(folderId) {
+            it.copy(viewport = viewport)
+        }
     }
 
     private suspend fun loadNextPage(
@@ -332,8 +375,12 @@ class FavoriteViewModel(
         val folder = currentFavoriteFolderMetadata ?: return false
         if (folder.id != expectedFolderId) return false
 
-        if (updatingFolderItems || !hasMore) return false
-        updatingFolderItems = true
+        val state = folderStateOf(expectedFolderId)
+        if (state.loadState == LoadState.Loading || !state.hasMore) return false
+
+        updateFolderState(expectedFolderId) {
+            it.copy(loadState = LoadState.Loading)
+        }
 
         logger.fInfo { "Updating favorite folder items with media id: ${folder.id}" }
 
@@ -343,7 +390,7 @@ class FavoriteViewModel(
                 favoriteRepository.getFavoriteFolderData(
                     mediaId = folder.id,
                     pageSize = pageSize,
-                    pageNumber = pageNumber,
+                    pageNumber = state.page,
                     preferApiType = Prefs.apiType
                 )
             }
@@ -374,19 +421,26 @@ class FavoriteViewModel(
                 if (expectedGeneration != requestGeneration) return@withContext
                 if (currentFavoriteFolderMetadata?.id != expectedFolderId) return@withContext
 
-                favorites = favorites + appended
+                updateFolderState(expectedFolderId) {
+                    it.copy(
+                        items = (it.items + appended).toPersistentList(),
+                        page = it.page + 1,
+                        hasMore = favoriteFolderData.hasMore,
+                        loadState = LoadState.Success
+                    )
+                }
                 lastFailureWasAuth = false
 
-                if (pageNumber == 1 && initialLoadState == LoadState.Loading) {
+                if (state.page == 1 && initialLoadState == LoadState.Loading) {
                     initialLoadState = LoadState.Success
                 }
             }
 
-            hasMore = favoriteFolderData.hasMore
-            pageNumber++
             logger.fInfo { "Update favorite items success" }
             true
         } catch (t: Throwable) {
+            if (t is CancellationException) throw t
+
             logger.fInfo { "Update favorite items failed: ${t.stackTraceToString()}" }
             when (t) {
                 is AuthFailureException -> {
@@ -394,6 +448,9 @@ class FavoriteViewModel(
                     withContext(Dispatchers.Main) {
                         if (expectedGeneration != requestGeneration) return@withContext
                         lastFailureWasAuth = true
+                        updateFolderState(expectedFolderId) {
+                            it.copy(loadState = LoadState.Error)
+                        }
                         if (initialLoadState == LoadState.Loading) {
                             initialLoadState = LoadState.Error
                         }
@@ -406,6 +463,9 @@ class FavoriteViewModel(
                     withContext(Dispatchers.Main) {
                         if (expectedGeneration != requestGeneration) return@withContext
                         lastFailureWasAuth = false
+                        updateFolderState(expectedFolderId) {
+                            it.copy(loadState = LoadState.Error)
+                        }
                         if (initialLoadState == LoadState.Loading) {
                             initialLoadState = LoadState.Error
                         }
@@ -415,13 +475,70 @@ class FavoriteViewModel(
             false
         } finally {
             if (expectedGeneration == requestGeneration) {
-                updatingFolderItems = false
+                updateFolderState(expectedFolderId) {
+                    if (it.loadState == LoadState.Loading) {
+                        it.copy(loadState = LoadState.Idle)
+                    } else {
+                        it
+                    }
+                }
             }
+        }
+    }
+
+    private fun folderStateOf(folderId: Long): FolderRuntimeState {
+        return _folderStates.value[folderId] ?: FolderRuntimeState()
+    }
+
+    private fun updateFolderState(
+        folderId: Long,
+        transform: (FolderRuntimeState) -> FolderRuntimeState
+    ) {
+        _folderStates.update { states ->
+            states.put(folderId, transform(states[folderId] ?: FolderRuntimeState()))
+        }
+    }
+
+    private fun cancelFolderLoad(folderId: Long) {
+        takeFolderLoadJob(folderId)?.cancel()
+        updateFolderState(folderId) {
+            it.copy(
+                loadState = if (it.loadState == LoadState.Loading) LoadState.Idle else it.loadState
+            )
+        }
+    }
+
+    private fun cancelAllFolderLoads() {
+        takeAllFolderLoadJobs().forEach { it.cancel() }
+    }
+
+    private fun hasActiveFolderLoad(folderId: Long): Boolean = synchronized(folderLoadJobsLock) {
+        folderLoadJobs[folderId]?.isActive == true
+    }
+
+    private fun putFolderLoadJob(folderId: Long, job: Job) = synchronized(folderLoadJobsLock) {
+        folderLoadJobs[folderId] = job
+    }
+
+    private fun removeFolderLoadJob(folderId: Long, job: Job) = synchronized(folderLoadJobsLock) {
+        if (folderLoadJobs[folderId] == job) {
+            folderLoadJobs.remove(folderId)
+        }
+    }
+
+    private fun takeFolderLoadJob(folderId: Long): Job? = synchronized(folderLoadJobsLock) {
+        folderLoadJobs.remove(folderId)
+    }
+
+    private fun takeAllFolderLoadJobs(): List<Job> = synchronized(folderLoadJobsLock) {
+        folderLoadJobs.values.toList().also {
+            folderLoadJobs.clear()
         }
     }
 
     override fun onCleared() {
         folderActivation.cancel()
+        cancelAllFolderLoads()
         super.onCleared()
     }
 }

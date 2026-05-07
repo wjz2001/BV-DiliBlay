@@ -22,6 +22,7 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.videocard.VideosRow
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.ui.theme.C
+import kotlinx.collections.immutable.toPersistentList
 
 
 @Composable
@@ -32,6 +33,7 @@ fun RelatedVideosController(
     onVideoClicked: (VideoCardData) -> Unit,
 ) {
     val focusRequester = remember { FocusRequester() }
+    val rowVideos = remember(relatedVideos) { relatedVideos.toPersistentList() }
 
 /*
     val backgroundBrush = remember {
@@ -74,7 +76,7 @@ fun RelatedVideosController(
                     header = stringResource(R.string.video_info_related_video_title),
                     focusedHeaderColor = C.onScrim,
                     unfocusedHeaderColor = C.onScrim.copy(alpha = 0.6f),
-                    videos = relatedVideos,
+                    videos = rowVideos,
                     onVideoClicked = onVideoClicked
                 )
             }

@@ -1,5 +1,6 @@
 package dev.aaa1115910.bv.viewmodel.login
 
+import android.content.Context
 import android.graphics.BitmapFactory
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,6 +17,7 @@ import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.entity.AuthData
 import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.util.ApiTestLoginExportPayload
+import dev.aaa1115910.bv.util.ApiTestLoginExportUtil
 import dev.aaa1115910.bv.util.fError
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.timeTask
@@ -152,5 +154,19 @@ class AppQrLoginViewModel(
 
     fun clearPendingApiTestExport() {
         pendingApiTestExport = null
+    }
+
+    fun exportApiTestLoginPayload(
+        context: Context,
+        payload: ApiTestLoginExportPayload,
+        onResult: (Result<String>) -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = ApiTestLoginExportUtil.exportToDownloads(context, payload)
+            withContext(Dispatchers.Main) {
+                onResult(result)
+                clearPendingApiTestExport()
+            }
+        }
     }
 }

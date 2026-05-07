@@ -2,13 +2,7 @@ package dev.aaa1115910.bv.util
 import dev.aaa1115910.bv.ui.theme.C
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import androidx.compose.animation.animateColor
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
 import androidx.compose.material3.ShapeDefaults
 import androidx.compose.runtime.getValue
@@ -41,25 +35,10 @@ import dev.aaa1115910.biliapi.entity.danmaku.DanmakuWebMaskFrame
  * 获取到焦点时显示边框
  */
 fun Modifier.focusedBorder(
-    shape: Shape = ShapeDefaults.Large,
-    animate: Boolean = false
+    shape: Shape = ShapeDefaults.Large
 ): Modifier = composed {
-    val infiniteTransition = rememberInfiniteTransition(label = "infinite border color transition")
     var hasFocus by remember { mutableStateOf(false) }
-    val selectedBorder = C.selectedBorder
-
-    val animateColor by infiniteTransition.animateColor(
-        initialValue = selectedBorder,
-        targetValue = selectedBorder.copy(alpha = 0.1f),
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "focused border animate color"
-    )
-    val borderColor = if (hasFocus) {
-        if (animate) animateColor else selectedBorder
-    } else Color.Transparent
+    val borderColor = if (hasFocus) C.selectedBorder else Color.Transparent
 
     onFocusChanged { hasFocus = it.hasFocus }
         .border(

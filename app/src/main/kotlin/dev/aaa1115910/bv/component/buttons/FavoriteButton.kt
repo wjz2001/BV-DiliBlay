@@ -20,14 +20,16 @@ import androidx.tv.material3.Icon
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.component.FavoriteDialog
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 
 @Composable
 fun FavoriteButton(
     modifier: Modifier = Modifier,
     isFavorite: Boolean,
     countText: String = "",
-    userFavoriteFolders: List<FavoriteFolderMetadata> = emptyList(),
-    favoriteFolderIds: List<Long> = emptyList(),
+    userFavoriteFolders: ImmutableList<FavoriteFolderMetadata> = persistentListOf(),
+    favoriteFolderIds: ImmutableList<Long> = persistentListOf(),
     onAddToDefaultFavoriteFolder: () -> Unit,
     onUpdateFavoriteFolders: (List<Long>) -> Unit
 ) {

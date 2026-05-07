@@ -3,7 +3,6 @@ package dev.aaa1115910.bv.viewmodel.search
 import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -16,12 +15,20 @@ import dev.aaa1115910.biliapi.repositories.SearchTypeResult
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.util.Partition
 import dev.aaa1115910.bv.util.Prefs
+import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.viewmodel.common.DebouncedActivationController
 import dev.aaa1115910.bv.viewmodel.common.LoadState
 import dev.aaa1115910.bv.viewmodel.common.canAutoLoad
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentHashMapOf
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -61,17 +68,20 @@ class SearchResultViewModel(
     val focusedSearchType get() = searchTypeActivation.focused
     val activeSearchType get() = searchTypeActivation.active
 
-    private val loadStateMap = mutableStateMapOf<SearchType, LoadState>().apply {
-        SearchType.entries.forEach { put(it, LoadState.Idle) }
-    }
+    private val _loadStateMap = MutableStateFlow(
+        SearchType.entries.fold(persistentHashMapOf<SearchType, LoadState>()) { map, type ->
+            map.put(type, LoadState.Idle)
+        }
+    )
+    val loadStateMap = _loadStateMap.asStateFlow()
     private val loadingTypes = mutableSetOf<SearchType>()
     private val requestTokenMap = mutableMapOf<SearchType, Long>()
     private val requestMutexMap = mutableMapOf<SearchType, kotlinx.coroutines.sync.Mutex>()
 
-    fun loadStateOf(type: SearchType): LoadState = loadStateMap[type] ?: LoadState.Idle
+    fun loadStateOf(type: SearchType): LoadState = _loadStateMap.value[type] ?: LoadState.Idle
 
     private fun setLoadState(type: SearchType, state: LoadState) {
-        loadStateMap[type] = state
+        _loadStateMap.update { it.put(type, state) }
     }
 
     fun onSearchTypeFocused(target: SearchType) = searchTypeActivation.onFocused(target)
@@ -208,28 +218,28 @@ class SearchResultViewModel(
                         when (searchType) {
                             SearchType.Video -> {
                                 videoSearchResult = videoSearchResult.copy(
-                                    videos = videoSearchResult.videos + filteredResponse.videos,
+                                    videos = (videoSearchResult.videos + filteredResponse.videos).toPersistentList(),
                                     page = filteredResponse.page
                                 )
                             }
 
                             SearchType.MediaBangumi -> {
                                 mediaBangumiSearchResult = mediaBangumiSearchResult.copy(
-                                    mediaBangumis = mediaBangumiSearchResult.mediaBangumis + response.pgcs,
+                                    mediaBangumis = (mediaBangumiSearchResult.mediaBangumis + response.pgcs).toPersistentList(),
                                     page = response.page
                                 )
                             }
 
                             SearchType.MediaFt -> {
                                 mediaFtSearchResult = mediaFtSearchResult.copy(
-                                    mediaFts = mediaFtSearchResult.mediaFts + response.pgcs,
+                                    mediaFts = (mediaFtSearchResult.mediaFts + response.pgcs).toPersistentList(),
                                     page = response.page
                                 )
                             }
 
                             SearchType.BiliUser -> {
                                 biliUserSearchResult = biliUserSearchResult.copy(
-                                    biliUsers = biliUserSearchResult.biliUsers + response.users,
+                                    biliUsers = (biliUserSearchResult.biliUsers + response.users).toPersistentList(),
                                     page = response.page
                                 )
                             }
@@ -237,6 +247,7 @@ class SearchResultViewModel(
                         setLoadState(searchType, LoadState.Success)
                     }
                 } catch (t: Throwable) {
+                    logger.fException(t) { "Load search result failed: [keyword=$keyword, type=$searchType]" }
                     withContext(Dispatchers.Main) {
                         if (expectedToken != tokenOf(searchType)) return@withContext
                         val count = when (searchType) {
@@ -266,10 +277,10 @@ class SearchResultViewModel(
 
     data class SearchResult(
         val type: SearchType,
-        val videos: List<SearchTypeResult.Video> = emptyList(),
-        val mediaBangumis: List<SearchTypeResult.Pgc> = emptyList(),
-        val mediaFts: List<SearchTypeResult.Pgc> = emptyList(),
-        val biliUsers: List<SearchTypeResult.User> = emptyList(),
+        val videos: ImmutableList<SearchTypeResult.Video> = persistentListOf(),
+        val mediaBangumis: ImmutableList<SearchTypeResult.Pgc> = persistentListOf(),
+        val mediaFts: ImmutableList<SearchTypeResult.Pgc> = persistentListOf(),
+        val biliUsers: ImmutableList<SearchTypeResult.User> = persistentListOf(),
         val page: SearchTypePage = SearchTypePage()
     ) {
         val count get() = videos.size + mediaBangumis.size + mediaFts.size + biliUsers.size
@@ -277,29 +288,29 @@ class SearchResultViewModel(
         fun resetPage() = copy(page = SearchTypePage())
 
         fun clear() :SearchResult = copy(
-            videos = emptyList(),
-            mediaBangumis = emptyList(),
-            mediaFts = emptyList(),
-            biliUsers = emptyList(),
+            videos = persistentListOf(),
+            mediaBangumis = persistentListOf(),
+            mediaFts = persistentListOf(),
+            biliUsers = persistentListOf(),
             page = SearchTypePage()
         )
 
         fun appendSearchResultData(searchTypeResult: SearchTypeResult): SearchResult {
             return when (type) {
                 SearchType.Video -> copy(
-                    videos = videos + searchTypeResult.videos,
+                    videos = (videos + searchTypeResult.videos).toPersistentList(),
                     page = searchTypeResult.page
                 )
                 SearchType.MediaBangumi -> copy(
-                    mediaBangumis = mediaBangumis + searchTypeResult.pgcs,
+                    mediaBangumis = (mediaBangumis + searchTypeResult.pgcs).toPersistentList(),
                     page = searchTypeResult.page
                 )
                 SearchType.MediaFt -> copy(
-                    mediaFts = mediaFts + searchTypeResult.pgcs,
+                    mediaFts = (mediaFts + searchTypeResult.pgcs).toPersistentList(),
                     page = searchTypeResult.page
                 )
                 SearchType.BiliUser -> copy(
-                    biliUsers = biliUsers + searchTypeResult.users,
+                    biliUsers = (biliUsers + searchTypeResult.users).toPersistentList(),
                     page = searchTypeResult.page
                 )
             }

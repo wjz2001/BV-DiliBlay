@@ -15,12 +15,12 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,8 +50,6 @@ import dev.aaa1115910.bv.viewmodel.index.PgcIndexViewModel
 import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
 import dev.aaa1115910.bv.ui.theme.C
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -60,21 +58,15 @@ fun PgcIndexScreen(
     pgcIndexViewModel: PgcIndexViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val logger = KotlinLogging.logger { }
 
     var currentSeasonIndex by remember { mutableIntStateOf(0) }
 
-    val pgcItems = pgcIndexViewModel.indexResultItems
+    val pgcItems by pgcIndexViewModel.indexResultItems.collectAsStateWithLifecycle()
     val noMore = pgcIndexViewModel.noMore
     var showFilter by remember { mutableStateOf(false) }
 
-    val reloadData = {
-        scope.launch(Dispatchers.IO) {
-            pgcIndexViewModel.clearData()
-            pgcIndexViewModel.loadMore()
-        }
-    }
+    val reloadData = { pgcIndexViewModel.reloadData() }
 
     LaunchedEffect(Unit) {
         val intent = (context as Activity).intent
@@ -145,8 +137,11 @@ fun PgcIndexScreen(
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             horizontalWrapItemCount = pgcItems.size,
             horizontalWrapColumnCount = 6
-        ) {
-            itemsIndexed(items = pgcItems) { index, pgcItem ->
+        ) { cardUiStateFor ->
+            itemsIndexed(
+                items = pgcItems,
+                key = { _, pgcItem -> pgcItem.seasonId }
+            ) { index, pgcItem ->
                 SeasonCard(
                     modifier = rememberGridRowWrapModifier(index),
                     data = SeasonCardData.fromPgcItem(pgcItem),
@@ -154,7 +149,7 @@ fun PgcIndexScreen(
                         currentSeasonIndex = index
                         if (index + 30 > pgcItems.size) {
                             println("load more by focus")
-                            scope.launch(Dispatchers.IO) { pgcIndexViewModel.loadMore() }
+                            pgcIndexViewModel.loadMore()
                         }
                     },
                     onClick = {

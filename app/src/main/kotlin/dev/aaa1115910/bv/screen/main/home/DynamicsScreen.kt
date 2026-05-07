@@ -12,16 +12,20 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
@@ -36,6 +40,7 @@ import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
+import dev.aaa1115910.bv.screen.main.runtime.ContentRuntimeState
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.formatHourMinSec
@@ -43,10 +48,8 @@ import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.home.DynamicViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 import org.koin.androidx.compose.koinViewModel
 
@@ -54,11 +57,18 @@ import org.koin.androidx.compose.koinViewModel
 fun DynamicsScreen(
     modifier: Modifier = Modifier,
     gridState: LazyGridState = rememberLazyGridState(),
-    dynamicViewModel: DynamicViewModel = koinViewModel(),
-    toViewViewModel: ToViewViewModel = koinViewModel()
+    active: Boolean = true,
+    activationSerial: Long = 0L,
+    refreshSerial: Long = 0L,
+    longPressSerial: Long = 0L,
+    contentEntryFocusRequester: FocusRequester? = null,
+    tabFocusRequester: FocusRequester? = null
 ) {
-    val scope = rememberCoroutineScope()
+    val dynamicViewModel: DynamicViewModel = koinViewModel()
+    val toViewViewModel: ToViewViewModel = koinViewModel()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val dynamicList by dynamicViewModel.dynamicList.collectAsStateWithLifecycle()
 
     val onClickVideo: (DynamicVideo) -> Unit = { dynamic ->
         val proxyArea = ProxyArea.checkProxyArea(dynamic.title)
@@ -84,19 +94,40 @@ fun DynamicsScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        toViewViewModel.uiEvent.collect { event ->
-            when (event) {
-                is UiEffect.ShowToast -> {
-                    event.message.toast(context)
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            toViewViewModel.uiEvent.collect { event ->
+                when (event) {
+                    is UiEffect.ShowToast -> {
+                        event.message.toast(context)
+                    }
                 }
             }
         }
     }
 
+    LaunchedEffect(active, activationSerial) {
+        dynamicViewModel.updateRuntimeState(
+            if (active && activationSerial > 0L) ContentRuntimeState.Active else ContentRuntimeState.Frozen
+        )
+    }
+
+    LaunchedEffect(active, refreshSerial) {
+        if (!active) return@LaunchedEffect
+        if (refreshSerial == 0L) return@LaunchedEffect
+        dynamicViewModel.reloadAll()
+    }
+
+    LaunchedEffect(active, longPressSerial) {
+        if (!active) return@LaunchedEffect
+        if (longPressSerial == 0L) return@LaunchedEffect
+        dynamicViewModel.requestScrollToTop()
+    }
+
     var lastHandledScrollToken by remember { mutableStateOf(dynamicViewModel.scrollToTopToken) }
 
-    LaunchedEffect(dynamicViewModel.scrollToTopToken, gridState) {
+    LaunchedEffect(dynamicViewModel.scrollToTopToken, gridState, active) {
+        if (!active) return@LaunchedEffect
         val token = dynamicViewModel.scrollToTopToken
         if (token <= lastHandledScrollToken) return@LaunchedEffect
 
@@ -111,22 +142,21 @@ fun DynamicsScreen(
     }
 
     // 监听可见区最后一个 item 的 index，距离尾部 20 个就翻页
-    LaunchedEffect(gridState) {
+    LaunchedEffect(gridState, active) {
+        if (!active) return@LaunchedEffect
         snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .distinctUntilChanged()
             .filter { index ->
-                index != null && index >= dynamicViewModel.dynamicList.size - 20
+                index != null && index >= dynamicList.size - 20
             }
             .collect {
-                scope.launch(Dispatchers.IO) {
-                    dynamicViewModel.loadMore()
-                }
+                dynamicViewModel.loadMore()
             }
     }
 
     if (dynamicViewModel.isLogin) {
         val focusableWrapIndexMap = buildMap<Long, Int> {
-            dynamicViewModel.dynamicList.forEach { video ->
+            dynamicList.forEach { video ->
                 if (video.aid != DynamicViewModel.REFRESH_PLACEHOLDER_AID) {
                     put(video.aid, size)
                 }
@@ -140,10 +170,12 @@ fun DynamicsScreen(
             contentPadding = PaddingValues(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalWrapItemCount = focusableWrapIndexMap.size
-        ) {
+            horizontalWrapItemCount = focusableWrapIndexMap.size,
+            entryFocusRequester = contentEntryFocusRequester,
+            upFocusRequester = tabFocusRequester
+        ) { cardUiStateFor ->
             itemsIndexed(
-                items = dynamicViewModel.dynamicList,
+                items = dynamicList,
                 key = { _, item -> item.aid }
             ) { _, item ->
                 val isRefreshPlaceholder = item.aid == DynamicViewModel.REFRESH_PLACEHOLDER_AID
@@ -152,6 +184,7 @@ fun DynamicsScreen(
                     frameModifier = focusableWrapIndexMap[item.aid]
                         ?.let { rememberGridRowWrapModifier(it) }
                         ?: Modifier,
+                    uiState = cardUiStateFor(item.aid),
                     data = remember(item, isRefreshPlaceholder) {
                         VideoCardData(
                             avid = item.aid,
@@ -172,19 +205,6 @@ fun DynamicsScreen(
                         null
                     } else {
                         { toViewViewModel.addToView(item.aid) }
-                    },
-                    onGoToDetailPage = if (isRefreshPlaceholder) {
-                        null
-                    } else {
-                        {
-                            VideoInfoActivity.actionStart(
-                                context = context,
-                                fromController = true,
-                                aid = item.aid,
-                                epid = item.epid,
-                                source = if (item.epid != null) VideoSource.Pgc else VideoSource.Ugc,
-                            )
-                        }
                     },
                     onGoToUpPage = if (isRefreshPlaceholder) {
                         null

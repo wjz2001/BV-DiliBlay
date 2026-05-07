@@ -57,7 +57,7 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -94,6 +94,9 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
@@ -179,11 +182,15 @@ import dev.aaa1115910.bv.util.RichContentDocument
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.util.focusedBorder
+import dev.aaa1115910.bv.viewmodel.SmallVideoCardItemUiState
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import dev.aaa1115910.bv.viewmodel.video.VideoDetailState
 import dev.aaa1115910.bv.viewmodel.video.VideoDetailViewModel
 import dev.aaa1115910.bv.viewmodel.video.VideoInfoState
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -227,10 +234,11 @@ fun VideoInfoScreen(
     toViewViewModel: ToViewViewModel = koinViewModel(),
 ) {
     val context = (LocalContext.current) as Activity
+    val lifecycleOwner = LocalLifecycleOwner.current
     val logger = KotlinLogging.logger { }
 
     val defaultFocusRequester = remember { FocusRequester() }
-    val uiState by videoDetailViewModel.uiState.collectAsState()
+    val uiState by videoDetailViewModel.uiState.collectAsStateWithLifecycle()
 
     val scope = rememberCoroutineScope()
 
@@ -374,34 +382,38 @@ fun VideoInfoScreen(
         )
     }
 
-    LaunchedEffect(Unit) {
-        videoDetailViewModel.uiEvent.collect { event ->
-            when (event) {
-                is VideoDetailUiEffect.ShowToast -> event.message.toast(context)
-                is VideoDetailUiEffect.LaunchPlayerActivity -> playCurrentVideo(event.cid)
-                is VideoDetailUiEffect.DirectlyPlay -> {
-                    playCurrentVideo(event.cid)
-                    context.finish()
-                }
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            videoDetailViewModel.uiEvent.collect { event ->
+                when (event) {
+                    is VideoDetailUiEffect.ShowToast -> event.message.toast(context)
+                    is VideoDetailUiEffect.LaunchPlayerActivity -> playCurrentVideo(event.cid)
+                    is VideoDetailUiEffect.DirectlyPlay -> {
+                        playCurrentVideo(event.cid)
+                        context.finish()
+                    }
 
-                is VideoDetailUiEffect.LaunchSeasonInfoActivity -> {
-                    logger.fInfo { "Redirect to season ${event.seasonId}" }
-                    SeasonInfoActivity.actionStart(
-                        context = context,
-                        seasonId = event.seasonId,
-                        epId = event.epid,
-                        proxyArea = event.proxyArea
-                    )
-                    context.finish()
+                    is VideoDetailUiEffect.LaunchSeasonInfoActivity -> {
+                        logger.fInfo { "Redirect to season ${event.seasonId}" }
+                        SeasonInfoActivity.actionStart(
+                            context = context,
+                            seasonId = event.seasonId,
+                            epId = event.epid,
+                            proxyArea = event.proxyArea
+                        )
+                        context.finish()
+                    }
                 }
             }
         }
     }
 
-    LaunchedEffect(Unit) {
-        toViewViewModel.uiEvent.collect { event ->
-            when (event) {
-                is UiEffect.ShowToast -> event.message.toast(context)
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            toViewViewModel.uiEvent.collect { event ->
+                when (event) {
+                    is UiEffect.ShowToast -> event.message.toast(context)
+                }
             }
         }
     }
@@ -533,7 +545,7 @@ fun VideoInfoScreen(
                                     isLiked = videoDetailState.isLiked,
                                     isCoined = videoDetailState.isCoined,
                                     userFavoriteFolders = uiState.favoriteFolders,
-                                    favoriteFolderIds = uiState.videoFavoriteFolderIds.toList(),
+                                    favoriteFolderIds = uiState.videoFavoriteFolderIds.toPersistentList(),
                                     onClickCover = {
                                         logger.fInfo { "Click video cover" }
                                         StartupCoverRepository.put(videoDetailState.aid, videoDetailState.cover)
@@ -595,8 +607,8 @@ fun VideoInfoScreen(
                             videoDetailState.ugcSeason?.let { season ->
                                 itemsIndexed(
                                     items = displayedUgcSections,
-                                    key = { index, section ->
-                                        "ugc_${index}_${section.title}_${section.episodes.firstOrNull()?.aid ?: 0L}"
+                                    key = { _, section ->
+                                        "ugc_${section.title}_${section.episodes.firstOrNull()?.aid ?: 0L}"
                                     }
                                 ) { index, section ->
                                     val upRequester =
@@ -690,13 +702,6 @@ fun VideoInfoScreen(
                                             },
                                             onAddWatchLater = { aid ->
                                                 toViewViewModel.addToView(aid)
-                                            },
-                                            onGoToDetailPage = { aid ->
-                                                VideoInfoActivity.actionStart(
-                                                    context = context,
-                                                    fromController = true,
-                                                    aid = aid
-                                                )
                                             },
                                             onGoToUpPage = { mid, upName ->
                                                 UpInfoActivity.actionStart(context, mid, upName)
@@ -799,12 +804,12 @@ fun VideoInfoData(
     coverDownRequester: FocusRequester? = null,
     videoDetail: VideoDetailState,
     isFollowing: Boolean,
-    tags: List<Tag>,
+    tags: ImmutableList<Tag>,
     isFavorite: Boolean,
     isLiked: Boolean,
     isCoined: Boolean,
-    userFavoriteFolders: List<FavoriteFolderMetadata> = emptyList(),
-    favoriteFolderIds: List<Long> = emptyList(),
+    userFavoriteFolders: ImmutableList<FavoriteFolderMetadata> = persistentListOf(),
+    favoriteFolderIds: ImmutableList<Long> = persistentListOf(),
     onClickCover: () -> Unit,
     onClickUp: () -> Unit,
     onAddFollow: () -> Unit,
@@ -1929,7 +1934,10 @@ private fun VideoDescriptionRichContentPictures(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        itemsIndexed(pictures, key = { index, picture -> "$keyPrefix-${picture.imgSrc}-$index" }) { index, picture ->
+        itemsIndexed(
+            items = pictures,
+            key = { _, picture -> "$keyPrefix-${picture.imgSrc}" }
+        ) { index, picture ->
             val fr = pictureFocusRequesters[index]
             val upRequester = if (index == 0) {
                 fallbackUpRequester
@@ -2193,7 +2201,7 @@ fun VideoPartRow(
     entryFocusRequester: FocusRequester? = null,
     upFocusRequester: FocusRequester? = null,
     downFocusRequester: FocusRequester? = null,
-    pages: List<VideoPage>,
+    pages: ImmutableList<VideoPage>,
     lastPlayedCid: Long = 0,
     lastPlayedTime: Int = 0,
     enablePartListDialog: Boolean = false,
@@ -2317,7 +2325,7 @@ fun VideoPartRow(
         items = pages,
         title = "分 P 列表",
         itemKey = { it.cid }
-    ) { itemModifier, absoluteIndex, page ->
+    ) { itemModifier, absoluteIndex, page, _ ->
         VideoPartButton(
             modifier = itemModifier,
             index = absoluteIndex + 1,
@@ -2419,7 +2427,6 @@ fun VideoUgcSeasonRow(
     episodes: List<Episode>,
     onEpisodeClick: (Episode) -> Unit,
     onAddWatchLater: ((Long) -> Unit)? = null,
-    onGoToDetailPage: ((Long) -> Unit)? = null,
     onGoToUpPage: ((Long, String) -> Unit)? = null,
     rowStateKey: String? = null,
     entryFocusRequester: FocusRequester? = null,
@@ -2435,7 +2442,7 @@ fun VideoUgcSeasonRow(
         "VideoUgcSeasonRow:$title:$firstAid:${episodes.size}"
     }
 
-    val videos = remember(episodes) { episodes.map { it.toVideoCardData() } }
+    val videos = remember(episodes) { episodes.map { it.toVideoCardData() }.toPersistentList() }
 
     val episodeByIdentity = remember(episodes, videos) {
         episodes.zip(videos).associate { (episode, videoData) ->
@@ -2456,7 +2463,6 @@ fun VideoUgcSeasonRow(
             }
         },
         onAddWatchLater = onAddWatchLater,
-        onGoToDetailPage = onGoToDetailPage,
         onGoToUpPage = onGoToUpPage,
         enableHorizontalWrap = false,
         rowStateKey = resolvedRowStateKey,
@@ -2491,10 +2497,11 @@ fun VideoUgcSeasonRow(
             end = 24.dp,
             bottom = 96.dp
         ),
-    ) { itemModifier, _, videoData ->
+    ) { itemModifier, _, videoData, cardUiStateFor ->
         SmallVideoCard(
             modifier = Modifier,
             frameModifier = itemModifier,
+            uiState = cardUiStateFor(videoData.avid),
             data = videoData,
             titleMaxLines = 3,
             onClick = {
@@ -2506,9 +2513,6 @@ fun VideoUgcSeasonRow(
                 }
             },
             onAddWatchLater = onAddWatchLater?.let { callback ->
-                { callback(videoData.avid) }
-            },
-            onGoToDetailPage = onGoToDetailPage?.let { callback ->
                 { callback(videoData.avid) }
             },
             onGoToUpPage = if (videoData.upMid != null && onGoToUpPage != null) {
@@ -2546,7 +2550,12 @@ fun <T> PagedVideoInfinityListDialog(
     tabTextBuilder: (startIndex: Int, endIndex: Int) -> String = { startIndex, endIndex ->
         if (startIndex == endIndex) "P$startIndex" else "P$startIndex-$endIndex"
     },
-    itemContent: @Composable (modifier: Modifier, absoluteIndex: Int, item: T) -> Unit
+    itemContent: @Composable (
+        modifier: Modifier,
+        absoluteIndex: Int,
+        item: T,
+        cardUiStateFor: (Long) -> SmallVideoCardItemUiState?
+    ) -> Unit
 ) {
     // 这些状态必须放在 if (!show) return 前面，这样关闭 Dialog 后还能保留焦点恢复信息
     val listState = rememberLazyGridState()
@@ -2871,7 +2880,7 @@ fun <T> PagedVideoInfinityListDialog(
                         verticalArrangement = Arrangement.spacedBy(verticalSpacing.dp),
                         horizontalArrangement = Arrangement.spacedBy(horizontalSpacing.dp),
                         horizontalWrapColumnCount = columnCount
-                    ) {
+                    ) { cardUiStateFor ->
                         itemsIndexed(
                             items = selectedItems,
                             key = { _, item -> itemKey(item) }
@@ -2960,7 +2969,8 @@ fun <T> PagedVideoInfinityListDialog(
                                         }
                                     },
                                 absoluteIndex,
-                                item
+                                item,
+                                cardUiStateFor
                             )
                         }
                     }
@@ -3000,9 +3010,8 @@ fun VideoPartButtonLongTextPreview() {
 @Preview
 @Composable
 fun VideoPartRowPreview() {
-    val pages = remember { mutableStateListOf<VideoPage>() }
-    for (i in 0..10) {
-        pages.add(
+    val pages = remember {
+        (0..10).map { i ->
             VideoPage(
                 cid = 1000L + i,
                 index = i,
@@ -3010,7 +3019,7 @@ fun VideoPartRowPreview() {
                 duration = 10,
                 dimension = Dimension(0, 0)
             )
-        )
+        }.toPersistentList()
     }
     BVTheme {
         VideoPartRow(pages = pages, onClick = {})

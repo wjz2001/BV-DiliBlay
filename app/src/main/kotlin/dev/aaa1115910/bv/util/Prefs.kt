@@ -22,6 +22,7 @@ import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
 import dev.aaa1115910.bv.ui.theme.ThemeMode
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,7 +32,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -45,6 +46,26 @@ import kotlin.reflect.KProperty
 object Prefs {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val flowMap = ConcurrentHashMap<Preferences.Key<*>, MutableStateFlow<Any?>>()
+    private val readyLock = Any()
+    @Volatile
+    private var readyDeferred = CompletableDeferred<Boolean>()
+    @Volatile
+    private var readyResult: Boolean? = null
+
+    suspend fun awaitReady(timeoutMillis: Long = Long.MAX_VALUE): Boolean =
+        awaitReadyResult(timeoutMillis) ?: false
+
+    suspend fun awaitReadyResult(timeoutMillis: Long = Long.MAX_VALUE): Boolean? =
+        withTimeoutOrNull(timeoutMillis) { readyDeferred.await() }
+
+    fun resetReadyForRetry(forceReset: Boolean = false) {
+        synchronized(readyLock) {
+            if (readyResult == false || forceReset && readyResult != true) {
+                readyDeferred = CompletableDeferred()
+                readyResult = null
+            }
+        }
+    }
 
     /**
      * 基本类型委托 (String, Int, Boolean, Float, Long)
@@ -350,20 +371,32 @@ object Prefs {
      * 作用：首先阻塞读取硬盘内DataStore到内存，用于其他模块初始化；
      * 再启动一个长连接监听 DataStore 变化，并自动同步到内存缓存。
      */
-    fun init() {
-        val initialPrefs = runBlocking {
-            BVApp.dataStoreManager.dataStore.data.first()
-        }
-        updateMemoryCache(initialPrefs)
-        checkAndInitBuvid(initialPrefs)
+    suspend fun init() {
+        if (readyResult == true) return
+        try {
+            val initialPrefs = BVApp.dataStoreManager.dataStore.data.first()
+            updateMemoryCache(initialPrefs)
+            checkAndInitBuvid(initialPrefs)
 
-        if (!initialPrefs.contains(PrefKeys.prefDefaultDanmakuEnabledKey)) {
-            defaultDanmakuEnabled = defaultDanmakuTypes.isNotEmpty()
-        }
-        scope.launch {
-            BVApp.dataStoreManager.dataStore.data.collect { preferences ->
-                updateMemoryCache(preferences)
+            if (!initialPrefs.contains(PrefKeys.prefDefaultDanmakuEnabledKey)) {
+                defaultDanmakuEnabled = defaultDanmakuTypes.isNotEmpty()
             }
+            scope.launch {
+                BVApp.dataStoreManager.dataStore.data.collect { preferences ->
+                    updateMemoryCache(preferences)
+                }
+            }
+            completeReady(true)
+        } catch (e: Throwable) {
+            completeReady(false)
+            throw e
+        }
+    }
+
+    private fun completeReady(value: Boolean) {
+        synchronized(readyLock) {
+            readyResult = value
+            readyDeferred.complete(value)
         }
     }
 

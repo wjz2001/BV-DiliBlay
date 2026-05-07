@@ -1,17 +1,17 @@
 [versions]
 androidsvg = "1.4"
 coil = "2.7.0"
-firebase-bom = "34.12.0"
 geetest-sensebot = "4.4.4"
-grpc = "1.80.0"
+grpc = "1.81.0"
 grpc-kotlin = "1.5.0"
 jsoup = "1.22.2"
 koin-bom = "4.2.1"
 koin = "4.2.1"
 kotlinx-coroutines = "1.10.2"
+kotlinxCollectionsImmutable = "0.4.0"
 kotlinx-serialization = "1.11.0"
 ktor = "3.4.3"
-logging = "8.0.01"
+logging = "8.0.02"
 lottie = "6.7.1"
 material = "1.13.0"
 protobuf = "4.34.1"
@@ -30,25 +30,15 @@ coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
 coil-gif = { module = "io.coil-kt:coil-gif", version.ref = "coil" }
 coil-svg = { module = "io.coil-kt:coil-svg", version.ref = "coil" }
 
-# https://firebase.google.com/docs/android/setup
-# 警告:(44~46) 未使用，暂时注释
-firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
-
 # https://docs.geetest.com/sensebot/deploy/client/android
 geetest-sensebot = { module = "com.geetest.sensebot:sensebot", version.ref = "geetest-sensebot" }
 
 # https://github.com/grpc/grpc-kotlin
 grpc-kotlin-stub = { module = "io.grpc:grpc-kotlin-stub", version.ref = "grpc-kotlin" }
-# 警告:(53) 未使用，暂时注释
-# grpc-android = { module = "io.grpc:grpc-android", version.ref = "grpc" }
 grpc-okhttp = { module = "io.grpc:grpc-okhttp", version.ref = "grpc" }
 grpc-protobuf = { module = "io.grpc:grpc-protobuf", version.ref = "grpc" }
-# 警告:(56) 未使用，暂时注释
-# grpc-protobuf-lite = { module = "io.grpc:grpc-protobuf-lite", version.ref = "grpc" }
 grpc-stub = { module = "io.grpc:grpc-stub", version.ref = "grpc" }
 protobuf-kotlin = { module = "com.google.protobuf:protobuf-kotlin", version.ref = "protobuf" }
-# 警告:(59) 未使用，暂时注释
-# protobuf-kotlin-lite = { module = "com.google.protobuf:protobuf-kotlin-lite", version.ref = "protobuf" }
 
 # https://jsoup.org/
 jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
@@ -66,6 +56,8 @@ kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test" }
 # https://github.com/Kotlin/kotlinx.coroutines
 kotlinx-coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
 
+kotlinx-collections-immutable = { module = "org.jetbrains.kotlinx:kotlinx-collections-immutable", version.ref = "kotlinxCollectionsImmutable" }
+
 # https://github.com/Kotlin/kotlinx.serialization
 kotlinx-serialization = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 
@@ -76,14 +68,8 @@ ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-encoding = { module = "io.ktor:ktor-client-encoding", version.ref = "ktor" }
 ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
 ktor-client-serialization-kotlinx = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
-# 警告:(88) 未使用，暂时注释
-# ktor-client-websockets = { module = "io.ktor:ktor-client-websockets", version.ref = "ktor" }
 ktor-server-cio = { module = "io.ktor:ktor-server-cio", version.ref = "ktor" }
 ktor-server-core = { module = "io.ktor:ktor-server-core", version.ref = "ktor" }
-
-# https://github.com/T-Fowl/ktor-jsoup
-# 警告:(93) 未使用，暂时注释
-# ktor-jsoup = { module = "com.tfowl.ktor:ktor-jsoup", version.ref = "ktor-jsoup" }
 
 # https://github.com/MicroUtils/kotlin-logging
 logging = { module = "io.github.oshai:kotlin-logging-jvm", version.ref = "logging" }
@@ -107,8 +93,6 @@ slf4j-android-mvysny = { module = "com.gitlab.mvysny.slf4j:slf4j-handroid", vers
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j-simple" }
 
 # https://code.videolan.org/videolan/vlc-android
-# 警告:(117) 未使用，暂时注释
-# vlc-android-all = { module = "org.videolan.android:libvlc-all", version.ref = "vlc" }
 ui-text = { group = "androidx.compose.ui", name = "ui-text" }
 runtime = { group = "androidx.compose.runtime", name = "runtime" }
 re2j = { module = "com.google.re2j:re2j", version.ref = "re2j" }

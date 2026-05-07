@@ -21,6 +21,15 @@ import dev.aaa1115910.bv.block.BlockManager
 import dev.aaa1115910.bv.dao.AppDatabase
 import dev.aaa1115910.bv.util.LogCatcherUtil
 import dev.aaa1115910.bv.util.Prefs
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.withContext
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
 import org.koin.core.annotation.ComponentScan
@@ -31,6 +40,7 @@ import org.koin.core.component.inject
 import org.koin.core.logger.Level
 import org.koin.plugin.module.dsl.startKoin
 import org.slf4j.impl.HandroidLoggerAdapter
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Koin Compiler Plugin 迁移后：
@@ -46,6 +56,15 @@ class BVGeneratedApp
 class BVApp : Application(), KoinComponent {
     private val channelRepository: ChannelRepository by inject()
     private val authRepository: AuthRepository by inject()
+    private val deferredStartupStarted = AtomicBoolean(false)
+    private val deferredStartupScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val startupReadyLock = Any()
+    @Volatile
+    private var startupReadyDeferred = CompletableDeferred<Boolean>()
+    @Volatile
+    private var deferredStartupJob: Job? = null
+    @Volatile
+    private var startupReadyGeneration = 0
 
     companion object {
         @SuppressLint("StaticFieldLeak")
@@ -72,14 +91,78 @@ class BVApp : Application(), KoinComponent {
         context = this.applicationContext
 
         initCoreLibraries()
-        Prefs.init()
-        AppCompatDelegate.setDefaultNightMode(Prefs.themeMode.toNightMode())
-        BlockManager.reloadFromPrefs() // 启动即从本地恢复，保证过滤一直有效
 
-        initDeviceInfo()
+        runBlocking { Prefs.init() }
+        AppCompatDelegate.setDefaultNightMode(Prefs.themeMode.toNightMode())
+        BlockManager.reloadFromPrefs()
         initRepository()
         initProxy()
+        BiliAppConf.osVersion = Build.VERSION.RELEASE
+        BiliAppConf.model = Build.MODEL
 
+        startDeferredStartupWork()
+    }
+
+    fun startDeferredStartupWork(forceRestart: Boolean = false) {
+        val startupReadyState = synchronized(startupReadyLock) {
+            if (forceRestart) {
+                deferredStartupJob?.cancel()
+                deferredStartupStarted.set(false)
+                startupReadyDeferred = CompletableDeferred()
+                startupReadyGeneration++
+            }
+            if (!deferredStartupStarted.compareAndSet(false, true)) return
+            if (startupReadyDeferred.isCompleted) {
+                startupReadyDeferred = CompletableDeferred()
+                startupReadyGeneration++
+            }
+            startupReadyDeferred to startupReadyGeneration
+        }
+        val startupReady = startupReadyState.first
+        val startupGeneration = startupReadyState.second
+        deferredStartupJob = deferredStartupScope.launch {
+            runCatching {
+                deferredStartup()
+            }.onSuccess {
+                completeStartupReady(startupReady, startupGeneration, true)
+            }.onFailure {
+                completeStartupReady(startupReady, startupGeneration, false)
+            }
+        }
+    }
+
+    suspend fun awaitStartupReady(timeoutMillis: Long): Boolean =
+        awaitStartupReadyResult(timeoutMillis) == true
+
+    suspend fun awaitStartupReadyResult(timeoutMillis: Long): Boolean? =
+        withTimeoutOrNull(timeoutMillis) { startupReadyDeferred.await() }
+
+    suspend fun awaitPrefsReady(timeoutMillis: Long): Boolean =
+        Prefs.awaitReady(timeoutMillis)
+
+    suspend fun awaitStartupWorkReady(timeoutMillis: Long): Boolean =
+        awaitStartupReady(timeoutMillis)
+
+    private fun completeStartupReady(
+        startupReady: CompletableDeferred<Boolean>,
+        startupGeneration: Int,
+        value: Boolean
+    ) {
+        synchronized(startupReadyLock) {
+            if (startupReadyDeferred !== startupReady || startupReadyGeneration != startupGeneration) return
+            if (!value) deferredStartupStarted.set(false)
+            startupReady.complete(value)
+        }
+    }
+
+    private suspend fun deferredStartup() {
+        runCatching {
+            BiliWebConf.webViewVersion = WebViewCompat.getCurrentWebViewPackage(applicationContext)
+                ?.versionName
+                ?.substringBefore(".")
+                ?.toInt()
+                ?: 144
+        }
         BiliHttpApi.init(buvid3 = Prefs.buvid3)
     }
 

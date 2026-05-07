@@ -2,7 +2,6 @@ package dev.aaa1115910.bv.screen.user
 
 import android.app.Activity
 import android.content.Intent
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -32,6 +31,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BadgedBox
 
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,7 +47,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.ImageBitmapConfig
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -57,7 +56,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.viewModelScope
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ClickableSurfaceDefaults
@@ -80,16 +78,14 @@ import dev.aaa1115910.bv.screen.user.lock.UnlockSwitchUserContent
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.util.rememberTvImageRequest
 import dev.aaa1115910.bv.viewmodel.UserViewModel
 import dev.aaa1115910.bv.viewmodel.user.UserSwitchViewModel
-import qrcode.QRCode
-import kotlinx.coroutines.Dispatchers
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
 
 @Composable
 fun UserSwitchScreen(
@@ -102,7 +98,7 @@ fun UserSwitchScreen(
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    val userList = userSwitchViewModel.userDbList
+    val userList by userSwitchViewModel.userDbList.collectAsStateWithLifecycle()
 
     var showUnlock by remember { mutableStateOf(false) }
     var unlockUser: UserDB? by remember { mutableStateOf(null) }
@@ -148,8 +144,7 @@ fun UserSwitchScreen(
                     context.startActivity(Intent(context, LoginActivity::class.java))
                 },
                 onDeleteUser = { user ->
-                    scope.launch(Dispatchers.IO) {
-                        userSwitchViewModel.deleteUser(user)
+                    userSwitchViewModel.deleteUser(user) {
                         if (userList.isEmpty()) (context as Activity).finish()
                     }
                 },
@@ -158,8 +153,7 @@ fun UserSwitchScreen(
                         unlockUser = user
                         showUnlock = true
                     } else {
-                        scope.launch(Dispatchers.IO) {
-                            userSwitchViewModel.switchUser(user)
+                        userSwitchViewModel.switchUser(user) {
                             (context as Activity).finish()
                         }
                     }
@@ -175,8 +169,7 @@ fun UserSwitchScreen(
                     userList = userList,
                     unlockUser = unlockUser!!,
                     onUnlockSuccess = { user ->
-                        scope.launch(Dispatchers.IO) {
-                            userSwitchViewModel.switchUser(user)
+                        userSwitchViewModel.switchUser(user) {
                             (context as Activity).finish()
                         }
                     },
@@ -192,7 +185,7 @@ fun UserSwitchScreen(
 @Composable
 private fun UserSwitchContent(
     modifier: Modifier = Modifier,
-    userList: List<UserDB> = emptyList(),
+    userList: ImmutableList<UserDB> = persistentListOf(),
     currentUid: Long,
     currentUserLevel: Int?,
     loadingUserList: Boolean,
@@ -419,22 +412,15 @@ fun UserAuthDataDialog(
     modifier: Modifier = Modifier,
     show: Boolean,
     onHideDialog: () -> Unit,
-    userDB: UserDB
+    userDB: UserDB,
+    userSwitchViewModel: UserSwitchViewModel = koinViewModel()
 ) {
     var qrImage by remember { mutableStateOf(ImageBitmap(1, 1, ImageBitmapConfig.Argb8888)) }
 
-    val createQr: suspend () -> Unit = {
-        val output = ByteArrayOutputStream()
-        QRCode(userDB.auth).render().writeImage(output)
-        val input = ByteArrayInputStream(output.toByteArray())
-        val image = BitmapFactory.decodeStream(input).asImageBitmap()
-        withContext(Dispatchers.Main) { qrImage = image }
-    }
-
     LaunchedEffect(show) {
         if (show) {
-            withContext(Dispatchers.IO) {
-                createQr()
+            userSwitchViewModel.generateAuthQrImage(userDB.auth) {
+                qrImage = it
             }
         }
     }
@@ -527,6 +513,12 @@ fun UserItem(
     lockEnabled: Boolean = false,
     onClick: (() -> Unit)? = null
 ) {
+    val avatarRequest = rememberTvImageRequest(
+        url = avatar,
+        widthDp = 80.dp,
+        heightDp = 80.dp
+    )
+
     Column(
         modifier = modifier.width(120.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -562,7 +554,7 @@ fun UserItem(
                         modifier = Modifier
                             .size(80.dp)
                             .clip(CircleShape),
-                        model = avatar,
+                        model = avatarRequest,
                         contentDescription = null,
                         contentScale = ContentScale.FillBounds
                     )
@@ -582,7 +574,7 @@ fun UserItem(
                     modifier = Modifier
                         .size(80.dp)
                         .clip(CircleShape),
-                    model = avatar,
+                    model = avatarRequest,
                     contentDescription = null,
                     contentScale = ContentScale.FillBounds
                 )
@@ -714,7 +706,7 @@ fun AddUserItemPreview() {
 fun UserSwitchContentPreview() {
     BVTheme {
         UserSwitchContent(
-            userList = listOf(
+            userList = persistentListOf(
                 UserDB(
                     uid = 0,
                     username = "大楚兴 陈胜王 大楚兴 陈胜王",

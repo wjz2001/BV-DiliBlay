@@ -2,10 +2,8 @@ package dev.aaa1115910.bv.viewmodel.home
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.aaa1115910.biliapi.entity.user.DynamicVideo
 import dev.aaa1115910.biliapi.http.entity.AuthFailureException
@@ -18,14 +16,23 @@ import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.fWarn
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.common.LoadState
+import dev.aaa1115910.bv.viewmodel.common.RuntimeAwareViewModel
+import dev.aaa1115910.bv.viewmodel.common.accountSessionKey
 import dev.aaa1115910.bv.viewmodel.common.canAutoLoad
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.CancellationException
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -39,10 +46,11 @@ import org.koin.core.annotation.KoinViewModel
 class DynamicViewModel(
     private val bvUserRepository: BvUserRepository,
     private val userRepository: UserRepository
-) : ViewModel() {
+) : RuntimeAwareViewModel() {
     private val logger = KotlinLogging.logger {}
 
-    val dynamicList = mutableStateListOf<DynamicVideo>()
+    private val _dynamicList = MutableStateFlow(persistentListOf<DynamicVideo>())
+    val dynamicList: StateFlow<ImmutableList<DynamicVideo>> = _dynamicList.asStateFlow()
 
     private var currentPage = 0
     var loading by mutableStateOf(false)
@@ -111,6 +119,7 @@ class DynamicViewModel(
         private set
 
     private val maxItems = 600
+    private var loadedAccountSessionKey = bvUserRepository.accountSessionKey()
 
     private fun buildRefreshPlaceholder(): DynamicVideo = DynamicVideo(
         aid = REFRESH_PLACEHOLDER_AID,
@@ -130,10 +139,10 @@ class DynamicViewModel(
 
     // 仅在主线程调用
     private fun removeRefreshPlaceholderLocked(): Int {
-        val previousSize = dynamicList.size
+        val previousSize = _dynamicList.value.size
         // removeAll 会遍历一遍列表，把所有满足条件的都删掉，内部处理了指针
-        dynamicList.removeAll { it.aid == REFRESH_PLACEHOLDER_AID }
-        val removed = previousSize - dynamicList.size
+        _dynamicList.update { list -> list.removeAll { it.aid == REFRESH_PLACEHOLDER_AID } }
+        val removed = previousSize - _dynamicList.value.size
         refreshPlaceholderIndex = -1
         return removed
     }
@@ -143,8 +152,8 @@ class DynamicViewModel(
             if (expectedGen != generation) return@withContext
             val removed = removeRefreshPlaceholderLocked()
 
-            val safeIndex = insertIndex.coerceIn(0, dynamicList.size)
-            dynamicList.add(safeIndex, buildRefreshPlaceholder())
+            val safeIndex = insertIndex.coerceIn(0, _dynamicList.value.size)
+            _dynamicList.update { it.add(safeIndex, buildRefreshPlaceholder()) }
             refreshPlaceholderIndex = safeIndex
 
             logger.fInfo {
@@ -161,7 +170,22 @@ class DynamicViewModel(
         }
     }
 
-    suspend fun loadMore(
+    fun loadMore(
+        mode: LoadMode = LoadMode.More,
+        showNoUpdateToast: Boolean = false,
+        showErrorToast: Boolean = true
+    ) {
+        ensureAccountStateFresh()
+        viewModelScope.launch(Dispatchers.IO) {
+            loadMoreInBackground(
+                mode = mode,
+                showNoUpdateToast = showNoUpdateToast,
+                showErrorToast = showErrorToast
+            )
+        }
+    }
+
+    private suspend fun loadMoreInBackground(
         mode: LoadMode = LoadMode.More,
         showNoUpdateToast: Boolean = false,
         showErrorToast: Boolean = true
@@ -204,7 +228,7 @@ class DynamicViewModel(
             if (now - lastRefreshMs < 1500) {
                 withContext(Dispatchers.Main) {
                     if (initialLoadState == LoadState.Loading) {
-                        initialLoadState = if (dynamicList.isNotEmpty()) {
+                        initialLoadState = if (_dynamicList.value.isNotEmpty()) {
                             LoadState.Success
                         } else {
                             LoadState.Idle
@@ -226,7 +250,7 @@ class DynamicViewModel(
             logger.fInfo { "RefreshNew start: gen=$expectedGen" }
 
             isRefreshingNew = true
-            val hadItemsBefore = withContext(Dispatchers.Main) { dynamicList.isNotEmpty() }
+            val hadItemsBefore = withContext(Dispatchers.Main) { _dynamicList.value.isNotEmpty() }
             var totalAdded = 0
             // 只有首次建链时，刷新结果才允许覆盖 currentPage/historyOffset/hasMore
             val initializingPagingState = currentPage == 0 && historyOffset == null
@@ -271,7 +295,7 @@ class DynamicViewModel(
                     }
 
                     if (firstPageNewItems.isNotEmpty()) {
-                        dynamicList.addAll(0, firstPageNewItems)
+                        _dynamicList.update { it.addAll(0, firstPageNewItems) }
                         trimDynamicDataLocked()
                         totalAdded += firstPageNewItems.size
 
@@ -413,8 +437,8 @@ class DynamicViewModel(
                             }
 
                             if (committed.isNotEmpty()) {
-                                val insertAt = firstPageNewItems.size.coerceIn(0, dynamicList.size)
-                                dynamicList.addAll(insertAt, committed)
+                                val insertAt = firstPageNewItems.size.coerceIn(0, _dynamicList.value.size)
+                                _dynamicList.update { it.addAll(insertAt, committed) }
                                 trimDynamicDataLocked()
                                 totalAdded += committed.size
                             }
@@ -551,7 +575,7 @@ class DynamicViewModel(
                 for (item in filtered) {
                     if (aidSet.add(item.aid)) distinct.add(item)
                 }
-                if (distinct.isNotEmpty()) dynamicList.addAll(distinct)
+                if (distinct.isNotEmpty()) _dynamicList.update { it.addAll(distinct) }
 
                 currentPage = page
                 historyOffset = data.historyOffset
@@ -612,10 +636,11 @@ class DynamicViewModel(
     }
 
     fun ensureLoaded(showErrorToast: Boolean = true) {
+        ensureAccountStateFresh()
         if (!initialLoadState.canAutoLoad()) return
         initialLoadState = LoadState.Loading
         viewModelScope.launch(Dispatchers.IO) {
-            loadMore(
+            loadMoreInBackground(
                 mode = LoadMode.More,
                 showErrorToast = showErrorToast
             )
@@ -626,6 +651,7 @@ class DynamicViewModel(
         showNoUpdateToast: Boolean = true,
         showErrorToast: Boolean = true
     ) {
+        ensureAccountStateFresh()
         // 防抖必须发生在状态切到 Loading 之前，
         // 否则被拦下的那次刷新会把状态卡在 Loading。
         val now = System.currentTimeMillis()
@@ -633,7 +659,7 @@ class DynamicViewModel(
 
         initialLoadState = LoadState.Loading
         viewModelScope.launch(Dispatchers.IO) {
-            loadMore(
+            loadMoreInBackground(
                 mode = LoadMode.RefreshNew,
                 showNoUpdateToast = showNoUpdateToast,
                 showErrorToast = showErrorToast
@@ -646,7 +672,7 @@ class DynamicViewModel(
         loadJob?.cancel()
         loadJob = null
         lastFailureWasAuth = false
-        dynamicList.clear()
+        _dynamicList.value = persistentListOf()
         aidSet.clear()
         currentPage = 0
         loading = false
@@ -656,17 +682,41 @@ class DynamicViewModel(
         isRefreshingNew = false
         refreshPlaceholderIndex = -1
         initialLoadState = LoadState.Idle
+        loadedAccountSessionKey = bvUserRepository.accountSessionKey()
+    }
+
+    private fun ensureAccountStateFresh() {
+        val currentAccountSessionKey = bvUserRepository.accountSessionKey()
+        if (loadedAccountSessionKey == currentAccountSessionKey) return
+        clearData()
+        loadedAccountSessionKey = currentAccountSessionKey
+    }
+
+    fun cancelOngoingLoads() {
+        generation++
+        loadJob?.cancel()
+        loadJob = null
+        removeRefreshPlaceholderLocked()
+        loading = false
+        isRefreshingNew = false
     }
 
     private fun trimDynamicDataLocked() {
-        if (dynamicList.size <= maxItems) return
-        val overflow = dynamicList.size - maxItems
-        repeat(overflow) {
-            if (dynamicList.isNotEmpty()) {
-                dynamicList.removeAt(dynamicList.lastIndex)
-            }
-        }
+        if (_dynamicList.value.size <= maxItems) return
+        _dynamicList.update { list -> list.take(maxItems).toPersistentList() }
         aidSet.clear()
-        dynamicList.forEach { aidSet.add(it.aid) }
+        _dynamicList.value.forEach { aidSet.add(it.aid) }
+    }
+
+    override fun onRuntimeActive() {
+        ensureLoaded(showErrorToast = false)
+    }
+
+    override fun onRuntimeFrozen() {
+        cancelOngoingLoads()
+    }
+
+    override fun onRuntimeDisposed() {
+        cancelOngoingLoads()
     }
 }

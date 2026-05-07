@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -24,6 +24,7 @@ import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -35,10 +36,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
@@ -52,6 +55,9 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
@@ -75,6 +81,7 @@ import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.mainTopTabColors
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
+import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
@@ -100,12 +107,22 @@ private class TabQueryState {
 fun ToViewScreen(
     modifier: Modifier = Modifier,
     gridState: LazyGridState = rememberLazyGridState(),
+    active: Boolean = true,
+    activationSerial: Long = 0L,
+    refreshSerial: Long = 0L,
     toViewViewModel: ToViewViewModel = koinViewModel(),
+    contentEntryFocusRequester: FocusRequester? = null,
+    tabFocusRequester: FocusRequester? = null,
     onBack: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
+    val histories by toViewViewModel.histories.collectAsStateWithLifecycle()
     val defaultFocusRequester = remember { FocusRequester() }
+    val internalContentEntryFocusRequester = remember { FocusRequester() }
+    val toViewTabFocusRequester = contentEntryFocusRequester ?: defaultFocusRequester
+    val toViewContentEntryFocusRequester = internalContentEntryFocusRequester
     var focusOnTabs by remember { mutableStateOf(true) }
     var pendingBackToTabsFocus by remember { mutableStateOf(false) }
     var readyFocusTargetTabIndex by remember { mutableStateOf<Int?>(null) }
@@ -160,15 +177,15 @@ fun ToViewScreen(
     }
 
     fun removeWatchedFromLocalList() {
-        toViewViewModel.histories.removeAll { it.timeString == "已看完" }
+        toViewViewModel.removeWatchedFromLocalList()
     }
 
     val groupedHistories by remember {
         derivedStateOf {
-            val unwatched = ArrayList<VideoCardData>(toViewViewModel.histories.size)
+            val unwatched = ArrayList<VideoCardData>(histories.size)
             val watched = ArrayList<VideoCardData>()
 
-            toViewViewModel.histories.forEach { item ->
+            histories.forEach { item ->
                 if (item.timeString == "已看完") {
                     watched.add(item)
                 } else {
@@ -193,21 +210,44 @@ fun ToViewScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        toViewViewModel.uiEvent.collect { event ->
-            when (event) {
-                is UiEffect.ShowToast -> {
-                    event.message.toast(context)
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            toViewViewModel.uiEvent.collect { event ->
+                when (event) {
+                    is UiEffect.ShowToast -> {
+                        event.message.toast(context)
+                    }
                 }
             }
         }
     }
 
-    LaunchedEffect(gridState) {
+    DisposableEffect(active) {
+        onDispose {
+            toViewViewModel.cancelOngoingLoads()
+        }
+    }
+
+    LaunchedEffect(active, activationSerial) {
+        if (!active) return@LaunchedEffect
+        if (activationSerial == 0L) return@LaunchedEffect
+        withFrameNanos { }
+        toViewViewModel.ensureLoaded(showErrorToast = false)
+    }
+
+    LaunchedEffect(active, refreshSerial) {
+        if (!active) return@LaunchedEffect
+        if (refreshSerial == 0L) return@LaunchedEffect
+        gridState.scrollToItem(0)
+        toViewViewModel.refreshSnapshotIncrementally()
+    }
+
+    LaunchedEffect(gridState, active) {
+        if (!active) return@LaunchedEffect
         snapshotFlow {
             Triple(
                 gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index,
-                toViewViewModel.histories.size,
+                histories.size,
                 toViewViewModel.noMore
             )
         }
@@ -233,7 +273,7 @@ fun ToViewScreen(
 
     fun requestTabsFocus() {
         pendingBackToTabsFocus = true
-        defaultFocusRequester.requestFocus()
+        toViewTabFocusRequester.requestFocus()
     }
 
     DisposableEffect(Unit) {
@@ -250,7 +290,7 @@ fun ToViewScreen(
     LaunchedEffect(pendingBackToTabsFocus, readyFocusTargetTabIndex, selectedTabIndex) {
         if (pendingBackToTabsFocus && readyFocusTargetTabIndex == selectedTabIndex) {
             pendingBackToTabsFocus = false
-            defaultFocusRequester.requestFocus()
+            toViewTabFocusRequester.requestFocus()
         }
     }
 
@@ -289,7 +329,7 @@ fun ToViewScreen(
                             pendingBackToTabsFocus = false
                         }
                     }
-                    .focusRestorer(defaultFocusRequester),
+                    .focusRestorer(toViewTabFocusRequester),
                 selectedTabIndex = selectedTabIndex,
                 separator = { MainTopTabSeparator() },
                 indicator = mainTopTabIndicator(selectedTabIndex)
@@ -302,9 +342,12 @@ fun ToViewScreen(
                             .ifElse(
                                 index == selectedTabIndex,
                                 Modifier
-                                    .focusRequester(defaultFocusRequester)
+                                    .focusRequester(toViewTabFocusRequester)
                                     .onGloballyPositioned { readyFocusTargetTabIndex = index }
                             )
+                            .focusProperties {
+                                down = toViewContentEntryFocusRequester
+                            }
                             .onPreviewKeyEvent { event ->
                                 val isConfirmKey =
                                     event.key == Key.DirectionCenter ||
@@ -395,18 +438,23 @@ fun ToViewScreen(
             columns = GridCells.Fixed(4),
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
-            horizontalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
+            horizontalWrapItemCount = visibleItems.size,
+            horizontalWrapColumnCount = 4,
+            entryFocusRequester = toViewContentEntryFocusRequester,
+            upFocusRequester = toViewTabFocusRequester
+        ) { cardUiStateFor ->
             if (visibleItems.isNotEmpty()) {
-                items(
+                itemsIndexed(
                     items = visibleItems,
-                    key = { it.avid },
-                    contentType = { if (selectedTabIndex == 0) "to_view_unwatched" else "to_view_watched" }
-                ) { item ->
+                    key = { _, item -> item.avid },
+                    contentType = { _, _ -> if (selectedTabIndex == 0) "to_view_unwatched" else "to_view_watched" }
+                ) { index, item ->
                     Box(contentAlignment = Alignment.Center) {
                         SmallVideoCard(
+                            frameModifier = rememberGridRowWrapModifier(index),
+                            uiState = cardUiStateFor(item.avid),
                             data = item,
-                            delToView = true,
                             pendingRemoval = pendingRemovalAid == item.avid,
                             onPendingRemovalFocusLost = {
                                 if (pendingRemovalAid == item.avid) {
@@ -429,15 +477,6 @@ fun ToViewScreen(
                                         pendingRemovalAid = item.avid
                                     }
                                 }
-                            },
-                            onGoToDetailPage = {
-                                VideoInfoActivity.actionStart(
-                                    context = context,
-                                    fromController = true,
-                                    aid = item.avid,
-                                    epid = item.epId,
-                                    source = if (item.epId != null) VideoSource.Pgc else VideoSource.Ugc
-                                )
                             },
                             onGoToUpPage = item.upMid?.let {
                                 { UpInfoActivity.actionStart(context, it, item.upName) }

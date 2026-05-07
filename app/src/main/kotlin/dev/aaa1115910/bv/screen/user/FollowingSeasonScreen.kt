@@ -14,14 +14,18 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -53,6 +57,11 @@ import org.koin.androidx.compose.koinViewModel
 fun FollowingSeasonScreen(
     modifier: Modifier = Modifier,
     lazyGridState: LazyGridState = rememberLazyGridState(),
+    active: Boolean = true,
+    activationSerial: Long = 0L,
+    refreshSerial: Long = 0L,
+    contentEntryFocusRequester: FocusRequester? = null,
+    tabFocusRequester: FocusRequester? = null,
     followingSeasonViewModel: FollowingSeasonViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
@@ -61,10 +70,11 @@ fun FollowingSeasonScreen(
     var currentIndex by remember { mutableIntStateOf(0) }
     var showFilter by remember { mutableStateOf(false) }
 
-    val followingSeasons = followingSeasonViewModel.followingSeasons
+    val followingSeasons by followingSeasonViewModel.followingSeasons.collectAsStateWithLifecycle()
     var followingSeasonType by remember { mutableStateOf(followingSeasonViewModel.followingSeasonType) }
     var followingSeasonStatus by remember { mutableStateOf(followingSeasonViewModel.followingSeasonStatus) }
     val noMore = followingSeasonViewModel.noMore
+    var filterEffectInitialized by remember { mutableStateOf(false) }
 
     val updateType: (FollowingSeasonType) -> Unit = {
         followingSeasonType = it
@@ -76,10 +86,36 @@ fun FollowingSeasonScreen(
         followingSeasonViewModel.followingSeasonStatus = it
     }
 
-    LaunchedEffect(followingSeasonType, followingSeasonStatus) {
+    DisposableEffect(active) {
+        onDispose {
+            followingSeasonViewModel.cancelOngoingLoads()
+        }
+    }
+
+    LaunchedEffect(active, followingSeasonType, followingSeasonStatus) {
+        if (!filterEffectInitialized) {
+            filterEffectInitialized = true
+            return@LaunchedEffect
+        }
+        if (!active) return@LaunchedEffect
         logger.fInfo { "Start update search result because filter updated" }
         followingSeasonViewModel.clearData()
-        followingSeasonViewModel.loadMore()
+        withFrameNanos { }
+        followingSeasonViewModel.ensureLoaded()
+    }
+
+    LaunchedEffect(active, activationSerial) {
+        if (!active) return@LaunchedEffect
+        if (activationSerial == 0L) return@LaunchedEffect
+        withFrameNanos { }
+        followingSeasonViewModel.ensureLoaded()
+    }
+
+    LaunchedEffect(active, refreshSerial) {
+        if (!active) return@LaunchedEffect
+        if (refreshSerial == 0L) return@LaunchedEffect
+        lazyGridState.scrollToItem(0)
+        followingSeasonViewModel.reloadAll()
     }
 
     Column(
@@ -110,10 +146,15 @@ fun FollowingSeasonScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             horizontalWrapItemCount = followingSeasons.size,
-            horizontalWrapColumnCount = 6
-        ) {
+            horizontalWrapColumnCount = 6,
+            entryFocusRequester = contentEntryFocusRequester,
+            upFocusRequester = tabFocusRequester
+        ) { cardUiStateFor ->
             if (followingSeasons.isNotEmpty()) {
-                itemsIndexed(items = followingSeasons) { index, followingSeason ->
+                itemsIndexed(
+                    items = followingSeasons,
+                    key = { _, followingSeason -> followingSeason.seasonId }
+                ) { index, followingSeason ->
                     SeasonCard(
                         modifier = rememberGridRowWrapModifier(index),
                         data = SeasonCardData(
@@ -124,7 +165,7 @@ fun FollowingSeasonScreen(
                         ),
                         onFocus = {
                             currentIndex = index
-                            if (index + 30 > followingSeasons.size) {
+                            if (active && index + 30 > followingSeasons.size) {
                                 println("load more by focus")
                                 followingSeasonViewModel.loadMore()
                             }

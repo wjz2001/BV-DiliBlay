@@ -1,6 +1,7 @@
 package dev.aaa1115910.bv.screen.main
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material.icons.Icons
@@ -14,23 +15,26 @@ import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import kotlinx.coroutines.launch
-import dev.aaa1115910.bv.BVApp
+import androidx.compose.ui.zIndex
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.component.PersistLazyGridViewportEffect
@@ -38,14 +42,14 @@ import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.TopNavLeadingIcon
 import dev.aaa1115910.bv.component.TopNavItem
 import dev.aaa1115910.bv.component.rememberRestoredLazyGridState
-import dev.aaa1115910.bv.screen.main.common.ActivationBehavior
-import dev.aaa1115910.bv.screen.main.common.TabActivationGuard
-import dev.aaa1115910.bv.screen.main.common.UnifiedTabActivationEffects
+import dev.aaa1115910.bv.entity.state.GridViewportState
+import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
+import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
 import dev.aaa1115910.bv.screen.main.home.DynamicsScreen
 import dev.aaa1115910.bv.screen.main.home.PopularScreen
 import dev.aaa1115910.bv.screen.main.home.RecommendScreen
-import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
-import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
+import dev.aaa1115910.bv.screen.main.runtime.ContentRuntimeState
+import dev.aaa1115910.bv.screen.main.runtime.runtimeContainerInputEnabled
 import dev.aaa1115910.bv.screen.search.SearchInputScreen
 import dev.aaa1115910.bv.screen.search.SearchResultScreen
 import dev.aaa1115910.bv.screen.user.FavoriteScreen
@@ -53,20 +57,14 @@ import dev.aaa1115910.bv.screen.user.FollowingSeasonScreen
 import dev.aaa1115910.bv.screen.user.HistoryScreen
 import dev.aaa1115910.bv.screen.user.MyClassroomScreen
 import dev.aaa1115910.bv.screen.user.ToViewScreen
-import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.viewmodel.UserViewModel
-import dev.aaa1115910.bv.viewmodel.common.LoadState
-import dev.aaa1115910.bv.viewmodel.home.DynamicViewModel
-import dev.aaa1115910.bv.viewmodel.home.PopularViewModel
-import dev.aaa1115910.bv.viewmodel.home.RecommendViewModel
 import dev.aaa1115910.bv.viewmodel.main.HomeContentViewModel
 import dev.aaa1115910.bv.viewmodel.search.SearchInputViewModel
 import dev.aaa1115910.bv.viewmodel.search.SearchResultViewModel
 import dev.aaa1115910.bv.viewmodel.user.FavoriteViewModel
 import dev.aaa1115910.bv.viewmodel.user.FollowingSeasonViewModel
 import dev.aaa1115910.bv.viewmodel.user.HistoryViewModel
-import dev.aaa1115910.bv.viewmodel.user.MyClassroomViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import org.koin.androidx.compose.koinViewModel
 
@@ -82,31 +80,20 @@ fun HomeContent(
     pendingDrawerEntryRequest: MainContentEntryRequest? = null,
     onDrawerEntryConsumed: (Long) -> Unit = {},
     onDefaultFocusReady: (() -> Unit)? = null,
-    homeContentViewModel: HomeContentViewModel = koinViewModel(),
-    recommendViewModel: RecommendViewModel = koinViewModel(),
-    popularViewModel: PopularViewModel = koinViewModel(),
-    dynamicViewModel: DynamicViewModel = koinViewModel(),
-    userViewModel: UserViewModel = koinViewModel(),
-    favouriteViewModel: FavoriteViewModel = koinViewModel(),
-    historyViewModel: HistoryViewModel = koinViewModel(),
-    toViewViewModel: ToViewViewModel = koinViewModel(),
-    followingSeasonViewModel: FollowingSeasonViewModel = koinViewModel(),
-    myClassroomViewModel: MyClassroomViewModel = koinViewModel(),
-    searchInputViewModel: SearchInputViewModel = koinViewModel(),
-    searchResultViewModel: SearchResultViewModel = koinViewModel()
+    homeContentViewModel: HomeContentViewModel,
+    userViewModel: UserViewModel,
+    active: Boolean = true
 ){
     val firstTab = remember { Prefs.firstHomeTopNavItem }
     val focusedTab = homeContentViewModel.focusedTab
     val activeTab = homeContentViewModel.activeTab
     var focusOnContent by remember { mutableStateOf(false) }
-    val composeScope = rememberCoroutineScope()
-    val searchFocusRequester = remember { FocusRequester() }
+    val contentEntryFocusRequester = remember { FocusRequester() }
     var searchPage by rememberSaveable { mutableStateOf(HomeSearchPage.Input) }
     var searchKeyword by rememberSaveable { mutableStateOf("") }
     var searchEnableProxy by rememberSaveable { mutableStateOf(false) }
+    var previousActiveTab by remember { mutableStateOf<HomeTopNavItem?>(null) }
 
-    // 1. 在这里定义 backToTabRow 函数
-    // 它会使用从外部传入的 navFocusRequester 来请求焦点
     val backToTabRow: () -> Unit = {
         navFocusRequester.requestFocus()
     }
@@ -137,15 +124,6 @@ fun HomeContent(
         }
     }
 
-    val recommendGridState = rememberRestoredLazyGridState(homeContentViewModel.viewportOf(HomeTopNavItem.Recommend))
-    val popularGridState = rememberRestoredLazyGridState(homeContentViewModel.viewportOf(HomeTopNavItem.Popular))
-    val dynamicsGridState = rememberRestoredLazyGridState(homeContentViewModel.viewportOf(HomeTopNavItem.Dynamics))
-    val toViewGridState = rememberRestoredLazyGridState(homeContentViewModel.viewportOf(HomeTopNavItem.ToView))
-    val historyGridState = rememberRestoredLazyGridState(homeContentViewModel.viewportOf(HomeTopNavItem.History))
-    val favoriteGridState = rememberRestoredLazyGridState(homeContentViewModel.viewportOf(HomeTopNavItem.Favorite))
-    val followingSeasonGridState = rememberRestoredLazyGridState(homeContentViewModel.viewportOf(HomeTopNavItem.FollowingSeason))
-    val myClassroomGridState = rememberRestoredLazyGridState(homeContentViewModel.viewportOf(HomeTopNavItem.MyClassroom))
-    val activationGuard = remember { TabActivationGuard<HomeTopNavItem>() }
     var topNavReadyTab by remember { mutableStateOf<HomeTopNavItem?>(null) }
 
     val desiredDrawerEntryTab = remember(pendingDrawerEntryRequest?.id, reorderedItems) {
@@ -156,7 +134,35 @@ fun HomeContent(
         }
     }
 
-    LaunchedEffect(pendingDrawerEntryRequest?.id, desiredDrawerEntryTab) {
+    LaunchedEffect(active, activeTab) {
+        if (!active) {
+            homeContentViewModel.updateRuntimeState(activeTab, ContentRuntimeState.Frozen)
+            return@LaunchedEffect
+        }
+        previousActiveTab
+            ?.takeIf { it != activeTab }
+            ?.let { homeContentViewModel.updateRuntimeState(it, ContentRuntimeState.Frozen) }
+        previousActiveTab = activeTab
+
+        when (homeContentViewModel.runtimeStateOf(activeTab)) {
+            ContentRuntimeState.Active,
+            ContentRuntimeState.Frozen -> homeContentViewModel.updateRuntimeState(
+                activeTab,
+                ContentRuntimeState.Active
+            )
+
+            else -> {
+                homeContentViewModel.updateRuntimeState(activeTab, ContentRuntimeState.Shell)
+                withFrameNanos { }
+                homeContentViewModel.updateRuntimeState(activeTab, ContentRuntimeState.Active)
+                withFrameNanos { }
+            }
+        }
+        homeContentViewModel.markContentReady(activeTab)
+    }
+
+    LaunchedEffect(pendingDrawerEntryRequest?.id, desiredDrawerEntryTab, active) {
+        if (!active) return@LaunchedEffect
         val desired = desiredDrawerEntryTab ?: return@LaunchedEffect
         if (topNavReadyTab != desired) {
             topNavReadyTab = null
@@ -167,8 +173,10 @@ fun HomeContent(
         pendingDrawerEntryRequest?.id,
         desiredDrawerEntryTab,
         activeTab,
-        focusedTab
+        focusedTab,
+        active
     ) {
+        if (!active) return@LaunchedEffect
         val desired = desiredDrawerEntryTab ?: return@LaunchedEffect
         if (activeTab != desired || focusedTab != desired) {
             homeContentViewModel.onTabClicked(desired)
@@ -180,8 +188,10 @@ fun HomeContent(
         desiredDrawerEntryTab,
         activeTab,
         focusedTab,
-        topNavReadyTab
+        topNavReadyTab,
+        active
     ) {
+        if (!active) return@LaunchedEffect
         val request = pendingDrawerEntryRequest ?: return@LaunchedEffect
         val desired = desiredDrawerEntryTab ?: return@LaunchedEffect
 
@@ -194,244 +204,32 @@ fun HomeContent(
         }
     }
 
-    val handleDefaultFocusReady: () -> Unit = {
+    LaunchedEffect(userViewModel.isLogin, active) {
+        if (!active) return@LaunchedEffect
+        if (userViewModel.isLogin) {
+            userViewModel.updateUserInfo()
+        } else {
+            userViewModel.clearUserInfo()
+        }
+    }
+
+    val handleDefaultFocusReady: () -> Unit = handleDefaultFocusReady@{
+        if (!active) return@handleDefaultFocusReady
         topNavReadyTab = focusedTab
         onDefaultFocusReady?.invoke()
-    }
-
-    PersistLazyGridViewportEffect(recommendGridState) { index, offset -> homeContentViewModel.updateViewport(HomeTopNavItem.Recommend, index, offset) }
-    PersistLazyGridViewportEffect(popularGridState) { index, offset -> homeContentViewModel.updateViewport(HomeTopNavItem.Popular, index, offset) }
-    PersistLazyGridViewportEffect(dynamicsGridState) { index, offset -> homeContentViewModel.updateViewport(HomeTopNavItem.Dynamics, index, offset) }
-    PersistLazyGridViewportEffect(toViewGridState) { index, offset -> homeContentViewModel.updateViewport(HomeTopNavItem.ToView, index, offset) }
-    PersistLazyGridViewportEffect(historyGridState) { index, offset -> homeContentViewModel.updateViewport(HomeTopNavItem.History, index, offset) }
-    PersistLazyGridViewportEffect(favoriteGridState) { index, offset -> homeContentViewModel.updateViewport(HomeTopNavItem.Favorite, index, offset) }
-    PersistLazyGridViewportEffect(followingSeasonGridState) { index, offset -> homeContentViewModel.updateViewport(HomeTopNavItem.FollowingSeason, index, offset) }
-    PersistLazyGridViewportEffect(myClassroomGridState) { index, offset -> homeContentViewModel.updateViewport(HomeTopNavItem.MyClassroom, index, offset) }
-
-    fun homeActivationBehaviorOf(tab: HomeTopNavItem): ActivationBehavior = when (tab) {
-        HomeTopNavItem.Search,
-        HomeTopNavItem.Dynamics,
-        HomeTopNavItem.ToView -> ActivationBehavior.KeepPosition
-        HomeTopNavItem.Recommend,
-        HomeTopNavItem.Popular,
-        HomeTopNavItem.History,
-        HomeTopNavItem.Favorite,
-        HomeTopNavItem.FollowingSeason,
-        HomeTopNavItem.MyClassroom -> ActivationBehavior.RefreshAndScrollTop
-    }
-
-    fun homeGridStateOf(tab: HomeTopNavItem): LazyGridState = when (tab) {
-        HomeTopNavItem.Search -> error("Search tab has no grid state")
-        HomeTopNavItem.Recommend -> recommendGridState
-        HomeTopNavItem.Popular -> popularGridState
-        HomeTopNavItem.Dynamics -> dynamicsGridState
-        HomeTopNavItem.ToView -> toViewGridState
-        HomeTopNavItem.History -> historyGridState
-        HomeTopNavItem.Favorite -> favoriteGridState
-        HomeTopNavItem.FollowingSeason -> followingSeasonGridState
-        HomeTopNavItem.MyClassroom -> myClassroomGridState
-    }
-
-    fun homeRetryStateOf(tab: HomeTopNavItem): LoadState = when (tab) {
-        HomeTopNavItem.Search -> LoadState.Idle
-        HomeTopNavItem.Recommend -> recommendViewModel.initialLoadState
-        HomeTopNavItem.Popular -> popularViewModel.initialLoadState
-        HomeTopNavItem.Dynamics -> dynamicViewModel.initialLoadState
-        HomeTopNavItem.ToView -> toViewViewModel.retryLoadState
-        HomeTopNavItem.History -> historyViewModel.initialLoadState
-        HomeTopNavItem.Favorite -> favouriteViewModel.initialLoadState
-        HomeTopNavItem.FollowingSeason -> followingSeasonViewModel.initialLoadState
-        HomeTopNavItem.MyClassroom -> myClassroomViewModel.initialLoadState
-    }
-
-    fun homeShouldRetry(tab: HomeTopNavItem, state: LoadState?): Boolean {
-        if (state != LoadState.Error) return false
-
-        return when (tab) {
-            HomeTopNavItem.Search -> false
-            HomeTopNavItem.Recommend -> !recommendViewModel.lastFailureWasAuth
-            HomeTopNavItem.Popular -> !popularViewModel.lastFailureWasAuth
-            HomeTopNavItem.Dynamics -> !dynamicViewModel.lastFailureWasAuth
-            HomeTopNavItem.ToView -> !toViewViewModel.lastFailureWasAuth
-            HomeTopNavItem.History -> !historyViewModel.lastFailureWasAuth
-            HomeTopNavItem.Favorite -> !favouriteViewModel.lastFailureWasAuth
-            HomeTopNavItem.FollowingSeason -> !followingSeasonViewModel.lastFailureWasAuth
-            HomeTopNavItem.MyClassroom -> !myClassroomViewModel.lastFailureWasAuth
-        }
-    }
-
-    fun ensureHomeTabLoadedSilent(tab: HomeTopNavItem) {
-        when (tab) {
-            HomeTopNavItem.Search -> Unit
-            HomeTopNavItem.Recommend -> recommendViewModel.ensureLoaded(showErrorToast = false)
-            HomeTopNavItem.Popular -> popularViewModel.ensureLoaded(showErrorToast = false)
-            HomeTopNavItem.Dynamics -> dynamicViewModel.ensureLoaded(showErrorToast = false)
-            HomeTopNavItem.ToView -> toViewViewModel.ensureLoaded(showErrorToast = false)
-            HomeTopNavItem.History -> historyViewModel.ensureLoaded(showErrorToast = false)
-            HomeTopNavItem.Favorite -> favouriteViewModel.ensureLoaded()
-            HomeTopNavItem.FollowingSeason -> followingSeasonViewModel.ensureLoaded()
-            HomeTopNavItem.MyClassroom -> myClassroomViewModel.ensureLoaded()
-        }
-    }
-
-    fun refreshHomeTabSilent(tab: HomeTopNavItem) {
-        when (tab) {
-            HomeTopNavItem.Search -> Unit
-            HomeTopNavItem.Recommend -> recommendViewModel.reloadAll(showErrorToast = false)
-            HomeTopNavItem.Popular -> popularViewModel.reloadAll(showErrorToast = false)
-            HomeTopNavItem.Dynamics -> dynamicViewModel.reloadAll(
-                showNoUpdateToast = false,
-                showErrorToast = false
-            )
-            HomeTopNavItem.ToView -> toViewViewModel.refreshSnapshotIncrementally(showErrorToast = false)
-            HomeTopNavItem.History -> historyViewModel.reloadAll(showErrorToast = false)
-            HomeTopNavItem.Favorite -> favouriteViewModel.reloadAll()
-            HomeTopNavItem.FollowingSeason -> followingSeasonViewModel.reloadAll()
-            HomeTopNavItem.MyClassroom -> myClassroomViewModel.reloadAll()
-        }
-    }
-
-    fun homeShouldScrollTopOnUserRefresh(tab: HomeTopNavItem): Boolean = when (tab) {
-        HomeTopNavItem.Search,
-        HomeTopNavItem.Dynamics -> false
-        HomeTopNavItem.ToView,
-        HomeTopNavItem.Recommend,
-        HomeTopNavItem.Popular,
-        HomeTopNavItem.History,
-        HomeTopNavItem.Favorite,
-        HomeTopNavItem.FollowingSeason,
-        HomeTopNavItem.MyClassroom -> true
-    }
-
-    fun refreshHomeTabByUser(tab: HomeTopNavItem) {
-        activationGuard.markClickRefresh(tab)
-
-        if (homeShouldScrollTopOnUserRefresh(tab)) {
-            composeScope.launch {
-                homeGridStateOf(tab).scrollToItem(0)
-                refreshHomeTabSilent(tab)
-            }
-        } else {
-            refreshHomeTabSilent(tab)
-        }
     }
 
     fun handleTopNavConfirmLongPress(tab: HomeTopNavItem): Boolean {
         if (activeTab != tab) return false
 
         return when (tab) {
-            HomeTopNavItem.Search -> false
-            HomeTopNavItem.Dynamics -> {
-                dynamicViewModel.requestScrollToTop()
-                true
-            }
-
+            HomeTopNavItem.Dynamics,
             HomeTopNavItem.History -> {
-                if (historyViewModel.debouncedQuery.isNotBlank()) {
-                    historyViewModel.clearSearch()
-                } else {
-                    historyViewModel.openSearchDialog()
-                }
+                homeContentViewModel.requestTopNavLongPress(tab)
                 true
             }
 
             else -> false
-        }
-    }
-
-    fun retryHomeTabSilent(tab: HomeTopNavItem) {
-        refreshHomeTabSilent(tab)
-    }
-
-    fun toastHomeFinalFailure(tab: HomeTopNavItem) {
-        val message = when (tab) {
-            HomeTopNavItem.Search -> "搜索失败"
-            HomeTopNavItem.Recommend ->
-                if (recommendViewModel.lastFailureWasAuth) {
-                    BVApp.context.getString(R.string.exception_auth_failure)
-                } else {
-                    "加载推荐视频失败"
-                }
-
-            HomeTopNavItem.Popular ->
-                if (popularViewModel.lastFailureWasAuth) {
-                    BVApp.context.getString(R.string.exception_auth_failure)
-                } else {
-                    "加载热门视频失败"
-                }
-
-            HomeTopNavItem.Dynamics ->
-                if (dynamicViewModel.lastFailureWasAuth) {
-                    BVApp.context.getString(R.string.exception_auth_failure)
-                } else {
-                    "加载动态失败"
-                }
-
-            HomeTopNavItem.ToView ->
-                if (toViewViewModel.lastFailureWasAuth) {
-                    BVApp.context.getString(R.string.exception_auth_failure)
-                } else {
-                    "加载稍后再看失败"
-                }
-
-            HomeTopNavItem.History ->
-                if (historyViewModel.lastFailureWasAuth) {
-                    BVApp.context.getString(R.string.exception_auth_failure)
-                } else {
-                    "加载历史记录失败"
-                }
-
-            HomeTopNavItem.Favorite ->
-                if (favouriteViewModel.lastFailureWasAuth) {
-                    BVApp.context.getString(R.string.exception_auth_failure)
-                } else {
-                    "加载收藏夹失败"
-                }
-
-            HomeTopNavItem.FollowingSeason ->
-                if (followingSeasonViewModel.lastFailureWasAuth) {
-                    BVApp.context.getString(R.string.exception_auth_failure)
-                } else {
-                    "加载追番追剧失败"
-                }
-
-            HomeTopNavItem.MyClassroom ->
-                if (myClassroomViewModel.lastFailureWasAuth) {
-                    BVApp.context.getString(R.string.exception_auth_failure)
-                } else {
-                    "加载我的课堂失败"
-                }
-        }
-
-        message.toast(BVApp.context)
-    }
-
-    if (activeTab != HomeTopNavItem.Search) {
-        UnifiedTabActivationEffects(
-            activeTab = activeTab,
-            behaviorOf = ::homeActivationBehaviorOf,
-            gridStateOf = ::homeGridStateOf,
-            guard = activationGuard,
-            currentRetryStateOf = ::homeRetryStateOf,
-            shouldRetryOf = ::homeShouldRetry,
-            onEnsureLoadedSilent = ::ensureHomeTabLoadedSilent,
-            onActivationRefreshSilent = ::refreshHomeTabSilent,
-            onRetrySilent = ::retryHomeTabSilent,
-            onFinalFailureToast = ::toastHomeFinalFailure
-        )
-    }
-
-    LaunchedEffect(userViewModel.isLogin) {
-        if (userViewModel.isLogin) {
-            userViewModel.updateUserInfo()
-        } else {
-            userViewModel.clearUserInfo()
-            dynamicViewModel.clearData()
-            historyViewModel.clearData()
-            toViewViewModel.clearData()
-            favouriteViewModel.clearData()
-            followingSeasonViewModel.clearData()
-            myClassroomViewModel.clearData()
         }
     }
 
@@ -442,19 +240,22 @@ fun HomeContent(
                 modifier = Modifier,
                 items = reorderedItems,
                 selectedItem = focusedTab,
+                entryFocusItem = desiredDrawerEntryTab,
                 defaultFocusRequester = navFocusRequester,
                 onDefaultFocusReady = handleDefaultFocusReady,
-                isHistorySearching = historyViewModel.debouncedQuery.isNotBlank(),
+                isHistorySearching = homeContentViewModel.isHistorySearching,
                 focusedLeadingIcon = homeFocusedLeadingIcon,
                 onTabConfirmLongPress = { nav -> handleTopNavConfirmLongPress(nav as HomeTopNavItem) },
+                contentFocusRequester = contentEntryFocusRequester,
                 onLeftBoundaryExit = { drawerFocusRequester.requestFocus() },
                 onRightBoundaryExit = { drawerFocusRequester.requestFocus() },
                 onSelectedChanged = { nav -> homeContentViewModel.onTabFocused(nav as HomeTopNavItem) },
                 onClick = { nav ->
                     val target = nav as HomeTopNavItem
+                    val shouldRefresh = target == activeTab
                     homeContentViewModel.onTabClicked(target)
-                    if (target != HomeTopNavItem.Search) {
-                        refreshHomeTabByUser(target)
+                    if (shouldRefresh && target != HomeTopNavItem.Search) {
+                        homeContentViewModel.requestUserRefresh(target)
                     }
                 }
             )
@@ -480,56 +281,244 @@ fun HomeContent(
                     if (it.key == Key.Menu) {
                         if (activeTab == HomeTopNavItem.Search) return@onPreviewKeyEvent false
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
-                        refreshHomeTabByUser(activeTab)
+                        homeContentViewModel.requestUserRefresh(activeTab)
                         navFocusRequester.requestFocus()
                         return@onPreviewKeyEvent true
                     }
                     false
                 },
         ) {
-            when (activeTab) {
-                HomeTopNavItem.Search -> {
-                    when (searchPage) {
-                        HomeSearchPage.Input -> SearchInputScreen(
-                            defaultFocusRequester = searchFocusRequester,
-                            onDefaultFocusReady = handleDefaultFocusReady,
-                            onSearchSubmit = { keyword, enableProxy ->
-                                searchKeyword = keyword
-                                searchEnableProxy = enableProxy
-                                searchPage = HomeSearchPage.Result
-                            },
-                            searchInputViewModel = searchInputViewModel
-                        )
+            val mountedTabs = reorderedItems.filter { tab ->
+                val runtimeState = homeContentViewModel.runtimeStateOf(tab)
+                runtimeState == ContentRuntimeState.Active ||
+                        runtimeState == ContentRuntimeState.Frozen ||
+                        tab == activeTab
+            }
+            mountedTabs.forEach { tab ->
+                val runtimeState = homeContentViewModel.runtimeStateOf(tab)
+                val visible = tab == activeTab
+                val tabActive = active && visible && runtimeState == ContentRuntimeState.Active
 
-                        HomeSearchPage.Result -> SearchResultScreen(
-                            keyword = searchKeyword,
-                            enableProxy = searchEnableProxy,
-                            onBackToInput = { searchPage = HomeSearchPage.Input },
-                            searchResultViewModel = searchResultViewModel,
-                            toViewViewModel = toViewViewModel
-                        )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .zIndex(if (visible) 1f else 0f)
+                        .graphicsLayer {
+                            alpha = if (visible) 1f else 0f
+                        }
+                        .runtimeContainerInputEnabled(tabActive)
+                ) {
+                    if (visible &&
+                        (runtimeState == ContentRuntimeState.NotCreated ||
+                                runtimeState == ContentRuntimeState.Shell)
+                    ) {
+                        HomeTabShell()
+                    }
+
+                    if (runtimeState == ContentRuntimeState.Active ||
+                        runtimeState == ContentRuntimeState.Frozen
+                    ) {
+                        when (tab) {
+                            HomeTopNavItem.Search -> {
+                                when (searchPage) {
+                                    HomeSearchPage.Input -> {
+                                        val searchInputViewModel: SearchInputViewModel =
+                                            koinViewModel<SearchInputViewModel>()
+                                        SearchInputScreen(
+                                            defaultFocusRequester = contentEntryFocusRequester,
+                                            onDefaultFocusReady = handleDefaultFocusReady,
+                                            onSearchSubmit = { keyword, enableProxy ->
+                                                searchKeyword = keyword
+                                                searchEnableProxy = enableProxy
+                                                searchPage = HomeSearchPage.Result
+                                            },
+                                            searchInputViewModel = searchInputViewModel
+                                        )
+                                    }
+
+                                    HomeSearchPage.Result -> {
+                                        val searchResultViewModel: SearchResultViewModel =
+                                            koinViewModel<SearchResultViewModel>()
+                                        SearchResultScreen(
+                                            keyword = searchKeyword,
+                                            enableProxy = searchEnableProxy,
+                                            contentEntryFocusRequester = contentEntryFocusRequester,
+                                            onBackToInput = { searchPage = HomeSearchPage.Input },
+                                            searchResultViewModel = searchResultViewModel
+                                        )
+                                    }
+                                }
+                            }
+
+                            else -> key(tab) {
+                                HomeActiveTabContent(
+                                    tab = tab,
+                                    homeContentViewModel = homeContentViewModel,
+                                    backToTabRow = backToTabRow,
+                                    contentEntryFocusRequester = contentEntryFocusRequester,
+                                    tabFocusRequester = navFocusRequester,
+                                    active = tabActive
+                                )
+                            }
+                        }
                     }
                 }
-
-                HomeTopNavItem.Recommend -> RecommendScreen(gridState = recommendGridState)
-                HomeTopNavItem.Popular -> PopularScreen(gridState = popularGridState)
-                HomeTopNavItem.Dynamics -> DynamicsScreen(gridState = dynamicsGridState)
-                HomeTopNavItem.ToView -> ToViewScreen(gridState = toViewGridState)
-                HomeTopNavItem.History -> HistoryScreen(
-                    historyViewModel = historyViewModel,
-                    gridState = historyGridState
-                )
-                HomeTopNavItem.Favorite -> FavoriteScreen(
-                    onBack = backToTabRow,
-                    lazyGridState = favoriteGridState
-                )
-                HomeTopNavItem.FollowingSeason -> FollowingSeasonScreen(
-                    lazyGridState = followingSeasonGridState
-                )
-                HomeTopNavItem.MyClassroom -> MyClassroomScreen(
-                    gridState = myClassroomGridState
-                )
             }
         }
     }
+}
+
+@Composable
+private fun HomeTabShell() {
+    Box(modifier = Modifier.fillMaxSize())
+}
+
+@Composable
+private fun HomeActiveTabContent(
+    tab: HomeTopNavItem,
+    homeContentViewModel: HomeContentViewModel,
+    backToTabRow: () -> Unit,
+    contentEntryFocusRequester: FocusRequester,
+    tabFocusRequester: FocusRequester,
+    active: Boolean
+) {
+    val gridState = rememberHomeGridState(tab, homeContentViewModel)
+    val activationSerial = homeContentViewModel.activationSerialOf(tab)
+    val refreshSerial = homeContentViewModel.refreshSerialOf(tab)
+    val longPressSerial = homeContentViewModel.longPressSerialOf(tab)
+    val activeContentEntryFocusRequester = contentEntryFocusRequester.takeIf { active }
+    val activeTabFocusRequester = tabFocusRequester.takeIf { active }
+    var consumedRefreshSerial by remember(tab) { mutableStateOf(0L) }
+    var consumedLongPressSerial by remember(tab) { mutableStateOf(0L) }
+
+    LaunchedEffect(tab, refreshSerial) {
+        consumedRefreshSerial = if (homeContentViewModel.consumeRefreshSerial(tab, refreshSerial)) {
+            refreshSerial
+        } else {
+            0L
+        }
+    }
+
+    LaunchedEffect(tab, longPressSerial) {
+        consumedLongPressSerial = if (homeContentViewModel.consumeLongPressSerial(tab, longPressSerial)) {
+            longPressSerial
+        } else {
+            0L
+        }
+    }
+
+    when (tab) {
+        HomeTopNavItem.Search -> Unit
+        HomeTopNavItem.Recommend -> {
+            RecommendScreen(
+                gridState = gridState,
+                active = active,
+                activationSerial = activationSerial,
+                refreshSerial = consumedRefreshSerial,
+                contentEntryFocusRequester = activeContentEntryFocusRequester,
+                tabFocusRequester = activeTabFocusRequester
+            )
+        }
+        HomeTopNavItem.Popular -> {
+            PopularScreen(
+                gridState = gridState,
+                active = active,
+                activationSerial = activationSerial,
+                refreshSerial = consumedRefreshSerial,
+                contentEntryFocusRequester = activeContentEntryFocusRequester,
+                tabFocusRequester = activeTabFocusRequester
+            )
+        }
+        HomeTopNavItem.Dynamics -> {
+            DynamicsScreen(
+                gridState = gridState,
+                active = active,
+                activationSerial = activationSerial,
+                refreshSerial = consumedRefreshSerial,
+                longPressSerial = consumedLongPressSerial,
+                contentEntryFocusRequester = activeContentEntryFocusRequester,
+                tabFocusRequester = activeTabFocusRequester
+            )
+        }
+        HomeTopNavItem.ToView -> {
+            val toViewViewModel: ToViewViewModel = koinViewModel<ToViewViewModel>()
+            ToViewScreen(
+                gridState = gridState,
+                active = active,
+                activationSerial = activationSerial,
+                refreshSerial = consumedRefreshSerial,
+                toViewViewModel = toViewViewModel,
+                contentEntryFocusRequester = activeContentEntryFocusRequester,
+                tabFocusRequester = activeTabFocusRequester,
+                onBack = backToTabRow
+            )
+        }
+        HomeTopNavItem.History -> {
+            val historyViewModel: HistoryViewModel = koinViewModel<HistoryViewModel>()
+            val toViewViewModel: ToViewViewModel = koinViewModel<ToViewViewModel>()
+            HistoryScreen(
+                gridState = gridState,
+                active = active,
+                activationSerial = activationSerial,
+                refreshSerial = consumedRefreshSerial,
+                longPressSerial = consumedLongPressSerial,
+                historyViewModel = historyViewModel,
+                toViewViewModel = toViewViewModel,
+                contentEntryFocusRequester = activeContentEntryFocusRequester,
+                tabFocusRequester = activeTabFocusRequester,
+                onSearchStateChanged = homeContentViewModel::updateHistorySearching
+            )
+        }
+        HomeTopNavItem.Favorite -> {
+            val favoriteViewModel: FavoriteViewModel = koinViewModel<FavoriteViewModel>()
+            val toViewViewModel: ToViewViewModel = koinViewModel<ToViewViewModel>()
+            FavoriteScreen(
+                lazyGridState = gridState,
+                active = active,
+                activationSerial = activationSerial,
+                refreshSerial = consumedRefreshSerial,
+                favoriteViewModel = favoriteViewModel,
+                toViewViewModel = toViewViewModel,
+                contentEntryFocusRequester = activeContentEntryFocusRequester,
+                tabFocusRequester = activeTabFocusRequester,
+                onBack = backToTabRow
+            )
+        }
+        HomeTopNavItem.FollowingSeason -> {
+            val followingSeasonViewModel: FollowingSeasonViewModel =
+                koinViewModel<FollowingSeasonViewModel>()
+            FollowingSeasonScreen(
+                lazyGridState = gridState,
+                active = active,
+                activationSerial = activationSerial,
+                refreshSerial = consumedRefreshSerial,
+                contentEntryFocusRequester = activeContentEntryFocusRequester,
+                tabFocusRequester = activeTabFocusRequester,
+                followingSeasonViewModel = followingSeasonViewModel
+            )
+        }
+        HomeTopNavItem.MyClassroom -> MyClassroomScreen(
+            gridState = gridState,
+            activationSerial = activationSerial,
+            refreshSerial = consumedRefreshSerial,
+            contentEntryFocusRequester = activeContentEntryFocusRequester,
+            tabFocusRequester = activeTabFocusRequester
+        )
+    }
+}
+
+@Composable
+private fun rememberHomeGridState(
+    tab: HomeTopNavItem,
+    homeContentViewModel: HomeContentViewModel
+): LazyGridState {
+    val viewportMap by homeContentViewModel.viewportMap.collectAsStateWithLifecycle()
+    val viewport by remember(tab, viewportMap) {
+        derivedStateOf { viewportMap[tab] ?: GridViewportState() }
+    }
+    val gridState = rememberRestoredLazyGridState(viewport)
+    PersistLazyGridViewportEffect(gridState) { index, offset ->
+        homeContentViewModel.updateViewport(tab, index, offset)
+    }
+    return gridState
 }

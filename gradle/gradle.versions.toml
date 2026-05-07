@@ -1,11 +1,11 @@
 [versions]
+#noinspection AndroidGradlePluginVersion
 agp = "8.13.2"
-gms = "4.4.4"
 kotlin = "2.3.21"
 ksp = "2.3.6"
 koin-plugin = "1.0.0-RC2"
 protobuf = "0.10.0"
-versions = "0.53.0"
+versions = "0.54.0"
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -18,9 +18,6 @@ koin-compiler = { id = "io.insert-koin.compiler.plugin", version.ref = "koin-plu
 
 # https://github.com/google/ksp
 google-ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
-
-# https://developers.google.com/android/guides/google-services-plugin
-google-services = { id = "com.google.gms.google-services", version.ref = "gms" }
 
 # https://github.com/google/protobuf-gradle-plugin
 google-protobuf = { id = "com.google.protobuf", version.ref = "protobuf" }

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -18,6 +19,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
@@ -137,6 +140,18 @@ fun VideoPlayerController(
     var showTimeJumpDialog by remember { mutableStateOf(false) }
     var showCommentsDialog by remember { mutableStateOf(false) }
     var focusInfoButtonsOnShow by remember { mutableStateOf(false) }
+    var showPauseIconByUserConfirm by remember { mutableStateOf(false) }
+    val rootFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        runCatching { rootFocusRequester.requestFocus() }
+        delay(100)
+        runCatching { rootFocusRequester.requestFocus() }
+    }
+
+    LaunchedEffect(isPlaying) {
+        if (isPlaying) showPauseIconByUserConfirm = false
+    }
 
     fun calCoefficient(): Int {
         return if (System.currentTimeMillis() - lastSeekChangeTime < 200) {
@@ -200,8 +215,14 @@ fun VideoPlayerController(
         seekCountdown?.cancel()
     }
 
-    fun onPlayPause() {
-        if (isPlaying) onPause() else onPlay()
+    fun onPlayPause(showPauseIcon: Boolean = true) {
+        if (isPlaying) {
+            showPauseIconByUserConfirm = showPauseIcon
+            onPause()
+        } else {
+            showPauseIconByUserConfirm = false
+            onPlay()
+        }
     }
 
     fun handleKeyEvent(event: KeyEvent): Boolean {
@@ -266,16 +287,18 @@ fun VideoPlayerController(
             }
 
             Key.MediaPlayPause -> {
-                onPlayPause()
+                onPlayPause(showPauseIcon = false)
                 return true
             }
 
             Key.MediaPlay -> {
+                showPauseIconByUserConfirm = false
                 if (!isPlaying) onPlay()
                 return true
             }
 
             Key.MediaPause -> {
+                showPauseIconByUserConfirm = false
                 if (isPlaying) onPause()
                 return true
             }
@@ -312,11 +335,12 @@ fun VideoPlayerController(
                             return true
                         }
                     }
-                    onPlayPause()
+                    onPlayPause(showPauseIcon = true)
                     return true
                 }
 
                 Key.DirectionUp -> {
+                    showPauseIconByUserConfirm = false
                     showUpPanelController = true
                     return true
                 }
@@ -345,6 +369,7 @@ fun VideoPlayerController(
                 }
 
                 Key.MediaRewind, Key.DirectionLeft -> {
+                    showPauseIconByUserConfirm = false
                     if (uiState.showSkipToNextEp) onCancelSkipToNextEp()
                     focusInfoButtonsOnShow = false
                     showInfoSeekController = true
@@ -353,6 +378,7 @@ fun VideoPlayerController(
                 }
 
                 Key.MediaFastForward, Key.DirectionRight -> {
+                    showPauseIconByUserConfirm = false
                     focusInfoButtonsOnShow = false
                     showInfoSeekController = true
                     onDirectionRight()
@@ -367,6 +393,7 @@ fun VideoPlayerController(
     Box(
         modifier = modifier
             .background(AppBlack)
+            .focusRequester(rootFocusRequester)
             .focusable()
             .onPreviewKeyEvent { event ->
                 // 重置 info 控制器的隐藏倒计时 (只要有按键活动就重置)
@@ -424,6 +451,7 @@ fun VideoPlayerController(
                 isPlaying = uiState.playerState == PlayerState.Playing,
                 isBuffering = uiState.isBuffering,
                 isError = uiState.playerState is PlayerState.Error,
+                showPauseIcon = showPauseIconByUserConfirm,
                 errorMessage = (uiState.playerState as? PlayerState.Error)?.message,
             )
 
@@ -462,7 +490,7 @@ fun VideoPlayerController(
                 onDirectionLeft = { onDirectionLeft() },
                 onDirectionRight = { onDirectionRight() },
                 onSeekGoTime = { onSeekGoTime() },
-                onPlayPause = { onPlayPause() },
+                onPlayPause = { onPlayPause(showPauseIcon = false) },
                 onDanmakuSwitchChange = {
                     onDanmakuSettingChange(
                         DanmakuSettingAction.SetDanmakuEnabled(!uiState.danmakuState.danmakuEnabled)

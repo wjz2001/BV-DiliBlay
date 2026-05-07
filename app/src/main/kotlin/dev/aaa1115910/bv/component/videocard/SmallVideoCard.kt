@@ -32,7 +32,6 @@ import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -95,7 +94,7 @@ import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.resizedImageUrl
-import dev.aaa1115910.bv.viewmodel.SmallVideoCardGridUiState
+import dev.aaa1115910.bv.util.rememberTvImageRequest
 import dev.aaa1115910.bv.viewmodel.SmallVideoCardItemUiState
 import kotlin.Int
 
@@ -105,6 +104,9 @@ private val ActionIconSize = 40.dp
 
 private const val SmallVideoCardAnimationDurationMillis = 90
 private val SmallVideoCardTransformOrigin = TransformOrigin(0.5f, 0.45f)
+
+private val smallVideoCardIsPrivateFlavor: Boolean
+    get() = BuildConfig.IS_PRIVATE
 
 /**
  * 兼容旧调用的公开 API。
@@ -129,6 +131,7 @@ fun SmallVideoCard(
     onGoToUpPage: (() -> Unit)? = null,
     pendingRemoval: Boolean = false,
     onPendingRemovalFocusLost: (() -> Unit)? = null,
+    uiState: SmallVideoCardItemUiState? = null,
     interactive: Boolean = true,
     classroomDirectUpNavigation: Boolean = false,
     upButtonOnly: Boolean = false,
@@ -148,6 +151,7 @@ fun SmallVideoCard(
         legacyOnGoToUpPage = onGoToUpPage,
         pendingRemoval = pendingRemoval,
         onPendingRemovalFocusLost = onPendingRemovalFocusLost,
+        uiState = uiState,
         interactive = interactive,
         classroomDirectUpNavigation = classroomDirectUpNavigation,
         upButtonOnly = upButtonOnly,
@@ -170,6 +174,7 @@ private fun SmallVideoCardCore(
     legacyOnGoToUpPage: (() -> Unit)? = null,
     pendingRemoval: Boolean = false,
     onPendingRemovalFocusLost: (() -> Unit)? = null,
+    uiState: SmallVideoCardItemUiState? = null,
     interactive: Boolean = true,
     classroomDirectUpNavigation: Boolean = false,
     upButtonOnly: Boolean = false,
@@ -177,17 +182,13 @@ private fun SmallVideoCardCore(
     coverDensityMultiplier: Float = 1.5f,
     coverFontScaleMultiplier: Float = 1.5f,
     infoDensityMultiplier: Float = 1.35f,
-    infoFontScaleMultiplier: Float = 1.35f
+    infoFontScaleMultiplier: Float = 1.35f,
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val hostVm = LocalSmallVideoCardGridViewModel.current
-
-    val hostUiState by hostVm?.uiState?.collectAsState()
-        ?: remember { mutableStateOf(SmallVideoCardGridUiState()) }
-
-    val itemUiState by hostVm?.cardUiFlow(data.avid)?.collectAsState()
-        ?: remember(data.avid) { mutableStateOf(SmallVideoCardItemUiState()) }
+    val hostUiState = LocalSmallVideoCardGridUiState.current
+    val itemUiState = uiState ?: SmallVideoCardItemUiState()
 
     var showActions by remember(data.avid) { mutableStateOf(false) }
     var releaseLongPress by remember(data.avid) { mutableStateOf(false) }
@@ -205,7 +206,7 @@ private fun SmallVideoCardCore(
     val canWatchLater = onAddWatchLater != null
     val canFavorite = hostUiState.capabilities.canFavorite
     val canHistory = hostUiState.capabilities.canHistory
-    val isPrivateFlavor = BuildConfig.IS_PRIVATE
+    val isPrivateFlavor = smallVideoCardIsPrivateFlavor
     val canOpenVideoInfo = !isPrivateFlavor
     val canUseHistory = canHistory && !upButtonOnly
     val canUseFavorite = canFavorite && !upButtonOnly
@@ -356,7 +357,6 @@ private fun SmallVideoCardCore(
                             releaseLongPress = true
                             return@BvSmallVideoCardActions
                         }
-                        if (!canOpenVideoInfo) return@BvSmallVideoCardActions
                         navigateToVideoInfo()
                     },
                     onFavoriteClick = {
@@ -712,17 +712,24 @@ fun CardCover(
     coverDensityMultiplier: Float,
     coverFontScaleMultiplier: Float
 ) {
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .clip(RectangleShape),
         contentAlignment = Alignment.BottomCenter
     ) {
+        val coverUrl = cover.resizedImageUrl(ImageSize.SmallVideoCardCover)
+        val coverRequest = rememberTvImageRequest(
+            url = coverUrl,
+            widthDp = maxWidth,
+            heightDp = maxHeight
+        )
+
         AsyncImage(
             modifier = Modifier
                 .fillMaxSize()
                 .clip(RectangleShape),
-            model = cover.resizedImageUrl(ImageSize.SmallVideoCardCover),
+            model = coverRequest,
             contentDescription = null,
             contentScale = ContentScale.Crop
         )

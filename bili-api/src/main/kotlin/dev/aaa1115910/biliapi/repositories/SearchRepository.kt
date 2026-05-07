@@ -257,24 +257,30 @@ data class SearchTypeResult(
 ) {
     companion object {
         fun fromSearchTypeResult(result: dev.aaa1115910.biliapi.http.entity.search.SearchResultData): SearchTypeResult {
-            return when (result.searchTypeResults.first()) {
+            return when (result.searchTypeResults.firstOrNull()) {
                 is dev.aaa1115910.biliapi.http.entity.search.SearchVideoResult -> {
                     SearchTypeResult(
-                        videos = result.searchTypeResults.map { Video.fromSearchVideoResult(it as dev.aaa1115910.biliapi.http.entity.search.SearchVideoResult) },
+                        videos = result.searchTypeResults
+                            .filterIsInstance<dev.aaa1115910.biliapi.http.entity.search.SearchVideoResult>()
+                            .map { Video.fromSearchVideoResult(it) },
                         page = SearchTypePage(nextPageForWeb = result.page + 1)
                     )
                 }
 
                 is dev.aaa1115910.biliapi.http.entity.search.SearchMediaResult -> {
                     SearchTypeResult(
-                        pgcs = result.searchTypeResults.map { Pgc.fromSearchPgcResult(it as dev.aaa1115910.biliapi.http.entity.search.SearchMediaResult) },
+                        pgcs = result.searchTypeResults
+                            .filterIsInstance<dev.aaa1115910.biliapi.http.entity.search.SearchMediaResult>()
+                            .map { Pgc.fromSearchPgcResult(it) },
                         page = SearchTypePage(nextPageForWeb = result.page + 1)
                     )
                 }
 
                 is dev.aaa1115910.biliapi.http.entity.search.SearchBiliUserResult -> {
                     SearchTypeResult(
-                        users = result.searchTypeResults.map { User.fromSearchUserResult(it as dev.aaa1115910.biliapi.http.entity.search.SearchBiliUserResult) },
+                        users = result.searchTypeResults
+                            .filterIsInstance<dev.aaa1115910.biliapi.http.entity.search.SearchBiliUserResult>()
+                            .map { User.fromSearchUserResult(it) },
                         page = SearchTypePage(nextPageForWeb = result.page + 1)
                     )
                 }
@@ -286,30 +292,46 @@ data class SearchTypeResult(
         }
 
         fun fromSearchTypeResult(result: bilibili.polymer.app.search.v1.SearchByTypeResponse): SearchTypeResult {
-            return when (result.itemsList.firstOrNull()?.cardItemCase) {
+            return when (result.itemsList.firstOrNull {
+                it.cardItemCase == bilibili.polymer.app.search.v1.Item.CardItemCase.AV
+            }?.cardItemCase) {
                 bilibili.polymer.app.search.v1.Item.CardItemCase.AV -> {
                     SearchTypeResult(
-                        videos = result.itemsList.map { Video.fromSearchVideoCard(it) },
+                        videos = result.itemsList
+                            .filter { it.cardItemCase == bilibili.polymer.app.search.v1.Item.CardItemCase.AV }
+                            .map { Video.fromSearchVideoCard(it) },
                         page = SearchTypePage(nextPageForApp = result.pagination.next)
                     )
                 }
 
-                bilibili.polymer.app.search.v1.Item.CardItemCase.BANGUMI -> {
-                    SearchTypeResult(
-                        pgcs = result.itemsList.map { Pgc.fromSearchPgcCard(it) },
-                        page = SearchTypePage(nextPageForApp = result.pagination.next)
-                    )
-                }
+                else -> when (result.itemsList.firstOrNull {
+                    it.cardItemCase == bilibili.polymer.app.search.v1.Item.CardItemCase.BANGUMI
+                }?.cardItemCase) {
+                    bilibili.polymer.app.search.v1.Item.CardItemCase.BANGUMI -> {
+                        SearchTypeResult(
+                            pgcs = result.itemsList
+                                .filter { it.cardItemCase == bilibili.polymer.app.search.v1.Item.CardItemCase.BANGUMI }
+                                .map { Pgc.fromSearchPgcCard(it) },
+                            page = SearchTypePage(nextPageForApp = result.pagination.next)
+                        )
+                    }
 
-                bilibili.polymer.app.search.v1.Item.CardItemCase.AUTHOR -> {
-                    SearchTypeResult(
-                        users = result.itemsList.map { User.fromSearchUserCard(it) },
-                        page = SearchTypePage(nextPageForApp = result.pagination.next)
-                    )
-                }
+                    else -> when (result.itemsList.firstOrNull {
+                        it.cardItemCase == bilibili.polymer.app.search.v1.Item.CardItemCase.AUTHOR
+                    }?.cardItemCase) {
+                        bilibili.polymer.app.search.v1.Item.CardItemCase.AUTHOR -> {
+                            SearchTypeResult(
+                                users = result.itemsList
+                                    .filter { it.cardItemCase == bilibili.polymer.app.search.v1.Item.CardItemCase.AUTHOR }
+                                    .map { User.fromSearchUserCard(it) },
+                                page = SearchTypePage(nextPageForApp = result.pagination.next)
+                            )
+                        }
 
-                else -> {
-                    SearchTypeResult(page = SearchTypePage(nextPageForApp = result.pagination.next))
+                        else -> {
+                            SearchTypeResult(page = SearchTypePage(nextPageForApp = result.pagination.next))
+                        }
+                    }
                 }
             }
         }

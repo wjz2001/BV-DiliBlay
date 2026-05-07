@@ -9,6 +9,7 @@ import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -22,13 +23,15 @@ import dev.aaa1115910.bv.activities.user.FollowingSeasonActivity
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.pgc.PgcAnimeViewModel
-import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun AnimeContent(
     modifier: Modifier = Modifier,
     lazyListState: LazyListState,
-    pgcViewModel: PgcAnimeViewModel = koinViewModel()
+    pgcViewModel: PgcAnimeViewModel,
+    contentEntryFocusRequester: FocusRequester? = null,
+    tabFocusRequester: FocusRequester? = null,
+    active: Boolean = true
 ) {
     val context = LocalContext.current
 
@@ -55,6 +58,9 @@ fun AnimeContent(
         lazyListState = lazyListState,
         pgcViewModel = pgcViewModel,
         pgcType = PgcType.Anime,
+        active = active,
+        contentEntryFocusRequester = contentEntryFocusRequester,
+        tabFocusRequester = tabFocusRequester,
         featureButtons = {
             AnimeFeatureButtons(
                 modifier = Modifier.padding(vertical = 24.dp),

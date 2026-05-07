@@ -8,9 +8,13 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.biliapi.entity.cheese.PurchasedCourse
@@ -28,10 +32,26 @@ import org.koin.androidx.compose.koinViewModel
 fun MyClassroomScreen(
     modifier: Modifier = Modifier,
     gridState: LazyGridState = rememberLazyGridState(),
+    activationSerial: Long = 0L,
+    refreshSerial: Long = 0L,
+    contentEntryFocusRequester: FocusRequester? = null,
+    tabFocusRequester: FocusRequester? = null,
     myClassroomViewModel: MyClassroomViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
-    val courses = myClassroomViewModel.courses
+    val courses by myClassroomViewModel.courses.collectAsStateWithLifecycle()
+
+    LaunchedEffect(activationSerial) {
+        if (activationSerial == 0L) return@LaunchedEffect
+        withFrameNanos { }
+        myClassroomViewModel.ensureLoaded()
+    }
+
+    LaunchedEffect(refreshSerial) {
+        if (refreshSerial == 0L) return@LaunchedEffect
+        gridState.scrollToItem(0)
+        myClassroomViewModel.reloadAll()
+    }
 
     LaunchedEffect(gridState) {
         snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
@@ -48,12 +68,15 @@ fun MyClassroomScreen(
         verticalArrangement = Arrangement.spacedBy(24.dp),
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         horizontalWrapItemCount = courses.size,
-        horizontalWrapColumnCount = 4
-    ) {
+        horizontalWrapColumnCount = 4,
+        entryFocusRequester = contentEntryFocusRequester,
+        upFocusRequester = tabFocusRequester
+    ) { cardUiStateFor ->
         if (courses.isNotEmpty()) {
             itemsIndexed(courses, key = { _, course -> course.seasonId }) { index, course ->
                 SmallVideoCard(
                     frameModifier = rememberGridRowWrapModifier(index),
+                    uiState = cardUiStateFor(-course.seasonId),
                     data = course.toVideoCardData(),
                     titleMaxLines = 3,
                     classroomDirectUpNavigation = true,

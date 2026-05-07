@@ -9,7 +9,6 @@ plugins {
     alias(gradleLibs.plugins.compose.compiler)
     alias(gradleLibs.plugins.google.ksp)
     alias(gradleLibs.plugins.koin.compiler)
-    alias(gradleLibs.plugins.google.services) apply false
     alias(gradleLibs.plugins.kotlin.android)
     alias(gradleLibs.plugins.kotlin.serialization)
     alias(libs.plugins.stability.analyzer)
@@ -21,11 +20,6 @@ koinCompiler {
     skipDefaultValues = true
     userLogs = true
 }
-
-if (AppConfiguration.googleServicesAvailable) {
-    apply(plugin = gradleLibs.plugins.google.services.get().pluginId)
-}
-
 
 val signingProp = file(project.rootProject.file("signing.properties"))
 
@@ -186,7 +180,6 @@ dependencies {
     implementation(libs.runtime)
     annotationProcessor(androidx.room.compiler)
     ksp(androidx.room.compiler)
-    implementation(platform(libs.firebase.bom))
     implementation(androidx.activity.compose)
     implementation(androidx.core.ktx)
     implementation(androidx.core.splashscreen)
@@ -203,6 +196,7 @@ dependencies {
     implementation(androidx.datastore.typed)
     implementation(androidx.datastore.preferences)
     implementation(androidx.lifecycle.runtime.ktx)
+    implementation(androidx.lifecycle.runtime.compose)
     implementation(androidx.media3.common)
     implementation(androidx.media3.decoder)
     implementation(androidx.media3.exoplayer)
@@ -219,6 +213,7 @@ dependencies {
     implementation(libs.koin.android)
     implementation(libs.koin.compose)
     implementation(libs.koin.annotations)
+    implementation(libs.kotlinx.collections.immutable)
     implementation(libs.kotlinx.serialization)
     implementation(libs.ktor.client.cio)
     implementation(libs.ktor.client.content.negotiation)

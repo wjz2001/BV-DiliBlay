@@ -1,17 +1,16 @@
 [versions]
 activity = "1.13.0"
+compose-bom = "2026.05.00"
 composeConstraintlayout = "1.1.1"
-compose-bom = "2026.04.01"
-
-#noinspection GradleDependency https://issuetracker.google.com/issues/361611808
-compose-tv = "1.1.0-rc01"
-compose-tv-foundation = "1.0.0-rc01"
+compose-tv = "1.1.0"
+compose-tv-foundation = "1.0.0"
 core = "1.18.0"
 core-splashscreen = "1.2.0"
 dataStore = "1.2.1"
 lifecycle = "2.10.0"
 media3 = "1.10.0"
 room = "2.8.4"
+#noinspection GradleDependency
 webkit = "1.15.0"
 
 [libraries]
@@ -24,8 +23,8 @@ compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-
 compose-constraintlayout = { module = "androidx.constraintlayout:constraintlayout-compose", version.ref = "composeConstraintlayout" }
 
 # https://developer.android.com/jetpack/androidx/releases/tv
-compose-tv-foundation = { module = "androidx.tv:tv-foundation", version.ref = "compose-tv-foundation" }
 compose-tv-material = { module = "androidx.tv:tv-material", version.ref = "compose-tv" }
+compose-tv-foundation = { module = "androidx.tv:tv-foundation", version.ref = "compose-tv-foundation" }
 
 # https://developer.android.com/jetpack/androidx/releases/compose-ui
 compose-ui = { module = "androidx.compose.ui:ui" }
@@ -54,6 +53,7 @@ datastore-preferences = { module = "androidx.datastore:datastore-preferences", v
 
 # https://developer.android.com/jetpack/androidx/releases/lifecycle
 lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
+lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 
 # https://developer.android.com/jetpack/androidx/releases/media3
 media3-common = { module = "androidx.media3:media3-common", version.ref = "media3" }

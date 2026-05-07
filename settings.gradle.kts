@@ -5,13 +5,6 @@ pluginManagement {
         mavenCentral()
         gradlePluginPortal()
     }
-    resolutionStrategy {
-        eachPlugin {
-            when (requested.id.name) {
-                "crashlytics" -> useModule("com.google.firebase:firebase-crashlytics-gradle:2.9.9")
-            }
-        }
-    }
 }
 plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"

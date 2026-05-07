@@ -90,7 +90,6 @@ import androidx.tv.material3.Tab
 import androidx.tv.material3.TabRow
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
-import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.entity.video.season.Episode
 import dev.aaa1115910.biliapi.entity.video.season.PgcSeason
 import dev.aaa1115910.biliapi.entity.video.season.SeasonDetail
@@ -118,11 +117,13 @@ import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.resizedImageUrl
 import dev.aaa1115910.bv.util.swapList
 import dev.aaa1115910.bv.util.toast
+import dev.aaa1115910.bv.viewmodel.video.SeasonInfoViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import kotlin.math.ceil
 
@@ -130,6 +131,7 @@ import kotlin.math.ceil
 fun SeasonInfoScreen(
     modifier: Modifier = Modifier,
     lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current,
+    seasonInfoViewModel: SeasonInfoViewModel = koinViewModel(),
     videoInfoRepository: VideoInfoRepository = koinInject(),
     videoDetailRepository: VideoDetailRepository = koinInject(),
     userRepository: UserRepository = koinInject()
@@ -180,45 +182,32 @@ fun SeasonInfoScreen(
                     proxyArea = proxyArea,
                 )
             }
-        }
+    }
 
     val updateSeasonData: (seasonId: Int?, epId: Int?) -> Unit = { sId, eId ->
-        scope.launch(Dispatchers.IO) {
-            runCatching {
-                val data = videoDetailRepository.getPgcVideoDetail(
-                    seasonId = sId,
-                    epid = eId,
-                    preferApiType = if (proxyArea != ProxyArea.MainLand) ApiType.App else Prefs.apiType
-                )
-                withContext(Dispatchers.Main) {
-                    seasonData = data
-                    logger.info { "User status: ${seasonData!!.userStatus}" }
-                    isFollowing = seasonData!!.userStatus.follow
-                    lastPlayProgress = seasonData!!.userStatus.progress
-                }
-            }.onFailure {
+        seasonInfoViewModel.updateSeasonData(
+            seasonId = sId,
+            epId = eId,
+            proxyArea = proxyArea,
+            onSuccess = { data ->
+                seasonData = data
+                logger.info { "User status: ${seasonData!!.userStatus}" }
+                isFollowing = seasonData!!.userStatus.follow
+                lastPlayProgress = seasonData!!.userStatus.progress
+            },
+            onFailure = {
                 tip = it.localizedMessage ?: "未知错误"
-                logger.fInfo { "Get season info failed: ${it.stackTraceToString()}" }
             }
-        }
+        )
     }
 
     val updateHistoryAfterBack = {
-        scope.launch(Dispatchers.IO) {
-            //延迟 200ms，避免获取到的依旧是旧数据
-            delay(200)
-            runCatching {
-                val data = videoDetailRepository.getPgcVideoDetail(
-                    seasonId = seasonId,
-                    epid = epId,
-                    preferApiType = if (proxyArea != ProxyArea.MainLand) ApiType.App else Prefs.apiType
-                ).userStatus.progress
-                withContext(Dispatchers.Main) { lastPlayProgress = data }
-                logger.info { "update user status progress: $lastPlayProgress" }
-            }.onFailure {
-                logger.fInfo { "update user status progress failed: ${it.stackTraceToString()}" }
-            }
-        }
+        seasonInfoViewModel.updateHistoryAfterBack(
+            seasonId = seasonId,
+            epId = epId,
+            proxyArea = proxyArea,
+            onSuccess = { lastPlayProgress = it }
+        )
     }
 
     LaunchedEffect(Unit) {
@@ -851,10 +840,10 @@ fun SeasonEpisodesDialog(
                         contentPadding = PaddingValues(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         horizontalWrapColumnCount = 2,
-                    ) {
+                    ) { cardUiStateFor ->
                         itemsIndexed(
                             items = selectedEpisodes,
-                            key = { _, episode -> episode.aid + episode.cid }
+                            key = { _, episode -> "${episode.aid}_${episode.cid}" }
                         ) { index, episode ->
                             val episodeTitle by remember { mutableStateOf(if (episode.longTitle != "") episode.longTitle else episode.title) }
                             val buttonModifier =
@@ -1010,7 +999,10 @@ fun SeasonEpisodeRow(
                 }
             }
 
-            itemsIndexed(items = episodes) { index, episode ->
+            itemsIndexed(
+                items = episodes,
+                key = { _, episode -> episode.id }
+            ) { index, episode ->
                 val episodeTitle by remember {
                     mutableStateOf(if (episode.longTitle != "") episode.longTitle else episode.title)
                 }
@@ -1211,7 +1203,10 @@ private fun SeasonSelectorContent(
                     contentPadding = PaddingValues(horizontal = 48.dp),
                     horizontalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
-                    itemsIndexed(items = seasons) { index, season ->
+                    itemsIndexed(
+                        items = seasons,
+                        key = { _, season -> season.seasonId }
+                    ) { index, season ->
                         Card(
                             modifier = Modifier
                                 .onFocusChanged {
@@ -1246,7 +1241,7 @@ private fun SeasonSelectorContent(
                                 modifier = Modifier
                                     .width(160.dp)
                                     .aspectRatio(0.75f),
-                                model = seasons[index].cover,
+                                model = seasons[index].cover.resizedImageUrl(ImageSize.Cover),
                                 contentDescription = null
                             )
                         }

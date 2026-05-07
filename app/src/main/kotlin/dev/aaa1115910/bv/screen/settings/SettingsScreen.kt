@@ -34,7 +34,6 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -105,19 +104,17 @@ import dev.aaa1115910.bv.util.CodecMedia
 import dev.aaa1115910.bv.util.CodecMode
 import dev.aaa1115910.bv.util.CodecType
 import dev.aaa1115910.bv.util.CodecUtil
-import dev.aaa1115910.bv.util.LogCatcherUtil
 import dev.aaa1115910.bv.util.Prefs
-import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.requestFocus
-import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.coroutines.Dispatchers
+import dev.aaa1115910.bv.viewmodel.settings.SettingsStorageViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
-import java.io.File
 import java.text.DecimalFormat
 import kotlin.math.pow
 import androidx.compose.ui.platform.LocalResources
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 private enum class SettingsColumn {
     Category,
@@ -861,7 +858,7 @@ private fun aboutSettingsEntries(): List<SettingsEntry> {
     return listOf(
         textEntry(
             id = "thanks",
-            title = stringResource(R.string.settings_about_thanks),
+            title = "鸣谢",
             supportText = "项目与贡献者",
             text = settingsThanksText()
         ),
@@ -880,12 +877,13 @@ private fun aboutSettingsEntries(): List<SettingsEntry> {
 private fun settingsThanksText(): String {
     return """
         鸣谢：
-        哔哩哔哩电视版1.66
+        哔哩哔哩电视版 1.66 及其后续开发者
         https://github.com/aaa1115910/bv
         https://github.com/Frost819/bv
         https://github.com/fantasytyx/bv
         https://github.com/bggRGjQaUbCoE/PiliPlus
         https://github.com/open-ani/animeko
+        https://github.com/Nemo2011/bilibili-api
     """.trimIndent()
 }
 
@@ -994,7 +992,9 @@ private fun audioVideoSettingsEntries(): List<SettingsEntry> {
 @Composable
 private fun uiSettingsEntries(): List<SettingsEntry> {
     val context = LocalContext.current
-    val themeModeOrdinal by Prefs.themeModeFlow.collectAsState(Prefs.themeMode.ordinal)
+    val themeModeOrdinal by Prefs.themeModeFlow.collectAsStateWithLifecycle(
+        initialValue = Prefs.themeMode.ordinal
+    )
     var selectedThemeMode by remember(themeModeOrdinal) {
         mutableStateOf(ThemeMode.fromOrdinal(themeModeOrdinal))
     }
@@ -1360,12 +1360,7 @@ private fun networkSettingsEntries(
 @Composable
 private fun storageSettingsEntries(): List<SettingsEntry> {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val logger = KotlinLogging.logger { }
-    var loading by remember { mutableStateOf(false) }
-    var imageCacheSize by remember { mutableLongStateOf(0L) }
-    var updateCacheSize by remember { mutableLongStateOf(0L) }
-    var crashLogsSize by remember { mutableLongStateOf(0L) }
+    val storageViewModel: SettingsStorageViewModel = koinViewModel()
     var showConfirmDialog by remember { mutableStateOf(false) }
     var clearFun: (() -> Unit)? by remember { mutableStateOf(null) }
     var content by remember { mutableStateOf("") }
@@ -1375,11 +1370,6 @@ private fun storageSettingsEntries(): List<SettingsEntry> {
     val titleOthersCache = stringResource(R.string.settings_storage_others_cache)
     val titleCrashLogs = stringResource(R.string.settings_storage_crash_logs)
 
-    val calSize = {
-        imageCacheSize = getFolderSize(File(context.cacheDir, "image_cache"))
-        updateCacheSize = getFolderSize(File(context.cacheDir, "update_downloader"))
-        crashLogsSize = getFolderSize(File(context.filesDir, LogCatcherUtil.LOG_DIR))
-    }
     val showClearDialog: (String, Long, () -> Unit) -> Unit = { title, cacheSize, clear ->
         clearFun = clear
         content = title
@@ -1388,11 +1378,7 @@ private fun storageSettingsEntries(): List<SettingsEntry> {
     }
 
     LaunchedEffect(Unit) {
-        scope.launch(Dispatchers.IO) {
-            loading = true
-            calSize()
-            loading = false
-        }
+        storageViewModel.refresh(context.cacheDir, context.filesDir)
     }
 
     ConfirmDeleteDialog(
@@ -1402,7 +1388,6 @@ private fun storageSettingsEntries(): List<SettingsEntry> {
         size = size,
         clearFiles = {
             clearFun?.invoke()
-            calSize()
         }
     )
 
@@ -1410,36 +1395,33 @@ private fun storageSettingsEntries(): List<SettingsEntry> {
         actionEntry(
             id = "image_cache",
             title = titleImageCache,
-            supportText = cacheSizeText(loading, imageCacheSize),
+            supportText = cacheSizeText(storageViewModel.loading, storageViewModel.imageCacheSize),
             actionText = "清除",
             onClick = {
-                showClearDialog(titleImageCache, imageCacheSize) {
-                    logger.fInfo { "clearImageCaches" }
-                    File(context.cacheDir, "image_cache").deleteRecursively()
+                showClearDialog(titleImageCache, storageViewModel.imageCacheSize) {
+                    storageViewModel.clearImageCaches(context.cacheDir, context.filesDir)
                 }
             }
         ),
         actionEntry(
             id = "others_cache",
             title = titleOthersCache,
-            supportText = cacheSizeText(loading, updateCacheSize),
+            supportText = cacheSizeText(storageViewModel.loading, storageViewModel.updateCacheSize),
             actionText = "清除",
             onClick = {
-                showClearDialog(titleOthersCache, updateCacheSize) {
-                    logger.fInfo { "clearOthersCaches" }
-                    File(context.cacheDir, "update_downloader").deleteRecursively()
+                showClearDialog(titleOthersCache, storageViewModel.updateCacheSize) {
+                    storageViewModel.clearOthersCaches(context.cacheDir, context.filesDir)
                 }
             }
         ),
         actionEntry(
             id = "crash_logs",
             title = titleCrashLogs,
-            supportText = cacheSizeText(loading, crashLogsSize),
+            supportText = cacheSizeText(storageViewModel.loading, storageViewModel.crashLogsSize),
             actionText = "清除",
             onClick = {
-                showClearDialog(titleCrashLogs, crashLogsSize) {
-                    logger.fInfo { "clearCrashLogs" }
-                    File(context.filesDir, LogCatcherUtil.LOG_DIR).deleteRecursively()
+                showClearDialog(titleCrashLogs, storageViewModel.crashLogsSize) {
+                    storageViewModel.clearCrashLogs(context.cacheDir, context.filesDir)
                 }
             }
         )
@@ -1821,12 +1803,6 @@ private fun ConfirmDeleteDialog(
             }
         )
     }
-}
-
-private fun getFolderSize(f: File): Long {
-    if (!f.exists()) return 0L
-    if (!f.isDirectory) return f.length()
-    return f.listFiles()?.sumOf { getFolderSize(it) } ?: 0L
 }
 
 @Composable

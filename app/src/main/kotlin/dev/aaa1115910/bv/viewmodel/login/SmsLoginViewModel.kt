@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import dev.aaa1115910.biliapi.http.util.generateBuvid
 import dev.aaa1115910.biliapi.repositories.LoginRepository
 import dev.aaa1115910.biliapi.repositories.SendSmsState
@@ -14,6 +15,7 @@ import dev.aaa1115910.bv.util.fDebug
 import dev.aaa1115910.bv.util.toast
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -37,7 +39,16 @@ class SmsLoginViewModel(
     private val buvid = generateBuvid()
     private var captchaKey: String? = null
 
-    suspend fun sendSms(
+    fun sendSms(
+        phone: Long,
+        onCaptcha: (challenge: String, gt: String) -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            sendSmsInternal(phone, onCaptcha)
+        }
+    }
+
+    private suspend fun sendSmsInternal(
         phone: Long,
         onCaptcha: (challenge: String, gt: String) -> Unit
     ) {
@@ -87,8 +98,10 @@ class SmsLoginViewModel(
                     logger.info { "recaptchaToken: $recaptchaToken" }
                     logger.info { "geetestGt: $geetestGt" }
                     logger.info { "geetestChallenge: $geetestChallenge" }
-                    onCaptcha(geetestChallenge!!, geetestGt!!)
-                    withContext(Dispatchers.Main) { sendSmsState = sendSmsResult.state }
+                    withContext(Dispatchers.Main) {
+                        onCaptcha(geetestChallenge!!, geetestGt!!)
+                        sendSmsState = sendSmsResult.state
+                    }
                 }
             }
         }.onFailure {
@@ -100,7 +113,13 @@ class SmsLoginViewModel(
         }
     }
 
-    suspend fun loginWithSms(code: Int, onSuccess: () -> Unit) {
+    fun loginWithSms(code: Int, onSuccess: () -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            loginWithSmsInternal(code, onSuccess)
+        }
+    }
+
+    private suspend fun loginWithSmsInternal(code: Int, onSuccess: () -> Unit) {
         logger.info { "Login with sms code: $code" }
         runCatching {
             val loginResult = loginRepository.loginWithSms(

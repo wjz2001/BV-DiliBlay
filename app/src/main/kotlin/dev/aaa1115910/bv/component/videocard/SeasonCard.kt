@@ -46,6 +46,7 @@ import dev.aaa1115910.bv.ui.theme.BVTheme
 
 import dev.aaa1115910.bv.ui.theme.ThemeMode
 import dev.aaa1115910.bv.ui.theme.C
+import dev.aaa1115910.bv.util.rememberTvImageRequest
 
 @Composable
 fun SeasonCard(
@@ -58,6 +59,12 @@ fun SeasonCard(
 ) {
     val localDensity = LocalDensity.current
     var coverRealWidth by remember { mutableStateOf(0.dp) }
+    val requestCoverHeight = coverHeight ?: 240.dp
+    val coverRequest = rememberTvImageRequest(
+        url = data.cover,
+        widthDp = requestCoverHeight * 0.75f,
+        heightDp = requestCoverHeight
+    )
 
     Surface(
         modifier = modifier.onFocusChanged { if (it.hasFocus) onFocus() },
@@ -99,7 +106,7 @@ fun SeasonCard(
                         .onGloballyPositioned { coordinates ->
                             coverRealWidth = with(localDensity) { coordinates.size.width.toDp() }
                         },
-                    model = data.cover,
+                    model = coverRequest,
                     contentDescription = null,
                     contentScale = ContentScale.FillBounds
                 )
@@ -164,7 +171,7 @@ private fun SeasonCardPreview() {
         SmallVideoCardGridHost(
             columns = GridCells.Fixed(6),
             horizontalWrapColumnCount = 6
-        ) {
+        ) { cardUiStateFor ->
             repeat(6) {
                 item {
                     SeasonCard(
@@ -188,7 +195,7 @@ private fun SeasonCardLightPreview() {
         SmallVideoCardGridHost(
             columns = GridCells.Fixed(6),
             horizontalWrapColumnCount = 6
-        ) {
+        ) { cardUiStateFor ->
             repeat(6) {
                 item {
                     SeasonCard(

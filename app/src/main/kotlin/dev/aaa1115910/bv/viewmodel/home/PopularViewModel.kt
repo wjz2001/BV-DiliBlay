@@ -3,7 +3,6 @@ package dev.aaa1115910.bv.viewmodel.home
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.aaa1115910.biliapi.entity.rank.PopularVideoPage
 import dev.aaa1115910.biliapi.entity.ugc.UgcItem
@@ -18,10 +17,17 @@ import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.fError
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.common.LoadState
+import dev.aaa1115910.bv.viewmodel.common.RuntimeAwareViewModel
 import dev.aaa1115910.bv.viewmodel.common.canAutoLoad
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -33,15 +39,15 @@ import org.koin.core.annotation.KoinViewModel
 class PopularViewModel(
     private val recommendVideoRepository: RecommendVideoRepository,
     private val userRepository: UserRepository
-) : ViewModel() {
+) : RuntimeAwareViewModel() {
     private val logger = KotlinLogging.logger {}
 
     private var nextPage = PopularVideoPage()
     var refreshing by mutableStateOf(false)
     var loading by mutableStateOf(false)
 
-    var popularVideoList by mutableStateOf<List<UgcItem>>(emptyList())
-        private set
+    private val _popularVideoList = MutableStateFlow(persistentListOf<UgcItem>())
+    val popularVideoList: StateFlow<ImmutableList<UgcItem>> = _popularVideoList.asStateFlow()
 
     var initialLoadState by mutableStateOf(LoadState.Idle)
         private set
@@ -107,7 +113,7 @@ class PopularViewModel(
 
                 beforeAppendData()
                 nextPage = popularVideoData.nextPage
-                popularVideoList = popularVideoList + filtered
+                _popularVideoList.update { it.addAll(filtered) }
                 lastFailureWasAuth = false
                 initialLoadState = LoadState.Success
             }
@@ -159,11 +165,18 @@ class PopularViewModel(
         requestVersion++
         loadJob?.cancel()
         loadJob = null
-        popularVideoList = emptyList()
+        _popularVideoList.value = persistentListOf()
         resetPage()
         loading = false
         initialLoadState = LoadState.Idle
         lastFailureWasAuth = false
+    }
+
+    fun cancelOngoingLoads() {
+        requestVersion++
+        loadJob?.cancel()
+        loadJob = null
+        loading = false
     }
 
     fun ensureLoaded(showErrorToast: Boolean = true) {
@@ -176,7 +189,7 @@ class PopularViewModel(
         requestVersion++
         loadJob?.cancel()
         loadJob = null
-        popularVideoList = emptyList()
+        _popularVideoList.value = persistentListOf()
         resetPage()
         loading = false
         initialLoadState = LoadState.Loading
@@ -187,5 +200,17 @@ class PopularViewModel(
     fun resetPage() {
         nextPage = PopularVideoPage()
         refreshing = true
+    }
+
+    override fun onRuntimeActive() {
+        ensureLoaded(showErrorToast = false)
+    }
+
+    override fun onRuntimeFrozen() {
+        cancelOngoingLoads()
+    }
+
+    override fun onRuntimeDisposed() {
+        cancelOngoingLoads()
     }
 }

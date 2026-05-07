@@ -10,6 +10,7 @@ import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.viewmodel.video.VideoDetailState
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -111,7 +112,7 @@ class VideoInfoRepository(private val videoDetailRepository: VideoDetailReposito
         _videoDetailState.update { old ->
             if (old?.aid != aid) return@update old
             if (old.coAuthors == authors) return@update old
-            old.copy(coAuthors = authors)
+            old.copy(coAuthors = authors.toPersistentList())
         }
 
         return authors
@@ -144,20 +145,20 @@ class VideoInfoRepository(private val videoDetailRepository: VideoDetailReposito
                 publishDate = videoDetail.publishDate,
                 stat = videoDetail.stat,
                 author = videoDetail.author,
-                tags = videoDetail.tags,
+                tags = videoDetail.tags.toPersistentList(),
                 isUpowerExclusive = videoDetail.isUpowerExclusive,
                 redirectToEp = videoDetail.redirectToEp,
                 argueTip = videoDetail.argueTip,
                 description = videoDetail.description,
                 descriptionContent = videoDetail.descriptionContent,
-                pages = videoDetail.pages,
+                pages = videoDetail.pages.toPersistentList(),
                 //relatedVideos = mapToVideoCardData(videoDetail.relatedVideos),
                 relatedVideos = dev.aaa1115910.bv.block.BlockManager.filterList(
                     page = dev.aaa1115910.bv.block.BlockPage.Related,
                     list = mapToVideoCardData(videoDetail.relatedVideos)
-                ) { it.upMid },
+                ) { it.upMid }.toPersistentList(),
                 ugcSeason = videoDetail.ugcSeason,
-                coAuthors = videoDetail.coAuthors,
+                coAuthors = videoDetail.coAuthors.toPersistentList(),
             )
 
             _videoDetailState.update { videoDetailState }

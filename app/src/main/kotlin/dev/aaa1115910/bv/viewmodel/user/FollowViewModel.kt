@@ -23,12 +23,23 @@ import dev.aaa1115910.bv.repository.UserRepository as AppUserRepository
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.viewmodel.common.DebouncedActivationController
+import dev.aaa1115910.bv.viewmodel.common.accountSessionKey
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.text.Collator
 import java.util.Locale
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableMap
+import kotlinx.collections.immutable.persistentHashMapOf
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
+import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.KoinViewModel
@@ -69,11 +80,13 @@ class FollowViewModel(
     private val biliUserRepository: BiliUserRepository,
     private val appUserRepository: AppUserRepository
 ) : ViewModel() {
-    var groupCards by mutableStateOf<List<FollowGroupCardUi>>(emptyList())
-        private set
+    private val _groupCards = MutableStateFlow(persistentListOf<FollowGroupCardUi>())
+    val groupCards: StateFlow<ImmutableList<FollowGroupCardUi>> = _groupCards.asStateFlow()
 
-    var usersByGroupId by mutableStateOf<Map<Int, List<FollowUserUi>>>(emptyMap())
-        private set
+    private val _usersByGroupId =
+        MutableStateFlow(persistentHashMapOf<Int, ImmutableList<FollowUserUi>>())
+    val usersByGroupId: StateFlow<ImmutableMap<Int, ImmutableList<FollowUserUi>>> =
+        _usersByGroupId.asStateFlow()
 
     var updating by mutableStateOf(true)
         private set
@@ -96,7 +109,7 @@ class FollowViewModel(
     val activeGroupId get() = groupActivation.active
 
     val currentGroupId: Int?
-        get() = activeGroupId ?: groupCards.firstOrNull()?.groupId
+        get() = activeGroupId ?: _groupCards.value.firstOrNull()?.groupId
 
     val preferredGroupFocusId: Int?
         get() = focusedGroupId ?: currentGroupId
@@ -108,36 +121,33 @@ class FollowViewModel(
         get() = currentUsers.size
 
     val currentUsers: List<FollowUserUi>
-        get() = currentGroupId?.let { usersByGroupId[it].orEmpty() } ?: emptyList()
+        get() = currentGroupId?.let { _usersByGroupId.value[it].orEmpty() } ?: emptyList()
 
     val preferredDetailUserKey: String?
         get() = currentUsers.firstOrNull()?.stableKey
 
     private val logger = KotlinLogging.logger { }
+    private var refreshJob: Job? = null
+    private var loadedAccountSessionKey = appUserRepository.accountSessionKey()
 
     var showFollowGroupDialog by mutableStateOf(false)
         private set
 
-    var followTags by mutableStateOf<List<RelationTag>>(emptyList())
-        private set
+    private val _followTags = MutableStateFlow(persistentListOf<RelationTag>())
+    val followTags: StateFlow<ImmutableList<RelationTag>> = _followTags.asStateFlow()
 
     var followGroupDialogWasFollowing by mutableStateOf(false)
         private set
 
-    var followGroupDialogInitialSelectedTagIds by mutableStateOf<List<Int>>(emptyList())
-        private set
+    private val _followGroupDialogInitialSelectedTagIds = MutableStateFlow(persistentListOf<Int>())
+    val followGroupDialogInitialSelectedTagIds: StateFlow<ImmutableList<Int>> =
+        _followGroupDialogInitialSelectedTagIds.asStateFlow()
 
     var followGroupDialogTargetMid by mutableStateOf<Long?>(null)
         private set
 
     private val uiEffect = MutableSharedFlow<UiEffect>()
     val uiEvent = uiEffect.asSharedFlow()
-
-    init {
-        viewModelScope.launch(Dispatchers.IO) {
-            initFollowedUsers()
-        }
-    }
 
     fun onGroupFocused(groupId: Int) {
         groupActivation.onFocused(groupId)
@@ -149,6 +159,52 @@ class FollowViewModel(
 
     fun syncGroupActivationToCurrent() {
         currentGroupId?.let(groupActivation::onClicked)
+    }
+
+    fun activateFollowScreen() {
+        ensureAccountStateFresh()
+        if (refreshJob?.isActive == true) return
+
+        refreshJob = viewModelScope.launch(Dispatchers.IO) {
+            initFollowedUsers()
+        }
+    }
+
+    fun freezeFollowScreen() {
+        refreshJob?.cancel()
+        refreshJob = null
+
+        viewModelScope.launch(Dispatchers.IO) {
+            RelationGroupsDataSource.cancelRefresh(RelationRefreshTrigger.FollowScreen)
+        }
+    }
+
+    private fun clearData() {
+        refreshJob?.cancel()
+        refreshJob = null
+        _groupCards.value = persistentListOf()
+        _usersByGroupId.value = persistentHashMapOf()
+        updating = true
+        totalUsers = 0
+        groupCardById = emptyMap()
+        selfEntryAvailable = false
+        selfName = ""
+        selfAvatar = ""
+        selfSign = ""
+        showFollowGroupDialog = false
+        _followTags.value = persistentListOf()
+        followGroupDialogWasFollowing = false
+        _followGroupDialogInitialSelectedTagIds.value = persistentListOf()
+        followGroupDialogTargetMid = null
+        RelationGroupsDataSource.clearSnapshotCache(clearPrefs = true)
+        loadedAccountSessionKey = appUserRepository.accountSessionKey()
+    }
+
+    private fun ensureAccountStateFresh() {
+        val currentAccountSessionKey = appUserRepository.accountSessionKey()
+        if (loadedAccountSessionKey == currentAccountSessionKey) return
+        clearData()
+        loadedAccountSessionKey = currentAccountSessionKey
     }
 
     fun hideFollowGroupDialog() {
@@ -165,7 +221,7 @@ class FollowViewModel(
                 return@launch
             }
 
-            val tagsSnapshot = followTags
+            val tagsSnapshot = _followTags.value
             val (wasFollowing, initialSelected) = runCatching {
                 getUpFollowStateAndTagIds(user.mid)
             }.getOrElse {
@@ -187,7 +243,7 @@ class FollowViewModel(
 
             followGroupDialogTargetMid = user.mid
             followGroupDialogWasFollowing = wasFollowing
-            followGroupDialogInitialSelectedTagIds = safeInitial
+            _followGroupDialogInitialSelectedTagIds.value = safeInitial.toPersistentList()
             showFollowGroupDialog = true
         }
     }
@@ -196,7 +252,7 @@ class FollowViewModel(
         val upMid = followGroupDialogTargetMid ?: return
         val wasFollowing = followGroupDialogWasFollowing
         val finalSelected = normalizeTagIds(selectedTagIds)
-        val initialSelected = normalizeTagIds(followGroupDialogInitialSelectedTagIds)
+        val initialSelected = normalizeTagIds(_followGroupDialogInitialSelectedTagIds.value)
 
         if (finalSelected == initialSelected && wasFollowing) return
 
@@ -314,8 +370,10 @@ class FollowViewModel(
         withContext(Dispatchers.Main) {
             totalUsers = snapshot.users.size
             groupCardById = newGroupCardById
-            groupCards = newGroupCards
-            usersByGroupId = newUsersByGroupId
+            _groupCards.value = newGroupCards.toPersistentList()
+            _usersByGroupId.value = newUsersByGroupId
+                .mapValues { it.value.toPersistentList() }
+                .toPersistentMap()
 
             resolvedFocusedGroupId?.let(groupActivation::onFocused)
             (resolvedActiveGroupId ?: resolvedFocusedGroupId)?.let(groupActivation::onClicked)
@@ -340,12 +398,12 @@ class FollowViewModel(
 
     private suspend fun loadFollowTagsIfNeeded(): Boolean {
         if (!Prefs.isLogin) return false
-        if (followTags.isNotEmpty()) return true
+        if (_followTags.value.isNotEmpty()) return true
 
         val tags = withContext(Dispatchers.IO) {
             biliUserRepository.getFollowTags(preferApiType = Prefs.apiType)
         }
-        followTags = tags
+        _followTags.value = tags.toPersistentList()
         return tags.isNotEmpty()
     }
 
@@ -443,6 +501,7 @@ class FollowViewModel(
         if (this == ApiType.Web) ApiType.App else ApiType.Web
 
     override fun onCleared() {
+        refreshJob?.cancel()
         groupActivation.cancel()
         super.onCleared()
     }

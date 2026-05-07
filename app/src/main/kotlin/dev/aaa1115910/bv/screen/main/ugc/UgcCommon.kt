@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.biliapi.entity.ugc.UgcItem
@@ -36,15 +37,18 @@ fun UgcRegionScaffold(
     modifier: Modifier = Modifier,
     state: UgcScaffoldState,
     gridState: LazyGridState,
+    active: Boolean = true,
+    contentEntryFocusRequester: FocusRequester? = null,
+    tabFocusRequester: FocusRequester? = null,
     onLoadMore: () -> Unit,
     onAddWatchLater: ((Long) -> Unit),
-    onGoToDetailPage: ((Long) -> Unit),
     onGoToUpPage: ((Long, String) -> Unit),
 ) {
     val context = LocalContext.current
 
 
-    LaunchedEffect(gridState) {
+    LaunchedEffect(gridState, active) {
+        if (!active) return@LaunchedEffect
         snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .distinctUntilChanged()
             .filter { index ->
@@ -62,8 +66,10 @@ fun UgcRegionScaffold(
         contentPadding = PaddingValues(24.dp),
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
-        horizontalWrapItemCount = state.ugcItems.size
-    ) {
+        horizontalWrapItemCount = state.ugcItems.size,
+        entryFocusRequester = contentEntryFocusRequester,
+        upFocusRequester = tabFocusRequester
+    ) { cardUiStateFor ->
         // 用index的话快速刷新有概率闪退
         itemsIndexed(
             items = state.ugcItems,
@@ -71,6 +77,7 @@ fun UgcRegionScaffold(
         ) { index, item ->
             SmallVideoCard(
                 frameModifier = rememberGridRowWrapModifier(index),
+                uiState = cardUiStateFor(item.aid),
                 data = remember(item) {         // `VideoCardData` 只在 item 变动时重建
                     VideoCardData(
                         avid = item.aid,
@@ -86,7 +93,6 @@ fun UgcRegionScaffold(
                 },
                 onClick = { VideoInfoActivity.actionStart(context, item.aid) },
                 onAddWatchLater = { onAddWatchLater(item.aid) },
-                onGoToDetailPage = { onGoToDetailPage(item.aid) },
                 onGoToUpPage = item.authorMid?.let {
                     { onGoToUpPage(it, item.author) }
                 }

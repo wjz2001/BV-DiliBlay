@@ -6,6 +6,9 @@ import dev.aaa1115910.biliapi.http.BiliHttpApi
 import dev.aaa1115910.biliapi.http.entity.video.VideoInfo
 import dev.aaa1115910.bv.block.BlockManager
 import dev.aaa1115910.bv.block.BlockPage
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -61,7 +64,7 @@ class TagViewModel : ViewModel() {
 
                 _uiState.update {
                     it.copy(
-                        videoList = it.videoList + filtered,
+                        videoList = (it.videoList + filtered).toPersistentList(),
                         // 注意：noMore 仍然用“接口返回是否为空”判断，避免因为全被过滤导致误判没有更多页
                         noMore = newData.isEmpty(),
                         loading = false
@@ -83,5 +86,5 @@ data class TagUiState(
     val tagId: Int = 0,
     val noMore: Boolean = false,
     val loading: Boolean = false,
-    val videoList: List<VideoInfo> = emptyList(),
+    val videoList: ImmutableList<VideoInfo> = persistentListOf(),
 )

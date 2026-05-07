@@ -1,13 +1,10 @@
 package dev.aaa1115910.bv.screen.settings
 
-import android.graphics.BitmapFactory
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.FileObserver
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -55,31 +52,26 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import kotlinx.coroutines.delay
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.network.HttpServer
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.C
-
 import dev.aaa1115910.bv.util.LogCatcherUtil
 import dev.aaa1115910.bv.util.swapList
 import dev.aaa1115910.bv.util.toast
-import qrcode.QRCode
-import kotlinx.coroutines.Dispatchers
+import dev.aaa1115910.bv.viewmodel.settings.LogsViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
+import org.koin.androidx.compose.koinViewModel
 import java.io.File
 import java.net.Inet4Address
 import java.net.NetworkInterface
 
 @Composable
 fun LogsScreen(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    logsViewModel: LogsViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -90,55 +82,15 @@ fun LogsScreen(
     val logs = remember { mutableStateListOf<File>() }
     var currentSelectFile by remember { mutableStateOf<File?>(null) }
 
-    var fileQrImage by remember { mutableStateOf<ImageBitmap?>(null) }
-    var serverQrImage by remember { mutableStateOf<ImageBitmap?>(null) }
     var isCreateFocused by remember { mutableStateOf(true) }
-    var waitPortJob: Job? by remember { mutableStateOf(null) }
     var refreshLogsJob: Job? by remember { mutableStateOf(null) }
 
     val generateFileQRCode = {
-        scope.launch(Dispatchers.IO) {
-            fileQrImage = null
-            val output = ByteArrayOutputStream()
-            val url = "http://$host:$port/api/logs/${currentSelectFile?.name}"
-            QRCode(url).render().writeImage(output)
-            val input = ByteArrayInputStream(output.toByteArray())
-            fileQrImage = BitmapFactory.decodeStream(input).asImageBitmap()
-        }
+        logsViewModel.generateFileQr(host, port, currentSelectFile?.name)
     }
 
     val startWaitPortJobAndGenerateServerQr = {
-        // 进入 Create 焦点时：先置空 serverQrImage，再轮询端口
-        serverQrImage = null
-        waitPortJob?.cancel()
-        waitPortJob = scope.launch(Dispatchers.IO) {
-            // 等待 LogsScreen 的 LaunchedEffect 把 host 更新成真实 IP（避免初始焦点太快导致还是 x.x.x.x）
-            var resolvedHost = host
-            var hostRetry = 0
-            while ((resolvedHost.isBlank() || resolvedHost == "x.x.x.x") && hostRetry < 50) { // 约 5 秒
-                delay(100)
-                resolvedHost = host
-                hostRetry++
-            }
-
-            var resolvedPort =
-                HttpServer.server?.engine?.resolvedConnectors()?.firstOrNull()?.port ?: 0
-            var retry = 0
-            while (resolvedPort == 0 && retry < 50) { // 约 5 秒
-                delay(100)
-                resolvedPort = HttpServer.server?.engine?.resolvedConnectors()?.firstOrNull()?.port ?: 0
-                retry++
-            }
-
-            if (resolvedPort != 0) {
-                port = resolvedPort
-                val output = ByteArrayOutputStream()
-                val url = "http://$resolvedHost:$resolvedPort/"
-                QRCode(url).render().writeImage(output)
-                val input = ByteArrayInputStream(output.toByteArray())
-                serverQrImage = BitmapFactory.decodeStream(input).asImageBitmap()
-            }
-        }
+        logsViewModel.waitPortAndGenerateServerQr(host)
     }
 
     val getIpAddress: () -> String = let@{
@@ -216,21 +168,27 @@ fun LogsScreen(
         updateLogs()
     }
 
+    LaunchedEffect(logsViewModel.resolvedPort) {
+        if (logsViewModel.resolvedPort != 0) {
+            port = logsViewModel.resolvedPort
+        }
+    }
+
     LogsScreenContent(
         modifier = modifier,
         isCreateFocused = isCreateFocused,
         serverAddress = "$host:$port",
-        serverQrImage = serverQrImage,
-        fileQrImage = fileQrImage,
+        serverQrImage = logsViewModel.serverQrImage,
+        fileQrImage = logsViewModel.fileQrImage,
         logs = logs,
         onFocusCreate = {
             isCreateFocused = true
-            fileQrImage = null
+            logsViewModel.clearFileQr()
             startWaitPortJobAndGenerateServerQr()
         },
         onFocusLogFile = { file ->
             isCreateFocused = false
-            waitPortJob?.cancel()
+            logsViewModel.cancelServerQr()
             currentSelectFile = file
             generateFileQRCode()
         },

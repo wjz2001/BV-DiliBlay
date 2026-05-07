@@ -2,6 +2,7 @@ package dev.aaa1115910.bv.component.videocard
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyGridState
@@ -9,17 +10,19 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.CoAuthorsDialogHost
@@ -29,7 +32,10 @@ import dev.aaa1115910.bv.component.handleUpHomeClick
 import dev.aaa1115910.bv.component.rememberCoAuthorsDialogState
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.SmallVideoCardGridEvent
+import dev.aaa1115910.bv.viewmodel.SmallVideoCardGridUiState
 import dev.aaa1115910.bv.viewmodel.SmallVideoCardGridViewModel
+import dev.aaa1115910.bv.viewmodel.SmallVideoCardItemUiState
+import androidx.lifecycle.repeatOnLifecycle
 import org.koin.androidx.compose.koinViewModel
 
 /**
@@ -42,6 +48,9 @@ import org.koin.androidx.compose.koinViewModel
 val LocalSmallVideoCardGridViewModel =
     compositionLocalOf<SmallVideoCardGridViewModel?> { null }
 
+val LocalSmallVideoCardGridUiState =
+    compositionLocalOf { SmallVideoCardGridUiState() }
+
 private class GridRowWrapController(
     private val columnCount: Int
 ) {
@@ -49,32 +58,37 @@ private class GridRowWrapController(
 
     var enabled: Boolean = true
     var itemCount: Int = 0
+    var entryFocusRequester: FocusRequester? = null
+    var enableHorizontalLinks: Boolean = true
 
     private fun requesterFor(index: Int): FocusRequester {
+        if (index == 0) {
+            entryFocusRequester?.let { return it }
+        }
         return requesters.getOrPut(index) { FocusRequester() }
     }
 
     fun Modifier.modifierFor(index: Int): Modifier {
-        if (!enabled || itemCount <= 1 || index !in 0 until itemCount) return this
+        if (!enabled || itemCount <= 0 || index !in 0 until itemCount) return this
 
         val rowStart = (index / columnCount) * columnCount
         val rowEnd = minOf(rowStart + columnCount - 1, itemCount - 1)
 
-        if (rowStart == rowEnd) return this
-
         return this
             .focusRequester(requesterFor(index))
             .focusProperties {
-                left = if (index == rowStart) {
-                    requesterFor(rowEnd)
-                } else {
-                    requesterFor(index - 1)
-                }
+                if (enableHorizontalLinks && rowStart != rowEnd) {
+                    left = if (index == rowStart) {
+                        requesterFor(rowEnd)
+                    } else {
+                        requesterFor(index - 1)
+                    }
 
-                right = if (index == rowEnd) {
-                    requesterFor(rowStart)
-                } else {
-                    requesterFor(index + 1)
+                    right = if (index == rowEnd) {
+                        requesterFor(rowStart)
+                    } else {
+                        requesterFor(index + 1)
+                    }
                 }
             }
     }
@@ -147,16 +161,20 @@ fun SmallVideoCardGridHost(
      *
      * 不传时默认：
      * UpInfoActivity.actionStart(context, mid, name)
-     */
+    */
     onNavigateUp: ((Long, String) -> Unit)? = null,
     enableRowHorizontalWrap: Boolean = true,
+    entryFocusRequester: FocusRequester? = null,
+    upFocusRequester: FocusRequester? = null,
     horizontalWrapItemCount: Int = 0,
     horizontalWrapColumnCount: Int = 4,
-    content: LazyGridScope.() -> Unit
+    content: LazyGridScope.((Long) -> SmallVideoCardItemUiState?) -> Unit
 ) {
     val viewModel: SmallVideoCardGridViewModel = koinViewModel()
     val context = LocalContext.current
-    val uiState by viewModel.uiState.collectAsState()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val cardUiMap by viewModel.cardUiMap.collectAsStateWithLifecycle()
     val coAuthorsDialogState = rememberCoAuthorsDialogState()
 
     /**
@@ -179,10 +197,15 @@ fun SmallVideoCardGridHost(
     val rowWrapController = remember(horizontalWrapColumnCount) {
         horizontalWrapColumnCount.let(::GridRowWrapController)
     }.apply {
-        enabled = enableRowHorizontalWrap &&
-                horizontalWrapItemCount > 1 &&
-                horizontalWrapColumnCount > 0
+        enabled = horizontalWrapItemCount > 0 &&
+                horizontalWrapColumnCount > 0 &&
+                (enableRowHorizontalWrap || entryFocusRequester != null)
         itemCount = horizontalWrapItemCount
+        this.entryFocusRequester = entryFocusRequester
+        this.enableHorizontalLinks = enableRowHorizontalWrap
+    }
+    val cardUiStateFor = remember(cardUiMap) {
+        { aid: Long -> cardUiMap[aid] }
     }
 
     LaunchedEffect(Unit) {
@@ -234,15 +257,17 @@ fun SmallVideoCardGridHost(
      * - Toast
      * - NavigateUp
      */
-    LaunchedEffect(viewModel) {
-        viewModel.events.collect { event ->
-            when (event) {
-                is SmallVideoCardGridEvent.Toast -> {
-                    event.message.toast(context)
-                }
+    LaunchedEffect(viewModel, lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            viewModel.events.collect { event ->
+                when (event) {
+                    is SmallVideoCardGridEvent.Toast -> {
+                        event.message.toast(context)
+                    }
 
-                is SmallVideoCardGridEvent.NavigateUp -> {
-                    navigateUp(event.mid, event.name)
+                    is SmallVideoCardGridEvent.NavigateUp -> {
+                        navigateUp(event.mid, event.name)
+                    }
                 }
             }
         }
@@ -254,16 +279,28 @@ fun SmallVideoCardGridHost(
      */
     CompositionLocalProvider(
         LocalSmallVideoCardGridViewModel provides viewModel,
+        LocalSmallVideoCardGridUiState provides uiState,
         LocalGridRowWrapController provides rowWrapController
     ) {
+        val gridModifier = if (horizontalWrapItemCount <= 0 && entryFocusRequester != null) {
+            modifier
+                .focusRequester(entryFocusRequester)
+                .focusProperties {
+                    up = upFocusRequester ?: FocusRequester.Default
+                }
+                .focusable()
+        } else {
+            modifier
+        }
+
         TvLazyVerticalGrid(
             columns = columns,
-            modifier = modifier,
+            modifier = gridModifier,
             state = state,
             contentPadding = contentPadding,
             verticalArrangement = verticalArrangement,
             horizontalArrangement = horizontalArrangement,
-            content = content
+            content = { content(cardUiStateFor) }
         )
     }
 

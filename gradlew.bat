@@ -16,6 +16,12 @@
 @rem SPDX-License-Identifier: Apache-2.0
 @rem
 
+@echo off
+setlocal
+
+rem Force Gradle user home to be inside this project (Codex / sandbox friendly)
+set "GRADLE_USER_HOME=%~dp0.gradle-user-home"
+
 @if "%DEBUG%"=="" @echo off
 @rem ##########################################################################
 @rem

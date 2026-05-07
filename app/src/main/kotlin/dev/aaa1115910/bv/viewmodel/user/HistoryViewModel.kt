@@ -2,7 +2,6 @@ package dev.aaa1115910.bv.viewmodel.user
 
 import android.content.Context
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
@@ -20,11 +19,18 @@ import dev.aaa1115910.bv.util.fWarn
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.common.LoadState
+import dev.aaa1115910.bv.viewmodel.common.accountSessionKey
 import dev.aaa1115910.bv.viewmodel.common.canAutoLoad
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -41,7 +47,8 @@ class HistoryViewModel(
         private val logger = KotlinLogging.logger { }
     }
 
-    var histories = mutableStateListOf<VideoCardData>()
+    private val _histories = MutableStateFlow(persistentListOf<VideoCardData>())
+    val histories: StateFlow<ImmutableList<VideoCardData>> = _histories.asStateFlow()
     var noMore by mutableStateOf(false)
 
     // 历史页搜索状态（Home/Personal 共用同一个 VM）
@@ -70,8 +77,10 @@ class HistoryViewModel(
         private set
 
     @Volatile private var requestGeneration = 0L
+    private var loadedAccountSessionKey = userRepository.accountSessionKey()
 
     fun update(showErrorToast: Boolean = true) {
+        ensureAccountStateFresh()
         if (updateJob?.isActive == true) return
         val expectedGeneration = requestGeneration
         updateJob = viewModelScope.launch(Dispatchers.IO) {
@@ -83,19 +92,21 @@ class HistoryViewModel(
     }
 
     fun ensureLoaded(showErrorToast: Boolean = true) {
+        ensureAccountStateFresh()
         if (!initialLoadState.canAutoLoad()) return
         initialLoadState = LoadState.Loading
         update(showErrorToast = showErrorToast)
     }
 
     fun reloadAll(showErrorToast: Boolean = true) {
+        ensureAccountStateFresh()
         val shouldResumeAutoLoad = debouncedQuery.trim().isNotBlank()
 
         requestGeneration++
         updateJob?.cancel()
         lastFailureWasAuth = false
         stopAutoLoad()
-        histories.clear()
+        _histories.value = persistentListOf()
         cursor = 0
         noMore = false
         updating = false
@@ -110,13 +121,29 @@ class HistoryViewModel(
     fun clearData() {
         requestGeneration++
         updateJob?.cancel()
+        updateJob = null
         lastFailureWasAuth = false
         stopAutoLoad()
-        histories.clear()
+        _histories.value = persistentListOf()
         cursor = 0
         noMore = false
         updating = false
         initialLoadState = LoadState.Idle
+        loadedAccountSessionKey = userRepository.accountSessionKey()
+    }
+
+    private fun ensureAccountStateFresh() {
+        val currentAccountSessionKey = userRepository.accountSessionKey()
+        if (loadedAccountSessionKey == currentAccountSessionKey) return
+        clearData()
+        loadedAccountSessionKey = currentAccountSessionKey
+    }
+
+    fun cancelOngoingLoads() {
+        requestGeneration++
+        updateJob?.cancel()
+        updateJob = null
+        updating = false
     }
 
     private suspend fun updateHistories(
@@ -175,7 +202,7 @@ class HistoryViewModel(
 
             withContext(Dispatchers.Main) {
                 if (expectedGeneration != requestGeneration) return@withContext
-                histories.addAll(appended)
+                _histories.update { it.addAll(appended) }
             }
 
             cursor = data.cursor

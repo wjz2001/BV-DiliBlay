@@ -32,7 +32,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.focusable
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -43,6 +45,10 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -82,10 +88,12 @@ import dev.aaa1115910.bv.util.focusedScale
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.removeHtmlTags
 import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.util.rememberTvImageRequest
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.common.LoadState
 import dev.aaa1115910.bv.viewmodel.search.SearchResultViewModel
+import dev.aaa1115910.bv.viewmodel.SmallVideoCardItemUiState
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -97,15 +105,20 @@ fun SearchResultScreen(
     modifier: Modifier = Modifier,
     keyword: String? = null,
     enableProxy: Boolean? = null,
+    contentEntryFocusRequester: FocusRequester? = null,
     onBackToInput: (() -> Unit)? = null,
     searchResultViewModel: SearchResultViewModel = koinViewModel(),
     toViewViewModel: ToViewViewModel = koinViewModel()
 ) {
     val gridState = rememberLazyGridState()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val logger = KotlinLogging.logger { }
-    val tabRowFocusRequester = remember { FocusRequester() }
+    val internalTabRowFocusRequester = remember { FocusRequester() }
+    val tabRowFocusRequester = contentEntryFocusRequester ?: internalTabRowFocusRequester
+    val internalContentEntryFocusRequester = remember { FocusRequester() }
+    val resultContentEntryFocusRequester = internalContentEntryFocusRequester
 
     var rowSize by remember { mutableIntStateOf(4) }
 
@@ -118,7 +131,8 @@ fun SearchResultScreen(
         SearchType.MediaFt -> searchResultViewModel.mediaFtSearchResult
         SearchType.BiliUser -> searchResultViewModel.biliUserSearchResult
     }
-    val loadState = searchResultViewModel.loadStateOf(activeSearchType)
+    val loadStateMap by searchResultViewModel.loadStateMap.collectAsStateWithLifecycle()
+    val loadState = loadStateMap[activeSearchType] ?: LoadState.Idle
 
     var showFilter by remember { mutableStateOf(false) }
     var focusOnContent by remember { mutableStateOf(false) }
@@ -207,11 +221,13 @@ fun SearchResultScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        toViewViewModel.uiEvent.collect { event ->
-            when (event) {
-                is UiEffect.ShowToast -> {
-                    event.message.toast(context)
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            toViewViewModel.uiEvent.collect { event ->
+                when (event) {
+                    is UiEffect.ShowToast -> {
+                        event.message.toast(context)
+                    }
                 }
             }
         }
@@ -280,11 +296,11 @@ fun SearchResultScreen(
                         modifier = Modifier.weight(1f)
                     )
                     TopNav(
-                        modifier = Modifier
-                            .weight(2f)
-                            .focusRequester(tabRowFocusRequester),
+                        modifier = Modifier.weight(2f),
                         items = SearchTypeTopNavItem.entries,
                         selectedItem = focusedSearchType.toTopNavItem(),
+                        defaultFocusRequester = tabRowFocusRequester,
+                        contentFocusRequester = resultContentEntryFocusRequester,
                         onSelectedChanged = { nav ->
                             val target = (nav as SearchTypeTopNavItem).toSearchType()
                             searchResultViewModel.onSearchTypeFocused(target)
@@ -323,7 +339,13 @@ fun SearchResultScreen(
 
             if (currentItems.isEmpty() && loadState != LoadState.Idle) {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .focusRequester(resultContentEntryFocusRequester)
+                        .focusProperties {
+                            up = tabRowFocusRequester
+                        }
+                        .focusable(),
                     contentAlignment = Alignment.Center
                 ) {
                     when (loadState) {
@@ -350,9 +372,11 @@ fun SearchResultScreen(
                     contentPadding = PaddingValues(24.dp),
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                     horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    entryFocusRequester = resultContentEntryFocusRequester,
+                    upFocusRequester = tabRowFocusRequester,
                     horizontalWrapItemCount = currentItems.size,
                     horizontalWrapColumnCount = rowSize
-                ) {
+                ) { cardUiStateFor ->
                     itemsIndexed(
                         items = currentItems,
                         key = { _, item ->
@@ -367,16 +391,10 @@ fun SearchResultScreen(
                         SearchResultListItem(
                             modifier = rememberGridRowWrapModifier(index),
                             searchResult = item,
+                            uiState = (item as? SearchTypeResult.Video)?.let { cardUiStateFor(it.aid) },
                             onClick = { onClickResult(item) },
                             onAddWatchLater = { aid ->
                                 toViewViewModel.addToView(aid)
-                            },
-                            onGoToDetailPage = { aid ->
-                                VideoInfoActivity.actionStart(
-                                    context = context,
-                                    fromController = true,
-                                    aid = aid
-                                )
                             },
                             onGoToUpPage = { mid, upName ->
                                 UpInfoActivity.actionStart(context, mid, upName)
@@ -414,6 +432,12 @@ fun UpCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit = {}
 ) {
+    val faceRequest = rememberTvImageRequest(
+        url = face,
+        widthDp = 48.dp,
+        heightDp = 48.dp
+    )
+
     Surface(
         modifier = modifier
             .onFocusChanged { onFocusChange(it.hasFocus) }
@@ -448,7 +472,7 @@ fun UpCard(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape),
-                    model = face,
+                    model = faceRequest,
                     contentDescription = null,
                     contentScale = ContentScale.FillBounds
                 )
@@ -474,15 +498,16 @@ fun UpCard(
 private fun SearchResultListItem(
     modifier: Modifier = Modifier,
     searchResult: SearchTypeResult.SearchTypeResultItem,
+    uiState: SmallVideoCardItemUiState?,
     onClick: () -> Unit,
     onAddWatchLater: ((Long) -> Unit),
-    onGoToDetailPage: ((Long) -> Unit),
     onGoToUpPage: ((Long, String) -> Unit),
 ) {
     when (searchResult) {
         is SearchTypeResult.Video -> {
             SmallVideoCard(
                 frameModifier = modifier,
+                uiState = uiState,
                 data = VideoCardData(
                     avid = searchResult.aid,
                     title = searchResult.title.removeHtmlTags(),
@@ -496,7 +521,6 @@ private fun SearchResultListItem(
                 ),
                 onClick = onClick,
                 onAddWatchLater = { onAddWatchLater(searchResult.aid) },
-                onGoToDetailPage = { onGoToDetailPage(searchResult.aid) },
                 onGoToUpPage = { onGoToUpPage(searchResult.mid, searchResult.author) }
             )
         }

@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -53,6 +54,9 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -88,6 +92,7 @@ import dev.aaa1115910.bv.tv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.util.rememberTvImageRequest
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.FollowViewModel
 import kotlinx.coroutines.Job
@@ -116,9 +121,11 @@ fun FollowContent(
     onDrawerEntryConsumed: (Long) -> Unit = {},
     onDefaultFocusReady: (() -> Unit)? = null,
     lazyGridState: LazyGridState = rememberLazyGridState(),
-    followViewModel: FollowViewModel = koinViewModel()
+    followViewModel: FollowViewModel = koinViewModel(),
+    active: Boolean = true
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val contentEntryFocusRequester = remember { FocusRequester() }
 
@@ -168,7 +175,9 @@ fun FollowContent(
         searchDialogGroupId = null
     }
 
-    val groupList = followViewModel.groupCards
+    val groupList by followViewModel.groupCards.collectAsStateWithLifecycle()
+    val followTags by followViewModel.followTags.collectAsStateWithLifecycle()
+    val followGroupDialogInitialSelectedTagIds by followViewModel.followGroupDialogInitialSelectedTagIds.collectAsStateWithLifecycle()
     val focusedGroupId = followViewModel.focusedGroupId
     val currentGroupId = followViewModel.currentGroupId
 
@@ -188,28 +197,15 @@ fun FollowContent(
             val currentGroupIdInList = resolveGroupIdInList(currentGroupId)
 
             when {
-                focusOnTabs ->
+                else ->
                     focusedGroupIdInList
                         ?: currentGroupIdInList
-                        ?: groupList.firstOrNull()?.groupId
-
-                else ->
-                    currentGroupIdInList
                         ?: groupList.firstOrNull()?.groupId
             }
         }
     }
 
     val currentTabIndex by remember(displayFocusedGroupId, groupList) {
-        derivedStateOf {
-            if (groupList.isEmpty()) return@derivedStateOf 0
-            groupList.indexOfFirst { it.groupId == displayFocusedGroupId }
-                .takeIf { it >= 0 }
-                ?: 0
-        }
-    }
-
-    val navFocusTabIndex by remember(displayFocusedGroupId, groupList) {
         derivedStateOf {
             if (groupList.isEmpty()) return@derivedStateOf 0
             groupList.indexOfFirst { it.groupId == displayFocusedGroupId }
@@ -236,8 +232,10 @@ fun FollowContent(
         requestedGroupFocusId,
         groupList,
         followViewModel.activeGroupId,
-        followViewModel.focusedGroupId
+        followViewModel.focusedGroupId,
+        active
     ) {
+        if (!active) return@LaunchedEffect
         if (pendingDrawerEntryRequest == null) return@LaunchedEffect
         val desiredGroupId = requestedGroupFocusId ?: return@LaunchedEffect
         if (groupList.none { it.groupId == desiredGroupId }) return@LaunchedEffect
@@ -264,6 +262,21 @@ fun FollowContent(
         }
     }
 
+    val navFocusTabIndex by remember(
+        pendingDrawerEntryRequest?.id,
+        focusTargetIndex,
+        displayFocusedGroupId,
+        groupList
+    ) {
+        derivedStateOf {
+            if (pendingDrawerEntryRequest != null) return@derivedStateOf focusTargetIndex
+            if (groupList.isEmpty()) return@derivedStateOf 0
+            groupList.indexOfFirst { it.groupId == displayFocusedGroupId }
+                .takeIf { it >= 0 }
+                ?: 0
+        }
+    }
+
     val visibleUsers by remember {
         derivedStateOf {
             val groupId = followViewModel.currentGroupId
@@ -284,12 +297,17 @@ fun FollowContent(
 
     val tabRequesters = remember { mutableMapOf<Int, FocusRequester>() }
     groupList.forEach { group ->
-        tabRequesters.getOrPut(group.groupId) { FocusRequester() }
+        androidx.compose.runtime.key(group.groupId) {
+            val requester = remember { FocusRequester() }
+            tabRequesters[group.groupId] = requester
+        }
     }
-
     val userRequesters = remember { mutableMapOf<String, FocusRequester>() }
     visibleUsers.forEach { user ->
-        userRequesters.getOrPut(user.stableKey) { FocusRequester() }
+        androidx.compose.runtime.key(user.stableKey) {
+            val requester = remember { FocusRequester() }
+            userRequesters[user.stableKey] = requester
+        }
     }
     val contentFocusLinks = remember(visibleUsers) {
         buildGridFocusLinks(
@@ -306,25 +324,37 @@ fun FollowContent(
         }
     }
 
-    LaunchedEffect(Unit) {
-        followViewModel.uiEvent.collect { event ->
-            when (event) {
-                is UiEffect.ShowToast -> event.message.toast(context)
+    LaunchedEffect(lifecycleOwner, active) {
+        if (!active) return@LaunchedEffect
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            followViewModel.uiEvent.collect { event ->
+                when (event) {
+                    is UiEffect.ShowToast -> event.message.toast(context)
+                }
             }
         }
     }
 
-    DisposableEffect(Unit) {
+    LaunchedEffect(active) {
+        if (active) {
+            followViewModel.activateFollowScreen()
+        } else {
+            followViewModel.freezeFollowScreen()
+        }
         followViewModel.syncGroupActivationToCurrent()
+    }
 
+    DisposableEffect(Unit) {
         onDispose {
+            followViewModel.freezeFollowScreen()
             followViewModel.syncGroupActivationToCurrent()
             groupQueryStates.values.forEach { it.debounceJob?.cancel() }
             groupQueryStates.clear()
         }
     }
 
-    LaunchedEffect(followViewModel.activeGroupId, groupList) {
+    LaunchedEffect(followViewModel.activeGroupId, groupList, active) {
+        if (!active) return@LaunchedEffect
         if (followViewModel.activeGroupId == null && groupList.isNotEmpty()) {
             followViewModel.onGroupClicked(groupList.first().groupId)
         }
@@ -334,7 +364,8 @@ fun FollowContent(
         readyFocusTargetGroupId = null
     }
 
-    LaunchedEffect(readyFocusTargetGroupId, focusTargetGroupId) {
+    LaunchedEffect(readyFocusTargetGroupId, focusTargetGroupId, active) {
+        if (!active) return@LaunchedEffect
         val targetGroupId = focusTargetGroupId ?: return@LaunchedEffect
         if (readyFocusTargetGroupId == targetGroupId) {
             onDefaultFocusReady?.invoke()
@@ -346,8 +377,10 @@ fun FollowContent(
         readyFocusTargetGroupId,
         focusTargetGroupId,
         followViewModel.activeGroupId,
-        followViewModel.focusedGroupId
+        followViewModel.focusedGroupId,
+        active
     ) {
+        if (!active) return@LaunchedEffect
         val request = pendingDrawerEntryRequest ?: return@LaunchedEffect
         val targetGroupId = focusTargetGroupId ?: return@LaunchedEffect
         if (readyFocusTargetGroupId != targetGroupId) return@LaunchedEffect
@@ -409,8 +442,7 @@ fun FollowContent(
                                 if (!state.hasFocus) {
                                     followViewModel.syncGroupActivationToCurrent()
                                 }
-                            }
-                            .focusRestorer(navFocusRequester),
+                            },
                         selectedTabIndex = currentTabIndex,
                         separator = { Spacer(modifier = Modifier.width(12.dp)) },
                         indicator = { tabPositions, doesTabRowHaveFocus ->
@@ -646,8 +678,8 @@ fun FollowContent(
     FollowGroupSelectDialog(
         show = followViewModel.showFollowGroupDialog,
         title = "选择关注分组",
-        tags = followViewModel.followTags.map { BlockTagItem(it.tagid, it.name, it.count) },
-        initialSelectedTagIds = followViewModel.followGroupDialogInitialSelectedTagIds,
+        tags = followTags.map { BlockTagItem(it.tagid, it.name, it.count) },
+        initialSelectedTagIds = followGroupDialogInitialSelectedTagIds,
         onHideDialog = { followViewModel.hideFollowGroupDialog() },
         onSubmit = { selectedTagIds ->
             followViewModel.submitFollowGroupSelection(selectedTagIds)
@@ -767,6 +799,12 @@ private fun UpCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit = {}
 ) {
+    val faceRequest = rememberTvImageRequest(
+        url = face,
+        widthDp = 48.dp,
+        heightDp = 48.dp
+    )
+
     Surface(
         modifier = modifier
             .onFocusChanged { onFocusChange(it.hasFocus) }
@@ -799,7 +837,7 @@ private fun UpCard(
             ) {
                 AsyncImage(
                     modifier = Modifier.fillMaxSize(),
-                    model = face,
+                    model = faceRequest,
                     contentDescription = null,
                     contentScale = ContentScale.FillBounds
                 )

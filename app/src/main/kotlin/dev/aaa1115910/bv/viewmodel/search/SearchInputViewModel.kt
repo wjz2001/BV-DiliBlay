@@ -1,7 +1,6 @@
 package dev.aaa1115910.bv.viewmodel.search
 
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
@@ -13,10 +12,15 @@ import dev.aaa1115910.bv.dao.AppDatabase
 import dev.aaa1115910.bv.entity.db.SearchHistoryDB
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
-import dev.aaa1115910.bv.util.swapListWithMainContext
 import dev.aaa1115910.bv.util.toast
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.KoinViewModel
@@ -31,9 +35,12 @@ class SearchInputViewModel(
 
     var keyword by mutableStateOf("")
     var enableProxy by mutableStateOf(false)
-    val hotwords = mutableStateListOf<Hotword>()
-    val suggests = mutableStateListOf<String>()
-    val searchHistories = mutableStateListOf<SearchHistoryDB>()
+    private val _hotwords = MutableStateFlow(persistentListOf<Hotword>())
+    val hotwords: StateFlow<ImmutableList<Hotword>> = _hotwords.asStateFlow()
+    private val _suggests = MutableStateFlow(persistentListOf<String>())
+    val suggests: StateFlow<ImmutableList<String>> = _suggests.asStateFlow()
+    private val _searchHistories = MutableStateFlow(persistentListOf<SearchHistoryDB>())
+    val searchHistories: StateFlow<ImmutableList<SearchHistoryDB>> = _searchHistories.asStateFlow()
 
     @Volatile
     private var suggestRequestVersion = 0L
@@ -75,8 +82,7 @@ class SearchInputViewModel(
                 )
                 logger.debug { "Find hotwords: $hotwordData" }
                 withContext(Dispatchers.Main) {
-                    hotwords.clear()
-                    hotwords.addAll(hotwordData)
+                    _hotwords.value = hotwordData.toPersistentList()
                     hotwordsLoaded = true
                     hotwordsLoading = false
                     hotwordShouldToastOnFailure = false
@@ -105,7 +111,7 @@ class SearchInputViewModel(
         if (requestKeyword.isBlank()) {
             viewModelScope.launch(Dispatchers.Main) {
                 if (expectedVersion != suggestRequestVersion) return@launch
-                suggests.clear()
+                _suggests.value = persistentListOf()
             }
             return
         }
@@ -119,8 +125,7 @@ class SearchInputViewModel(
                 logger.debug { "Find suggests: $keywordSuggest" }
                 withContext(Dispatchers.Main) {
                     if (expectedVersion != suggestRequestVersion) return@withContext
-                    suggests.clear()
-                    suggests.addAll(keywordSuggest)
+                    _suggests.value = keywordSuggest.toPersistentList()
                 }
             }.onFailure {
                 withContext(Dispatchers.Main) {
@@ -149,10 +154,10 @@ class SearchInputViewModel(
             runCatching {
                 val histories = db.searchHistoryDao().getHistories(20)
                 withContext(Dispatchers.Main) {
-                    searchHistories.swapListWithMainContext(histories)
+                    _searchHistories.value = histories.toPersistentList()
                     historiesLoaded = true
                     historiesLoading = false
-                    logger.fInfo { "Load search histories finish, size: ${searchHistories.size}" }
+                    logger.fInfo { "Load search histories finish, size: ${_searchHistories.value.size}" }
                     val shouldRefreshAgain = historiesRefreshPending
                     historiesRefreshPending = false
                     if (shouldRefreshAgain) {

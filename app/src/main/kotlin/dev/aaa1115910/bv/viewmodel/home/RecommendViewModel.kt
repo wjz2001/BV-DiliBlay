@@ -3,7 +3,6 @@ package dev.aaa1115910.bv.viewmodel.home
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.aaa1115910.biliapi.entity.home.RecommendPage
 import dev.aaa1115910.biliapi.entity.ugc.UgcItem
@@ -18,10 +17,17 @@ import dev.aaa1115910.bv.util.fError
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.common.LoadState
+import dev.aaa1115910.bv.viewmodel.common.RuntimeAwareViewModel
 import dev.aaa1115910.bv.viewmodel.common.canAutoLoad
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -33,10 +39,10 @@ import org.koin.core.annotation.KoinViewModel
 class RecommendViewModel(
     private val recommendVideoRepository: RecommendVideoRepository,
     private val userRepository: UserRepository
-) : ViewModel() {
+) : RuntimeAwareViewModel() {
     private val logger = KotlinLogging.logger {}
-    var recommendVideoList by mutableStateOf<List<UgcItem>>(emptyList())
-        private set
+    private val _recommendVideoList = MutableStateFlow(persistentListOf<UgcItem>())
+    val recommendVideoList: StateFlow<ImmutableList<UgcItem>> = _recommendVideoList.asStateFlow()
 
     private var nextPage = RecommendPage()
     var refreshing by mutableStateOf(true)
@@ -67,8 +73,8 @@ class RecommendViewModel(
                 var loadCount = 0
                 val maxLoadMoreCount = 3
 
-                if (recommendVideoList.isEmpty()) {
-                    while (recommendVideoList.size < 24 && loadCount < maxLoadMoreCount) {
+                if (_recommendVideoList.value.isEmpty()) {
+                    while (_recommendVideoList.value.size < 24 && loadCount < maxLoadMoreCount) {
                         val callback = if (loadCount == 0) beforeAppendData else ({})
                         val loaded = loadData(
                             beforeAppendData = callback,
@@ -125,7 +131,7 @@ class RecommendViewModel(
 
                 beforeAppendData()
                 nextPage = recommendData.nextPage
-                recommendVideoList = recommendVideoList + filtered
+                _recommendVideoList.update { it.addAll(filtered) }
 
                 lastFailureWasAuth = false
                 initialLoadState = LoadState.Success
@@ -181,11 +187,18 @@ class RecommendViewModel(
         requestVersion++
         loadJob?.cancel()
         loadJob = null
-        recommendVideoList = emptyList()
+        _recommendVideoList.value = persistentListOf()
         resetPage()
         loading = false
         initialLoadState = LoadState.Idle
         lastFailureWasAuth = false
+    }
+
+    fun cancelOngoingLoads() {
+        requestVersion++
+        loadJob?.cancel()
+        loadJob = null
+        loading = false
     }
 
     fun ensureLoaded(showErrorToast: Boolean = true) {
@@ -198,7 +211,7 @@ class RecommendViewModel(
         requestVersion++
         loadJob?.cancel()
         loadJob = null
-        recommendVideoList = emptyList()
+        _recommendVideoList.value = persistentListOf()
         resetPage()
         loading = false
         initialLoadState = LoadState.Loading
@@ -209,5 +222,17 @@ class RecommendViewModel(
     fun resetPage() {
         nextPage = RecommendPage()
         refreshing = true
+    }
+
+    override fun onRuntimeActive() {
+        ensureLoaded(showErrorToast = false)
+    }
+
+    override fun onRuntimeFrozen() {
+        cancelOngoingLoads()
+    }
+
+    override fun onRuntimeDisposed() {
+        cancelOngoingLoads()
     }
 }

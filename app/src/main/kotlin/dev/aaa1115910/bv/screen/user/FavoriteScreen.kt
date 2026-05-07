@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -36,10 +37,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
@@ -53,6 +56,9 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
@@ -78,6 +84,7 @@ import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
 import dev.aaa1115910.bv.entity.VideoSource
+import dev.aaa1115910.bv.entity.state.GridViewportState
 import dev.aaa1115910.bv.tv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.theme.C
@@ -90,6 +97,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
+import kotlinx.collections.immutable.persistentListOf
 import org.koin.androidx.compose.koinViewModel
 
 private class FolderQueryState {
@@ -102,13 +110,24 @@ private class FolderQueryState {
 fun FavoriteScreen(
     modifier: Modifier = Modifier,
     lazyGridState: LazyGridState = rememberLazyGridState(),
+    active: Boolean = true,
+    activationSerial: Long = 0L,
+    refreshSerial: Long = 0L,
     favoriteViewModel: FavoriteViewModel = koinViewModel(),
     toViewViewModel: ToViewViewModel = koinViewModel(),
+    contentEntryFocusRequester: FocusRequester? = null,
+    tabFocusRequester: FocusRequester? = null,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
+    val folderList by favoriteViewModel.favoriteFolderMetadataList.collectAsStateWithLifecycle()
+    val folderStates by favoriteViewModel.folderStates.collectAsStateWithLifecycle()
     val defaultFocusRequester = remember { FocusRequester() }
+    val internalContentEntryFocusRequester = remember { FocusRequester() }
+    val favoriteTabFocusRequester = contentEntryFocusRequester ?: defaultFocusRequester
+    val favoriteContentEntryFocusRequester = internalContentEntryFocusRequester
     var focusOnTabs by remember { mutableStateOf(true) }
     var pendingBackToTabsFocus by remember { mutableStateOf(false) }
     var readyFocusTargetFolderId by remember { mutableStateOf<Long?>(null) }
@@ -145,7 +164,6 @@ fun FavoriteScreen(
         st.debouncedQuery = st.rawQuery
     }
 
-    val folderList = favoriteViewModel.favoriteFolderMetadataList
     val focusedFolderId = favoriteViewModel.focusedFolderId
     val activeFolderId = favoriteViewModel.activeFolderId
 
@@ -157,6 +175,18 @@ fun FavoriteScreen(
     val currentFolderId by remember(folderList, favoriteViewModel.currentFavoriteFolderMetadata) {
         derivedStateOf {
             resolveFolderIdInList(favoriteViewModel.currentFavoriteFolderMetadata?.id)
+        }
+    }
+
+    val currentFolderState by remember(folderStates, currentFolderId) {
+        derivedStateOf {
+            currentFolderId?.let { folderStates[it] }
+        }
+    }
+
+    val favorites by remember(currentFolderState) {
+        derivedStateOf {
+            currentFolderState?.items ?: persistentListOf()
         }
     }
 
@@ -210,13 +240,13 @@ fun FavoriteScreen(
 
     val visibleFavorites by remember {
         derivedStateOf {
-            val folderId = currentFolderId ?: return@derivedStateOf favoriteViewModel.favorites
+            val folderId = currentFolderId ?: return@derivedStateOf favorites
 
             val q = folderQueryStates[folderId]?.debouncedQuery?.trim().orEmpty()
             if (q.isBlank()) {
-                favoriteViewModel.favorites
+                favorites
             } else {
-                favoriteViewModel.favorites.filter { it.title.contains(q, ignoreCase = true) }
+                favorites.filter { it.title.contains(q, ignoreCase = true) }
             }
         }
     }
@@ -272,7 +302,7 @@ fun FavoriteScreen(
 
     fun requestTabsFocus() {
         pendingBackToTabsFocus = true
-        defaultFocusRequester.requestFocus(scope)
+        favoriteTabFocusRequester.requestFocus(scope)
     }
 
     fun closeSearchDialog(apply: Boolean) {
@@ -301,6 +331,16 @@ fun FavoriteScreen(
         }
     }
 
+    DisposableEffect(active) {
+        if (active) {
+            favoriteViewModel.updateLoadingPaused(false)
+        }
+
+        onDispose {
+            favoriteViewModel.cancelOngoingLoads()
+        }
+    }
+
     // Dialog 打开时暂停加载；关闭后继续
     // 模式切换：无关键词触底翻页；有关键词自动补页
     DisposableEffect(Unit) {
@@ -312,6 +352,20 @@ fun FavoriteScreen(
             folderQueryStates.clear()
             favoriteViewModel.stopAutoLoad()
         }
+    }
+
+    LaunchedEffect(active, activationSerial) {
+        if (!active) return@LaunchedEffect
+        if (activationSerial == 0L) return@LaunchedEffect
+        withFrameNanos { }
+        favoriteViewModel.ensureLoaded()
+    }
+
+    LaunchedEffect(active, refreshSerial) {
+        if (!active) return@LaunchedEffect
+        if (refreshSerial == 0L) return@LaunchedEffect
+        lazyGridState.scrollToItem(0)
+        favoriteViewModel.reloadAll()
     }
 
     LaunchedEffect(
@@ -326,13 +380,45 @@ fun FavoriteScreen(
         }
     }
 
+    LaunchedEffect(currentFolderId) {
+        val folderId = currentFolderId ?: return@LaunchedEffect
+        val viewport = folderStates[folderId]?.viewport
+
+        if (viewport != null) {
+            lazyGridState.scrollToItem(viewport.index, viewport.scrollOffset)
+        } else {
+            lazyGridState.scrollToItem(0)
+        }
+    }
+
+    LaunchedEffect(lazyGridState, currentFolderId, active) {
+        if (!active) return@LaunchedEffect
+        val folderId = currentFolderId ?: return@LaunchedEffect
+
+        snapshotFlow {
+            GridViewportState(
+                index = lazyGridState.firstVisibleItemIndex,
+                scrollOffset = lazyGridState.firstVisibleItemScrollOffset
+            )
+        }.distinctUntilChanged().collect {
+            favoriteViewModel.updateFolderViewport(folderId, it)
+        }
+    }
+
     LaunchedEffect(
         currentFolderId,
         currentFolderQuery,
         showSearchDialog,
         focusOnTabs,
-        forceResumeSearchAutoLoadFolderId
+        forceResumeSearchAutoLoadFolderId,
+        active
     ) {
+        if (!active) {
+            favoriteViewModel.stopAutoLoad()
+            favoriteViewModel.updateLoadingPaused(true)
+            return@LaunchedEffect
+        }
+
         val id = currentFolderId
         val inSearchMode = id != null && currentFolderQuery.isNotBlank()
 
@@ -369,14 +455,15 @@ fun FavoriteScreen(
         favoriteViewModel.startAutoLoad()
     }
 
-    LaunchedEffect(lazyGridState, currentFolderId, currentFolderQuery) {
+    LaunchedEffect(lazyGridState, currentFolderId, currentFolderQuery, active) {
+        if (!active) return@LaunchedEffect
         if (currentFolderId == null) return@LaunchedEffect
         if (currentFolderQuery.isNotBlank()) return@LaunchedEffect
 
         snapshotFlow { lazyGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
             .distinctUntilChanged()
             .filter { index ->
-                index != null && index >= favoriteViewModel.favorites.size - 20
+                index != null && index >= favorites.size - 20
             }
             .collect {
                 favoriteViewModel.updateFolderItems()
@@ -390,8 +477,10 @@ fun FavoriteScreen(
         currentFolderQuery,
         showSearchDialog,
         focusedFolderId,
-        focusOnTabs
+        focusOnTabs,
+        active
     ) {
+        if (!active) return@LaunchedEffect
         val id = autoLoadGateTargetFolderId ?: return@LaunchedEffect
         if (currentFolderQuery.isBlank() || showSearchDialog) return@LaunchedEffect
 
@@ -428,15 +517,17 @@ fun FavoriteScreen(
             readyFocusTargetFolderId == targetFolderId
         ) {
             pendingBackToTabsFocus = false
-            defaultFocusRequester.requestFocus(scope)
+            favoriteTabFocusRequester.requestFocus(scope)
         }
     }
 
-    LaunchedEffect(Unit) {
-        toViewViewModel.uiEvent.collect { event ->
-            when (event) {
-                is UiEffect.ShowToast -> {
-                    event.message.toast(context)
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            toViewViewModel.uiEvent.collect { event ->
+                when (event) {
+                    is UiEffect.ShowToast -> {
+                        event.message.toast(context)
+                    }
                 }
             }
         }
@@ -467,7 +558,7 @@ fun FavoriteScreen(
                     } else {
                         // 如果焦点在下面的内容（LazyVerticalGrid）里，
                         // 则将焦点移动到 TabRow
-                        defaultFocusRequester.requestFocus()
+                        favoriteTabFocusRequester.requestFocus()
                     }
                     // 返回 true，表示此事件已处理，系统无需再做默认的返回操作
                     return@onPreviewKeyEvent true
@@ -492,7 +583,7 @@ fun FavoriteScreen(
                                 favoriteViewModel.syncFolderActivationToCurrent()
                             }
                         }
-                        .focusRestorer(defaultFocusRequester),
+                        .focusRestorer(favoriteTabFocusRequester),
                     selectedTabIndex = currentTabIndex,
                     separator = { MainTopTabSeparator() },
                     indicator = mainTopTabIndicator(currentTabIndex),
@@ -509,11 +600,14 @@ fun FavoriteScreen(
                             .ifElse(
                                 index == focusTargetIndex,
                                 Modifier
-                                    .focusRequester(defaultFocusRequester)
+                                    .focusRequester(favoriteTabFocusRequester)
                                     .onGloballyPositioned {
                                         readyFocusTargetFolderId = folderId
                                     }
                             )
+                            .focusProperties {
+                                down = favoriteContentEntryFocusRequester
+                            }
                             .onPreviewKeyEvent { event ->
                                 val isConfirmKey =
                                     event.key == Key.DirectionCenter ||
@@ -604,8 +698,11 @@ fun FavoriteScreen(
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
-            horizontalWrapItemCount = visibleFavorites.size
-        ) {
+            horizontalWrapItemCount = visibleFavorites.size,
+            horizontalWrapColumnCount = 4,
+            entryFocusRequester = favoriteContentEntryFocusRequester,
+            upFocusRequester = favoriteTabFocusRequester
+        ) { cardUiStateFor ->
             if (visibleFavorites.isNotEmpty()) {
                 itemsIndexed(
                     items = visibleFavorites,
@@ -614,6 +711,7 @@ fun FavoriteScreen(
                     Box(contentAlignment = Alignment.Center) {
                         SmallVideoCard(
                             frameModifier = rememberGridRowWrapModifier(index),
+                            uiState = cardUiStateFor(favorite.avid),
                             data = favorite,
                             onClick = {
                                 VideoInfoActivity.actionStart(
@@ -625,15 +723,6 @@ fun FavoriteScreen(
                             },
                             onAddWatchLater = {
                                 toViewViewModel.addToView(favorite.avid)
-                            },
-                            onGoToDetailPage = {
-                                VideoInfoActivity.actionStart(
-                                    context = context,
-                                    fromController = true,
-                                    aid = favorite.avid,
-                                    epid = favorite.epId,
-                                    source = if (favorite.epId != null) VideoSource.Pgc else VideoSource.Ugc,
-                                )
                             },
                             onGoToUpPage = favorite.upMid?.let {
                                 { UpInfoActivity.actionStart(context, it, favorite.upName) }
@@ -653,7 +742,7 @@ fun FavoriteScreen(
     if (showSearchDialog) {
         val folderId = searchDialogFolderId
         val folderTitle =
-            favoriteViewModel.favoriteFolderMetadataList.firstOrNull { it.id == folderId }?.title.orEmpty()
+            folderList.firstOrNull { it.id == folderId }?.title.orEmpty()
 
         if (folderId != null) {
             val st = getQueryState(folderId)

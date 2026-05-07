@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -61,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.createBitmap
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.ui.theme.ThemeMode
@@ -222,7 +222,9 @@ private fun Key.issettingsActivationKey(): Boolean {
 
 @Composable
 private fun rememberIsDarkFromPrefs(): Boolean {
-    val themeModeOrdinal by Prefs.themeModeFlow.collectAsState(Prefs.themeMode.ordinal)
+    val themeModeOrdinal by Prefs.themeModeFlow.collectAsStateWithLifecycle(
+        initialValue = Prefs.themeMode.ordinal
+    )
     val themeMode = remember(themeModeOrdinal) { ThemeMode.fromOrdinal(themeModeOrdinal) }
     return themeMode == ThemeMode.DARK
 }

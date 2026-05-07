@@ -25,11 +25,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.BlendMode
@@ -39,8 +42,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
@@ -66,9 +71,11 @@ import dev.aaa1115910.bv.ui.theme.C
 
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.resizedImageUrl
+import dev.aaa1115910.bv.util.rememberTvImageRequest
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.pgc.PgcViewModel.FeedListType
 import dev.aaa1115910.bv.viewmodel.pgc.PgcViewModel
+import kotlinx.collections.immutable.ImmutableList
 
 @Composable
 fun PgcScaffold(
@@ -76,16 +83,26 @@ fun PgcScaffold(
     lazyListState: LazyListState,
     pgcViewModel: PgcViewModel,
     pgcType: PgcType,
+    active: Boolean = true,
+    contentEntryFocusRequester: FocusRequester? = null,
+    tabFocusRequester: FocusRequester? = null,
     featureButtons: (@Composable () -> Unit)? = null
 ) {
     val context = LocalContext.current
-    val carouselFocusRequester = remember { FocusRequester() }
+    val internalCarouselFocusRequester = remember { FocusRequester() }
+    val carouselFocusRequester = contentEntryFocusRequester ?: internalCarouselFocusRequester
 
-    val carouselItems = pgcViewModel.carouselItems
-    val pgcFeeds = pgcViewModel.feedItems
+    val carouselItems by pgcViewModel.carouselItems.collectAsStateWithLifecycle()
+    val pgcFeeds by pgcViewModel.feedItems.collectAsStateWithLifecycle()
 
     LazyColumn(
-        modifier = modifier,
+        modifier = modifier.onPreviewKeyEvent {
+            if ((it.key == Key.Back || it.key == Key.DirectionUp) && it.type == KeyEventType.KeyUp) {
+                tabFocusRequester?.requestFocus()
+                return@onPreviewKeyEvent tabFocusRequester != null
+            }
+            false
+        },
         state = lazyListState
     ) {
         item {
@@ -99,7 +116,10 @@ fun PgcScaffold(
                     modifier = Modifier
                         .width(880.dp)
                         .padding(32.dp, 0.dp)
-                        .focusRequester(carouselFocusRequester),
+                        .focusRequester(carouselFocusRequester)
+                        .focusProperties {
+                            up = tabFocusRequester ?: FocusRequester.Default
+                        },
                     data = carouselItems,
                     onClick = { item ->
                         SeasonInfoActivity.actionStart(
@@ -125,7 +145,15 @@ fun PgcScaffold(
                 )
             }
         }
-        itemsIndexed(items = pgcFeeds) { index, feedListItem ->
+        itemsIndexed(
+            items = pgcFeeds,
+            key = { _, feedListItem ->
+                when (feedListItem.type) {
+                    FeedListType.Ep -> "ep_${feedListItem.items?.firstOrNull()?.seasonId ?: 0}"
+                    FeedListType.Rank -> "rank_${feedListItem.rank?.title.orEmpty()}"
+                }
+            }
+        ) { index, feedListItem ->
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -133,7 +161,7 @@ fun PgcScaffold(
                     .onFocusChanged {
                         if (it.hasFocus) {
                             if (index + 10 > pgcFeeds.size) {
-                                pgcViewModel.loadMore()
+                                if (active) pgcViewModel.loadMore()
                             }
                         }
                     },
@@ -156,7 +184,7 @@ fun PgcScaffold(
 @Composable
 fun PgcFeedVideoRow(
     modifier: Modifier = Modifier,
-    data: List<PgcItem>
+    data: ImmutableList<PgcItem>
 ) {
     val context = LocalContext.current
     LazyRow(
@@ -204,6 +232,12 @@ fun PgcFeedRankRow(
             .background(C.scrim)
     ) {
         BoxWithConstraints {
+            val coverRequest = rememberTvImageRequest(
+                url = data.cover,
+                widthDp = maxHeight * 1.6f,
+                heightDp = maxHeight
+            )
+
             AsyncImage(
                 modifier = Modifier
                     .fillMaxHeight()
@@ -224,7 +258,7 @@ fun PgcFeedRankRow(
                             blendMode = BlendMode.DstIn
                         )
                     },
-                model = data.cover,
+                model = coverRequest,
                 contentDescription = null,
                 contentScale = ContentScale.FillHeight,
                 alpha = 1f

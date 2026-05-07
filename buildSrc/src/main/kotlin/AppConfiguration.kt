@@ -15,7 +15,6 @@ object AppConfiguration {
     const val TARGET_SDK = 36
 
     const val LIB_VLC_VERSION = "3.0.18"
-    var googleServicesAvailable = true
 
     private val rootDir: File by lazy { File(System.getProperty("user.dir")) }
     private val versionPropsFile: File by lazy { File(rootDir, "version.properties") }
@@ -79,19 +78,6 @@ object AppConfiguration {
         val gitHash = "git rev-parse --short HEAD".exec().trim()
 
         return "v$datePart${hotfixSuffix()}.r$vc.$gitHash"
-    }
-
-    init {
-        initConfigurations()
-    }
-
-    private fun initConfigurations() {
-        val googleServicesJsonPath = File(System.getProperty("user.dir"), "app/google-services.json").absolutePath
-        val googleServicesJsonFile = File(googleServicesJsonPath)
-        googleServicesAvailable =
-            googleServicesJsonFile.exists() && googleServicesJsonFile.readText().let {
-                it.contains(APPLICATION_ID) && it.contains("$APPLICATION_ID.r8test") && it.contains("$APPLICATION_ID.debug")
-            }
     }
 }
 

@@ -25,7 +25,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,14 +49,11 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppRed
 import dev.aaa1115910.bv.ui.theme.AppWhite
-import dev.aaa1115910.bv.util.ApiTestLoginExportPayload
 import dev.aaa1115910.bv.util.ApiTestLoginExportUtil
+import dev.aaa1115910.bv.util.ApiTestLoginExportPayload
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.login.AppQrLoginViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -66,7 +62,6 @@ fun AppQRLoginContent(
     appQrLoginViewModel: AppQrLoginViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
     var exportResultText by remember { mutableStateOf<String?>(null) }
     var permissionPendingPayload by remember { mutableStateOf<ApiTestLoginExportPayload?>(null) }
     val loginSuccessText = stringResource(R.string.login_success)
@@ -74,17 +69,15 @@ fun AppQRLoginContent(
     val exportSuccessFormat = stringResource(R.string.login_export_success, "%s")
     val exportFailedFormat = stringResource(R.string.login_export_failed, "%s")
 
-    suspend fun exportPayload(payload: ApiTestLoginExportPayload) {
-        val result = withContext(Dispatchers.IO) {
-            ApiTestLoginExportUtil.exportToDownloads(context, payload)
+    fun exportPayload(payload: ApiTestLoginExportPayload) {
+        appQrLoginViewModel.exportApiTestLoginPayload(context, payload) { result ->
+            val message = result.fold(
+                onSuccess = { exportSuccessFormat.format(it) },
+                onFailure = { exportFailedFormat.format(it.message ?: it.javaClass.simpleName) }
+            )
+            exportResultText = message
+            message.toast(context, LENGTH_LONG)
         }
-        val message = result.fold(
-            onSuccess = { exportSuccessFormat.format(it) },
-            onFailure = { exportFailedFormat.format(it.message ?: it.javaClass.simpleName) }
-        )
-        exportResultText = message
-        message.toast(context, LENGTH_LONG)
-        appQrLoginViewModel.clearPendingApiTestExport()
     }
 
     val legacyStoragePermissionLauncher = rememberLauncherForActivityResult(
@@ -93,9 +86,7 @@ fun AppQRLoginContent(
         val payload = permissionPendingPayload
         permissionPendingPayload = null
         if (granted && payload != null) {
-            coroutineScope.launch {
-                exportPayload(payload)
-            }
+            exportPayload(payload)
         } else {
             exportResultText = exportPermissionDeniedText
             exportPermissionDeniedText.toast(context, LENGTH_LONG)

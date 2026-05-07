@@ -23,9 +23,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -45,6 +45,7 @@ import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.ThemeMode
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.focusedBorder
+import dev.aaa1115910.bv.util.rememberTvImageRequest
 
 @Composable
 fun LargeVideoCard(
@@ -62,6 +63,11 @@ fun LargeVideoCard(
     )
 
     val height = 160.dp
+    val coverRequest = rememberTvImageRequest(
+        url = data.cover,
+        widthDp = height * 1.6f,
+        heightDp = height
+    )
 
     LaunchedEffect(hasFocus) {
         if (hasFocus) onFocus()
@@ -70,7 +76,10 @@ fun LargeVideoCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .scale(scale)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .onFocusChanged { hasFocus = it.isFocused }
             .focusedBorder(MaterialTheme.shapes.medium)
             .clickable { onClick() },
@@ -87,7 +96,7 @@ fun LargeVideoCard(
                             .fillMaxHeight()
                             .aspectRatio(1.6f)
                             .clip(MaterialTheme.shapes.large),
-                        model = data.cover,
+                        model = coverRequest,
                         contentDescription = null,
                         contentScale = ContentScale.FillBounds
                     )

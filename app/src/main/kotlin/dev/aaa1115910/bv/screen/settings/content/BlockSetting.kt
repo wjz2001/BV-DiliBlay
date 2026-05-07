@@ -38,23 +38,20 @@ import dev.aaa1115910.bv.relation.RelationGroupsDataSource
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.toast
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import dev.aaa1115910.bv.viewmodel.settings.BlockSettingViewModel
+import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun BlockSetting(
     modifier: Modifier = Modifier,
-    contentActive: Boolean = false
+    contentActive: Boolean = false,
+    blockSettingViewModel: BlockSettingViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
 
     var updating by remember { mutableStateOf(false) }
-    var updateJob by remember { mutableStateOf<Job?>(null) }
     var showGroupDialog by remember { mutableStateOf(false) }
     var showPageDialog by remember { mutableStateOf(false) }
 
@@ -79,8 +76,7 @@ fun BlockSetting(
 
     DisposableEffect(Unit) {
         onDispose {
-            updateJob?.cancel()
-            updateJob = null
+            blockSettingViewModel.cancelUpdate()
             updating = false
         }
     }
@@ -149,45 +145,34 @@ fun BlockSetting(
                     return@SettingListItem
                 }
 
-                updating = true
-                updateJob = scope.launch(Dispatchers.IO) {
-                    try {
-                        val result = BlockManager.updateByUser()
-
-                        withContext(Dispatchers.Main) {
-                            if (result.success && result.snapshot != null) {
-                                val refreshedSnapshot = result.snapshot
-                                val fallbackSuffix = if (result.usedFallback && result.resolvedApiType != null) {
-                                    "，已自动切换到 ${result.resolvedApiType.name}"
-                                } else {
-                                    ""
-                                }
-                                "更新完成：${refreshedSnapshot.groups.size} 个分组，${refreshedSnapshot.users.size} 个用户$fallbackSuffix"
-                                    .toast(context)
+                blockSettingViewModel.updateByUser(
+                    onStart = { updating = true },
+                    onResult = { result ->
+                        if (result.success && result.snapshot != null) {
+                            val refreshedSnapshot = result.snapshot
+                            val fallbackSuffix = if (result.usedFallback && result.resolvedApiType != null) {
+                                "，已自动切换到 ${result.resolvedApiType.name}"
                             } else {
-                                val message = result.error?.localizedMessage
-                                    ?: result.error?.javaClass?.simpleName
-                                    ?: "未知错误"
-                                if (result.snapshot != null) {
-                                    "更新失败，已保留旧快照：$message".toast(context)
-                                } else {
-                                    "更新失败：$message".toast(context)
-                                }
+                                ""
+                            }
+                            "更新完成：${refreshedSnapshot.groups.size} 个分组，${refreshedSnapshot.users.size} 个用户$fallbackSuffix"
+                                .toast(context)
+                        } else {
+                            val message = result.error?.localizedMessage
+                                ?: result.error?.javaClass?.simpleName
+                                ?: "未知错误"
+                            if (result.snapshot != null) {
+                                "更新失败，已保留旧快照：$message".toast(context)
+                            } else {
+                                "更新失败：$message".toast(context)
                             }
                         }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (t: Throwable) {
-                        withContext(Dispatchers.Main) {
-                            ("更新失败：" + (t.localizedMessage ?: t.javaClass.simpleName)).toast(context)
-                        }
-                    } finally {
-                        withContext(Dispatchers.Main) {
-                            updating = false
-                            updateJob = null
-                        }
-                    }
-                }
+                    },
+                    onFailure = {
+                        ("更新失败：" + (it.localizedMessage ?: it.javaClass.simpleName)).toast(context)
+                    },
+                    onFinish = { updating = false }
+                )
             }
         )
     }

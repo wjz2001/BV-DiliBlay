@@ -25,11 +25,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -58,11 +59,13 @@ fun TopNav(
     modifier: Modifier = Modifier,
     items: List<TopNavItem>,
     selectedItem: TopNavItem? = null,
+    entryFocusItem: TopNavItem? = null,
     defaultFocusRequester: FocusRequester? = null,
     onDefaultFocusReady: (() -> Unit)? = null,
     isHistorySearching: Boolean = false,
     focusedLeadingIcon: ((TopNavItem) -> TopNavLeadingIcon?)? = null,
     onTabConfirmLongPress: ((TopNavItem) -> Boolean)? = null,
+    contentFocusRequester: FocusRequester? = null,
     onLeftBoundaryExit: (() -> Unit)? = null,
     onRightBoundaryExit: (() -> Unit)? = null,
     onSelectedChanged: (TopNavItem) -> Unit = {},
@@ -70,13 +73,15 @@ fun TopNav(
 ) {
     val internalFocusRequester = remember { FocusRequester() }
     val entryFocusRequester = defaultFocusRequester ?: internalFocusRequester
+    val tabFocusRequesters = remember(items) { List(items.size) { FocusRequester() } }
 
     var selectedTabIndex by remember(items) { mutableIntStateOf(0) }
 
-    val focusTargetIndex = selectedItem
+    val focusTargetIndex = (entryFocusItem ?: selectedItem)
         ?.let(items::indexOf)
         ?.takeIf { it >= 0 }
         ?: 0
+    var contentFocusRequestToken by remember { mutableIntStateOf(0) }
 
     var defaultFocusReadyNotified by remember(focusTargetIndex) { mutableStateOf(false) }
     LaunchedEffect(items, selectedItem) {
@@ -90,32 +95,70 @@ fun TopNav(
         }
     }
 
+    LaunchedEffect(contentFocusRequestToken) {
+        if (contentFocusRequestToken == 0) return@LaunchedEffect
+        val requester = contentFocusRequester ?: return@LaunchedEffect
+        repeat(3) {
+            withFrameNanos { }
+            runCatching { requester.requestFocus() }
+        }
+    }
+
+    LaunchedEffect(entryFocusItem, focusTargetIndex) {
+        if (entryFocusItem == null) return@LaunchedEffect
+        repeat(3) {
+            withFrameNanos { }
+            runCatching { entryFocusRequester.requestFocus() }
+        }
+    }
+
     MainTopBarContainer(modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center
         ) {
             TabRow(
-                modifier = Modifier.focusRestorer(entryFocusRequester),
+                modifier = Modifier,
                 selectedTabIndex = selectedTabIndex,
                 separator = { MainTopTabSeparator() },
                 indicator = mainTopTabIndicator(selectedTabIndex)
             ) {
                 items.forEachIndexed { index, tab ->
                     val isHistoryTab = tab is HomeTopNavItem && tab == HomeTopNavItem.History
+                    fun requesterFor(targetIndex: Int): FocusRequester {
+                        return if (targetIndex == focusTargetIndex) {
+                            entryFocusRequester
+                        } else {
+                            tabFocusRequesters[targetIndex]
+                        }
+                    }
 
                     NavItemTab(
-                        modifier = Modifier.ifElse(
-                            index == focusTargetIndex,
-                            Modifier
-                                .focusRequester(entryFocusRequester)
-                                .onGloballyPositioned {
+                        modifier = Modifier
+                            .focusRequester(requesterFor(index))
+                            .focusProperties {
+                                left = if (index == 0) {
+                                    FocusRequester.Default
+                                } else {
+                                    requesterFor(index - 1)
+                                }
+                                right = if (index == items.lastIndex) {
+                                    FocusRequester.Default
+                                } else {
+                                    requesterFor(index + 1)
+                                }
+                                up = FocusRequester.Cancel
+                                down = contentFocusRequester ?: FocusRequester.Default
+                            }
+                            .ifElse(
+                                index == focusTargetIndex,
+                                Modifier.onGloballyPositioned {
                                     if (!defaultFocusReadyNotified) {
                                         defaultFocusReadyNotified = true
                                         onDefaultFocusReady?.invoke()
                                     }
                                 }
-                        ),
+                            ),
                         topNavItem = tab,
                         selected = index == selectedTabIndex,
                         showHistorySearchIcon = isHistoryTab && isHistorySearching,
@@ -125,6 +168,13 @@ fun TopNav(
                         },
                         onLeftBoundaryExit = onLeftBoundaryExit.takeIf { index == 0 },
                         onRightBoundaryExit = onRightBoundaryExit.takeIf { index == items.lastIndex },
+                        onDownToContent = contentFocusRequester?.let {
+                            {
+                                onClick(tab)
+                                contentFocusRequestToken++
+                                true
+                            }
+                        },
                         onFocus = {
                             if (selectedTabIndex != index) {
                                 selectedTabIndex = index
@@ -149,6 +199,7 @@ private fun TabRowScope.NavItemTab(
     onTabConfirmLongPress: (() -> Boolean)? = null,
     onLeftBoundaryExit: (() -> Unit)? = null,
     onRightBoundaryExit: (() -> Unit)? = null,
+    onDownToContent: (() -> Boolean)? = null,
     onClick: () -> Unit,
     onFocus: () -> Unit
 ) {
@@ -178,6 +229,10 @@ private fun TabRowScope.NavItemTab(
                 if (isDirectionRight && onRightBoundaryExit != null) {
                     onRightBoundaryExit()
                     return@onPreviewKeyEvent true
+                }
+
+                if (event.key == Key.DirectionDown && onDownToContent != null) {
+                    return@onPreviewKeyEvent onDownToContent()
                 }
             }
 

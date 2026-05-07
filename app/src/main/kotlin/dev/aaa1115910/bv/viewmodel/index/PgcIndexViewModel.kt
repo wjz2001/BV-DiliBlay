@@ -1,10 +1,10 @@
 package dev.aaa1115910.bv.viewmodel.index
 
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import dev.aaa1115910.biliapi.entity.pgc.PgcItem
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
 import dev.aaa1115910.biliapi.entity.pgc.index.Area
@@ -27,7 +27,14 @@ import dev.aaa1115910.bv.util.addAllWithMainContext
 import dev.aaa1115910.bv.util.fError
 import dev.aaa1115910.bv.util.toast
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.KoinViewModel
 
@@ -39,7 +46,8 @@ class PgcIndexViewModel(
         private val logger = KotlinLogging.logger { }
     }
 
-    val indexResultItems = mutableStateListOf<PgcItem>()
+    private val _indexResultItems = MutableStateFlow(persistentListOf<PgcItem>())
+    val indexResultItems: StateFlow<ImmutableList<PgcItem>> = _indexResultItems.asStateFlow()
 
     private var updating = false
     @Volatile private var requestGeneration = 0L
@@ -66,7 +74,20 @@ class PgcIndexViewModel(
         indexOrder = IndexOrder.getList(pgcType).first()
     }
 
-    suspend fun loadMore() {
+    fun reloadData() {
+        viewModelScope.launch(Dispatchers.IO) {
+            withContext(Dispatchers.Main) { clearData() }
+            loadMoreInternal()
+        }
+    }
+
+    fun loadMore() {
+        viewModelScope.launch(Dispatchers.IO) {
+            loadMoreInternal()
+        }
+    }
+
+    private suspend fun loadMoreInternal() {
         val expectedGeneration = requestGeneration
         if (!updating) loadData(expectedGeneration)
     }
@@ -106,7 +127,7 @@ class PgcIndexViewModel(
 
             withContext(Dispatchers.Main) {
                 if (expectedGeneration != requestGeneration) return@withContext
-                indexResultItems.addAll(result.list)
+                _indexResultItems.update { it.addAll(result.list) }
                 nextPage = result.nextPage
             }
 
@@ -127,7 +148,7 @@ class PgcIndexViewModel(
 
     fun clearData() {
         requestGeneration++
-        indexResultItems.clear()
+        _indexResultItems.value = persistentListOf()
         nextPage = PgcIndexData.PgcIndexPage()
         updating = false
     }

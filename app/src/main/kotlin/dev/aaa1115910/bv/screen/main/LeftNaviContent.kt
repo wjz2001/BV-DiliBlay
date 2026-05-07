@@ -1,6 +1,5 @@
 package dev.aaa1115910.bv.screen.main
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,7 +25,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.animation.core.Animatable
@@ -62,8 +60,6 @@ import dev.aaa1115910.bv.util.isDpadDown
 import dev.aaa1115910.bv.util.isDpadUp
 import dev.aaa1115910.bv.util.isKeyDown
 import dev.aaa1115910.bv.util.isKeyUp
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -77,7 +73,7 @@ fun LeftNaviContent(
     ugcFocusRequester: FocusRequester,
     pgcFocusRequester: FocusRequester,
     onLeftNaviItemChanged: (LeftNaviItem) -> Unit,
-    onLeftNaviItemPreload: (LeftNaviItem) -> Unit = {},
+    onLeftNaviItemFocused: (LeftNaviItem) -> Unit = {},
     onOpenSettings: () -> Unit,
     onFocusToContent: (MainContentFocusTarget) -> Unit,
     userFocusRequester: FocusRequester? = null,
@@ -86,8 +82,6 @@ fun LeftNaviContent(
         Spacer(modifier = Modifier.height(280.dp))
     }
 ) {
-    val scope = rememberCoroutineScope()
-
     val internalSettingsFocusRequester = remember { FocusRequester() }
     val settingsFocusTarget = settingsFocusRequester ?: internalSettingsFocusRequester
 
@@ -257,20 +251,16 @@ fun LeftNaviContent(
                     }
 
                     var isFocused by remember(item) { mutableStateOf(false) }
-                    var preloadJob by remember(item) { mutableStateOf<Job?>(null) }
                     var armedEntryTarget by remember(item) { mutableStateOf<MainContentFocusTarget?>(null) }
 
                     val isSelected = item == selectedContentItem
                     val isActivated = isFocused || isSelected
 
-                    val itemIconColor by animateColorAsState(
-                        targetValue = when {
-                            isFocused -> MaterialTheme.colorScheme.onPrimary
-                            isSelected -> MaterialTheme.colorScheme.onSecondary
-                            else -> MaterialTheme.colorScheme.onSurface
-                        },
-                        label = "itemIconColor"
-                    )
+                    val itemIconColor = when {
+                        isFocused -> MaterialTheme.colorScheme.onPrimary
+                        isSelected -> MaterialTheme.colorScheme.onSecondary
+                        else -> MaterialTheme.colorScheme.onSurface
+                    }
 
                     NavigationRailItem(
                         modifier = Modifier
@@ -294,22 +284,13 @@ fun LeftNaviContent(
 
                                 if (focusState.hasFocus) {
                                     focusedContentItem = item
+                                    onLeftNaviItemFocused(item)
                                 } else if (focusedContentItem == item) {
                                     focusedContentItem = null
                                 }
 
                                 if (!focusState.hasFocus) {
                                     armedEntryTarget = null
-                                }
-
-                                preloadJob?.cancel()
-                                preloadJob = if (focusState.hasFocus) {
-                                    scope.launch {
-                                        delay(200)
-                                        if (isFocused) onLeftNaviItemPreload(item)
-                                    }
-                                } else {
-                                    null
                                 }
                             }
                             .onPreviewKeyEvent { keyEvent ->
@@ -420,14 +401,10 @@ fun LeftNaviContent(
 
         // 底部设置按钮
         var settingsIsFocused by remember { mutableStateOf(false) }
-        val settingsIconColor by animateColorAsState(
-            targetValue = if (settingsIsFocused) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-            label = "settingsIconColor"
-        )
-        val settingsIndicatorColor by animateColorAsState(
-            targetValue = if (settingsIsFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-            label = "settingsIndicatorColor"
-        )
+        val settingsIconColor =
+            if (settingsIsFocused) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+        val settingsIndicatorColor =
+            if (settingsIsFocused) MaterialTheme.colorScheme.primary else Color.Transparent
 
         Box(
             modifier = Modifier
@@ -560,7 +537,6 @@ private fun LeftNaviContentPreview() {
             ugcFocusRequester = remember { FocusRequester() },
             pgcFocusRequester = remember { FocusRequester() },
             onLeftNaviItemChanged = {},
-            onLeftNaviItemPreload = {},
             onOpenSettings = {},
             onFocusToContent = {},
         )

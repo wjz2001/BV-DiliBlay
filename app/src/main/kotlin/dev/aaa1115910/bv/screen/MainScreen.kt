@@ -15,10 +15,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -42,6 +40,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
@@ -60,7 +59,7 @@ import dev.aaa1115910.bv.screen.main.PgcContent
 import dev.aaa1115910.bv.screen.main.UgcContent
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
 import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
-import dev.aaa1115910.bv.screen.main.common.MainDrawerPreloadHost
+import dev.aaa1115910.bv.screen.main.runtime.runtimeContainerInputEnabled
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.ui.theme.ThemeMode
 import dev.aaa1115910.bv.util.Prefs
@@ -69,6 +68,7 @@ import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.UserViewModel
+import dev.aaa1115910.bv.viewmodel.main.HomeContentViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -83,7 +83,9 @@ private data class PendingContentFocus(
 
 @Composable
 fun rememberIsDarkFromPrefs(): Boolean {
-    val themeModeOrdinal by Prefs.themeModeFlow.collectAsState(Prefs.themeMode.ordinal)
+    val themeModeOrdinal by Prefs.themeModeFlow.collectAsStateWithLifecycle(
+        initialValue = Prefs.themeMode.ordinal
+    )
     val themeMode = remember(themeModeOrdinal) { ThemeMode.fromOrdinal(themeModeOrdinal) }
     return themeMode == ThemeMode.DARK
 }
@@ -99,13 +101,9 @@ fun MainScreen(
     var lastPressBack: Long by remember { mutableLongStateOf(0L) }
 
     val initialDrawerItem = LeftNaviItem.Home
-    var requestedDrawerItem by remember { mutableStateOf(initialDrawerItem) }
-    val preloadedDrawerItems = remember { mutableStateMapOf<LeftNaviItem, Boolean>() }
-    val followPreloadSessionKey = if (!userRepository.isLogin) {
-        "logout"
-    } else {
-        "${userRepository.uid}:${userRepository.uidCkMd5}:${userRepository.sessData}"
-    }
+    var focusedDrawerItem by remember { mutableStateOf(initialDrawerItem) }
+    var activeDrawerItem by remember { mutableStateOf(initialDrawerItem) }
+    var lastActiveDrawerItem by remember { mutableStateOf<LeftNaviItem?>(null) }
 
     val scope = rememberCoroutineScope()
 
@@ -194,7 +192,7 @@ fun MainScreen(
         }
 
     val onContentDefaultFocusReady: (LeftNaviItem) -> Unit = { item ->
-        if (requestedDrawerItem == item) {
+        if (activeDrawerItem == item) {
             currentReadyItem = item
 
             val pending = pendingContentFocus
@@ -210,7 +208,7 @@ fun MainScreen(
     }
 
     val onFocusToContent: (MainContentFocusTarget) -> Unit = { entryTarget ->
-        when (val item = requestedDrawerItem) {
+        when (val item = activeDrawerItem) {
             LeftNaviItem.Home,
             LeftNaviItem.Follow,
             LeftNaviItem.UGC,
@@ -225,32 +223,25 @@ fun MainScreen(
         }
     }
 
-    val onLeftNaviItemPreload: (LeftNaviItem) -> Unit = { item ->
-        when (item) {
-            LeftNaviItem.Home,
-            LeftNaviItem.User,
-            LeftNaviItem.Settings -> Unit
-
-            LeftNaviItem.Follow -> {
-                if (userViewModel.isLogin) {
-                    preloadedDrawerItems[item] = true
-                }
-            }
-
-            LeftNaviItem.UGC,
-            LeftNaviItem.PGC -> {
-                preloadedDrawerItems[item] = true
-            }
-        }
+    fun focusDrawerItem(item: LeftNaviItem) {
+        focusedDrawerItem = item
     }
 
-    LaunchedEffect(requestedDrawerItem) {
+    fun activateDrawerItem(item: LeftNaviItem) {
+        if (activeDrawerItem != item) {
+            lastActiveDrawerItem = activeDrawerItem
+        }
+        focusedDrawerItem = item
+        activeDrawerItem = item
+    }
+
+    LaunchedEffect(activeDrawerItem) {
         currentReadyItem = null
-        pendingContentFocus = pendingContentFocus?.takeIf { it.item == requestedDrawerItem }
+        pendingContentFocus = pendingContentFocus?.takeIf { it.item == activeDrawerItem }
     }
 
     fun currentDrawerFocusRequester(): FocusRequester {
-        return when (requestedDrawerItem) {
+        return when (focusedDrawerItem) {
             LeftNaviItem.Home -> homeDrawerFocusRequester
             LeftNaviItem.Follow -> followDrawerFocusRequester
             LeftNaviItem.UGC -> ugcDrawerFocusRequester
@@ -338,15 +329,17 @@ fun MainScreen(
                 leftNaviExpanded &&
                         (keyEvent.key == Key.DirectionLeft || keyEvent.key == Key.DirectionRight) -> true
 
-                !leftNaviExpanded && keyEvent.type == KeyEventType.KeyDown &&
-                        keyEvent.key == Key.DirectionRight -> {
-                    onFocusToContent(MainContentFocusTarget.LeftEntry)
+                !leftNaviExpanded && keyEvent.key == Key.DirectionRight -> {
+                    if (keyEvent.type == KeyEventType.KeyDown) {
+                        onFocusToContent(MainContentFocusTarget.LeftEntry)
+                    }
                     true
                 }
 
-                !leftNaviExpanded && keyEvent.type == KeyEventType.KeyDown &&
-                        keyEvent.key == Key.DirectionLeft -> {
-                    onFocusToContent(MainContentFocusTarget.RightEntry)
+                !leftNaviExpanded && keyEvent.key == Key.DirectionLeft -> {
+                    if (keyEvent.type == KeyEventType.KeyDown) {
+                        onFocusToContent(MainContentFocusTarget.RightEntry)
+                    }
                     true
                 }
 
@@ -357,16 +350,12 @@ fun MainScreen(
             }
         }
 
-    LaunchedEffect(showLeftNaviContent, requestedDrawerItem) {
+    LaunchedEffect(showLeftNaviContent, focusedDrawerItem) {
         if (showLeftNaviContent) {
             currentDrawerFocusRequester().requestFocus()
             delay(16)
             currentDrawerFocusRequester().requestFocus()
         }
-    }
-
-    LaunchedEffect(followPreloadSessionKey) {
-        preloadedDrawerItems.remove(LeftNaviItem.Follow)
     }
 
     BackHandler {
@@ -376,13 +365,6 @@ fun MainScreen(
             handleBack()
         }
     }
-
-    MainDrawerPreloadHost(
-        preloadFollow = userViewModel.isLogin &&
-                preloadedDrawerItems[LeftNaviItem.Follow] == true,
-        preloadUgc = preloadedDrawerItems[LeftNaviItem.UGC] == true,
-        preloadPgc = preloadedDrawerItems[LeftNaviItem.PGC] == true
-    )
 
     Box(
         modifier = modifier
@@ -394,18 +376,10 @@ fun MainScreen(
                 .fillMaxSize()
         ) {
             BlackoutSwitch(
-                targetState = requestedDrawerItem,
+                targetState = activeDrawerItem,
                 fadeInMillis = fade,
                 fadeOutMillis = fade
             ) { currentItem ->
-                val drawerEntryRequest = pendingContentFocus
-                    ?.takeIf { it.item == currentItem && it.entryTarget != null }
-                    ?.let { request ->
-                        MainContentEntryRequest(
-                            id = request.id,
-                            target = request.entryTarget!!
-                        )
-                    }
                 val consumeDrawerEntryRequest: (Long) -> Unit = { requestId ->
                     if (pendingContentFocus?.id == requestId) {
                         pendingContentFocus = null
@@ -413,44 +387,81 @@ fun MainScreen(
                 }
 
                 Box(modifier = Modifier.fillMaxSize()) {
-                    when (currentItem) {
-                        LeftNaviItem.Follow -> FollowContent(
-                            navFocusRequester = followFocusRequester,
-                            drawerFocusRequester = if (leftNaviExpanded) followDrawerFocusRequester else userFocusRequester,
-                            pendingDrawerEntryRequest = drawerEntryRequest,
-                            onDrawerEntryConsumed = consumeDrawerEntryRequest,
-                            onDefaultFocusReady = {
-                                onContentDefaultFocusReady(LeftNaviItem.Follow)
+                    val mountedDrawerItems = listOfNotNull(lastActiveDrawerItem, currentItem).distinct()
+                    mountedDrawerItems.forEach { item ->
+                        val activeContent = item == currentItem
+                        val drawerEntryRequest = pendingContentFocus
+                            ?.takeIf {
+                                activeContent && it.item == item && it.entryTarget != null
                             }
-                        )
-                        LeftNaviItem.Home -> HomeContent(
-                            navFocusRequester = mainFocusRequester,
-                            drawerFocusRequester = if (leftNaviExpanded) homeDrawerFocusRequester else userFocusRequester,
-                            pendingDrawerEntryRequest = drawerEntryRequest,
-                            onDrawerEntryConsumed = consumeDrawerEntryRequest,
-                            onDefaultFocusReady = {
-                                onContentDefaultFocusReady(LeftNaviItem.Home)
+                            ?.let { request ->
+                                MainContentEntryRequest(
+                                    id = request.id,
+                                    target = request.entryTarget!!
+                                )
                             }
-                        )
-                        LeftNaviItem.UGC -> UgcContent(
-                            navFocusRequester = ugcFocusRequester,
-                            drawerFocusRequester = if (leftNaviExpanded) ugcDrawerFocusRequester else userFocusRequester,
-                            pendingDrawerEntryRequest = drawerEntryRequest,
-                            onDrawerEntryConsumed = consumeDrawerEntryRequest,
-                            onDefaultFocusReady = {
-                                onContentDefaultFocusReady(LeftNaviItem.UGC)
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .zIndex(if (activeContent) 1f else 0f)
+                                .graphicsLayer { alpha = if (activeContent) 1f else 0f }
+                                .runtimeContainerInputEnabled(activeContent)
+                        ) {
+                            when (item) {
+                                LeftNaviItem.Follow -> FollowContent(
+                                    navFocusRequester = followFocusRequester,
+                                    drawerFocusRequester = if (leftNaviExpanded) followDrawerFocusRequester else userFocusRequester,
+                                    pendingDrawerEntryRequest = drawerEntryRequest,
+                                    onDrawerEntryConsumed = consumeDrawerEntryRequest,
+                                    onDefaultFocusReady = {
+                                        onContentDefaultFocusReady(LeftNaviItem.Follow)
+                                    },
+                                    active = activeContent
+                                )
+
+                                LeftNaviItem.Home -> {
+                                    val homeContentViewModel: HomeContentViewModel =
+                                        koinViewModel<HomeContentViewModel>()
+                                    HomeContent(
+                                        navFocusRequester = mainFocusRequester,
+                                        drawerFocusRequester = if (leftNaviExpanded) homeDrawerFocusRequester else userFocusRequester,
+                                        pendingDrawerEntryRequest = drawerEntryRequest,
+                                        onDrawerEntryConsumed = consumeDrawerEntryRequest,
+                                        onDefaultFocusReady = {
+                                            onContentDefaultFocusReady(LeftNaviItem.Home)
+                                        },
+                                        homeContentViewModel = homeContentViewModel,
+                                        userViewModel = userViewModel,
+                                        active = activeContent
+                                    )
+                                }
+
+                                LeftNaviItem.UGC -> UgcContent(
+                                    navFocusRequester = ugcFocusRequester,
+                                    drawerFocusRequester = if (leftNaviExpanded) ugcDrawerFocusRequester else userFocusRequester,
+                                    pendingDrawerEntryRequest = drawerEntryRequest,
+                                    onDrawerEntryConsumed = consumeDrawerEntryRequest,
+                                    onDefaultFocusReady = {
+                                        onContentDefaultFocusReady(LeftNaviItem.UGC)
+                                    },
+                                    active = activeContent
+                                )
+
+                                LeftNaviItem.PGC -> PgcContent(
+                                    navFocusRequester = pgcFocusRequester,
+                                    drawerFocusRequester = if (leftNaviExpanded) pgcDrawerFocusRequester else userFocusRequester,
+                                    pendingDrawerEntryRequest = drawerEntryRequest,
+                                    onDrawerEntryConsumed = consumeDrawerEntryRequest,
+                                    onDefaultFocusReady = {
+                                        onContentDefaultFocusReady(LeftNaviItem.PGC)
+                                    },
+                                    active = activeContent
+                                )
+
+                                else -> MainContentShell(item)
                             }
-                        )
-                        LeftNaviItem.PGC -> PgcContent(
-                            navFocusRequester = pgcFocusRequester,
-                            drawerFocusRequester = if (leftNaviExpanded) pgcDrawerFocusRequester else userFocusRequester,
-                            pendingDrawerEntryRequest = drawerEntryRequest,
-                            onDrawerEntryConsumed = consumeDrawerEntryRequest,
-                            onDefaultFocusReady = {
-                                onContentDefaultFocusReady(LeftNaviItem.PGC)
-                            }
-                        )
-                        else -> Unit
+                        }
                     }
                 }
             }
@@ -509,15 +520,15 @@ fun MainScreen(
                             strokeWidth = 1.dp.toPx()
                         )
                     },
-                selectedItem = requestedDrawerItem,
+                selectedItem = activeDrawerItem,
                 homeFocusRequester = homeDrawerFocusRequester,
                 followFocusRequester = followDrawerFocusRequester,
                 ugcFocusRequester = ugcDrawerFocusRequester,
                 pgcFocusRequester = pgcDrawerFocusRequester,
-                onLeftNaviItemChanged = { requestedDrawerItem = it },
-                onLeftNaviItemPreload = onLeftNaviItemPreload,
+                onLeftNaviItemChanged = { activateDrawerItem(it) },
+                onLeftNaviItemFocused = { focusDrawerItem(it) },
                 onOpenSettings = { context.startActivity(Intent(context, SettingsActivity::class.java)) },
-                onFocusToContent = {},
+                onFocusToContent = onFocusToContent,
                 userFocusRequester = userFocusRequester,
                 settingsFocusRequester = settingsFocusRequester,
                 userContent = {
@@ -629,5 +640,29 @@ fun MainScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+fun MainContentShell(item: LeftNaviItem) {
+    val title = when (item) {
+        LeftNaviItem.Home -> "首页"
+        LeftNaviItem.Follow -> "我的关注"
+        LeftNaviItem.UGC -> "分区"
+        LeftNaviItem.PGC -> "番剧影视"
+        else -> ""
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = title,
+            color = MaterialTheme.colorScheme.onBackground,
+            style = MaterialTheme.typography.headlineLarge
+        )
     }
 }

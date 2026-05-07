@@ -1,7 +1,6 @@
 package dev.aaa1115910.bv.viewmodel.user
 
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
@@ -16,10 +15,17 @@ import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.viewmodel.common.LoadState
+import dev.aaa1115910.bv.viewmodel.common.accountSessionKey
 import dev.aaa1115910.bv.viewmodel.common.canAutoLoad
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.KoinViewModel
@@ -33,7 +39,8 @@ class FollowingSeasonViewModel(
         private val logger = KotlinLogging.logger { }
     }
 
-    val followingSeasons = mutableStateListOf<FollowingSeason>()
+    private val _followingSeasons = MutableStateFlow(persistentListOf<FollowingSeason>())
+    val followingSeasons: StateFlow<ImmutableList<FollowingSeason>> = _followingSeasons.asStateFlow()
     var followingSeasonType = FollowingSeasonType.Bangumi
     var followingSeasonStatus = FollowingSeasonStatus.All
 
@@ -50,6 +57,7 @@ class FollowingSeasonViewModel(
         private set
 
     @Volatile private var requestGeneration = 0L
+    private var loadedAccountSessionKey = userRepository.accountSessionKey()
 
     init {
         followingSeasonType = FollowingSeasonType.Bangumi
@@ -59,37 +67,56 @@ class FollowingSeasonViewModel(
     fun clearData() {
         requestGeneration++
         updateJob?.cancel()
+        updateJob = null
         pageNumber = 1
         updating = false
         noMore = false
-        followingSeasons.clear()
+        _followingSeasons.value = persistentListOf()
         initialLoadState = LoadState.Idle
         lastFailureWasAuth = false
+        loadedAccountSessionKey = userRepository.accountSessionKey()
+    }
+
+    fun cancelOngoingLoads() {
+        requestGeneration++
+        updateJob?.cancel()
+        updateJob = null
+        updating = false
     }
 
     fun ensureLoaded() {
+        ensureAccountStateFresh()
         if (!initialLoadState.canAutoLoad()) return
         initialLoadState = LoadState.Loading
         loadMore()
     }
 
     fun reloadAll() {
+        ensureAccountStateFresh()
         requestGeneration++
         updateJob?.cancel()
         pageNumber = 1
         updating = false
         noMore = false
-        followingSeasons.clear()
+        _followingSeasons.value = persistentListOf()
         initialLoadState = LoadState.Loading
         loadMore()
     }
 
     fun loadMore() {
+        ensureAccountStateFresh()
         if (updateJob?.isActive == true) return
         val expectedGeneration = requestGeneration
         updateJob = viewModelScope.launch(Dispatchers.IO) {
             updateData(expectedGeneration)
         }
+    }
+
+    private fun ensureAccountStateFresh() {
+        val currentAccountSessionKey = userRepository.accountSessionKey()
+        if (loadedAccountSessionKey == currentAccountSessionKey) return
+        clearData()
+        loadedAccountSessionKey = currentAccountSessionKey
     }
 
     private suspend fun updateData(expectedGeneration: Long) {
@@ -114,7 +141,7 @@ class FollowingSeasonViewModel(
                 if (expectedGeneration != requestGeneration) return@withContext
                 if (pageSize * pageNumber >= response.total) noMore = true
                 pageNumber++
-                followingSeasons.addAll(response.list)
+                _followingSeasons.update { it.addAll(response.list) }
 
                 lastFailureWasAuth = false
                 if (initialLoadState == LoadState.Loading) {

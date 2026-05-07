@@ -40,13 +40,14 @@ import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.db.UserDB
 import dev.aaa1115910.bv.screen.user.UserItem
 import dev.aaa1115910.bv.util.toast
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
 fun UnlockSwitchUserContent(
     modifier: Modifier = Modifier,
-    userList: List<UserDB>,
+    userList: ImmutableList<UserDB>,
     unlockUser: UserDB?,
     onUnlockSuccess: (UserDB) -> Unit,
     onCancel: () -> Unit
