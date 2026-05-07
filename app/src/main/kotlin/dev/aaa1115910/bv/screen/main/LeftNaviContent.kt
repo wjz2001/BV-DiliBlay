@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -48,9 +49,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.Text
 import dev.aaa1115910.bv.component.MainChromeDefaults
 import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
 import dev.aaa1115910.bv.ui.theme.BVTheme
@@ -78,7 +81,10 @@ fun LeftNaviContent(
     onOpenSettings: () -> Unit,
     onFocusToContent: (MainContentFocusTarget) -> Unit,
     userFocusRequester: FocusRequester? = null,
-    settingsFocusRequester: FocusRequester? = null
+    settingsFocusRequester: FocusRequester? = null,
+    userContent: @Composable () -> Unit = {
+        Spacer(modifier = Modifier.height(280.dp))
+    }
 ) {
     val scope = rememberCoroutineScope()
 
@@ -94,20 +100,23 @@ fun LeftNaviContent(
         LeftNaviItem.PGC
     )
 
-    val railButtonSize = MainChromeDefaults.Size
+    val railButtonSize = 72.dp
+    val settingsButtonSize = MainChromeDefaults.Size
+    val settingsAreaHeight = settingsButtonSize + 40.dp
+    val expandedRailWidth = 360.dp
     NavigationRail(
         modifier = modifier
             .fillMaxHeight()
-            .width(railButtonSize),
+            .width(expandedRailWidth),
         containerColor = C.background,
     ) {
-        Spacer(modifier = Modifier.height(MainChromeDefaults.Size))
+        userContent()
 
-        // ====== 中间 contentItems：移动高亮块 + 固定选中块 + 左侧指示条（按你的规则） ======
+        // ====== 中间 contentItems：移动高亮块 + 固定选中块 + 左侧指示条 ======
 
         /**
          * 仅针对中间 contentItems：
-         * - selectedItem 如果不在 contentItems（例如你把 selectedItem 设成 User/Settings），就视为“中间没有选中项”
+         * - selectedItem 如果不在 contentItems，就视为“中间没有选中项”
          *   => 左侧指示条跟随 focus 跑
          * - 如果 selectedItem 在 contentItems
          *   => 左侧指示条固定在 selectedItem
@@ -226,10 +235,19 @@ fun LeftNaviContent(
                 }
         ) {
             Column(
-                modifier = Modifier.fillMaxHeight(),
-                verticalArrangement = Arrangement.Center
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .padding(top = 36.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 contentItems.forEach { item ->
+                    val itemText = when (item) {
+                        LeftNaviItem.Home -> "首页"
+                        LeftNaviItem.Follow -> "我的关注"
+                        LeftNaviItem.UGC -> "分区"
+                        LeftNaviItem.PGC -> "番剧影视"
+                        else -> ""
+                    }
                     val itemFocusRequester = when (item) {
                         LeftNaviItem.Home -> homeFocusRequester
                         LeftNaviItem.Follow -> followFocusRequester
@@ -256,7 +274,8 @@ fun LeftNaviContent(
 
                     NavigationRailItem(
                         modifier = Modifier
-                            .size(railButtonSize)
+                            .width(expandedRailWidth)
+                            .height(railButtonSize)
                             .onGloballyPositioned { coords ->
                                 val top = coords.positionInRoot().y - contentBoxOffsetInRoot.y
                                 val h = coords.size.height.toFloat()
@@ -372,11 +391,26 @@ fun LeftNaviContent(
                             unselectedTextColor = itemIconColor
                         ),
                         icon = {
-                            Box(
-                                modifier = Modifier.size(railButtonSize),
-                                contentAlignment = Alignment.Center
+                            Row(
+                                modifier = Modifier
+                                    .width(expandedRailWidth)
+                                    .height(railButtonSize)
+                                    .padding(horizontal = 32.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(imageVector = item.displayIcon, contentDescription = null)
+                                Icon(
+                                    modifier = Modifier.size(34.dp),
+                                    imageVector = item.displayIcon,
+                                    contentDescription = null
+                                )
+                                Spacer(modifier = Modifier.width(24.dp))
+                                Text(
+                                    text = itemText,
+                                    color = itemIconColor,
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
                     )
@@ -395,94 +429,101 @@ fun LeftNaviContent(
             label = "settingsIndicatorColor"
         )
 
-        NavigationRailItem(
+        Box(
             modifier = Modifier
-                .size(railButtonSize)
-                .focusRequester(settingsFocusTarget)
-                .onFocusChanged {
-                    settingsIsFocused = it.hasFocus
-                    if (!it.hasFocus) {
-                        settingsArmedEntryTarget = null
+                .width(expandedRailWidth)
+                .height(settingsAreaHeight),
+            contentAlignment = Alignment.Center
+        ) {
+            NavigationRailItem(
+                modifier = Modifier
+                    .size(settingsButtonSize)
+                    .focusRequester(settingsFocusTarget)
+                    .onFocusChanged {
+                        settingsIsFocused = it.hasFocus
+                        if (!it.hasFocus) {
+                            settingsArmedEntryTarget = null
+                        }
                     }
+                    .onPreviewKeyEvent { keyEvent ->
+                        when {
+                            keyEvent.isDpadUp() -> {
+                                if (keyEvent.isKeyDown()) {
+                                    pgcFocusRequester.requestFocus()
+                                    return@onPreviewKeyEvent true
+                                }
+                                true
+                            }
+
+                            keyEvent.isDpadDown() -> {
+                                if (keyEvent.isKeyDown()) {
+                                    userFocusRequester?.requestFocus()
+                                    return@onPreviewKeyEvent true
+                                }
+                                true
+                            }
+
+                            keyEvent.key == Key.DirectionRight -> {
+                                when {
+                                    keyEvent.isKeyDown() -> {
+                                        settingsArmedEntryTarget = MainContentFocusTarget.LeftEntry
+                                        true
+                                    }
+
+                                    keyEvent.isKeyUp() -> {
+                                        val armed = settingsArmedEntryTarget
+                                        settingsArmedEntryTarget = null
+                                        if (armed == MainContentFocusTarget.LeftEntry) {
+                                            onFocusToContent(MainContentFocusTarget.LeftEntry)
+                                        }
+                                        true
+                                    }
+
+                                    else -> false
+                                }
+                            }
+
+                            keyEvent.key == Key.DirectionLeft -> {
+                                when {
+                                    keyEvent.isKeyDown() -> {
+                                        settingsArmedEntryTarget = MainContentFocusTarget.RightEntry
+                                        true
+                                    }
+
+                                    keyEvent.isKeyUp() -> {
+                                        val armed = settingsArmedEntryTarget
+                                        settingsArmedEntryTarget = null
+                                        if (armed == MainContentFocusTarget.RightEntry) {
+                                            onFocusToContent(MainContentFocusTarget.RightEntry)
+                                        }
+                                        true
+                                    }
+
+                                    else -> false
+                                }
+                            }
+
+                            else -> false
+                        }
+                    },
+                onClick = onOpenSettings,
+                selected = settingsIsFocused,
+                // 统一下发设置按钮的颜色配置
+                colors = NavigationRailItemDefaults.colors(
+                    selectedIconColor = settingsIconColor,
+                    selectedTextColor = settingsIconColor,
+                    indicatorColor = settingsIndicatorColor,
+                    unselectedIconColor = settingsIconColor,
+                    unselectedTextColor = settingsIconColor
+                ),
+                icon = {
+                    Icon(
+                        imageVector = LeftNaviItem.Settings.displayIcon,
+                        contentDescription = null
+                    )
                 }
-                .onPreviewKeyEvent { keyEvent ->
-                    when {
-                        keyEvent.isDpadUp() -> {
-                            if (keyEvent.isKeyDown()) {
-                                pgcFocusRequester.requestFocus()
-                                return@onPreviewKeyEvent true
-                            }
-                            true
-                        }
-
-                        keyEvent.isDpadDown() -> {
-                            if (keyEvent.isKeyDown()) {
-                                userFocusRequester?.requestFocus()
-                                return@onPreviewKeyEvent true
-                            }
-                            true
-                        }
-
-                        keyEvent.key == Key.DirectionRight -> {
-                            when {
-                                keyEvent.isKeyDown() -> {
-                                    settingsArmedEntryTarget = MainContentFocusTarget.LeftEntry
-                                    true
-                                }
-
-                                keyEvent.isKeyUp() -> {
-                                    val armed = settingsArmedEntryTarget
-                                    settingsArmedEntryTarget = null
-                                    if (armed == MainContentFocusTarget.LeftEntry) {
-                                        onFocusToContent(MainContentFocusTarget.LeftEntry)
-                                    }
-                                    true
-                                }
-
-                                else -> false
-                            }
-                        }
-
-                        keyEvent.key == Key.DirectionLeft -> {
-                            when {
-                                keyEvent.isKeyDown() -> {
-                                    settingsArmedEntryTarget = MainContentFocusTarget.RightEntry
-                                    true
-                                }
-
-                                keyEvent.isKeyUp() -> {
-                                    val armed = settingsArmedEntryTarget
-                                    settingsArmedEntryTarget = null
-                                    if (armed == MainContentFocusTarget.RightEntry) {
-                                        onFocusToContent(MainContentFocusTarget.RightEntry)
-                                    }
-                                    true
-                                }
-
-                                else -> false
-                            }
-                        }
-
-                        else -> false
-                    }
-                },
-            onClick = onOpenSettings,
-            selected = settingsIsFocused,
-            // 统一下发设置按钮的颜色配置
-            colors = NavigationRailItemDefaults.colors(
-                selectedIconColor = settingsIconColor,
-                selectedTextColor = settingsIconColor,
-                indicatorColor = settingsIndicatorColor,
-                unselectedIconColor = settingsIconColor,
-                unselectedTextColor = settingsIconColor
-            ),
-            icon = {
-                Icon(
-                    imageVector = LeftNaviItem.Settings.displayIcon,
-                    contentDescription = null
-                )
-            }
-        )
+            )
+        }
     }
 }
 

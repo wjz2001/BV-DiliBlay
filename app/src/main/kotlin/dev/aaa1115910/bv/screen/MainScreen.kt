@@ -3,26 +3,20 @@ package dev.aaa1115910.bv.screen
 import android.app.Activity
 import android.content.Intent
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -38,17 +32,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.layout.layout
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.tv.material3.MaterialTheme
@@ -59,7 +50,6 @@ import dev.aaa1115910.bv.activities.settings.SettingsActivity
 import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.activities.user.UserSwitchActivity
 import dev.aaa1115910.bv.component.BlackoutSwitch
-import dev.aaa1115910.bv.component.MainChromeDefaults
 import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.screen.main.FollowContent
 import dev.aaa1115910.bv.screen.main.HomeContent
@@ -84,7 +74,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
-import kotlin.math.roundToInt
 
 private data class PendingContentFocus(
     val id: Long,
@@ -143,16 +132,25 @@ fun MainScreen(
     }
     var currentReadyItem by remember { mutableStateOf<LeftNaviItem?>(null) }
     var leftNaviExpanded by remember { mutableStateOf(false) }
-    var drawerX by remember { mutableFloatStateOf(0f) }
     var showContentScrim by remember { mutableStateOf(false) }
     var showLeftNaviContent by remember { mutableStateOf(false) }
+    var showCollapsedUserButton by remember { mutableStateOf(true) }
     var showFirstLaunchMainDialog by remember { mutableStateOf(Prefs.showFirstLaunchMainDialog) }
     var userIsFocused by remember { mutableStateOf(false) }
     var userLongPressTriggered by remember { mutableStateOf(false) }
+    var userButtonColorAnimationEnabled by remember { mutableStateOf(true) }
     val scrimAlpha by animateFloatAsState(
         targetValue = if (showContentScrim) 0.35f else 0f,
         animationSpec = tween(durationMillis = 80),
         label = "left navi scrim alpha"
+    )
+    val drawerSlideProgress = animateFloatAsState(
+        targetValue = if (leftNaviExpanded && showLeftNaviContent) 1f else 0f,
+        animationSpec = spring(
+            dampingRatio = 0.22f,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "left navi drawer overshoot"
     )
 
     fun newPendingContentFocus(
@@ -263,6 +261,8 @@ fun MainScreen(
 
     fun expandLeftNavi() {
         if (leftNaviExpanded) return
+        userButtonColorAnimationEnabled = false
+        showCollapsedUserButton = false
         leftNaviExpanded = true
         showContentScrim = true
         scope.launch {
@@ -276,10 +276,86 @@ fun MainScreen(
     fun collapseLeftNavi() {
         if (!leftNaviExpanded) return
         leftNaviExpanded = false
-        showLeftNaviContent = false
+        userButtonColorAnimationEnabled = true
         showContentScrim = false
-        userFocusRequester.requestFocus(scope)
+        scope.launch {
+            delay(360)
+            if (!leftNaviExpanded) {
+                showLeftNaviContent = false
+                showCollapsedUserButton = true
+                userFocusRequester.requestFocus()
+            }
+        }
     }
+
+    fun openUserPage() {
+        if (userViewModel.isLogin) {
+            context.startActivity(Intent(context, UserSwitchActivity::class.java))
+        } else {
+            context.startActivity(Intent(context, LoginActivity::class.java))
+        }
+    }
+
+    val onUserButtonPreviewKeyEvent: (androidx.compose.ui.input.key.KeyEvent) -> Boolean =
+        { keyEvent ->
+            val isConfirmKey = keyEvent.key == Key.DirectionCenter ||
+                    keyEvent.key == Key.Enter ||
+                    keyEvent.key == Key.Spacebar
+
+            when {
+                isConfirmKey &&
+                        keyEvent.type == KeyEventType.KeyDown &&
+                        keyEvent.nativeKeyEvent.isLongPress -> {
+                    if (!userLongPressTriggered) {
+                        userLongPressTriggered = true
+                        openUserPage()
+                    }
+                    true
+                }
+
+                isConfirmKey &&
+                        keyEvent.type == KeyEventType.KeyUp -> {
+                    if (userLongPressTriggered) {
+                        userLongPressTriggered = false
+                    } else {
+                        if (leftNaviExpanded) collapseLeftNavi() else expandLeftNavi()
+                    }
+                    true
+                }
+
+                leftNaviExpanded && keyEvent.type == KeyEventType.KeyDown &&
+                        keyEvent.key == Key.DirectionDown -> {
+                    currentDrawerFocusRequester().requestFocus(scope)
+                    true
+                }
+
+                leftNaviExpanded && keyEvent.type == KeyEventType.KeyDown &&
+                        keyEvent.key == Key.DirectionUp -> {
+                    settingsFocusRequester.requestFocus(scope)
+                    true
+                }
+
+                leftNaviExpanded &&
+                        (keyEvent.key == Key.DirectionLeft || keyEvent.key == Key.DirectionRight) -> true
+
+                !leftNaviExpanded && keyEvent.type == KeyEventType.KeyDown &&
+                        keyEvent.key == Key.DirectionRight -> {
+                    onFocusToContent(MainContentFocusTarget.LeftEntry)
+                    true
+                }
+
+                !leftNaviExpanded && keyEvent.type == KeyEventType.KeyDown &&
+                        keyEvent.key == Key.DirectionLeft -> {
+                    onFocusToContent(MainContentFocusTarget.RightEntry)
+                    true
+                }
+
+                !leftNaviExpanded &&
+                        (keyEvent.key == Key.DirectionUp || keyEvent.key == Key.DirectionDown) -> true
+
+                else -> false
+            }
+        }
 
     LaunchedEffect(showLeftNaviContent, requestedDrawerItem) {
         if (showLeftNaviContent) {
@@ -390,39 +466,13 @@ fun MainScreen(
         }
 
         val isDarkTheme = rememberIsDarkFromPrefs()
-        AnimatedVisibility(
-            visible = showLeftNaviContent,
-            modifier = Modifier.zIndex(2f),
-            enter = slideInHorizontally(
-                initialOffsetX = { fullWidth -> -fullWidth }, // 从最左侧外开始滑入
-                animationSpec = spring(
-                    dampingRatio = 0.32f,
-                    stiffness = Spring.StiffnessLow
-                )
-            ),
-            exit = slideOutHorizontally(
-                targetOffsetX = { fullWidth -> -fullWidth },
-                animationSpec = tween(durationMillis = 250)
-            )
-        ) {
+        if (showLeftNaviContent) {
             LeftNaviContent(
                 modifier = Modifier
                     .fillMaxHeight()
-                    // 实时追踪侧边栏到底滑到了哪里
-                    .onGloballyPositioned { coordinates ->
-                        drawerX = coordinates.positionInRoot().x
-                    }
-                    .layout { measurable, constraints ->
-                        val overshoot = maxOf(0f, drawerX).roundToInt()
-                        val placeable = measurable.measure(
-                            constraints.copy(
-                                maxWidth = if (constraints.hasBoundedWidth) constraints.maxWidth + overshoot else constraints.maxWidth,
-                                minWidth = constraints.minWidth + overshoot
-                            )
-                        )
-                        layout(placeable.width, placeable.height) {
-                            placeable.placeRelative(-overshoot, 0)
-                        }
+                    .zIndex(2f)
+                    .graphicsLayer {
+                        translationX = -size.width * (1f - drawerSlideProgress.value)
                     }
                     // 浅色模式原生阴影很明显，深色模式原生阴影看不见，两者保留共存
                     .shadow(elevation = 16.dp)
@@ -469,98 +519,84 @@ fun MainScreen(
                 onOpenSettings = { context.startActivity(Intent(context, SettingsActivity::class.java)) },
                 onFocusToContent = {},
                 userFocusRequester = userFocusRequester,
-                settingsFocusRequester = settingsFocusRequester
+                settingsFocusRequester = settingsFocusRequester,
+                userContent = {
+                    LeftNaviUserButton(
+                        expanded = true,
+                        colorAnimationEnabled = userButtonColorAnimationEnabled,
+                        isLogin = userViewModel.isLogin,
+                        avatar = userViewModel.face,
+                        username = userViewModel.username,
+                        focusRequester = userFocusRequester,
+                        isFocused = userIsFocused,
+                        onFocusChanged = {
+                            userIsFocused = it
+                            if (!it) userLongPressTriggered = false
+                        },
+                        onPreviewKeyEvent = { keyEvent ->
+                            val isConfirmKey = keyEvent.key == Key.DirectionCenter ||
+                                    keyEvent.key == Key.Enter ||
+                                    keyEvent.key == Key.Spacebar
+
+                            when {
+                                isConfirmKey && keyEvent.type == KeyEventType.KeyDown &&
+                                        keyEvent.nativeKeyEvent.isLongPress -> {
+                                    if (!userLongPressTriggered) {
+                                        userLongPressTriggered = true
+                                        openUserPage()
+                                    }
+                                    true
+                                }
+
+                                isConfirmKey && keyEvent.type == KeyEventType.KeyUp -> {
+                                    if (!userLongPressTriggered) {
+                                        openUserPage()
+                                    }
+                                    userLongPressTriggered = false
+                                    true
+                                }
+
+                                keyEvent.key == Key.DirectionDown && keyEvent.type == KeyEventType.KeyDown -> {
+                                    currentDrawerFocusRequester().requestFocus(scope)
+                                    true
+                                }
+
+                                keyEvent.key == Key.DirectionUp && keyEvent.type == KeyEventType.KeyDown -> {
+                                    settingsFocusRequester.requestFocus(scope)
+                                    true
+                                }
+
+                                keyEvent.key == Key.DirectionLeft || keyEvent.key == Key.DirectionRight -> true
+
+                                else -> false
+                            }
+                        },
+                        onClick = { openUserPage() }
+                    )
+                }
             )
         }
 
-        fun openUserPage() {
-            if (userViewModel.isLogin) {
-                context.startActivity(Intent(context, UserSwitchActivity::class.java))
-            } else {
-                context.startActivity(Intent(context, LoginActivity::class.java))
-            }
+        if (showCollapsedUserButton) {
+            LeftNaviUserButton(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .zIndex(3f),
+                expanded = false,
+                colorAnimationEnabled = userButtonColorAnimationEnabled,
+                isLogin = userViewModel.isLogin,
+                avatar = userViewModel.face,
+                username = userViewModel.username,
+                focusRequester = userFocusRequester,
+                isFocused = userIsFocused,
+                onFocusChanged = {
+                    userIsFocused = it
+                    if (!it) userLongPressTriggered = false
+                },
+                onPreviewKeyEvent = onUserButtonPreviewKeyEvent,
+                onClick = { expandLeftNavi() }
+            )
         }
-
-        LeftNaviUserButton(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                // 按钮依然无缝追踪 drawerX
-                .offset {
-                    val overShootX = maxOf(0f, drawerX).roundToInt()
-                    IntOffset(x = overShootX, y = 0)
-                }
-                .zIndex(3f),
-            isLogin = userViewModel.isLogin,
-            avatar = userViewModel.face,
-            focusRequester = userFocusRequester,
-            isFocused = userIsFocused,
-            onFocusChanged = {
-                userIsFocused = it
-                if (!it) userLongPressTriggered = false
-            },
-            onPreviewKeyEvent = { keyEvent ->
-                val isConfirmKey = keyEvent.key == Key.DirectionCenter ||
-                        keyEvent.key == Key.Enter ||
-                        keyEvent.key == Key.Spacebar
-
-                when {
-                    isConfirmKey &&
-                            keyEvent.type == KeyEventType.KeyDown &&
-                            keyEvent.nativeKeyEvent.isLongPress -> {
-                        if (!userLongPressTriggered) {
-                            userLongPressTriggered = true
-                            openUserPage()
-                        }
-                        true
-                    }
-
-                    isConfirmKey &&
-                            keyEvent.type == KeyEventType.KeyUp -> {
-                        if (userLongPressTriggered) {
-                            // 这是长按后的抬起：不要再触发短按逻辑
-                            userLongPressTriggered = false
-                        } else {
-                            // 短按：切换抽屉
-                            if (leftNaviExpanded) collapseLeftNavi() else expandLeftNavi()
-                        }
-                        true
-                    }
-
-                    leftNaviExpanded && keyEvent.type == KeyEventType.KeyDown &&
-                            keyEvent.key == Key.DirectionDown -> {
-                        currentDrawerFocusRequester().requestFocus(scope)
-                        true
-                    }
-
-                    leftNaviExpanded && keyEvent.type == KeyEventType.KeyDown &&
-                            keyEvent.key == Key.DirectionUp -> {
-                        settingsFocusRequester.requestFocus(scope)
-                        true
-                    }
-
-                    leftNaviExpanded &&
-                            (keyEvent.key == Key.DirectionLeft || keyEvent.key == Key.DirectionRight) -> true
-
-                    !leftNaviExpanded && keyEvent.type == KeyEventType.KeyDown &&
-                            keyEvent.key == Key.DirectionRight -> {
-                        onFocusToContent(MainContentFocusTarget.LeftEntry)
-                        true
-                    }
-
-                    !leftNaviExpanded && keyEvent.type == KeyEventType.KeyDown &&
-                            keyEvent.key == Key.DirectionLeft -> {
-                        onFocusToContent(MainContentFocusTarget.RightEntry)
-                        true
-                    }
-
-                    !leftNaviExpanded &&
-                            (keyEvent.key == Key.DirectionUp || keyEvent.key == Key.DirectionDown) -> true
-
-                    else -> false
-                }
-            },
-            onClick = { if (leftNaviExpanded) collapseLeftNavi() else expandLeftNavi() }
-        )
 
         if (showFirstLaunchMainDialog) {
             val closeFirstLaunchMainDialog = {
