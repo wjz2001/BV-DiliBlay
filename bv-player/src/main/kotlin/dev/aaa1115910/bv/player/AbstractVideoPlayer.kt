@@ -37,6 +37,11 @@ abstract class AbstractVideoPlayer {
     /** 跳转播放位置 */
     abstract fun seekTo(time: Long)
 
+    /** 带诊断原因的跳转播放位置 */
+    open fun seekTo(time: Long, reason: String) {
+        seekTo(time)
+    }
+
     /** 释放播放器 */
     abstract fun release()
 

@@ -32,12 +32,13 @@ fun PlayStateTips(
     isPlaying: Boolean,
     isBuffering: Boolean,
     isError: Boolean,
+    showPauseIcon: Boolean = true,
     errorMessage: String? = null
 ) {
     Box(
         modifier = modifier.fillMaxSize()
     ) {
-        if (!isPlaying && !isBuffering && !isError) {
+        if (showPauseIcon && !isPlaying && !isBuffering && !isError) {
             PauseIcon(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)

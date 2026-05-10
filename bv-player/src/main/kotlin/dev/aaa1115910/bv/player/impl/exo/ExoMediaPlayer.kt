@@ -1,20 +1,29 @@
 package dev.aaa1115910.bv.player.impl.exo
 
 import android.content.Context
+import android.os.SystemClock
 import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.Effect
+import androidx.media3.common.Format
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.effect.ScaleAndRotateTransformation
+import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.Renderer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.source.LoadEventInfo
 import androidx.media3.exoplayer.source.MediaSource
+import androidx.media3.exoplayer.source.MediaLoadData
 import dev.aaa1115910.bv.player.AbstractVideoPlayer
 import dev.aaa1115910.bv.player.VideoPlayerOptions
 import dev.aaa1115910.bv.player.formatMinSec
+import java.io.IOException
 
 @OptIn(UnstableApi::class)
 open class ExoMediaPlayer(
@@ -24,6 +33,21 @@ open class ExoMediaPlayer(
 
     var mPlayer: ExoPlayer? = null
     private var mMediaSource: MediaSource? = null
+    private var prepareStartElapsedMs: Long = 0L
+    private var prepareSerial: Long = 0L
+    private var firstReadyElapsedMs: Long = 0L
+    private var firstPlayingElapsedMs: Long = 0L
+    private var firstFrameElapsedMs: Long = 0L
+    private var bufferingStartElapsedMs: Long = 0L
+    private var bufferingCount: Int = 0
+    private var startupBufferingCount: Int = 0
+    private var totalBufferingDurationMs: Long = 0L
+    private var startupBufferingDurationMs: Long = 0L
+    private var droppedFramesSincePrepare: Int = 0
+    private var lastPlaybackState: Int = Player.STATE_IDLE
+    private var lastSeekReason: String = "none"
+    private var lastSeekTargetMs: Long = C.TIME_UNSET
+    private var lastSeekElapsedMs: Long = 0L
 
     /**
      * 当前画面变换状态。
@@ -44,6 +68,163 @@ open class ExoMediaPlayer(
     private val dataSourceFactory =
         BvPlayerFactory.createDataSourceFactory(context, options)
 
+    private val analyticsListener = object : AnalyticsListener {
+        override fun onLoadStarted(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: LoadEventInfo,
+            mediaLoadData: MediaLoadData,
+            retryCount: Int
+        ) {
+            BvPlayerDiag.d(
+                event = "loadStarted",
+                player = mPlayer,
+                msg = "retry=$retryCount ${prepareTiming()} ${BvPlayerDiag.loadInfo(loadEventInfo)} ${BvPlayerDiag.mediaLoadData(mediaLoadData)}"
+            )
+        }
+
+        override fun onLoadCompleted(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: LoadEventInfo,
+            mediaLoadData: MediaLoadData
+        ) {
+            BvPlayerDiag.d(
+                event = "loadCompleted",
+                player = mPlayer,
+                msg = "${prepareTiming()} ${BvPlayerDiag.loadInfo(loadEventInfo)} ${BvPlayerDiag.mediaLoadData(mediaLoadData)}"
+            )
+        }
+
+        override fun onLoadError(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: LoadEventInfo,
+            mediaLoadData: MediaLoadData,
+            error: IOException,
+            wasCanceled: Boolean
+        ) {
+            BvPlayerDiag.e(
+                event = "loadError",
+                player = mPlayer,
+                throwable = error,
+                msg = "wasCanceled=$wasCanceled ${prepareTiming()} ${BvPlayerDiag.loadInfo(loadEventInfo)} ${BvPlayerDiag.mediaLoadData(mediaLoadData)}"
+            )
+        }
+
+        override fun onBandwidthEstimate(
+            eventTime: AnalyticsListener.EventTime,
+            totalLoadTimeMs: Int,
+            totalBytesLoaded: Long,
+            bitrateEstimate: Long
+        ) {
+            BvPlayerDiag.d(
+                event = "bandwidthEstimate",
+                player = mPlayer,
+                msg = "${prepareTiming()} totalLoadTimeMs=$totalLoadTimeMs totalBytesLoaded=$totalBytesLoaded bitrateEstimate=$bitrateEstimate"
+            )
+        }
+
+        override fun onAudioDecoderInitialized(
+            eventTime: AnalyticsListener.EventTime,
+            decoderName: String,
+            initializedTimestampMs: Long,
+            initializationDurationMs: Long
+        ) {
+            BvPlayerDiag.i(
+                event = "audioDecoderInitialized",
+                player = mPlayer,
+                msg = "decoder=$decoderName initDurationMs=$initializationDurationMs ${prepareTiming()}"
+            )
+        }
+
+        override fun onVideoDecoderInitialized(
+            eventTime: AnalyticsListener.EventTime,
+            decoderName: String,
+            initializedTimestampMs: Long,
+            initializationDurationMs: Long
+        ) {
+            BvPlayerDiag.i(
+                event = "videoDecoderInitialized",
+                player = mPlayer,
+                msg = "decoder=$decoderName initDurationMs=$initializationDurationMs ${prepareTiming()}"
+            )
+        }
+
+        override fun onAudioInputFormatChanged(
+            eventTime: AnalyticsListener.EventTime,
+            format: Format,
+            decoderReuseEvaluation: DecoderReuseEvaluation?
+        ) {
+            BvPlayerDiag.i(
+                event = "audioInputFormatChanged",
+                player = mPlayer,
+                msg = "${prepareTiming()} ${BvPlayerDiag.format(format)}"
+            )
+        }
+
+        override fun onVideoInputFormatChanged(
+            eventTime: AnalyticsListener.EventTime,
+            format: Format,
+            decoderReuseEvaluation: DecoderReuseEvaluation?
+        ) {
+            BvPlayerDiag.i(
+                event = "videoInputFormatChanged",
+                player = mPlayer,
+                msg = "${prepareTiming()} ${BvPlayerDiag.format(format)}"
+            )
+        }
+
+        override fun onDroppedVideoFrames(
+            eventTime: AnalyticsListener.EventTime,
+            droppedFrames: Int,
+            elapsedMs: Long
+        ) {
+            droppedFramesSincePrepare += droppedFrames
+            BvPlayerDiag.w(
+                event = "droppedVideoFrames",
+                player = mPlayer,
+                msg = "droppedFrames=$droppedFrames elapsedMs=$elapsedMs totalSincePrepare=$droppedFramesSincePrepare " +
+                        "${prepareTiming()} sinceFirstReadyMs=${elapsedSince(firstReadyElapsedMs)} " +
+                        "sinceFirstFrameMs=${elapsedSince(firstFrameElapsedMs)} startupWindow=${isStartupWindow()}"
+            )
+        }
+
+        override fun onVideoFrameProcessingOffset(
+            eventTime: AnalyticsListener.EventTime,
+            totalProcessingOffsetUs: Long,
+            frameCount: Int
+        ) {
+            BvPlayerDiag.d(
+                event = "videoFrameProcessingOffset",
+                player = mPlayer,
+                msg = "totalProcessingOffsetUs=$totalProcessingOffsetUs frameCount=$frameCount ${prepareTiming()}"
+            )
+        }
+
+        override fun onAudioUnderrun(
+            eventTime: AnalyticsListener.EventTime,
+            bufferSize: Int,
+            bufferSizeMs: Long,
+            elapsedSinceLastFeedMs: Long
+        ) {
+            BvPlayerDiag.w(
+                event = "audioUnderrun",
+                player = mPlayer,
+                msg = "bufferSize=$bufferSize bufferSizeMs=$bufferSizeMs elapsedSinceLastFeedMs=$elapsedSinceLastFeedMs ${prepareTiming()}"
+            )
+        }
+
+        override fun onAudioSinkError(eventTime: AnalyticsListener.EventTime, audioSinkError: Exception) {
+            BvPlayerDiag.e("audioSinkError", mPlayer, audioSinkError)
+        }
+
+        override fun onAudioCodecError(eventTime: AnalyticsListener.EventTime, audioCodecError: Exception) {
+            BvPlayerDiag.e("audioCodecError", mPlayer, audioCodecError)
+        }
+
+        override fun onVideoCodecError(eventTime: AnalyticsListener.EventTime, videoCodecError: Exception) {
+            BvPlayerDiag.e("videoCodecError", mPlayer, videoCodecError)
+        }
+    }
+
     init {
         initPlayer()
     }
@@ -54,10 +235,17 @@ open class ExoMediaPlayer(
 
     @OptIn(UnstableApi::class)
     override fun initPlayer() {
+        BvPlayerDiag.i(
+            event = "initPlayer",
+            player = mPlayer,
+            msg = "releaseOld=${mPlayer != null} enableFfmpegAudioRenderer=${options.enableFfmpegAudioRenderer} enableSoftwareVideoDecoder=${options.enableSoftwareVideoDecoder}"
+        )
         // 如果外部误调用多次，这里先释放旧实例
         mPlayer?.removeListener(this)
+        mPlayer?.removeAnalyticsListener(analyticsListener)
         mPlayer?.release()
         mPlayer = null
+        resetTimeline()
 
         mPlayer = BvPlayerFactory.createPlayer(context, options)
             .apply {
@@ -66,10 +254,12 @@ open class ExoMediaPlayer(
             }
 
         initListener()
+        BvPlayerDiag.i("initPlayerDone", mPlayer)
     }
 
     private fun initListener() {
         mPlayer?.addListener(this)
+        mPlayer?.addAnalyticsListener(analyticsListener)
     }
 
     fun applyVideoTransform(
@@ -77,6 +267,11 @@ open class ExoMediaPlayer(
         scaleY: Float,
         rotationDegrees: Float
     ) {
+        BvPlayerDiag.i(
+            event = "applyVideoTransform",
+            player = mPlayer,
+            msg = "scaleX=$scaleX scaleY=$scaleY rotationDegrees=$rotationDegrees"
+        )
         currentVideoScaleX = scaleX
         currentVideoScaleY = scaleY
         currentVideoRotationDegrees = normalizeRotationDegrees(rotationDegrees)
@@ -126,12 +321,18 @@ open class ExoMediaPlayer(
      */
     fun reapplyVideoEffectsAfterViewBound() {
         if (!needsEffectReapplyAfterViewAttach) return
+        BvPlayerDiag.i("reapplyVideoEffectsAfterViewBound", mPlayer)
         applyCurrentVideoEffects()
         needsEffectReapplyAfterViewAttach = false
     }
 
     @OptIn(UnstableApi::class)
     override fun setHeader(headers: Map<String, String>) {
+        BvPlayerDiag.i(
+            event = "setHeader",
+            player = mPlayer,
+            msg = "keys=${headers.keys.joinToString()} hasUserAgent=${headers.keys.any { it.equals("User-Agent", ignoreCase = true) }} hasReferer=${headers.keys.any { it.equals("referer", ignoreCase = true) }}"
+        )
         val userAgent = headers.entries
             .firstOrNull { it.key.equals("User-Agent", ignoreCase = true) }
             ?.value
@@ -162,6 +363,11 @@ open class ExoMediaPlayer(
 
     @OptIn(UnstableApi::class)
     override fun playUrl(videoUrl: String?, audioUrl: String?) {
+        BvPlayerDiag.i(
+            event = "playUrl",
+            player = mPlayer,
+            msg = "prepareSerial=${prepareSerial + 1} ${BvPlayerDiag.source(videoUrl, audioUrl)}"
+        )
         mMediaSource = buildMediaSource(videoUrl, audioUrl)
     }
 
@@ -173,6 +379,15 @@ open class ExoMediaPlayer(
         needsEffectReapplyAfterReady = hasNonIdentityVideoTransform()
         needsEffectReapplyAfterViewAttach = true
 
+        resetTimeline()
+        prepareSerial += 1
+        prepareStartElapsedMs = SystemClock.elapsedRealtime()
+        BvPlayerDiag.i(
+            event = "prepare",
+            player = player,
+            msg = "serial=$prepareSerial hasTransform=${hasNonIdentityVideoTransform()} " +
+                    "needsEffectReapplyAfterViewAttach=$needsEffectReapplyAfterViewAttach"
+        )
         player.setMediaSource(mediaSource)
 
         // 官方要求 prepare 前至少调用一次 setVideoEffects
@@ -181,14 +396,17 @@ open class ExoMediaPlayer(
     }
 
     override fun start() {
+        BvPlayerDiag.i("start", mPlayer, prepareTiming())
         mPlayer?.play()
     }
 
     override fun pause() {
+        BvPlayerDiag.i("pause", mPlayer, prepareTiming())
         mPlayer?.pause()
     }
 
     override fun stop() {
+        BvPlayerDiag.i("stop", mPlayer)
         mPlayer?.stop()
     }
 
@@ -200,14 +418,29 @@ open class ExoMediaPlayer(
         get() = mPlayer?.isPlaying == true
 
     override fun seekTo(time: Long) {
+        seekTo(time, "unspecified")
+    }
+
+    override fun seekTo(time: Long, reason: String) {
+        lastSeekReason = reason
+        lastSeekTargetMs = time
+        lastSeekElapsedMs = SystemClock.elapsedRealtime()
+        BvPlayerDiag.i(
+            event = "seekTo",
+            player = mPlayer,
+            msg = "reason=$reason targetMs=$time ${prepareTiming()} callSite=${callSite()}"
+        )
         mPlayer?.seekTo(time)
     }
 
     override fun release() {
+        BvPlayerDiag.i("release", mPlayer, startupSummary())
         mPlayer?.removeListener(this)
+        mPlayer?.removeAnalyticsListener(analyticsListener)
         mPlayer?.release()
         mPlayer = null
         mMediaSource = null
+        resetTimeline()
     }
 
     override val currentPosition: Long
@@ -220,12 +453,14 @@ open class ExoMediaPlayer(
         get() = mPlayer?.bufferedPercentage ?: 0
 
     override fun setOptions() {
+        BvPlayerDiag.i("setOptions", mPlayer, "playWhenReady=true ${prepareTiming()}")
         mPlayer?.playWhenReady = true
     }
 
     override var speed: Float
         get() = mPlayer?.playbackParameters?.speed ?: 1f
         set(value) {
+            BvPlayerDiag.i("setSpeed", mPlayer, "speed=$value ${prepareTiming()}")
             mPlayer?.setPlaybackSpeed(value)
         }
 
@@ -233,6 +468,48 @@ open class ExoMediaPlayer(
         get() = 0L
 
     override fun onPlaybackStateChanged(playbackState: Int) {
+        val now = SystemClock.elapsedRealtime()
+        val previousState = lastPlaybackState
+        val stateChangedAfterSeek = lastSeekElapsedMs > 0L && now - lastSeekElapsedMs <= 1500L
+        val stateReason = when {
+            playbackState == Player.STATE_BUFFERING && stateChangedAfterSeek ->
+                "afterSeek(reason=$lastSeekReason,targetMs=$lastSeekTargetMs,seekAgoMs=${now - lastSeekElapsedMs})"
+            playbackState == Player.STATE_BUFFERING && firstReadyElapsedMs == 0L -> "startupInitialBuffer"
+            playbackState == Player.STATE_READY && previousState == Player.STATE_BUFFERING -> "bufferingEnd"
+            else -> "normal"
+        }
+
+        if (playbackState == Player.STATE_BUFFERING && previousState != Player.STATE_BUFFERING) {
+            bufferingStartElapsedMs = now
+            bufferingCount += 1
+            if (isStartupWindow(now)) startupBufferingCount += 1
+            BvPlayerDiag.i(
+                event = "bufferingStart",
+                player = mPlayer,
+                msg = "reason=$stateReason count=$bufferingCount startupCount=$startupBufferingCount ${prepareTiming(now)}"
+            )
+        }
+
+        if (previousState == Player.STATE_BUFFERING && playbackState != Player.STATE_BUFFERING && bufferingStartElapsedMs > 0L) {
+            val bufferingDurationMs = now - bufferingStartElapsedMs
+            totalBufferingDurationMs += bufferingDurationMs
+            if (isStartupWindow(now)) startupBufferingDurationMs += bufferingDurationMs
+            BvPlayerDiag.i(
+                event = "bufferingEnd",
+                player = mPlayer,
+                msg = "nextState=${BvPlayerDiag.stateName(playbackState)} durationMs=$bufferingDurationMs " +
+                        "totalMs=$totalBufferingDurationMs startupMs=$startupBufferingDurationMs ${prepareTiming(now)}"
+            )
+            bufferingStartElapsedMs = 0L
+        }
+
+        BvPlayerDiag.i(
+            event = "playbackStateChanged",
+            player = mPlayer,
+            msg = "from=${BvPlayerDiag.stateName(previousState)} state=${BvPlayerDiag.stateName(playbackState)} " +
+                    "reason=$stateReason ${prepareTiming(now)}"
+        )
+        lastPlaybackState = playbackState
         when (playbackState) {
             Player.STATE_IDLE -> {}
 
@@ -241,6 +518,10 @@ open class ExoMediaPlayer(
             }
 
             Player.STATE_READY -> {
+                if (firstReadyElapsedMs == 0L) {
+                    firstReadyElapsedMs = now
+                    BvPlayerDiag.i("startupReady", mPlayer, startupSummary(now))
+                }
                 // 如果用户在播放器真正 READY 前就点了旋转/翻转，就把当前 effect 补打一遍。
                 if (needsEffectReapplyAfterReady || hasNonIdentityVideoTransform()) {
                     applyCurrentVideoEffects()
@@ -256,6 +537,14 @@ open class ExoMediaPlayer(
     }
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {
+        if (isPlaying && firstPlayingElapsedMs == 0L) {
+            firstPlayingElapsedMs = SystemClock.elapsedRealtime()
+        }
+        BvPlayerDiag.i(
+            event = "isPlayingChanged",
+            player = mPlayer,
+            msg = "isPlaying=$isPlaying ${prepareTiming()}"
+        )
         if (isPlaying) {
             mPlayerEventListener?.onPlay()
         } else {
@@ -263,15 +552,76 @@ open class ExoMediaPlayer(
         }
     }
 
+    override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+        BvPlayerDiag.i(
+            event = "playWhenReadyChanged",
+            player = mPlayer,
+            msg = "playWhenReady=$playWhenReady reason=${BvPlayerDiag.playWhenReadyReasonName(reason)} ${prepareTiming()}"
+        )
+    }
+
+    override fun onIsLoadingChanged(isLoading: Boolean) {
+        BvPlayerDiag.i(
+            event = "isLoadingChanged",
+            player = mPlayer,
+            msg = "isLoading=$isLoading ${prepareTiming()}"
+        )
+    }
+
+    override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
+        BvPlayerDiag.i(
+            event = "playbackParametersChanged",
+            player = mPlayer,
+            msg = "speed=${playbackParameters.speed} pitch=${playbackParameters.pitch} ${prepareTiming()}"
+        )
+    }
+
+    override fun onPositionDiscontinuity(
+        oldPosition: Player.PositionInfo,
+        newPosition: Player.PositionInfo,
+        reason: Int
+    ) {
+        BvPlayerDiag.i(
+            event = "positionDiscontinuity",
+            player = mPlayer,
+            msg = "reason=${BvPlayerDiag.discontinuityReasonName(reason)} oldMs=${oldPosition.positionMs} " +
+                    "newMs=${newPosition.positionMs} lastSeekReason=$lastSeekReason " +
+                    "lastSeekTargetMs=$lastSeekTargetMs ${prepareTiming()}"
+        )
+    }
+
+    override fun onVideoSizeChanged(videoSize: VideoSize) {
+        BvPlayerDiag.i(
+            event = "videoSizeChanged",
+            player = mPlayer,
+            msg = BvPlayerDiag.videoSize(videoSize)
+        )
+    }
+
     override fun onRenderedFirstFrame() {
+        val firstFrameCostMs = if (prepareStartElapsedMs > 0L) {
+            SystemClock.elapsedRealtime() - prepareStartElapsedMs
+        } else {
+            0L
+        }
+        if (firstFrameElapsedMs == 0L) {
+            firstFrameElapsedMs = SystemClock.elapsedRealtime()
+        }
+        BvPlayerDiag.i(
+            event = "renderedFirstFrame",
+            player = mPlayer,
+            msg = "prepareToFirstFrameMs=$firstFrameCostMs ${startupSummary()}"
+        )
         mPlayerEventListener?.onRenderedFirstFrame()
     }
 
     override fun onSeekBackIncrementChanged(seekBackIncrementMs: Long) {
+        BvPlayerDiag.d("seekBackIncrementChanged", mPlayer, "seekBackIncrementMs=$seekBackIncrementMs")
         mPlayerEventListener?.onSeekBack(seekBackIncrementMs)
     }
 
     override fun onSeekForwardIncrementChanged(seekForwardIncrementMs: Long) {
+        BvPlayerDiag.d("seekForwardIncrementChanged", mPlayer, "seekForwardIncrementMs=$seekForwardIncrementMs")
         mPlayerEventListener?.onSeekForward(seekForwardIncrementMs)
     }
 
@@ -306,6 +656,67 @@ open class ExoMediaPlayer(
         get() = mPlayer?.videoSize?.height ?: 0
 
     override fun onPlayerError(error: PlaybackException) {
+        BvPlayerDiag.e(
+            event = "playerError",
+            player = mPlayer,
+            throwable = error,
+            msg = "errorCode=${error.errorCode} errorCodeName=${error.errorCodeName} ${startupSummary()}"
+        )
         mPlayerEventListener?.onError(error)
+    }
+
+    private fun resetTimeline() {
+        prepareStartElapsedMs = 0L
+        firstReadyElapsedMs = 0L
+        firstPlayingElapsedMs = 0L
+        firstFrameElapsedMs = 0L
+        bufferingStartElapsedMs = 0L
+        bufferingCount = 0
+        startupBufferingCount = 0
+        totalBufferingDurationMs = 0L
+        startupBufferingDurationMs = 0L
+        droppedFramesSincePrepare = 0
+        lastPlaybackState = Player.STATE_IDLE
+        lastSeekReason = "none"
+        lastSeekTargetMs = C.TIME_UNSET
+        lastSeekElapsedMs = 0L
+    }
+
+    private fun prepareTiming(now: Long = SystemClock.elapsedRealtime()): String {
+        return "serial=$prepareSerial sincePrepareMs=${elapsedSince(prepareStartElapsedMs, now)}"
+    }
+
+    private fun startupSummary(now: Long = SystemClock.elapsedRealtime()): String {
+        return "${prepareTiming(now)} prepareToReadyMs=${elapsedBetween(prepareStartElapsedMs, firstReadyElapsedMs)} " +
+                "prepareToPlayingMs=${elapsedBetween(prepareStartElapsedMs, firstPlayingElapsedMs)} " +
+                "prepareToFirstFrameMs=${elapsedBetween(prepareStartElapsedMs, firstFrameElapsedMs)} " +
+                "bufferingCount=$bufferingCount startupBufferingCount=$startupBufferingCount " +
+                "totalBufferingMs=$totalBufferingDurationMs startupBufferingMs=$startupBufferingDurationMs " +
+                "droppedSincePrepare=$droppedFramesSincePrepare lastSeekReason=$lastSeekReason lastSeekTargetMs=$lastSeekTargetMs"
+    }
+
+    private fun elapsedSince(startMs: Long, now: Long = SystemClock.elapsedRealtime()): Long {
+        return if (startMs > 0L) now - startMs else -1L
+    }
+
+    private fun elapsedBetween(startMs: Long, endMs: Long): Long {
+        return if (startMs > 0L && endMs > 0L) endMs - startMs else -1L
+    }
+
+    private fun isStartupWindow(now: Long = SystemClock.elapsedRealtime()): Boolean {
+        val sincePrepareMs = elapsedSince(prepareStartElapsedMs, now)
+        return sincePrepareMs in 0..10_000
+    }
+
+    private fun callSite(): String {
+        return Thread.currentThread().stackTrace
+            .firstOrNull {
+                val className = it.className
+                !className.contains("ExoMediaPlayer") &&
+                        !className.contains("AbstractVideoPlayer") &&
+                        !className.startsWith("java.lang.Thread")
+            }
+            ?.let { "${it.className}.${it.methodName}:${it.lineNumber}" }
+            ?: "unknown"
     }
 }

@@ -13,7 +13,13 @@ fun KLogger.fWarn(msg: () -> Any?) {
 
 fun KLogger.fDebug(msg: () -> Any?) {
     if (BuildConfig.DEBUG) {
-        info(msg)
+        val message = msg.toStringSafe()
+        InAppLogBuffer.append(
+            level = "DEBUG",
+            loggerName = name,
+            message = message
+        )
+        debug { message }
     }
 }
 
@@ -22,7 +28,14 @@ fun KLogger.fError(msg: () -> Any?) {
 }
 
 fun KLogger.fException(throwable: Throwable, msg: () -> Any?) {
-    warn { "$msg: ${throwable.stackTraceToString()}" }
+    val message = msg.toStringSafe()
+    val fullMessage = "$message: ${throwable.stackTraceToString()}"
+    InAppLogBuffer.append(
+        level = "ERROR",
+        loggerName = name,
+        message = fullMessage
+    )
+    error(throwable) { message }
 }
 
 @Suppress("NOTHING_TO_INLINE")

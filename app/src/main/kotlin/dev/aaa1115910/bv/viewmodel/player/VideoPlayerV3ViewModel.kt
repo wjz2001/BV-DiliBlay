@@ -674,7 +674,7 @@ class VideoPlayerV3ViewModel(
                         audio = _uiState.value.mediaProfileState.audio
                     )
                     if (pendingResumePositionMs > 0) {
-                        player.seekTo(pendingResumePositionMs)
+                        player.seekTo(pendingResumePositionMs, "recreateResume")
                         _uiState.update { it.copy(lastPlayed = 0L) }
                     }
                     player.setOptions()
@@ -762,7 +762,7 @@ class VideoPlayerV3ViewModel(
                         (currentPosition == 0L || pendingResumePositionMs - currentPosition > 1000L)
 
                 if (shouldSeekToPendingPosition) {
-                    player.seekTo(pendingResumePositionMs)
+                    player.seekTo(pendingResumePositionMs, "fastResume")
                     _uiState.update { it.copy(lastPlayed = 0L) }
                 }
 
@@ -922,7 +922,7 @@ class VideoPlayerV3ViewModel(
                 )
 
                 if (currentPosition > 0) {
-                    player.seekTo(currentPosition)
+                    player.seekTo(currentPosition, "reapplyVideoTransform")
                 }
                 player.start()
             }
@@ -1352,7 +1352,7 @@ class VideoPlayerV3ViewModel(
         backToStartCountdownJob?.cancel()
         _uiState.update { it.copy(showBackToStart = false) }
 
-        videoPlayer?.seekTo(0)
+        videoPlayer?.seekTo(0, "backToStart")
         seekDanmakuHost(0L)
     }
 
@@ -1417,7 +1417,7 @@ class VideoPlayerV3ViewModel(
     }
 
     fun seekToTime(time: Long) {
-        videoPlayer?.seekTo(time)
+        videoPlayer?.seekTo(time, "userSeek")
         _seekerState.update { it.copy(currentTime = time) }
         seekDanmakuHost(time)
     }
@@ -2537,7 +2537,7 @@ class VideoPlayerV3ViewModel(
         val time = _uiState.value.lastPlayed
         logger.fInfo { "Back to history: ${time.formatHourMinSec()}" }
 
-        videoPlayer?.seekTo(time)
+        videoPlayer?.seekTo(time, "restoreLastPlayed")
         seekDanmakuHost(time)
 
         _uiState.update { it.copy(showBackToStart = true) }
