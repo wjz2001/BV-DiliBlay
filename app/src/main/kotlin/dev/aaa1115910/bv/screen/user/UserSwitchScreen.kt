@@ -31,6 +31,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BadgedBox
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -49,9 +50,11 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.ImageBitmapConfig
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -67,7 +70,6 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
-import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.activities.user.UserLockSettingsActivity
@@ -130,6 +132,13 @@ fun UserSwitchScreen(
         if (showUnlock) unlockFocusRequester.requestFocus()
     }
 
+
+    CompositionLocalProvider(
+        LocalDensity provides Density(
+            density = LocalDensity.current.density * 1.25f,
+            fontScale = LocalDensity.current.fontScale * 1.25f
+        )
+    ) {
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(0.dp)
@@ -162,21 +171,21 @@ fun UserSwitchScreen(
                     UserLockSettingsActivity.actionStart(context, uid)
                 }
             )
-
-            if (showUnlock) {
-                UnlockSwitchUserContent(
-                    modifier = Modifier.focusRequester(unlockFocusRequester),
-                    userList = userList,
-                    unlockUser = unlockUser!!,
-                    onUnlockSuccess = { user ->
-                        userSwitchViewModel.switchUser(user) {
-                            (context as Activity).finish()
+                if (showUnlock) {
+                    UnlockSwitchUserContent(
+                        modifier = Modifier.focusRequester(unlockFocusRequester),
+                        userList = userList,
+                        unlockUser = unlockUser!!,
+                        onUnlockSuccess = { user ->
+                            userSwitchViewModel.switchUser(user) {
+                                (context as Activity).finish()
+                            }
+                        },
+                        onCancel = {
+                            showUnlock = false
                         }
-                    },
-                    onCancel = {
-                        showUnlock = false
-                    }
-                )
+                    )
+                }
             }
         }
     }
@@ -291,7 +300,10 @@ private fun UserSwitchContent(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(imageVector = Icons.Default.Settings, contentDescription = null)
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = null
+                        )
                         Text(stringResource(R.string.user_switch_button_manage_account))
                     }
                 }
@@ -415,7 +427,15 @@ fun UserAuthDataDialog(
     userDB: UserDB,
     userSwitchViewModel: UserSwitchViewModel = koinViewModel()
 ) {
-    var qrImage by remember { mutableStateOf(ImageBitmap(1, 1, ImageBitmapConfig.Argb8888)) }
+    var qrImage by remember {
+        mutableStateOf(
+            ImageBitmap(
+                1,
+                1,
+                ImageBitmapConfig.Argb8888
+            )
+        )
+    }
 
     LaunchedEffect(show) {
         if (show) {
@@ -528,13 +548,16 @@ fun UserItem(
                 modifier = Modifier.padding(18.dp),
                 badge = {
                     if (lockEnabled) {
-                        Icon(imageVector = Icons.Default.Lock, contentDescription = null)
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null
+                        )
                     }
                 }
             ) {
                 Surface(
                     modifier = Modifier
-                    .size(80.dp),
+                        .size(80.dp),
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = MaterialTheme.colorScheme.surface,
                         focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant

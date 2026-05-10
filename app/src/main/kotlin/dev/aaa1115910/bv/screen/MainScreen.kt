@@ -6,7 +6,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,7 +34,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
@@ -42,7 +42,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.settings.SettingsActivity
@@ -129,26 +128,36 @@ fun MainScreen(
         )
     }
     var currentReadyItem by remember { mutableStateOf<LeftNaviItem?>(null) }
+
+    // 状态控制
     var leftNaviExpanded by remember { mutableStateOf(false) }
-    var showContentScrim by remember { mutableStateOf(false) }
-    var showLeftNaviContent by remember { mutableStateOf(false) }
     var showCollapsedUserButton by remember { mutableStateOf(true) }
     var showFirstLaunchMainDialog by remember { mutableStateOf(Prefs.showFirstLaunchMainDialog) }
     var userIsFocused by remember { mutableStateOf(false) }
     var userLongPressTriggered by remember { mutableStateOf(false) }
     var userButtonColorAnimationEnabled by remember { mutableStateOf(true) }
-    val scrimAlpha by animateFloatAsState(
-        targetValue = if (showContentScrim) 0.35f else 0f,
-        animationSpec = tween(durationMillis = 80),
-        label = "left navi scrim alpha"
-    )
-    val drawerSlideProgress = animateFloatAsState(
-        targetValue = if (leftNaviExpanded && showLeftNaviContent) 1f else 0f,
+
+    // 记录抽屉动态宽度（精确用于撞击计算）
+    var drawerWidthPx by remember { mutableFloatStateOf(0f) }
+
+    // 抽屉动画：迅捷、干脆
+    val drawerSlideProgress by animateFloatAsState(
+        targetValue = if (leftNaviExpanded) 1f else 0f,
         animationSpec = spring(
-            dampingRatio = 0.22f,
-            stiffness = Spring.StiffnessLow
+            dampingRatio = 0.75f,
+            stiffness = Spring.StiffnessMedium
         ),
-        label = "left navi drawer overshoot"
+        label = "drawer_slide"
+    )
+
+    // 主内容区被撞飞动画：带有Q弹缓冲效果（阻尼较低，刚度较低，会被抽屉短暂覆盖后弹开）
+    val mainContentPushProgress by animateFloatAsState(
+        targetValue = if (leftNaviExpanded) 1f else 0f,
+        animationSpec = spring(
+            dampingRatio = 0.25f, // 更弹
+            stiffness = 30f
+        ),
+        label = "main_content_push"
     )
 
     fun newPendingContentFocus(
@@ -218,7 +227,6 @@ fun MainScreen(
                     entryTarget = entryTarget
                 )
             }
-
             else -> Unit
         }
     }
@@ -255,24 +263,15 @@ fun MainScreen(
         userButtonColorAnimationEnabled = false
         showCollapsedUserButton = false
         leftNaviExpanded = true
-        showContentScrim = true
-        scope.launch {
-            delay(90)
-            if (leftNaviExpanded) {
-                showLeftNaviContent = true
-            }
-        }
     }
 
     fun collapseLeftNavi() {
         if (!leftNaviExpanded) return
         leftNaviExpanded = false
         userButtonColorAnimationEnabled = true
-        showContentScrim = false
         scope.launch {
-            delay(360)
+            delay(360) // 等待动画完成再恢复焦点和头像按钮
             if (!leftNaviExpanded) {
-                showLeftNaviContent = false
                 showCollapsedUserButton = true
                 userFocusRequester.requestFocus()
             }
@@ -304,8 +303,7 @@ fun MainScreen(
                     true
                 }
 
-                isConfirmKey &&
-                        keyEvent.type == KeyEventType.KeyUp -> {
+                isConfirmKey && keyEvent.type == KeyEventType.KeyUp -> {
                     if (userLongPressTriggered) {
                         userLongPressTriggered = false
                     } else {
@@ -329,17 +327,15 @@ fun MainScreen(
                 leftNaviExpanded &&
                         (keyEvent.key == Key.DirectionLeft || keyEvent.key == Key.DirectionRight) -> true
 
-                !leftNaviExpanded && keyEvent.key == Key.DirectionRight -> {
-                    if (keyEvent.type == KeyEventType.KeyDown) {
-                        onFocusToContent(MainContentFocusTarget.LeftEntry)
-                    }
+                !leftNaviExpanded && keyEvent.type == KeyEventType.KeyDown &&
+                        keyEvent.key == Key.DirectionRight -> {
+                    onFocusToContent(MainContentFocusTarget.LeftEntry)
                     true
                 }
 
-                !leftNaviExpanded && keyEvent.key == Key.DirectionLeft -> {
-                    if (keyEvent.type == KeyEventType.KeyDown) {
-                        onFocusToContent(MainContentFocusTarget.RightEntry)
-                    }
+                !leftNaviExpanded && keyEvent.type == KeyEventType.KeyDown &&
+                        keyEvent.key == Key.DirectionLeft -> {
+                    onFocusToContent(MainContentFocusTarget.RightEntry)
                     true
                 }
 
@@ -350,8 +346,10 @@ fun MainScreen(
             }
         }
 
-    LaunchedEffect(showLeftNaviContent, focusedDrawerItem) {
-        if (showLeftNaviContent) {
+    LaunchedEffect(leftNaviExpanded, focusedDrawerItem) {
+        if (leftNaviExpanded) {
+            // 给抽屉一点时间上屏，然后请求焦点
+            delay(16)
             currentDrawerFocusRequester().requestFocus()
             delay(16)
             currentDrawerFocusRequester().requestFocus()
@@ -367,13 +365,19 @@ fun MainScreen(
     }
 
     Box(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
+        // ========== 主页内容区域 ==========
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .zIndex(0f)
+                .graphicsLayer {
+                    // 仅在 Draw 阶段读取 mainContentPushProgress，计算方式：将主页面向右侧"撞飞"，最大距离等于抽屉的确切像素宽度
+                    translationX = drawerWidthPx * mainContentPushProgress
+                }
         ) {
             BlackoutSwitch(
                 targetState = activeDrawerItem,
@@ -467,127 +471,122 @@ fun MainScreen(
             }
         }
 
-        if (showContentScrim || scrimAlpha > 0f) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = scrimAlpha))
-                    .zIndex(1f)
-            )
-        }
-
+        // ========== 抽屉区域 ==========
         val isDarkTheme = rememberIsDarkFromPrefs()
-        if (showLeftNaviContent) {
-            LeftNaviContent(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .zIndex(2f)
-                    .graphicsLayer {
-                        translationX = -size.width * (1f - drawerSlideProgress.value)
-                    }
-                    // 浅色模式原生阴影很明显，深色模式原生阴影看不见，两者保留共存
-                    .shadow(elevation = 16.dp)
-                    .background(C.background)
-                    .drawWithContent {
-                        drawContent()
+        LeftNaviContent(
+            modifier = Modifier
+                .fillMaxHeight()
+                .zIndex(2f)
+                .onSizeChanged { drawerWidthPx = it.width.toFloat() } // 测量确切宽度给主页做撞击计算
+                .graphicsLayer {
+                    // 仅在 Draw 阶段读取 drawerSlideProgress
+                    translationX = -size.width * (1f - drawerSlideProgress)
 
-                        val shadowWidth = 36.dp.toPx()
-                        // 浅色模式降低阴影浓度（避免显得脏），深色模式保持浓郁（提升立体感）
-                        val shadowAlpha = if (isDarkTheme) 0.55f else 0.06f
-                        // 深色模式用白线做边缘反光，浅色模式用极淡的黑线勾勒物理轮廓
-                        val outlineColor = if (isDarkTheme) {
-                            Color.White.copy(alpha = 0.12f)
-                        } else {
-                            Color.Black.copy(alpha = 0.08f)
-                        }
-
-                        // 绘制深邃环境阴影
-                        drawRect(
-                            brush = Brush.horizontalGradient(
-                                colors = listOf(Color.Black.copy(alpha = shadowAlpha), Color.Transparent),
-                                startX = size.width,
-                                endX = size.width + shadowWidth
-                            ),
-                            topLeft = Offset(size.width, 0f),
-                            size = Size(shadowWidth, size.height)
-                        )
-
-                        // 绘制切开层次的 1dp 细线
-                        drawLine(
-                            color = outlineColor,
-                            start = Offset(size.width, 0f),
-                            end = Offset(size.width, size.height),
-                            strokeWidth = 1.dp.toPx()
-                        )
-                    },
-                selectedItem = activeDrawerItem,
-                homeFocusRequester = homeDrawerFocusRequester,
-                followFocusRequester = followDrawerFocusRequester,
-                ugcFocusRequester = ugcDrawerFocusRequester,
-                pgcFocusRequester = pgcDrawerFocusRequester,
-                onLeftNaviItemChanged = { activateDrawerItem(it) },
-                onLeftNaviItemFocused = { focusDrawerItem(it) },
-                onOpenSettings = { context.startActivity(Intent(context, SettingsActivity::class.java)) },
-                onFocusToContent = onFocusToContent,
-                userFocusRequester = userFocusRequester,
-                settingsFocusRequester = settingsFocusRequester,
-                userContent = {
-                    LeftNaviUserButton(
-                        expanded = true,
-                        colorAnimationEnabled = userButtonColorAnimationEnabled,
-                        isLogin = userViewModel.isLogin,
-                        avatar = userViewModel.face,
-                        username = userViewModel.username,
-                        focusRequester = userFocusRequester,
-                        isFocused = userIsFocused,
-                        onFocusChanged = {
-                            userIsFocused = it
-                            if (!it) userLongPressTriggered = false
-                        },
-                        onPreviewKeyEvent = { keyEvent ->
-                            val isConfirmKey = keyEvent.key == Key.DirectionCenter ||
-                                    keyEvent.key == Key.Enter ||
-                                    keyEvent.key == Key.Spacebar
-
-                            when {
-                                isConfirmKey && keyEvent.type == KeyEventType.KeyDown &&
-                                        keyEvent.nativeKeyEvent.isLongPress -> {
-                                    if (!userLongPressTriggered) {
-                                        userLongPressTriggered = true
-                                        openUserPage()
-                                    }
-                                    true
-                                }
-
-                                isConfirmKey && keyEvent.type == KeyEventType.KeyUp -> {
-                                    if (!userLongPressTriggered) {
-                                        openUserPage()
-                                    }
-                                    userLongPressTriggered = false
-                                    true
-                                }
-
-                                keyEvent.key == Key.DirectionDown && keyEvent.type == KeyEventType.KeyDown -> {
-                                    currentDrawerFocusRequester().requestFocus(scope)
-                                    true
-                                }
-
-                                keyEvent.key == Key.DirectionUp && keyEvent.type == KeyEventType.KeyDown -> {
-                                    settingsFocusRequester.requestFocus(scope)
-                                    true
-                                }
-
-                                keyEvent.key == Key.DirectionLeft || keyEvent.key == Key.DirectionRight -> true
-
-                                else -> false
-                            }
-                        },
-                        onClick = { openUserPage() }
-                    )
+                    // 当抽屉完全在屏幕外时，跳过绘制以节省性能
+                    alpha = if (drawerSlideProgress == 0f) 0f else 1f
                 }
-            )
-        }
+                .shadow(elevation = 16.dp)
+                .background(C.background)
+                .drawWithContent {
+                    drawContent()
 
+                    val shadowWidth = 36.dp.toPx()
+                    // 浅色模式降低阴影浓度（避免显得脏），深色模式保持浓郁（提升立体感）
+                    val shadowAlpha = if (isDarkTheme) 0.55f else 0.06f
+                    // 深色模式用白线做边缘反光，浅色模式用极淡的黑线勾勒物理轮廓
+                    val outlineColor = if (isDarkTheme) {
+                        Color.White.copy(alpha = 0.12f)
+                    } else {
+                        Color.Black.copy(alpha = 0.08f)
+                    }
+
+                    // 绘制深邃环境阴影
+                    drawRect(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(Color.Black.copy(alpha = shadowAlpha), Color.Transparent),
+                            startX = size.width,
+                            endX = size.width + shadowWidth
+                        ),
+                        topLeft = Offset(size.width, 0f),
+                        size = Size(shadowWidth, size.height)
+                    )
+
+                    // 绘制切开层次的 1dp 细线
+                    drawLine(
+                        color = outlineColor,
+                        start = Offset(size.width, 0f),
+                        end = Offset(size.width, size.height),
+                        strokeWidth = 1.dp.toPx()
+                    )
+                },
+            selectedItem = activeDrawerItem,
+            homeFocusRequester = homeDrawerFocusRequester,
+            followFocusRequester = followDrawerFocusRequester,
+            ugcFocusRequester = ugcDrawerFocusRequester,
+            pgcFocusRequester = pgcDrawerFocusRequester,
+            onLeftNaviItemChanged = { activateDrawerItem(it) },
+            onLeftNaviItemFocused = { focusDrawerItem(it) },
+            onOpenSettings = { context.startActivity(Intent(context, SettingsActivity::class.java)) },
+            onFocusToContent = onFocusToContent,
+            userFocusRequester = userFocusRequester,
+            settingsFocusRequester = settingsFocusRequester,
+            userContent = {
+                LeftNaviUserButton(
+                    expanded = true,
+                    colorAnimationEnabled = userButtonColorAnimationEnabled,
+                    isLogin = userViewModel.isLogin,
+                    avatar = userViewModel.face,
+                    username = userViewModel.username,
+                    focusRequester = userFocusRequester,
+                    isFocused = userIsFocused,
+                    onFocusChanged = {
+                        userIsFocused = it
+                        if (!it) userLongPressTriggered = false
+                    },
+                    onPreviewKeyEvent = { keyEvent ->
+                        val isConfirmKey = keyEvent.key == Key.DirectionCenter ||
+                                keyEvent.key == Key.Enter ||
+                                keyEvent.key == Key.Spacebar
+
+                        when {
+                            isConfirmKey && keyEvent.type == KeyEventType.KeyDown &&
+                                    keyEvent.nativeKeyEvent.isLongPress -> {
+                                if (!userLongPressTriggered) {
+                                    userLongPressTriggered = true
+                                    openUserPage()
+                                }
+                                true
+                            }
+
+                            isConfirmKey && keyEvent.type == KeyEventType.KeyUp -> {
+                                if (!userLongPressTriggered) {
+                                    collapseLeftNavi()
+                                }
+                                userLongPressTriggered = false
+                                true
+                            }
+
+                            keyEvent.key == Key.DirectionDown && keyEvent.type == KeyEventType.KeyDown -> {
+                                currentDrawerFocusRequester().requestFocus(scope)
+                                true
+                            }
+
+                            keyEvent.key == Key.DirectionUp && keyEvent.type == KeyEventType.KeyDown -> {
+                                settingsFocusRequester.requestFocus(scope)
+                                true
+                            }
+
+                            keyEvent.key == Key.DirectionLeft || keyEvent.key == Key.DirectionRight -> true
+
+                            else -> false
+                        }
+                    },
+                    onClick = { collapseLeftNavi() }
+                )
+            }
+        )
+
+        // ========== 悬浮的初始小头像 ==========
         if (showCollapsedUserButton) {
             LeftNaviUserButton(
                 modifier = Modifier
