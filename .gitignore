@@ -1,7 +1,9 @@
 *.iml
 *.bat
+.claude
 .gradle
 .gradle-user-home
+.kotlin
 /local.properties
 .DS_Store
 /build
@@ -9,6 +11,7 @@
 .externalNativeBuild
 .cxx
 /signing.properties
+.idea/
 /.idea/
 /.idea/vcs.xml
 /.idea/jarRepositories.xml
@@ -18,4 +21,3 @@
 /b-API-c
 /fantasytyx-bv
 /PiliPlus
-/.claude/settings.json

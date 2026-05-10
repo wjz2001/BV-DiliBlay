@@ -1,10 +1,10 @@
 package dev.aaa1115910.bv.component.videocard
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.shape.CircleShape
@@ -39,16 +41,23 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -64,6 +73,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.tv.material3.Border
@@ -88,7 +98,6 @@ import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.repository.StartupCoverRepository
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
-
 import dev.aaa1115910.bv.ui.theme.ThemeMode
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.ImageSize
@@ -97,37 +106,97 @@ import dev.aaa1115910.bv.util.resizedImageUrl
 import dev.aaa1115910.bv.util.rememberTvImageRequest
 import dev.aaa1115910.bv.viewmodel.SmallVideoCardItemUiState
 import kotlin.Int
+import kotlin.math.min
 
 private val CoverStatIconSize = 24.dp
 private val ActionButtonSize = 60.dp
 private val ActionIconSize = 40.dp
 
-private const val SmallVideoCardAnimationDurationMillis = 90
-private val SmallVideoCardTransformOrigin = TransformOrigin(0.5f, 0.45f)
+private const val SmallVideoCardAnimationDurationMillis = 180
 
 private val smallVideoCardIsPrivateFlavor: Boolean
     get() = BuildConfig.IS_PRIVATE
 
 /**
- * 兼容旧调用的公开 API。
- *
- * 说明：
- * 1. delToView 当前实现已不再使用，仅为兼容旧调用保留。
- * 2. onGoToDetailPage 当前实现已不再使用，仅为兼容旧调用保留。
- * 3. onGoToUpPage 在非 Host 模式下作为 legacy fallback；
- *    在 Host 模式下，UP 跳转统一走 SmallVideoCardGridViewModel + SmallVideoCardGridHost。
+ * 取景器四角边框：只画四个角的“L”形线段（8 条线）
  */
-@Suppress("UNUSED_PARAMETER")
+private fun Modifier.viewfinderCorners(
+    color: Color,
+    strokeWidthDp: Dp = 3.dp,
+    // 角线段长度（会按控件尺寸自适应并 clamp）
+    cornerRatio: Float = 0.18f,
+    minCornerDp: Dp = 14.dp,
+    maxCornerDp: Dp = 28.dp
+): Modifier = composed {
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        progress.animateTo(
+            targetValue = 1f,
+            // 动画时间
+            animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing)
+        )
+    }
+    this.drawWithCache {
+        val sw = strokeWidthDp.toPx()
+        onDrawWithContent {
+            drawContent()
+
+            val w = size.width
+            val h = size.height
+            if (w <= 0f || h <= 0f) return@onDrawWithContent
+            val minSide = min(w, h)
+            // 计算出角线段的最终目标长度
+            val targetCornerLen = (minSide * cornerRatio)
+                .coerceIn(minCornerDp.toPx(), maxCornerDp.toPx())
+                .coerceAtMost(minSide / 2f)
+
+            // 2. 将目标长度乘以动画进度 progress.value，实现从点到线的生长动画
+            val cornerLen = targetCornerLen * progress.value
+
+            val half = sw / 2f
+
+            fun line(start: Offset, end: Offset) {
+                drawLine(
+                    color = color,
+                    start = start,
+                    end = end,
+                    strokeWidth = sw,
+                    cap = StrokeCap.Square
+                )
+            }
+
+            // Top-Left
+            line(Offset(half, half), Offset(half + cornerLen, half))
+            line(Offset(half, half), Offset(half, half + cornerLen))
+
+            // Top-Right
+            line(Offset(w - half, half), Offset(w - half - cornerLen, half))
+            line(Offset(w - half, half), Offset(w - half, half + cornerLen))
+
+            // Bottom-Left
+            line(Offset(half, h - half), Offset(half + cornerLen, h - half))
+            line(Offset(half, h - half), Offset(half, h - half - cornerLen))
+
+            // Bottom-Right
+            line(Offset(w - half, h - half), Offset(w - half - cornerLen, h - half))
+            line(Offset(w - half, h - half), Offset(w - half, h - half - cornerLen))
+        }
+    }
+}
+
+/**
+ * 说明：
+ * onGoToUpPage 在非 Host 模式下作为 legacy fallback；
+ * 在 Host 模式下，UP 跳转统一走 SmallVideoCardGridViewModel + SmallVideoCardGridHost。
+ */
 @Composable
 fun SmallVideoCard(
     modifier: Modifier = Modifier,
     frameModifier: Modifier = Modifier,
     data: VideoCardData,
     titleMaxLines: Int = 3,
-    delToView: Boolean = false,
     onClick: () -> Unit,
     onAddWatchLater: (() -> Unit)? = null,
-    onGoToDetailPage: (() -> Unit)? = null,
     onGoToUpPage: (() -> Unit)? = null,
     pendingRemoval: Boolean = false,
     onPendingRemovalFocusLost: (() -> Unit)? = null,
@@ -135,7 +204,6 @@ fun SmallVideoCard(
     interactive: Boolean = true,
     classroomDirectUpNavigation: Boolean = false,
     upButtonOnly: Boolean = false,
-    focusedScale: Float = 1.1f,
     coverDensityMultiplier: Float = 1.5f,
     coverFontScaleMultiplier: Float = 1.5f,
     infoDensityMultiplier: Float = 1.35f,
@@ -155,7 +223,6 @@ fun SmallVideoCard(
         interactive = interactive,
         classroomDirectUpNavigation = classroomDirectUpNavigation,
         upButtonOnly = upButtonOnly,
-        focusedScale = focusedScale,
         coverDensityMultiplier = coverDensityMultiplier,
         coverFontScaleMultiplier = coverFontScaleMultiplier,
         infoDensityMultiplier = infoDensityMultiplier,
@@ -178,7 +245,6 @@ private fun SmallVideoCardCore(
     interactive: Boolean = true,
     classroomDirectUpNavigation: Boolean = false,
     upButtonOnly: Boolean = false,
-    focusedScale: Float = 1.1f,
     coverDensityMultiplier: Float = 1.5f,
     coverFontScaleMultiplier: Float = 1.5f,
     infoDensityMultiplier: Float = 1.35f,
@@ -225,9 +291,11 @@ private fun SmallVideoCardCore(
         !pendingRemoval &&
                 hostUiState.favoriteDialog.aid != data.avid &&
                 hostUiState.coAuthorsDialog.ownerAid != data.avid
+
     val canFinalizePendingRemovalOnFocusLoss =
         hostUiState.favoriteDialog.aid != data.avid &&
                 hostUiState.coAuthorsDialog.ownerAid != data.avid
+
     val actionLayerVisible = showActions || pendingRemoval
 
     fun navigateToUp(mid: Long, name: String) {
@@ -301,6 +369,20 @@ private fun SmallVideoCardCore(
         }
     }
 
+    // 把 hasFocus 提升到 Core，让“分离动画”和“底部文字动画”共享同一进度
+    var cardHasFocus by remember(data.avid) { mutableStateOf(false) }
+
+    // focused 且不显示 actions 层 -> 1；长按 actions 层出现时 -> 0（倒放）
+    val separationTarget = if (cardHasFocus && !actionLayerVisible) 1f else 0f
+    val separationProgress by animateFloatAsState(
+        targetValue = separationTarget,
+        animationSpec = tween(
+            durationMillis = SmallVideoCardAnimationDurationMillis,
+            easing = FastOutSlowInEasing
+        ),
+        label = "bv_small_video_card_separation"
+    )
+
     Column(modifier = modifier.fillMaxWidth()) {
         BvSmallVideoCardFrame(
             modifier = frameModifier,
@@ -308,7 +390,8 @@ private fun SmallVideoCardCore(
             showActions = actionLayerVisible,
             allowDismissActionsOnFocusLoss = allowDismissActionsOnFocusLoss,
             cardFocusRequester = cardFocusRequester,
-            focusedScale = focusedScale,
+            separationProgress = separationProgress,
+            onCardHasFocusChanged = { cardHasFocus = it },
             onClick = onClickWithStartupCover,
             onLongClick = {
                 if (!pendingRemoval) {
@@ -340,6 +423,7 @@ private fun SmallVideoCardCore(
                     hasMultipleCoAuthors = hasMultipleCoAuthors,
                     onBack = {
                         if (!pendingRemoval) {
+                            // 关闭浮层后，恢复焦点到卡片（动画会按 focused 正常正放）
                             restoreFocusToCardAfterActionsClose = true
                             showActions = false
                         }
@@ -407,22 +491,27 @@ private fun SmallVideoCardCore(
                     time = data.timeString,
                     interactive = interactive,
                     coverDensityMultiplier = coverDensityMultiplier,
-                    coverFontScaleMultiplier = coverFontScaleMultiplier
+                    coverFontScaleMultiplier = coverFontScaleMultiplier,
+                    isFocused = cardHasFocus
                 )
             }
         }
 
         if (!pendingRemoval) {
-            CardInfo(
-                modifier = Modifier.fillMaxWidth(),
-                title = data.title,
-                titleMaxLines = titleMaxLines,
-                upName = data.upName,
-                pubTime = data.pubTime,
-                hasMultipleCoAuthors = hasMultipleCoAuthors,
-                infoDensityMultiplier = infoDensityMultiplier,
-                infoFontScaleMultiplier = infoFontScaleMultiplier
-            )
+            Box(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                CardInfo(
+                    modifier = Modifier.fillMaxWidth(),
+                    title = data.title,
+                    titleMaxLines = titleMaxLines,
+                    upName = data.upName,
+                    pubTime = data.pubTime,
+                    hasMultipleCoAuthors = hasMultipleCoAuthors,
+                    infoDensityMultiplier = infoDensityMultiplier,
+                    infoFontScaleMultiplier = infoFontScaleMultiplier
+                )
+            }
         }
     }
 }
@@ -434,7 +523,8 @@ private fun BvSmallVideoCardFrame(
     showActions: Boolean,
     allowDismissActionsOnFocusLoss: Boolean,
     cardFocusRequester: FocusRequester,
-    focusedScale: Float,
+    separationProgress: Float,
+    onCardHasFocusChanged: (Boolean) -> Unit,
     pendingRemoval: Boolean,
     canFinalizePendingRemovalOnFocusLoss: Boolean,
     onClick: () -> Unit,
@@ -443,43 +533,138 @@ private fun BvSmallVideoCardFrame(
     onPendingRemovalFocusLost: (() -> Unit)?,
     content: @Composable BoxScope.() -> Unit
 ) {
-    var cardIsFocused by remember { mutableStateOf(false) }
-    var cardHasFocus by remember { mutableStateOf(false) }
+    var cardHasFocusLocal by remember { mutableStateOf(false) }
 
-    val targetScale = if (cardHasFocus) focusedScale else 1f
-    val animatedScale by animateFloatAsState(
-        targetValue = targetScale,
-        animationSpec = tween(durationMillis = SmallVideoCardAnimationDurationMillis),
-        label = "bv_small_video_card_scale"
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    // 按压动画 (平常1f，按下0.9f)
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.9f else 1f,
+        label = "press_scale"
+    )
+
+    // 分离倒放系数 (平常1f，按下0f，使分离状态在按下时平滑倒放)
+    val pressSeparationFraction by animateFloatAsState(
+        targetValue = if (isPressed) 0f else 1f,
+        label = "press_separation_fraction"
     )
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(1.6f)
-            .zIndex(if (cardHasFocus) 1f else 0f)
-            .graphicsLayer {
-                scaleX = animatedScale
-                scaleY = animatedScale
-                transformOrigin = SmallVideoCardTransformOrigin
-            }
+            .zIndex(if (cardHasFocusLocal) 1f else 0f)
     ) {
+        val density = LocalDensity.current
+
+        // 固定的安全分离位移
+        val separationDp = 8.dp
+        val offsetPxTarget = with(density) { separationDp.toPx() }
+        val selectedBorder = C.primary
+
+        // 背后垫片层
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .drawWithCache {
+                    val ambientPaint = android.graphics.Paint().apply {
+                        color = android.graphics.Color.argb((0.039f * 255).toInt(), 0, 0, 0)
+                    }
+                    val spotPaint = android.graphics.Paint().apply {
+                        color = android.graphics.Color.argb((0.19f * 255).toInt(), 0, 0, 0)
+                    }
+
+                    onDrawBehind {
+                        val p = (separationProgress * pressSeparationFraction).coerceIn(0f, 1f)
+                        if (p <= 0.0001f) return@onDrawBehind
+
+                        val offset = offsetPxTarget * p
+                        val c = selectedBorder.copy(alpha = p)
+
+                        // 画垫片（底座本身）
+                        drawRect(
+                            color = c,
+                            topLeft = Offset(offset, offset),
+                            size = androidx.compose.ui.geometry.Size(
+                                width = size.width,
+                                height = size.height
+                            )
+                        )
+
+                        // 计算 MD2 阴影参数，仅在与垫片重合处绘制
+                        val elevationPx = 8.dp.toPx() * p
+                        if (elevationPx > 0.5f) {
+
+                            val ambientBlur = elevationPx.coerceAtLeast(1f)
+                            ambientPaint.maskFilter =
+                                android.graphics.BlurMaskFilter(ambientBlur, android.graphics.BlurMaskFilter.Blur.NORMAL)
+
+                            val spotBlur = (elevationPx * 0.75f).coerceAtLeast(1f)
+                            val spotOffsetY = elevationPx * 0.5f
+                            spotPaint.maskFilter =
+                                android.graphics.BlurMaskFilter(spotBlur, android.graphics.BlurMaskFilter.Blur.NORMAL)
+
+                            clipRect(
+                                left = offset,
+                                top = offset,
+                                right = size.width + offset,
+                                bottom = size.height + offset
+                            ) {
+                                drawContext.canvas.nativeCanvas.apply {
+                                    // 绘制环境阴影
+                                    drawRect(
+                                        -offset,
+                                        -offset,
+                                        size.width - offset,
+                                        size.height - offset,
+                                        ambientPaint
+                                    )
+
+                                    // 绘制直射阴影
+                                    drawRect(
+                                        -offset,
+                                        -offset + spotOffsetY,
+                                        size.width - offset,
+                                        size.height - offset + spotOffsetY,
+                                        spotPaint
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+        )
+
         Card(
             onClick = { if (interactive && !showActions) onClick() },
             onLongClick = { if (interactive) onLongClick() },
+            interactionSource = interactionSource,
             modifier = modifier
                 .then(
-                    if (!interactive) {
-                        Modifier.focusProperties { canFocus = false }
-                    } else {
-                        Modifier
-                    }
+                    if (!interactive) Modifier.focusProperties { canFocus = false }
+                    else Modifier
                 )
                 .focusRequester(cardFocusRequester)
                 .fillMaxSize()
+                .graphicsLayer {
+                    val p = (separationProgress * pressSeparationFraction).coerceIn(0f, 1f)
+                    val offset = offsetPxTarget * p
+
+                    translationX = -offset
+                    translationY = -offset
+
+                    scaleX = pressScale
+                    scaleY = pressScale
+
+                    shape = RectangleShape
+                    clip = false
+                }
                 .onFocusChanged { focusState ->
-                    cardIsFocused = focusState.isFocused
-                    cardHasFocus = focusState.hasFocus
+                    val hasFocus = focusState.hasFocus
+                    cardHasFocusLocal = hasFocus
+                    onCardHasFocusChanged(hasFocus)
+
                     if (pendingRemoval && canFinalizePendingRemovalOnFocusLoss && !focusState.hasFocus) {
                         onPendingRemovalFocusLost?.invoke()
                     }
@@ -493,27 +678,12 @@ private fun BvSmallVideoCardFrame(
                 focusedScale = 1f,
                 pressedScale = 1f
             ),
-            border = CardDefaults.border(
-                focusedBorder = Border(
-                    border = BorderStroke(3.dp, C.selectedBorder),
-                    shape = RectangleShape
-                )
-            )
+            border = CardDefaults.border(Border.None, Border.None)
         ) {
-            Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier.fillMaxSize()
+            ) {
                 content()
-
-                if (showActions && !cardIsFocused) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .border(
-                                width = 3.dp,
-                                color = C.selectedBorder,
-                                shape = RectangleShape
-                            )
-                    )
-                }
             }
         }
     }
@@ -543,6 +713,10 @@ private fun BvSmallVideoCardActions(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .viewfinderCorners(
+                color = C.selectedBorder,
+                strokeWidthDp = 3.dp
+            )
             .onPreviewKeyEvent {
                 if (it.key == Key.Back) {
                     if (it.type == KeyEventType.KeyUp) onBack()
@@ -554,7 +728,8 @@ private fun BvSmallVideoCardActions(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(C.surfaceVariant)
+                // 长按浮层背景色
+                .background(C.surface)
         ) {
             Row(
                 modifier = Modifier
@@ -710,8 +885,46 @@ fun CardCover(
     time: String,
     interactive: Boolean,
     coverDensityMultiplier: Float,
-    coverFontScaleMultiplier: Float
+    coverFontScaleMultiplier: Float,
+    isFocused: Boolean
 ) {
+    val desaturateFilter = remember {
+        // 调节饱和度
+        // 0.0f = 完全黑白 (灰度图)
+        // 1.0f = 原始色彩
+        // > 1.0f = 增加鲜艳度 (比如 1.5f 会非常刺眼)
+        // 这里设为 0.8f，意思是让没被选中的卡片颜色稍微发灰一点
+        val matrix = ColorMatrix().apply { setToSaturation(0.8f) }
+
+        // 调节亮度/透明度
+        // 这里的 0.5f 就是倍数。乘以 0.5 就相当于把 RGB 原有的亮度砍掉一半，实现“压暗”效果。
+        // 如果你想让它更暗，可以改成 0.3f；如果不想那么暗，改成 0.7f。
+        // 最后一行的 1f 代表 Alpha (透明度) 保持 100% 不变。
+        /*
+         * 如何给未选中的卡片加一层“蓝色蒙版/滤镜”？
+         * 你可以修改蓝色通道的“偏移量”（第5列数字，范围一般是 0~255）。
+         * 比如把蓝色那行改成：0.0f, 0.0f, 0.5f, 0.0f, 50.0f
+         * 这样暗下去的同时，图片会泛着一层神秘的幽蓝色。
+         * 对角线上的数值（比如 0.5f, 0, 0...）只是最基础的“亮度调节”；
+         * 而对角线以外的其他数值（比如红色通道里的 G、B），则是用来做“通道混合/调色”
+         */
+        val darkenMatrix = ColorMatrix(
+            floatArrayOf(
+                // R    G    B    A   偏移量
+                0.75f, 0.0f, 0.0f, 0.0f, 0.35f,  // 红色通道：保留原红色 50%，不加额外偏色
+                0.0f, 0.75f, 0.0f, 0.0f, 0.0f,  // 绿色通道：保留原绿色 50%，不加额外偏色
+                0.0f, 0.0f, 0.75f, 0.0f, 0.0f,  // 蓝色通道：保留原蓝色 50%，不加额外偏色
+                0.0f, 0.0f, 0.0f, 1.0f, 0.0f   // 透明通道：保留原透明度 100%，不让图片变半透明
+            )
+        )
+
+        // 把“降低饱和度”和“降低亮度”两个效果乘在一起合并
+        matrix.timesAssign(darkenMatrix)
+
+        // 转化为 Compose 可用的 ColorFilter
+        ColorFilter.colorMatrix(matrix)
+    }
+
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
@@ -731,7 +944,8 @@ fun CardCover(
                 .clip(RectangleShape),
             model = coverRequest,
             contentDescription = null,
-            contentScale = ContentScale.Crop
+            contentScale = ContentScale.Crop,
+            colorFilter = if (isFocused) null else desaturateFilter
         )
 
         CoverStatsBar(
@@ -765,7 +979,7 @@ private fun CoverStatsBar(
                 .fillMaxWidth()
                 .then(
                     if (interactive) {
-                        Modifier.background(C.posterOverlay)
+                        Modifier.background(Color.Transparent)
                     } else {
                         Modifier
                     }
