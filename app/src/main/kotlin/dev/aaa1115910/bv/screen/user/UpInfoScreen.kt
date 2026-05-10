@@ -3,10 +3,10 @@ package dev.aaa1115910.bv.screen.user
 import android.app.Activity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -55,9 +55,11 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.tv.material3.Text
 import androidx.compose.runtime.snapshotFlow
+import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
-import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
+import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
+import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.theme.C
@@ -290,59 +292,66 @@ fun UpSpaceScreen(
             }
         }
     ) { innerPadding ->
-        Column(
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            //Spacer(modifier = Modifier.height(12.dp))
+        //Spacer(modifier = Modifier.height(12.dp))
 
-            SmallVideoCardGridHost(
-                modifier = Modifier.padding(innerPadding),
-                columns = GridCells.Fixed(4),
-                state = gridState,
-                contentPadding = PaddingValues(24.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp),
-                horizontalArrangement = Arrangement.spacedBy(24.dp)
-            ) { cardUiStateFor ->
-                if (visibleVideos.isNotEmpty()) {
-                    itemsIndexed(
-                        items = visibleVideos,
-                        key = { _, video -> video.avid }
-                    ) { index, video ->
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = if (index == 0) {
-                                Modifier
-                                    .focusRequester(firstItemFocusRequester)
-                                    .onFocusChanged { state ->
-                                        // 一旦第一张卡确实拿到过焦点，就允许输入框可聚焦
-                                        if (state.hasFocus) {
-                                            searchCanFocus = true
-                                        }
+        SmallVideoCardGridHost(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize(),
+            columns = GridCells.Fixed(4),
+            state = gridState,
+            contentPadding = PaddingValues(24.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
+            horizontalWrapItemCount = visibleVideos.size,
+            enableVerticalLinks = true,
+            entryFocusRequester = firstItemFocusRequester,
+            upFocusRequester = searchFocusRequester,
+            onNavigateUp = { mid, name ->
+                if (mid != upInfoViewModel.upMid) {
+                    UpInfoActivity.actionStart(context, mid, name)
+                }
+            }
+        ) { cardUiStateFor ->
+            if (visibleVideos.isNotEmpty()) {
+                itemsIndexed(
+                    items = visibleVideos,
+                    key = { _, video -> video.avid }
+                ) { index, video ->
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = if (index == 0) {
+                            Modifier
+                                .onFocusChanged { state ->
+                                    // 一旦第一张卡确实拿到过焦点，就允许输入框可聚焦
+                                    if (state.hasFocus) {
+                                        searchCanFocus = true
                                     }
-                            } else {
-                                Modifier
+                                }
+                        } else {
+                            Modifier
+                        },
+                    ) {
+                        SmallVideoCard(
+                            frameModifier = rememberGridRowWrapModifier(index),
+                            uiState = cardUiStateFor(video.avid),
+                            data = video,
+                            onClick = {
+                                VideoInfoActivity.actionStart(
+                                    context = context,
+                                    aid = video.avid,
+                                    proxyArea = ProxyArea.checkProxyArea(video.title)
+                                )
                             },
-                        ) {
-                            SmallVideoCard(
-                                uiState = cardUiStateFor(video.avid),
-                                data = video,
-                                onClick = {
-                                    VideoInfoActivity.actionStart(
-                                        context = context,
-                                        aid = video.avid,
-                                        proxyArea = ProxyArea.checkProxyArea(video.title)
-                                    )
-                                },
-                                onAddWatchLater = {
-                                    toViewViewModel.addToView(video.avid)
-                                },
-                            )
-                        }
+                            onAddWatchLater = {
+                                toViewViewModel.addToView(video.avid)
+                            },
+                        )
                     }
-                } else {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        EmptyTip()
-                    }
+                }
+            } else {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    EmptyTip()
                 }
             }
         }
