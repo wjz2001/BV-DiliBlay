@@ -13,11 +13,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import dev.aaa1115910.biliapi.entity.user.Author
 import dev.aaa1115910.bv.activities.StartupGate
-import dev.aaa1115910.bv.activities.setContentWhenStartupReady
+import dev.aaa1115910.bv.activities.setThemedContentWhenStartupReady
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.screen.VideoPlayerV3Screen
-import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.viewmodel.player.VideoPlayerV3ViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -75,8 +74,8 @@ class VideoPlayerV3Activity : ComponentActivity() {
         currentInstance = this
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        setContentWhenStartupReady(
-            gate = StartupGate.StartupWork,
+        setThemedContentWhenStartupReady(
+            gate = StartupGate.Prefs,
             onReady = {
                 initViewModelFromIntent()
                 playerViewModel.initVideoPlayer(applicationContext)
@@ -89,9 +88,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
                 }
             }
         ) {
-            BVTheme {
-                VideoPlayerV3Screen()
-            }
+            VideoPlayerV3Screen()
         }
     }
 

@@ -18,9 +18,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -69,10 +67,6 @@ fun BlockSetting(
     val effectiveSelectedTagIds = Prefs.blockSelectedTagIds.filter { it in presentTagIds }
     val groupSelectedCount = effectiveSelectedTagIds.size
     val pagesSelected = Prefs.blockEnabledPages
-
-    val disabledModifier = Modifier
-        .alpha(0.5f)
-        .focusProperties { canFocus = false }
 
     DisposableEffect(Unit) {
         onDispose {

@@ -5,9 +5,8 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
-import dev.aaa1115910.bv.activities.setContentWhenStartupReady
+import dev.aaa1115910.bv.activities.setThemedContentWhenStartupReady
 import dev.aaa1115910.bv.screen.main.pgc.PgcIndexScreen
-import dev.aaa1115910.bv.ui.theme.BVTheme
 
 class PgcIndexActivity : ComponentActivity() {
     companion object {
@@ -25,10 +24,8 @@ class PgcIndexActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentWhenStartupReady {
-            BVTheme {
-                PgcIndexScreen()
-            }
+        setThemedContentWhenStartupReady {
+            PgcIndexScreen()
         }
     }
 }

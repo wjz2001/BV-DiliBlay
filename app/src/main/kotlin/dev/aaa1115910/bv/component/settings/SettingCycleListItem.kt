@@ -1,7 +1,6 @@
 package dev.aaa1115910.bv.component.settings
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -11,11 +10,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemColors
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.component.SettingsBottomIndicator
+import dev.aaa1115910.bv.ui.theme.C
 
 @Composable
 fun <T> SettingCycleListItem(
@@ -25,6 +27,7 @@ fun <T> SettingCycleListItem(
     checked: T,
     defaultHasFocus: Boolean = false,
     colors: ListItemColors = ListItemDefaults.colors(),
+    contentColor: Color? = null,
     supportText: (T) -> String = { "" },
     trailingText: (T) -> String = { "" },
     onCheckedChange: (T) -> Unit
@@ -39,13 +42,17 @@ fun <T> SettingCycleListItem(
     val currentTrailingText = trailingText(currentOption)
 
     ListItem(
-        modifier = modifier
-            .padding(horizontal = 12.dp)
+        modifier = SettingsBottomIndicator(
+            modifier = modifier,
+            animatedSelected = hasFocus,
+            fixedSelected = false,
+            color = C.primary
+        )
             .onFocusChanged { hasFocus = it.hasFocus },
-        headlineContent = { Text(text = title) },
+        headlineContent = { Text(text = title, color = contentColor ?: Color.Unspecified) },
         supportingContent = {
             if (currentSupportText.isNotBlank()) {
-                Text(text = currentSupportText)
+                Text(text = currentSupportText, color = contentColor ?: Color.Unspecified)
             }
         },
         trailingContent = {
@@ -54,7 +61,7 @@ fun <T> SettingCycleListItem(
                 contentAlignment = Alignment.CenterEnd
             ) {
                 if (currentTrailingText.isNotBlank()) {
-                    Text(text = currentTrailingText)
+                    Text(text = currentTrailingText, color = contentColor ?: Color.Unspecified)
                 }
             }
         },

@@ -4,11 +4,10 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import dev.aaa1115910.bv.activities.setContentWhenStartupReady
+import dev.aaa1115910.bv.activities.setThemedContentWhenStartupReady
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.screen.VideoInfoScreen
-import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.viewmodel.video.VideoDetailViewModel
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
@@ -58,12 +57,10 @@ class VideoInfoActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentWhenStartupReady(
+        setThemedContentWhenStartupReady(
             onReady = { getParamsFromIntent() }
         ) {
-            BVTheme {
-                VideoInfoScreen()
-            }
+            VideoInfoScreen()
         }
     }
 

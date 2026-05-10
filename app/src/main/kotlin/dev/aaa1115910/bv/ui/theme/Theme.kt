@@ -17,7 +17,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
@@ -70,14 +69,10 @@ fun BVTheme(
         }
     }
 
-    val containerSize = LocalWindowInfo.current.containerSize
-    val screenWidthPx = containerSize.width.toFloat()
-
     val density = if (view.isInEditMode) {
         LocalDensity.current.density
     } else {
-        val defaultWidth = if (screenWidthPx > 0f) screenWidthPx else 1920f
-        Prefs.densityFlow.collectAsState(defaultWidth / 960f).value
+        Prefs.densityFlow.collectAsState(Prefs.density).value
     }
 
     val showFps by remember { mutableStateOf(if (!view.isInEditMode) Prefs.showFps else false) }

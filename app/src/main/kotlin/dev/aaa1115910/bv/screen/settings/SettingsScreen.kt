@@ -53,7 +53,11 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
@@ -67,12 +71,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.geometry.toRect
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
-import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemColors
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
@@ -92,6 +96,8 @@ import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.component.settings.CookiesDialog
 import dev.aaa1115910.bv.component.settings.SettingCycleListItem
 import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
+import dev.aaa1115910.bv.component.settings.SettingsNavigationListItem
+import dev.aaa1115910.bv.component.settings.actionEntry
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoCodec
@@ -137,7 +143,7 @@ private enum class SettingsMenuNavItem(private val strRes: Int) {
 
 private const val AppVersionEntryId = "app_version"
 
-private data class SettingsEntry(
+internal data class SettingsEntry(
     val id: String,
     val title: String,
     val supportText: String,
@@ -148,13 +154,15 @@ private data class SettingsEntry(
     val itemContent: @Composable (
         modifier: Modifier,
         colors: ListItemColors,
+        contentColor: Color?,
         onFocus: () -> Unit
-    ) -> Unit = { modifier, colors, onFocus ->
-        SettingsListItem(
+    ) -> Unit = { modifier, colors, contentColor, onFocus ->
+        SettingsNavigationListItem(
             modifier = modifier,
             title = title,
             description = if (showSupportTextInItem) supportText else "",
             colors = colors,
+            contentColor = contentColor,
             onFocus = onFocus
         )
     },
@@ -188,7 +196,6 @@ fun SettingsScreen(
 private fun SettingsMotionHost(
     modifier: Modifier = Modifier
 ) {
-    val gallery_scrim_max_alpha = 0.65f
     var currentCategory by remember { mutableStateOf(SettingsMenuNavItem.AudioVideo) }
     var appVersionGalleryActive by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -422,6 +429,7 @@ private fun SettingsColumns(
                 items = currentItems,
                 selectedItem = currentItem,
                 focused = focusColumn == SettingsColumn.Item,
+                activePathEnabled = focusColumn == SettingsColumn.Detail,
                 onItemFocused = onItemFocused,
                 onLeft = { categoryFocusRequester.requestFocus(scope) },
                 onRight = {
@@ -485,6 +493,7 @@ private fun SettingsCategoryColumn(
         categories
             .forEachIndexed { index, category ->
                 val selected = category == selectedCategory
+                val activePath = selected && !focused
                 val previousFocusRequester =
                     if (categories.size == 1) {
                         focusRequester
@@ -531,16 +540,16 @@ private fun SettingsCategoryColumn(
                             else -> false
                         }
                     }
-                    .settingsBottomIndicator(
-                        animatedSelected = selected && focused,
-                        fixedSelected = selected && !focused,
-                        color = C.onBackground
+                    .settingsActivePathAnchor(
+                        active = activePath,
+                        anchorColor = C.primary
                     )
 
-                SettingsListItem(
+                SettingsNavigationListItem(
                     modifier = itemModifier,
                     title = category.getDisplayName(context),
                     colors = settingsTransparentListItemColors(),
+                    contentColor = if (activePath) C.onSurfaceVariant else null,
                     onFocus = { onCategoryFocused(category) }
                 )
             }
@@ -554,11 +563,13 @@ private fun SettingsItemColumn(
     items: List<SettingsEntry>,
     selectedItem: SettingsEntry?,
     focused: Boolean,
+    activePathEnabled: Boolean,
     onItemFocused: (SettingsEntry) -> Unit,
     onLeft: () -> Unit,
     onRight: () -> Unit
 ) {
-    val indicatorColor = C.onBackground
+    val activePathAnchorColor = C.secondary
+    val activePathContentColor = C.onSurfaceVariant
     val itemColors = settingsTransparentListItemColors()
     val scope = rememberCoroutineScope()
     val itemIds = items.map { it.id }
@@ -591,6 +602,8 @@ private fun SettingsItemColumn(
     ) {
         items.forEachIndexed { index, item ->
             val selected = item.id == selectedItem?.id
+            val useMainFocusRequester = selected || (selectedItem == null && index == 0)
+            val activePath = selected && activePathEnabled
             val previousFocusRequester =
                 if (items.size == 1) {
                     focusRequester
@@ -606,7 +619,7 @@ private fun SettingsItemColumn(
             val itemModifier = Modifier
                 .fillMaxWidth()
                 .then(
-                    if (selected) {
+                    if (useMainFocusRequester) {
                         Modifier.focusRequester(focusRequester)
                     } else {
                         Modifier.focusRequester(itemFocusRequesters.getValue(item.id))
@@ -643,16 +656,16 @@ private fun SettingsItemColumn(
                         else -> false
                     }
                 }
-                .settingsBottomIndicator(
-                    animatedSelected = selected && focused,
-                    fixedSelected = selected && !focused,
-                    color = indicatorColor
+                .settingsActivePathAnchor(
+                    active = activePath,
+                    anchorColor = activePathAnchorColor
                 )
 
             item(key = item.id) {
                 item.itemContent(
                     itemModifier,
-                    itemColors
+                    itemColors,
+                    if (activePath) activePathContentColor else null
                 ) { onItemFocused(item) }
             }
         }
@@ -679,6 +692,7 @@ private fun SettingsDetailColumn(
 
     Column(
         modifier = modifier
+            .settingsDetailSaturation(focused)
             .padding(24.dp)
             .then(
                 if (canFocusDetail) {
@@ -743,47 +757,11 @@ private fun SettingsDetailColumn(
     }
 }
 
-private fun SettingsEntry.canRequestDetailFocus() = canFocusDetail || autoScrollableDetail
+private fun SettingsEntry.canRequestDetailFocus() =
+    canFocusDetail || (autoScrollableDetail && detailKeyEvent == null)
 
 @Composable
-private fun SettingsListItem(
-    modifier: Modifier = Modifier,
-    title: String,
-    description: String = "",
-    colors: ListItemColors,
-    onFocus: () -> Unit
-) {
-    val contentColor = LocalSettingsContentColor.current
-
-    ListItem(
-        modifier = modifier
-            .onFocusChanged {
-                if (it.hasFocus) onFocus()
-        },
-        selected = false,
-        onClick = {},
-        colors = colors,
-        headlineContent = {
-            Text(
-                text = title,
-                color = contentColor
-            )
-        },
-        supportingContent = if (description.isBlank()) {
-            null
-        } else {
-            {
-                Text(
-                    text = description,
-                    color = contentColor
-                )
-            }
-        }
-    )
-}
-
-@Composable
-private fun settingsTransparentListItemColors() = ListItemDefaults.colors(
+internal fun settingsTransparentListItemColors() = ListItemDefaults.colors(
     containerColor = Color.Transparent,
     focusedContainerColor = Color.Transparent,
     pressedContainerColor = Color.Transparent,
@@ -792,35 +770,65 @@ private fun settingsTransparentListItemColors() = ListItemDefaults.colors(
     pressedSelectedContainerColor = Color.Transparent
 )
 
-private fun Modifier.settingsBottomIndicator(
-    animatedSelected: Boolean,
-    fixedSelected: Boolean,
-    color: Color
+private fun Modifier.settingsActivePathAnchor(
+    active: Boolean,
+    anchorColor: Color
 ): Modifier = composed {
-    val progress = remember { Animatable(if (animatedSelected || fixedSelected) 1f else 0f) }
+    val progress = remember { Animatable(if (active) 1f else 0f) }
+    val anchorSize = 12.dp
+    val anchorStartPadding = 12.dp
+    val anchorTextGap = 5.dp
+    val anchorSpace = anchorStartPadding + anchorSize + anchorTextGap
+    val reservedWidth = if (active) anchorSpace else 0.dp
 
-    LaunchedEffect(animatedSelected, fixedSelected) {
-        when {
-            fixedSelected -> progress.snapTo(1f)
-            animatedSelected -> progress.animateTo(1f, animationSpec = tween(240))
-            else -> progress.animateTo(0f, animationSpec = tween(160))
+    LaunchedEffect(active) {
+        if (active) {
+            progress.animateTo(1f, animationSpec = tween(180))
+        } else {
+            progress.animateTo(0f, animationSpec = tween(120))
         }
     }
 
     drawWithContent {
-        drawContent()
-        if (progress.value <= 0f) return@drawWithContent
+        val value = progress.value
+        if (value <= 0f || !active) {
+            drawContent()
+            return@drawWithContent
+        }
 
-        val strokeHeight = 1.dp.toPx()
-        val width = size.width * progress.value
+        val squareSize = anchorSize.toPx() * value
+        val anchorStartPaddingPx = anchorStartPadding.toPx()
+
         drawRect(
-            color = color,
+            color = anchorColor,
             topLeft = Offset(
-                x = (size.width - width) / 2f,
-                y = size.height - strokeHeight
+                x = anchorStartPaddingPx,
+                y = size.height / 2f - squareSize / 2f
             ),
-            size = Size(width = width, height = strokeHeight)
+            size = Size(squareSize, squareSize)
         )
+
+        drawContent()
+    }.padding(start = reservedWidth)
+}
+
+private fun Modifier.settingsDetailSaturation(
+    focused: Boolean
+): Modifier = drawWithContent {
+    if (focused) {
+        drawContent()
+        return@drawWithContent
+    }
+
+    val paint = Paint().apply {
+        colorFilter = ColorFilter.colorMatrix(
+            ColorMatrix().apply { setToSaturation(0f) }
+        )
+    }
+    drawIntoCanvas { canvas ->
+        canvas.saveLayer(size.toRect(), paint)
+        this@drawWithContent.drawContent()
+        canvas.restore()
     }
 }
 
@@ -1557,7 +1565,7 @@ private fun switchEntry(
     supportText = supportText,
     canFocusDetail = false,
     showSupportTextInItem = false,
-    itemContent = { modifier, colors, onFocus ->
+    itemContent = { modifier, colors, contentColor, onFocus ->
         SettingSwitchListItem(
             modifier = modifier.onFocusChanged {
                 if (it.hasFocus) onFocus()
@@ -1566,6 +1574,7 @@ private fun switchEntry(
             supportText = "",
             checked = checked,
             colors = colors,
+            contentColor = contentColor,
             onCheckedChange = onCheckedChange
         )
     },
@@ -1588,7 +1597,7 @@ private fun <T> cycleEntry(
     supportText = supportText,
     canFocusDetail = false,
     showSupportTextInItem = false,
-    itemContent = { modifier, colors, onFocus ->
+    itemContent = { modifier, colors, contentColor, onFocus ->
         SettingCycleListItem(
             modifier = modifier.onFocusChanged {
                 if (it.hasFocus) onFocus()
@@ -1597,6 +1606,7 @@ private fun <T> cycleEntry(
             options = items,
             checked = selected,
             colors = colors,
+            contentColor = contentColor,
             supportText = { "" },
             trailingText = trailingText,
             onCheckedChange = onSelected
@@ -1604,26 +1614,6 @@ private fun <T> cycleEntry(
     },
     detailContent = {
         SettingsSupportTextDetail(supportText)
-    }
-)
-
-private fun actionEntry(
-    id: String,
-    title: String,
-    supportText: String,
-    actionText: String,
-    onClick: () -> Unit
-) = SettingsEntry(
-    id = id,
-    title = title,
-    supportText = supportText,
-    detailContent = {
-        SettingsActionDetail(
-            title = actionText,
-            supportText = supportText,
-            focused = it,
-            onClick = onClick
-        )
     }
 )
 
@@ -1655,38 +1645,6 @@ private fun customEntry(
     autoScrollableDetail = false,
     detailContent = detailContent
 )
-
-@Composable
-private fun SettingsActionDetail(
-    title: String,
-    supportText: String,
-    focused: Boolean,
-    onClick: () -> Unit
-) {
-    ListItem(
-        modifier = Modifier.fillMaxWidth(),
-        headlineContent = { Text(text = title) },
-        supportingContent = { Text(text = supportText) },
-        onClick = onClick,
-        selected = focused,
-        colors = ListItemDefaults.colors(
-            containerColor = Color.Transparent,
-            contentColor = C.onSurface,
-
-            selectedContainerColor = C.primaryContainer,
-            selectedContentColor = C.onPrimary,
-
-            pressedContainerColor = C.secondaryContainer,
-            pressedContentColor = C.onBackground,
-
-            disabledContainerColor = Color.Transparent,
-            disabledContentColor = C.disabled,
-
-            pressedSelectedContainerColor = C.primaryContainer,
-            pressedSelectedContentColor = C.onPrimary
-        )
-    )
-}
 
 @Composable
 private fun SettingsSupportTextDetail(

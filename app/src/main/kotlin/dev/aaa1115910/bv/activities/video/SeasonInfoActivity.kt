@@ -4,10 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import dev.aaa1115910.bv.activities.setContentWhenStartupReady
+import dev.aaa1115910.bv.activities.setThemedContentWhenStartupReady
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.screen.SeasonInfoScreen
-import dev.aaa1115910.bv.ui.theme.BVTheme
 
 class SeasonInfoActivity : ComponentActivity() {
     companion object {
@@ -29,10 +28,8 @@ class SeasonInfoActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentWhenStartupReady {
-            BVTheme {
-                SeasonInfoScreen()
-            }
+        setThemedContentWhenStartupReady {
+            SeasonInfoScreen()
         }
     }
 }

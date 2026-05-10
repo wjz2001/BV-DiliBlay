@@ -14,7 +14,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -26,6 +25,7 @@ import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemColors
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.component.SettingsBottomIndicator
 import dev.aaa1115910.bv.ui.theme.C
 
 @Composable
@@ -36,21 +36,25 @@ fun SettingSwitchListItem(
     checked: Boolean,
     defaultHasFocus: Boolean = false,
     colors: ListItemColors = ListItemDefaults.colors(),
+    contentColor: Color? = null,
     onCheckedChange: (Boolean) -> Unit
 ) {
     var hasFocus by remember { mutableStateOf(defaultHasFocus) }
 
     ListItem(
-        modifier = modifier
-            .padding(horizontal = 12.dp)
+        modifier = SettingsBottomIndicator(
+            modifier = modifier,
+            animatedSelected = hasFocus,
+            fixedSelected = false,
+            color = C.primary
+        )
             .onFocusChanged { hasFocus = it.hasFocus },
-        headlineContent = { Text(text = title) },
-        supportingContent = { Text(text = supportText) },
+        headlineContent = { Text(text = title, color = contentColor ?: Color.Unspecified) },
+        supportingContent = { Text(text = supportText, color = contentColor ?: Color.Unspecified) },
         trailingContent = {
             Switch(
                     modifier = Modifier
-                        .focusable(false)
-                        .padding(2.dp),
+                        .focusable(false),
                     checked = checked,
                     selected = hasFocus,
                     checkedSelectedThumbColor = C.primary,

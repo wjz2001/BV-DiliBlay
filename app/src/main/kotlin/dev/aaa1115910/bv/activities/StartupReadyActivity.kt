@@ -30,7 +30,7 @@ private enum class StartupReadyState { Loading, Ready, Error }
 
 enum class StartupGate { Prefs, StartupWork }
 
-fun ComponentActivity.setContentWhenStartupReady(
+fun ComponentActivity.setThemedContentWhenStartupReady(
     gate: StartupGate = StartupGate.Prefs,
     onReady: () -> Unit = {},
     content: @Composable () -> Unit
