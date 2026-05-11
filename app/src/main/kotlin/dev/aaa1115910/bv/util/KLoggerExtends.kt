@@ -4,11 +4,23 @@ import dev.aaa1115910.bv.BuildConfig
 import io.github.oshai.kotlinlogging.KLogger
 
 fun KLogger.fInfo(msg: () -> Any?) {
-    info(msg)
+    val message = msg.toStringSafe()
+    InAppLogBuffer.append(
+        level = "INFO",
+        loggerName = name,
+        message = message
+    )
+    info { message }
 }
 
 fun KLogger.fWarn(msg: () -> Any?) {
-    warn(msg)
+    val message = msg.toStringSafe()
+    InAppLogBuffer.append(
+        level = "WARN",
+        loggerName = name,
+        message = message
+    )
+    warn { message }
 }
 
 fun KLogger.fDebug(msg: () -> Any?) {
@@ -24,16 +36,21 @@ fun KLogger.fDebug(msg: () -> Any?) {
 }
 
 fun KLogger.fError(msg: () -> Any?) {
-    error(msg)
+    val message = msg.toStringSafe()
+    InAppLogBuffer.append(
+        level = "ERROR",
+        loggerName = name,
+        message = message
+    )
+    error { message }
 }
 
 fun KLogger.fException(throwable: Throwable, msg: () -> Any?) {
     val message = msg.toStringSafe()
-    val fullMessage = "$message: ${throwable.stackTraceToString()}"
     InAppLogBuffer.append(
         level = "ERROR",
         loggerName = name,
-        message = fullMessage
+        message = "$message\n${throwable.stackTraceToString()}"
     )
     error(throwable) { message }
 }
