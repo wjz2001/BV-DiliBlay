@@ -8,29 +8,63 @@ data class DynamicVideoData(
     val videos: List<DynamicVideo>,
     val hasMore: Boolean,
     val historyOffset: String,
-    val updateBaseline: String
+    val updateBaseline: String,
+    val sourceItemCount: Int = videos.size
 ) {
     companion object {
         private val logger = KotlinLogging.logger { }
-        fun fromDynamicData(data: dev.aaa1115910.biliapi.http.entity.dynamic.DynamicData) =
-            DynamicVideoData(
-                videos = data.items.map { DynamicVideo.fromDynamicVideoItem(it) },
+        fun fromDynamicData(data: dev.aaa1115910.biliapi.http.entity.dynamic.DynamicData): DynamicVideoData {
+            val videos = data.items.mapNotNull { item ->
+                runCatching {
+                    DynamicVideo.fromDynamicVideoItem(item)
+                }.onFailure {
+                    logger.warn {
+                        "Skip web dynamic item: id=${item.idStr}, type=${item.type}, " +
+                            "majorType=${item.modules.moduleDynamic.major?.type}, " +
+                            "visible=${item.visible}, error=${it.message}"
+                    }
+                }.getOrNull()
+            }
+            return DynamicVideoData(
+                videos = videos,
                 hasMore = data.hasMore,
                 historyOffset = data.offset,
-                updateBaseline = data.updateBaseline
+                updateBaseline = data.updateBaseline,
+                sourceItemCount = data.items.size
             ).also {
+                logger.info { "web dynamic items: raw=${data.items.size}, parsed=${videos.size}" }
                 logger.info { "updateBaseline: ${data.updateBaseline}" }
                 logger.info { "offset: ${data.offset}" }
             }
+        }
 
-        fun fromDynamicData(data: bilibili.app.dynamic.v2.DynVideoReply) = DynamicVideoData(
-            videos = data.dynamicList.listList.mapNotNull { DynamicVideo.fromDynamicVideoItem(it) },
-            hasMore = data.dynamicList.hasMore,
-            historyOffset = data.dynamicList.historyOffset,
-            updateBaseline = data.dynamicList.updateBaseline
-        ).also {
-            logger.info { "updateBaseline: ${data.dynamicList.updateBaseline}" }
-            logger.info { "historyOffset: ${data.dynamicList.historyOffset}" }
+        fun fromDynamicData(data: bilibili.app.dynamic.v2.DynVideoReply): DynamicVideoData {
+            val videos = data.dynamicList.listList.mapNotNull { item ->
+                runCatching {
+                    DynamicVideo.fromDynamicVideoItem(item)
+                }.onFailure {
+                    val dynamic = item.modulesList
+                        .firstOrNull { module -> module.moduleType == DynModuleType.module_dynamic }
+                        ?.moduleDynamic
+                    logger.warn {
+                        "Skip app dynamic item: cardType=${item.cardType}, itemType=${item.itemType}, " +
+                            "moduleItemCase=${dynamic?.moduleItemCase}, error=${it.message}"
+                    }
+                }.getOrNull()
+            }
+            return DynamicVideoData(
+                videos = videos,
+                hasMore = data.dynamicList.hasMore,
+                historyOffset = data.dynamicList.historyOffset,
+                updateBaseline = data.dynamicList.updateBaseline,
+                sourceItemCount = data.dynamicList.listList.size
+            ).also {
+                logger.info {
+                    "app dynamic items: raw=${data.dynamicList.listList.size}, parsed=${videos.size}"
+                }
+                logger.info { "updateBaseline: ${data.dynamicList.updateBaseline}" }
+                logger.info { "historyOffset: ${data.dynamicList.historyOffset}" }
+            }
         }
     }
 }
@@ -67,8 +101,8 @@ data class DynamicVideo(
     val pubTime: String? = null,
 ) {
     companion object {
-        fun fromDynamicVideoItem(item: dev.aaa1115910.biliapi.http.entity.dynamic.DynamicItem): DynamicVideo {
-            val archive = item.modules.moduleDynamic.major!!.archive!!
+        fun fromDynamicVideoItem(item: dev.aaa1115910.biliapi.http.entity.dynamic.DynamicItem): DynamicVideo? {
+            val archive = item.modules.moduleDynamic.major?.archive ?: return null
             val author = item.modules.moduleAuthor
             return DynamicVideo(
                 aid = archive.aid.toLong(),
@@ -88,9 +122,11 @@ data class DynamicVideo(
 
         fun fromDynamicVideoItem(item: bilibili.app.dynamic.v2.DynamicItem): DynamicVideo? {
             val author =
-                item.modulesList.first { it.moduleType == DynModuleType.module_author }.moduleAuthor
+                item.modulesList.firstOrNull { it.moduleType == DynModuleType.module_author }?.moduleAuthor
+                    ?: return null
             val dynamic =
-                item.modulesList.first { it.moduleType == DynModuleType.module_dynamic }.moduleDynamic
+                item.modulesList.firstOrNull { it.moduleType == DynModuleType.module_dynamic }?.moduleDynamic
+                    ?: return null
             val desc =
                 item.modulesList.firstOrNull { it.moduleType == DynModuleType.module_desc }?.moduleDesc
             val isDynamicVideo = author?.ptimeLabelText?.contains("动态视频") ?: false

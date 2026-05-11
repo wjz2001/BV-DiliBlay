@@ -316,6 +316,14 @@ class DynamicViewModel(
                     }
                 }
 
+                logger.fInfo {
+                    "Dynamic refresh first page stats: api=${Prefs.apiType}, gen=$expectedGen, " +
+                        "raw=${firstData.sourceItemCount}, parsed=${firstData.videos.size}, " +
+                        "filtered=${firstFiltered.size}, distinct=${firstPageNewItems.size}, " +
+                        "overlap=$firstPageOverlap, hasMore=${firstData.hasMore}, " +
+                        "nextOffset=${firstData.historyOffset}, updateBaseline=${firstData.updateBaseline}"
+                }
+
                 // 第一页完成后先关全局 loading，后续用占位卡提示
                 setLoading(false, expectedGen)
 
@@ -400,6 +408,15 @@ class DynamicViewModel(
                                         pendingItems.add(item)
                                         pageAdded++
                                     }
+                                }
+
+                                logger.fInfo {
+                                    "Dynamic refresh catch-up page stats: api=${Prefs.apiType}, " +
+                                        "gen=$expectedGen, page=$page, raw=${data.sourceItemCount}, " +
+                                        "parsed=${data.videos.size}, filtered=${filtered.size}, " +
+                                        "distinct=$pageAdded, overlap=$pageOverlap, " +
+                                        "hasMore=${data.hasMore}, nextOffset=${data.historyOffset}, " +
+                                        "updateBaseline=${data.updateBaseline}"
                                 }
 
                                 cursorOffset = data.historyOffset
@@ -567,6 +584,7 @@ class DynamicViewModel(
                 list = data.videos
             ) { it.authorMid }
 
+            var distinctSize = 0
             withContext(Dispatchers.Main) {
                 if (expectedGen != generation) return@withContext
 
@@ -575,6 +593,7 @@ class DynamicViewModel(
                 for (item in filtered) {
                     if (aidSet.add(item.aid)) distinct.add(item)
                 }
+                distinctSize = distinct.size
                 if (distinct.isNotEmpty()) _dynamicList.update { it.addAll(distinct) }
 
                 currentPage = page
@@ -591,6 +610,14 @@ class DynamicViewModel(
                     lastFailureWasAuth = false
                     initialLoadState = LoadState.Success
                 }
+            }
+
+            logger.fInfo {
+                "Dynamic history page stats: api=${Prefs.apiType}, gen=$expectedGen, " +
+                    "page=$page, requestedOffset=$offset, raw=${data.sourceItemCount}, " +
+                    "parsed=${data.videos.size}, filtered=${filtered.size}, distinct=$distinctSize, " +
+                    "hasMore=${data.hasMore}, nextOffset=${data.historyOffset}, " +
+                    "updateBaseline=${data.updateBaseline}"
             }
 
             logger.fInfo { "Loaded page=$page size=${data.videos.size}" }
