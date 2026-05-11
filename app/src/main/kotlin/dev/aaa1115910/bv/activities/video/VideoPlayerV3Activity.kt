@@ -46,7 +46,8 @@ class VideoPlayerV3Activity : ComponentActivity() {
             epid: Int? = null,
             seasonId: Int? = null,
             proxyArea: ProxyArea = ProxyArea.MainLand,
-            author: Author? = null
+            author: Author? = null,
+            enableUgcDetailBackStack: Boolean = false
         ) {
             currentInstance?.finish()
             context.startActivity(
@@ -63,6 +64,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
                     putExtra("proxy_area", proxyArea.ordinal)
                     putExtra("author_mid", author?.mid)
                     putExtra("author_name", author?.name)
+                    putExtra("enable_ugc_detail_back_stack", enableUgcDetailBackStack)
                 }
             )
         }
@@ -182,8 +184,12 @@ class VideoPlayerV3Activity : ComponentActivity() {
             val proxyArea = ProxyArea.entries[intent.getIntExtra("proxy_area", 0)]
             val authorMid = intent.getLongExtra("author_mid", 0)
             val authorName = intent.getStringExtra("author_name")
+            val enableUgcDetailBackStack =
+                intent.getBooleanExtra("enable_ugc_detail_back_stack", false)
 
-            logger.fInfo { "Launch parameter: [aid=$aid, cid=$cid]" }
+            logger.fInfo {
+                "Launch parameter: [aid=$aid, cid=$cid, enableUgcDetailBackStack=$enableUgcDetailBackStack]"
+            }
 
             playerViewModel.init(
                 aid = aid,
@@ -197,7 +203,8 @@ class VideoPlayerV3Activity : ComponentActivity() {
                 seasonId = seasonId,
                 proxyArea = proxyArea,
                 authorMid = authorMid,
-                authorName = authorName ?: ""
+                authorName = authorName ?: "",
+                enableUgcDetailBackStack = enableUgcDetailBackStack
             )
         } else {
             logger.fInfo { "Null launch parameter" }

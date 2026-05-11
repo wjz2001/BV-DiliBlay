@@ -192,6 +192,9 @@ class VideoPlayerV3ViewModel(
     @Volatile
     private var envLogged: Boolean = false
 
+    private var enableUgcDetailBackStack: Boolean = false
+    private val ugcDetailBackStack = mutableListOf<Long>()
+
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState = _uiState.asStateFlow()
 
@@ -445,8 +448,13 @@ class VideoPlayerV3ViewModel(
         seasonId: Int,
         proxyArea: ProxyArea = ProxyArea.MainLand,
         authorMid: Long = 0,
-        authorName: String
+        authorName: String,
+        enableUgcDetailBackStack: Boolean = false
     ) {
+        this.enableUgcDetailBackStack = enableUgcDetailBackStack && source == VideoSource.Ugc
+        ugcDetailBackStack.clear()
+        addUgcDetailHistory(aid)
+
         _uiState.update {
             it.copy(
                 aid = aid,
@@ -509,6 +517,16 @@ class VideoPlayerV3ViewModel(
         startClockUpdater()
         restartUgcPagesPrefetchIfNeeded(_uiState.value.availableVideoList)
     }
+
+    private fun addUgcDetailHistory(aid: Long) {
+        if (!enableUgcDetailBackStack) return
+        if (aid <= 0L) return
+
+        ugcDetailBackStack.remove(aid)
+        ugcDetailBackStack.add(aid)
+    }
+
+    fun getUgcDetailBackStackForExit(): List<Long> = ugcDetailBackStack.toList()
 
     /**
      * 方案 B：公开初始化播放器接口，供 Activity 按上游方式调用
@@ -1459,6 +1477,9 @@ class VideoPlayerV3ViewModel(
             hasRenderedFirstFrame = false,
             hasStartedPlayback = false
             )
+        }
+        if (newVideo.epid == null) {
+            addUgcDetailHistory(newVideo.aid)
         }
         forceShowBufferingTip()
 

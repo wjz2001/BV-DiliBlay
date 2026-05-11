@@ -333,8 +333,10 @@ fun VideoInfoScreen(
             partTitle = targetPartTitle,
             played = playedTime,
             source = VideoSource.Ugc,
-            author = videoDetailState.author
+            author = videoDetailState.author,
+            enableUgcDetailBackStack = true
         )
+        context.finish()
     }
 
     fun playCurrentVideo(cid: Long? = null) {

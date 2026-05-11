@@ -19,6 +19,7 @@ fun launchPlayerActivity(
     seasonId: Int? = null,
     proxyArea: ProxyArea = ProxyArea.MainLand,
     author: Author? = null,
+    enableUgcDetailBackStack: Boolean = false,
 ) {
     VideoPlayerV3Activity.actionStart(
         context = context,
@@ -32,6 +33,7 @@ fun launchPlayerActivity(
         epid = epid,
         seasonId = seasonId,
         proxyArea = proxyArea,
-        author = author
+        author = author,
+        enableUgcDetailBackStack = enableUgcDetailBackStack
     )
 }

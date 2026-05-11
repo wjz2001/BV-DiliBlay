@@ -30,6 +30,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import coil.compose.AsyncImage
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
+import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.CoAuthorsDialogHost
 import dev.aaa1115910.bv.component.controllers.VideoPlayerController
 import dev.aaa1115910.bv.component.controllers.VideoProgressSeek
@@ -43,10 +44,10 @@ import dev.aaa1115910.bv.player.impl.exo.ExoMediaPlayer
 import dev.aaa1115910.bv.repository.StartupCoverRepository
 import dev.aaa1115910.bv.ui.effect.PlayerUiEffect
 import dev.aaa1115910.bv.ui.state.PlayerState
+import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.viewmodel.player.VideoPlayerV3ViewModel
-import dev.aaa1115910.bv.ui.theme.AppBlack
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -81,6 +82,14 @@ fun VideoPlayerV3Screen(
     var isLooping by remember { mutableStateOf(false) }
 
     val videoShotCache by remember(uiState.videoShot) { mutableStateOf(VideoShotImageCache()) }
+    fun finishPlayer() {
+        playerViewModel.setSuppressPlayerErrors(true)
+        playerViewModel.getUgcDetailBackStackForExit()
+            .forEach { aid ->
+                VideoInfoActivity.actionStart(context, aid = aid)
+            }
+        (context as Activity).finish()
+    }
 
     if (videoPlayer == null) {
         Box(
@@ -96,8 +105,7 @@ fun VideoPlayerV3Screen(
             playerViewModel.uiEffect.collect { effect ->
                 when (effect) {
                     PlayerUiEffect.FinishActivity -> {
-                        playerViewModel.setSuppressPlayerErrors(true)
-                        (context as Activity).finish()
+                        finishPlayer()
                     }
 
                     PlayerUiEffect.PlayEnded -> {
@@ -149,8 +157,7 @@ fun VideoPlayerV3Screen(
             playerViewModel.trySendHeartbeat()
         },
         onExit = {
-            playerViewModel.setSuppressPlayerErrors(true)
-            (context as Activity).finish()
+            finishPlayer()
         },
         onGoTime = { time ->
             playerViewModel.seekToTime(time)
