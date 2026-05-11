@@ -3,6 +3,7 @@ package dev.aaa1115910.bv.util
 import dev.aaa1115910.bv.BVApp
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.io.BufferedReader
+import java.io.Closeable
 import java.io.File
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
@@ -13,9 +14,10 @@ import java.util.Locale
 object LogCatcherUtil {
     private val logger = KotlinLogging.logger("LogCatcher")
     const val LOG_DIR = "crash_logs"
+    private const val DOWNLOAD_LOG_DIR = "DiliBlay.logs"
     private const val MANUAL_LOG_PREFIX = "logs_manual"
     private const val CRASH_LOG_PREFIX = "logs_crash"
-    private const val MAX_LOG_COUNT = 10
+    private const val MAX_LOG_COUNT = 100
     var manualFiles: List<File> = emptyList()
     var crashFiles: List<File> = emptyList()
 
@@ -31,6 +33,7 @@ object LogCatcherUtil {
             originHandler?.uncaughtException(thread, exception)
         }
         clearOldLogFiles()
+        syncLogsToDownloads()
     }
 
     fun logLogcat(manual: Boolean = false): File? {
@@ -41,22 +44,40 @@ object LogCatcherUtil {
             val logDir = File(BVApp.context.filesDir, LOG_DIR)
             if (!logDir.exists()) logDir.mkdir()
 
-            val logFile = File(logDir, createFilename(manual))
+            val filename = createFilename(manual)
+            val logFile = File(logDir, filename)
             logFile.createNewFile()
             logger.info { "Log file: $logFile" }
 
-            with(logFile.writer()) {
-                writeDeviceInfo()
-                writeAppInfo()
-                writeInAppLogs()
-                appendLine("======== Logs ========")
-                var line: String?
-                while (reader.readLine().also { line = it } != null) {
-                    appendLine(line)
+            val downloadsFile = if (
+                ApiTestLoginExportUtil.canWriteDownloadsWithoutRequest(BVApp.context)
+            ) {
+                ApiTestLoginExportUtil.openTextFileInDownloads(
+                    context = BVApp.context,
+                    filename = filename,
+                    subDir = DOWNLOAD_LOG_DIR
+                ).onFailure {
+                    logger.error(it) { "open Downloads log file failed" }
+                }.getOrNull()
+            } else {
+                logger.warn { "skip writing log to Downloads because storage permission is not granted" }
+                null
+            }
+
+            reader.use {
+                LogWriter(
+                    localWriter = logFile.writer(),
+                    downloadsFile = downloadsFile
+                ).use { writer ->
+                    writer.writeDeviceInfo()
+                    writer.writeAppInfo()
+                    writer.appendLine("======== Logs ========")
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        writer.appendLine(line.orEmpty())
+                    }
+                    writer.flush()
                 }
-                flush()
-                close()
-                reader.close()
             }
             logFile
         }.onFailure {
@@ -64,7 +85,7 @@ object LogCatcherUtil {
         }.getOrNull()
     }
 
-    private fun OutputStreamWriter.writeDeviceInfo() {
+    private fun LogWriter.writeDeviceInfo() {
         val info = BVApp.context.packageManager.getPackageInfo(BVApp.context.packageName, 0)
         appendLine("======== Device info ========")
         appendLine("App Version: ${info.versionName} (${info.versionCode})")
@@ -77,7 +98,7 @@ object LogCatcherUtil {
         appendLine("Type: ${android.os.Build.TYPE}")
     }
 
-    private fun OutputStreamWriter.writeAppInfo() {
+    private fun LogWriter.writeAppInfo() {
         appendLine("======== App Prefs ========")
         appendLine("Login: ${Prefs.isLogin}")
         appendLine("Incognito Mode: ${Prefs.incognitoMode}")
@@ -98,7 +119,7 @@ object LogCatcherUtil {
     private fun createFilename(manual: Boolean): String {
         var filename = ""
         filename += if (manual) MANUAL_LOG_PREFIX else CRASH_LOG_PREFIX
-        val date = SimpleDateFormat("yyyy-MM-dd_HH:mm:ss", Locale.getDefault()).format(Date())
+        val date = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())
         filename += "_$date.log"
         return filename
     }
@@ -123,6 +144,62 @@ object LogCatcherUtil {
         }
         if (crashFiles.size > MAX_LOG_COUNT) {
             crashFiles.take(crashFiles.size - MAX_LOG_COUNT).forEach { it.delete() }
+        }
+    }
+
+    private fun syncLogsToDownloads() {
+        if (!ApiTestLoginExportUtil.canWriteDownloadsWithoutRequest(BVApp.context)) {
+            logger.warn { "skip syncing logs to Downloads because storage permission is not granted" }
+            return
+        }
+
+        (manualFiles + crashFiles).forEach { file ->
+            if (!file.exists()) return@forEach
+            val downloadsFileExists = runCatching {
+                ApiTestLoginExportUtil.downloadsFileExists(
+                    context = BVApp.context,
+                    filename = file.name,
+                    subDir = DOWNLOAD_LOG_DIR
+                )
+            }.onFailure {
+                logger.error(it) { "check Downloads log file failed: ${file.name}" }
+            }.getOrDefault(false)
+
+            if (downloadsFileExists) {
+                return@forEach
+            }
+
+            ApiTestLoginExportUtil.copyFileToDownloads(
+                context = BVApp.context,
+                sourceFile = file,
+                subDir = DOWNLOAD_LOG_DIR
+            ).onFailure {
+                logger.error(it) { "sync log to Downloads failed: ${file.name}" }
+            }
+        }
+    }
+
+    private class LogWriter(
+        private val localWriter: OutputStreamWriter,
+        private val downloadsFile: ApiTestLoginExportUtil.DownloadsTextFile?
+    ) : Closeable {
+        private val writers = listOfNotNull(localWriter, downloadsFile?.writer)
+
+        fun appendLine(value: String = "") {
+            writers.forEach { it.appendLine(value) }
+        }
+
+        fun flush() {
+            writers.forEach { it.flush() }
+        }
+
+        override fun close() {
+            var failure: Throwable? = null
+            runCatching { localWriter.close() }.onFailure { failure = it }
+            runCatching { downloadsFile?.close() }.onFailure {
+                logger.error(it) { "close Downloads log file failed" }
+            }
+            failure?.let { throw it }
         }
     }
 }

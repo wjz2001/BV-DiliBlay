@@ -1,15 +1,20 @@
 package dev.aaa1115910.bv.util
 
+import android.Manifest
 import android.content.ContentValues
 import android.content.Context
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.annotation.RequiresApi
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.entity.AuthData
+import java.io.Closeable
 import java.io.File
 import java.io.IOException
+import java.io.OutputStreamWriter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -29,8 +34,26 @@ object ApiTestLoginExportUtil {
     private const val MIME_TYPE_JSON = "application/json"
     private val json = Json { prettyPrint = true }
 
+    class DownloadsTextFile internal constructor(
+        val writer: OutputStreamWriter,
+        private val closeAction: () -> Unit = {}
+    ) : Closeable {
+        override fun close() {
+            try {
+                writer.close()
+            } finally {
+                closeAction()
+            }
+        }
+    }
+
     fun requiresLegacyWritePermission(): Boolean =
         Build.VERSION.SDK_INT in Build.VERSION_CODES.M..Build.VERSION_CODES.P
+
+    fun canWriteDownloadsWithoutRequest(context: Context): Boolean =
+        !requiresLegacyWritePermission() ||
+            context.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) ==
+            PackageManager.PERMISSION_GRANTED
 
     fun exportToDownloads(
         context: Context,
@@ -72,6 +95,45 @@ object ApiTestLoginExportUtil {
                 sourceFile = sourceFile,
                 subDir = subDir
             )
+        }
+    }
+
+    fun openTextFileInDownloads(
+        context: Context,
+        filename: String,
+        subDir: String? = null
+    ): Result<DownloadsTextFile> = runCatching {
+        val relativePath = buildDownloadsRelativePath(subDir)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            openTextFileWithMediaStore(
+                context = context,
+                filename = filename,
+                relativePath = relativePath
+            )
+        } else {
+            openTextFileInLegacyDownloads(
+                filename = filename,
+                subDir = subDir
+            )
+        }
+    }
+
+    fun downloadsFileExists(
+        context: Context,
+        filename: String,
+        subDir: String? = null
+    ): Boolean {
+        val relativePath = buildDownloadsRelativePath(subDir)
+
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            mediaStoreFileExists(
+                context = context,
+                filename = filename,
+                relativePath = relativePath
+            )
+        } else {
+            legacyDownloadsFile(filename = filename, subDir = subDir).exists()
         }
     }
 
@@ -143,6 +205,36 @@ object ApiTestLoginExportUtil {
         resolver.update(uri, values, null, null)
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun openTextFileWithMediaStore(
+        context: Context,
+        filename: String,
+        relativePath: String
+    ): DownloadsTextFile {
+        val resolver = context.contentResolver
+        val values = ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME, filename)
+            put(MediaStore.Downloads.MIME_TYPE, "text/plain")
+            put(MediaStore.Downloads.RELATIVE_PATH, relativePath)
+            put(MediaStore.Downloads.IS_PENDING, 1)
+        }
+        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            ?: throw IOException("无法创建下载文件")
+        val writer = resolver.openOutputStream(uri)?.writer()
+            ?: throw IOException("无法打开下载文件输出流")
+        return DownloadsTextFile(writer) {
+            publishMediaStoreFile(context, uri)
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun publishMediaStoreFile(context: Context, uri: Uri) {
+        val values = ContentValues().apply {
+            put(MediaStore.Downloads.IS_PENDING, 0)
+        }
+        context.contentResolver.update(uri, values, null, null)
+    }
+
     @Suppress("DEPRECATION")
     private fun writeToLegacyDownloads(filename: String, content: String): String {
         val downloadsDir =
@@ -157,15 +249,50 @@ object ApiTestLoginExportUtil {
 
     @Suppress("DEPRECATION")
     private fun copyFileToLegacyDownloads(sourceFile: File, subDir: String?): String {
+        val targetFile = legacyDownloadsFile(filename = sourceFile.name, subDir = subDir)
+        val targetDir = targetFile.parentFile
+        if (targetDir?.exists() == false) targetDir.mkdirs()
+        sourceFile.copyTo(targetFile, overwrite = true)
+        return targetFile.absolutePath
+    }
+
+    @Suppress("DEPRECATION")
+    private fun openTextFileInLegacyDownloads(filename: String, subDir: String?): DownloadsTextFile {
+        val file = legacyDownloadsFile(filename = filename, subDir = subDir)
+        val dir = file.parentFile
+        if (dir?.exists() == false) {
+            check(dir.mkdirs()) { "无法创建下载目录: ${dir.absolutePath}" }
+        }
+        return DownloadsTextFile(file.outputStream().writer())
+    }
+
+    @Suppress("DEPRECATION")
+    private fun legacyDownloadsFile(filename: String, subDir: String?): File {
         val downloadsDir =
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         val targetDir = if (subDir.isNullOrBlank()) downloadsDir else File(downloadsDir, subDir)
-        if (!targetDir.exists()) {
-            targetDir.mkdirs()
+        return File(targetDir, filename)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun mediaStoreFileExists(
+        context: Context,
+        filename: String,
+        relativePath: String
+    ): Boolean {
+        val projection = arrayOf(MediaStore.Downloads._ID)
+        val selection = "${MediaStore.Downloads.DISPLAY_NAME} = ? AND " +
+            "(${MediaStore.Downloads.RELATIVE_PATH} = ? OR ${MediaStore.Downloads.RELATIVE_PATH} = ?)"
+        val selectionArgs = arrayOf(filename, relativePath, "$relativePath/")
+        context.contentResolver.query(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            projection,
+            selection,
+            selectionArgs,
+            null
+        ).use { cursor ->
+            return cursor?.moveToFirst() == true
         }
-        val targetFile = File(targetDir, sourceFile.name)
-        sourceFile.copyTo(targetFile, overwrite = true)
-        return targetFile.absolutePath
     }
 
     private fun buildDownloadsRelativePath(subDir: String?): String {

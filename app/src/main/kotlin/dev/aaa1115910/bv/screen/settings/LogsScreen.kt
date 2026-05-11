@@ -1,15 +1,14 @@
 package dev.aaa1115910.bv.screen.settings
 
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
-import android.net.wifi.WifiManager
-import android.os.Build
+import android.Manifest
 import android.os.FileObserver
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -40,12 +39,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.style.LineBreak
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -56,6 +51,7 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.network.HttpServer
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.C
+import dev.aaa1115910.bv.util.ApiTestLoginExportUtil
 import dev.aaa1115910.bv.util.LogCatcherUtil
 import dev.aaa1115910.bv.util.swapList
 import dev.aaa1115910.bv.util.toast
@@ -89,10 +85,6 @@ fun LogsScreen(
         logsViewModel.generateFileQr(host, port, currentSelectFile?.name)
     }
 
-    val startWaitPortJobAndGenerateServerQr = {
-        logsViewModel.waitPortAndGenerateServerQr(host)
-    }
-
     val getIpAddress: () -> String = let@{
         try {
             val interfaces = NetworkInterface.getNetworkInterfaces()
@@ -117,6 +109,24 @@ fun LogsScreen(
         val newLogs = (LogCatcherUtil.manualFiles + LogCatcherUtil.crashFiles)
             .sortedByDescending { it.lastModified() }
         logs.swapList(newLogs)
+    }
+
+    val createManualLog = {
+        LogCatcherUtil.logLogcat(manual = true)
+        "Log created".toast(context)
+        updateLogs()
+    }
+
+    val legacyStoragePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            createManualLog()
+        } else {
+            LogCatcherUtil.logLogcat(manual = true)
+            "日志已保存到应用内，未保存到下载目录".toast(context)
+            updateLogs()
+        }
     }
 
     // 让 FileObserver 始终调用“最新的 updateLogs lambda”，避免重组后回调持有旧引用
@@ -177,14 +187,11 @@ fun LogsScreen(
     LogsScreenContent(
         modifier = modifier,
         isCreateFocused = isCreateFocused,
-        serverAddress = "$host:$port",
-        serverQrImage = logsViewModel.serverQrImage,
         fileQrImage = logsViewModel.fileQrImage,
         logs = logs,
         onFocusCreate = {
             isCreateFocused = true
             logsViewModel.clearFileQr()
-            startWaitPortJobAndGenerateServerQr()
         },
         onFocusLogFile = { file ->
             isCreateFocused = false
@@ -193,9 +200,13 @@ fun LogsScreen(
             generateFileQRCode()
         },
         onClickCreateLog = {
-            LogCatcherUtil.logLogcat(manual = true)
-            "Log created".toast(context)
-            updateLogs()
+            if (ApiTestLoginExportUtil.requiresLegacyWritePermission() &&
+                !ApiTestLoginExportUtil.canWriteDownloadsWithoutRequest(context)
+            ) {
+                legacyStoragePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            } else {
+                createManualLog()
+            }
         }
     )
 }
@@ -204,8 +215,6 @@ fun LogsScreen(
 fun LogsScreenContent(
     modifier: Modifier = Modifier,
     isCreateFocused: Boolean,
-    serverAddress: String,
-    serverQrImage: ImageBitmap?,
     fileQrImage: ImageBitmap?,
     logs: List<File>,
     onFocusCreate: () -> Unit,
@@ -286,60 +295,30 @@ fun LogsScreenContent(
                     .fillMaxSize(),
                 contentAlignment = Alignment.TopCenter
             ) {
-                if (isCreateFocused) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
+                if (!isCreateFocused) {
+                    if (fileQrImage != null) {
+                        BoxWithConstraints(
                             modifier = Modifier
-                                .padding(horizontal = 40.dp, vertical = 40.dp)
-                                .background(C.scrim)
-                                .padding(16.dp),
-                            text = "输入 $serverAddress 或扫描二维码进入网页日志管理界面",
-                            color = C.onScrim,
-                            fontSize = 22.sp,
-                            style = TextStyle(lineBreak = LineBreak.Paragraph),
-                            textAlign = TextAlign.Center
-                        )
-                        Box(
-                            modifier = Modifier
-                                .size(240.dp)
-                                .clip(MaterialTheme.shapes.large)
-                                .background(C.surface),
-                            contentAlignment = Alignment.Center,
+                                .fillMaxSize()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            if (serverQrImage != null) {
+                            val qrSize = if (maxWidth < maxHeight) maxWidth else maxHeight
+                            Box(
+                                modifier = Modifier
+                                    .size(qrSize)
+                                    .clip(MaterialTheme.shapes.large)
+                                    .background(C.surface),
+                                contentAlignment = Alignment.Center,
+                            ) {
                                 Image(
-                                    modifier = Modifier.size(200.dp),
-                                    bitmap = serverQrImage,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(20.dp),
+                                    bitmap = fileQrImage,
                                     contentDescription = null
                                 )
-                            } else {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(text = "正在获取端口……")
-                                    CircularProgressIndicator()
-                                }
                             }
-                        }
-                    }
-                } else {
-                    if (fileQrImage != null) {
-                        Box(
-                            modifier = Modifier
-                                .size(240.dp)
-                                .clip(MaterialTheme.shapes.large)
-                                .background(C.surface),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Image(
-                                modifier = Modifier.size(200.dp),
-                                bitmap = fileQrImage,
-                                contentDescription = null
-                            )
                         }
                     } else {
                         CircularProgressIndicator()
