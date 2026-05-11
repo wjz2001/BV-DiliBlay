@@ -77,6 +77,7 @@ fun HistoryScreen(
     toViewViewModel: ToViewViewModel = koinViewModel(),
     contentEntryFocusRequester: FocusRequester? = null,
     tabFocusRequester: FocusRequester? = null,
+    onContentEntryReady: () -> Unit = {},
     onSearchStateChanged: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -192,7 +193,8 @@ fun HistoryScreen(
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         horizontalWrapItemCount = visibleHistories.size,
         entryFocusRequester = contentEntryFocusRequester,
-        upFocusRequester = tabFocusRequester
+        upFocusRequester = tabFocusRequester,
+        onEntryFocusReady = onContentEntryReady
     ) { cardUiStateFor ->
             if (visibleHistories.isNotEmpty()) {
                 itemsIndexed(

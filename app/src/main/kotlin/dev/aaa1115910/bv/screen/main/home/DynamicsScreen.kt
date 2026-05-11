@@ -62,7 +62,8 @@ fun DynamicsScreen(
     refreshSerial: Long = 0L,
     longPressSerial: Long = 0L,
     contentEntryFocusRequester: FocusRequester? = null,
-    tabFocusRequester: FocusRequester? = null
+    tabFocusRequester: FocusRequester? = null,
+    onContentEntryReady: () -> Unit = {}
 ) {
     val dynamicViewModel: DynamicViewModel = koinViewModel()
     val toViewViewModel: ToViewViewModel = koinViewModel()
@@ -172,7 +173,8 @@ fun DynamicsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalWrapItemCount = focusableWrapIndexMap.size,
             entryFocusRequester = contentEntryFocusRequester,
-            upFocusRequester = tabFocusRequester
+            upFocusRequester = tabFocusRequester,
+            onEntryFocusReady = onContentEntryReady
         ) { cardUiStateFor ->
             itemsIndexed(
                 items = dynamicList,

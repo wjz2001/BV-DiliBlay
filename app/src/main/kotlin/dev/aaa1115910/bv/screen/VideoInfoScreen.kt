@@ -127,8 +127,6 @@ import androidx.tv.material3.SuggestionChip
 import androidx.tv.material3.SuggestionChipDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
-import androidx.tv.material3.Tab
-import androidx.tv.material3.TabRow
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
@@ -145,6 +143,7 @@ import dev.aaa1115910.bv.activities.video.TagActivity
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.BlockTagItem
+import dev.aaa1115910.bv.component.BvUnderlineTabRow
 import dev.aaa1115910.bv.component.CoAuthorsDialogHost
 import dev.aaa1115910.bv.component.FollowGroupSelectDialog
 import dev.aaa1115910.bv.component.UpIcon
@@ -2560,7 +2559,7 @@ fun <T> PagedVideoInfinityListDialog(
     // 这些状态必须放在 if (!show) return 前面，这样关闭 Dialog 后还能保留焦点恢复信息
     val listState = rememberLazyGridState()
 
-    val tabFocusRequesters = remember { mutableMapOf<Int, FocusRequester>() }
+    val tabFocusRequester = remember { FocusRequester() }
     // 这里改成“绝对索引 -> FocusRequester”，避免不同页的同位置 item 共用 requester
     val itemFocusRequesters = remember { mutableMapOf<Int, FocusRequester>() }
 
@@ -2576,6 +2575,7 @@ fun <T> PagedVideoInfinityListDialog(
     val tabCount = remember(items.size, pageSize) {
         if (items.isEmpty()) 0 else ceil(items.size / pageSize.toDouble()).toInt()
     }
+    val tabItems = remember(tabCount) { (0 until tabCount).toList() }
 
     val selectedItems = remember(items, selectedTabIndex, pageSize, tabCount) {
         if (tabCount == 0 || selectedTabIndex !in 0 until tabCount) {
@@ -2585,10 +2585,6 @@ fun <T> PagedVideoInfinityListDialog(
             val toIndex = minOf(fromIndex + pageSize, items.size)
             items.subList(fromIndex, toIndex)
         }
-    }
-
-    fun tabRequesterFor(index: Int): FocusRequester {
-        return tabFocusRequesters.getOrPut(index) { FocusRequester() }
     }
 
     fun itemRequesterFor(absoluteIndex: Int): FocusRequester {
@@ -2718,7 +2714,7 @@ fun <T> PagedVideoInfinityListDialog(
             // 否则恢复到 Tab
             else -> {
                 lastFocusedArea = DialogFocusArea.Tabs
-                tabRequesterFor(safeTab).requestFocus()
+                tabFocusRequester.requestFocus()
             }
         }
     }
@@ -2805,69 +2801,55 @@ fun <T> PagedVideoInfinityListDialog(
                     }
 
                     if (tabCount > 1) {
-                        TabRow(
-                            selectedTabIndex = selectedTabIndex,
+                        BvUnderlineTabRow(
+                            items = tabItems,
+                            selectedItem = selectedTabIndex,
+                            entryFocusItem = selectedTabIndex,
+                            itemKey = { it },
+                            itemText = { index ->
+                                val startIndex = index * pageSize + 1
+                                val endIndex = minOf((index + 1) * pageSize, items.size)
+                                tabTextBuilder(startIndex, endIndex)
+                            },
+                            defaultFocusRequester = tabFocusRequester,
                             separator = { Spacer(modifier = Modifier.width(12.dp)) },
-                        ) {
-                            for (i in 0 until tabCount) {
-                                Tab(
-                                    modifier = Modifier
-                                        .focusRequester(tabRequesterFor(i))
-                                        .onPreviewKeyEvent { event ->
-                                            if (event.type != KeyEventType.KeyDown) {
-                                                return@onPreviewKeyEvent false
-                                            }
-
-                                            val count = pageItemCount(i)
-                                            if (count <= 0) {
-                                                return@onPreviewKeyEvent false
-                                            }
-
-                                            val rememberedIndex = restoredItemIndex(i)
-                                            val column =
-                                                if (rememberedIndex >= 0) rememberedIndex % columnCount else 0
-
-                                            when (event.key) {
-                                                Key.DirectionDown -> {
-                                                    val target = topIndexForColumn(count, column)
-                                                    lastFocusedArea = DialogFocusArea.Grid
-                                                    focusItemOnPage(i, target)
-                                                    true
-                                                }
-
-                                                Key.DirectionUp -> {
-                                                    val target = bottomIndexForColumn(count, column)
-                                                    lastFocusedArea = DialogFocusArea.Grid
-                                                    focusItemOnPage(i, target)
-                                                    true
-                                                }
-
-                                                else -> false
-                                            }
-                                        },
-                                    selected = i == selectedTabIndex,
-                                    onFocus = {
-                                        // 跨页恢复 Grid 焦点时，Tab 可能会短暂抢到焦点，这里忽略掉
-                                        if (pendingFocus == null) {
-                                            lastFocusedArea = DialogFocusArea.Tabs
-                                            selectedTabIndex = i
-                                        }
-                                    },
-                                ) {
-                                    val startIndex = i * pageSize + 1
-                                    val endIndex = minOf((i + 1) * pageSize, items.size)
-                                    Text(
-                                        text = tabTextBuilder(startIndex, endIndex),
-                                        fontSize = 16.sp,
-                                        color = LocalContentColor.current,
-                                        modifier = Modifier.padding(
-                                            horizontal = 20.dp,
-                                            vertical = 10.dp
-                                        )
-                                    )
+                            onSelectedChanged = { index ->
+                                // 跨页恢复 Grid 焦点时，Tab 可能会短暂抢到焦点，这里忽略掉
+                                if (pendingFocus == null) {
+                                    lastFocusedArea = DialogFocusArea.Tabs
+                                    selectedTabIndex = index
                                 }
-                            }
-                        }
+                            },
+                            onDown = { index ->
+                                val count = pageItemCount(index)
+                                if (count <= 0) {
+                                    false
+                                } else {
+                                    val rememberedIndex = restoredItemIndex(index)
+                                    val column =
+                                        if (rememberedIndex >= 0) rememberedIndex % columnCount else 0
+                                    val target = topIndexForColumn(count, column)
+                                    lastFocusedArea = DialogFocusArea.Grid
+                                    focusItemOnPage(index, target)
+                                    true
+                                }
+                            },
+                            onUp = { index ->
+                                val count = pageItemCount(index)
+                                if (count <= 0) {
+                                    false
+                                } else {
+                                    val rememberedIndex = restoredItemIndex(index)
+                                    val column =
+                                        if (rememberedIndex >= 0) rememberedIndex % columnCount else 0
+                                    val target = bottomIndexForColumn(count, column)
+                                    lastFocusedArea = DialogFocusArea.Grid
+                                    focusItemOnPage(index, target)
+                                    true
+                                }
+                            },
+                            autoRequestEntryFocus = false,
+                        )
                     }
 
                     SmallVideoCardGridHost(
@@ -2939,7 +2921,7 @@ fun <T> PagedVideoInfinityListDialog(
                                                 } else {
                                                     if (tabCount > 1) {
                                                         lastFocusedArea = DialogFocusArea.Tabs
-                                                        tabRequesterFor(selectedTabIndex).requestFocus()
+                                                        tabFocusRequester.requestFocus()
                                                         true
                                                     } else {
                                                         lastFocusedArea = DialogFocusArea.Grid
@@ -2955,7 +2937,7 @@ fun <T> PagedVideoInfinityListDialog(
                                                 } else {
                                                     if (tabCount > 1) {
                                                         lastFocusedArea = DialogFocusArea.Tabs
-                                                        tabRequesterFor(selectedTabIndex).requestFocus()
+                                                        tabFocusRequester.requestFocus()
                                                         true
                                                     } else {
                                                         lastFocusedArea = DialogFocusArea.Grid

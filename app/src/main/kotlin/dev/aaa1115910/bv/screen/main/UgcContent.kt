@@ -69,6 +69,7 @@ fun UgcContent(
     val contentEntryFocusRequester = remember { FocusRequester() }
     val ugcTopNavItems = UgcTopNavItem.entries
     var topNavReadyTab by remember { mutableStateOf<UgcTopNavItem?>(null) }
+    var contentReadyTab by remember { mutableStateOf<UgcTopNavItem?>(null) }
     var previousActiveTab by remember { mutableStateOf<UgcTopNavItem?>(null) }
 
     val desiredDrawerEntryTab = remember(pendingDrawerEntryRequest?.id) {
@@ -122,9 +123,9 @@ fun UgcContent(
         }
     }
 
-    val handleDefaultFocusReady: () -> Unit = handleDefaultFocusReady@{
+    val handleDefaultFocusReady: (Any) -> Unit = handleDefaultFocusReady@{ readyKey ->
         if (!active) return@handleDefaultFocusReady
-        topNavReadyTab = focusedTab
+        topNavReadyTab = readyKey as? UgcTopNavItem
         onDefaultFocusReady?.invoke()
     }
 
@@ -133,6 +134,7 @@ fun UgcContent(
             ugcViewModel.updateRuntimeState(activeTab, ContentRuntimeState.Frozen)
             return@LaunchedEffect
         }
+        contentReadyTab = null
         previousActiveTab
             ?.takeIf { it != activeTab }
             ?.let { ugcViewModel.updateRuntimeState(it, ContentRuntimeState.Frozen) }
@@ -184,8 +186,15 @@ fun UgcContent(
                 defaultFocusRequester = navFocusRequester,
                 onDefaultFocusReady = handleDefaultFocusReady,
                 contentFocusRequester = contentEntryFocusRequester,
+                contentFocusReadyKey = contentReadyTab,
                 onLeftBoundaryExit = { drawerFocusRequester.requestFocus() },
                 onRightBoundaryExit = { drawerFocusRequester.requestFocus() },
+                onContentFocusRequested = { nav ->
+                    val target = nav as UgcTopNavItem
+                    if (target != activeTab) {
+                        ugcViewModel.onTabClicked(target)
+                    }
+                },
                 onSelectedChanged = { nav ->
                     ugcViewModel.onTabFocused(nav as UgcTopNavItem)
                 },
@@ -257,6 +266,9 @@ fun UgcContent(
                                 toViewViewModel = toViewViewModel,
                                 contentEntryFocusRequester = contentEntryFocusRequester,
                                 tabFocusRequester = navFocusRequester,
+                                onContentEntryReady = {
+                                    if (tabActive) contentReadyTab = tab
+                                },
                                 active = tabActive
                             )
                         }
@@ -279,6 +291,7 @@ private fun UgcActiveTabContent(
     toViewViewModel: ToViewViewModel,
     contentEntryFocusRequester: FocusRequester,
     tabFocusRequester: FocusRequester,
+    onContentEntryReady: () -> Unit,
     active: Boolean
 ) {
     val context = LocalContext.current
@@ -313,6 +326,7 @@ private fun UgcActiveTabContent(
             active = active,
             contentEntryFocusRequester = activeContentEntryFocusRequester,
             tabFocusRequester = activeTabFocusRequester,
+            onContentEntryReady = onContentEntryReady,
             onLoadMore = { ugcViewModel.loadMoreData(screen) },
             onAddWatchLater = { aid ->
                 toViewViewModel.addToView(aid)

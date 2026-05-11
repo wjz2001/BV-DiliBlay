@@ -61,6 +61,7 @@ fun PgcContent(
     val activeTab = pgcContentViewModel.activeTab
     val contentEntryFocusRequester = remember { FocusRequester() }
     var topNavReadyTab by remember { mutableStateOf<PgcTopNavItem?>(null) }
+    var contentReadyTab by remember { mutableStateOf<PgcTopNavItem?>(null) }
     var previousActiveTab by remember { mutableStateOf<PgcTopNavItem?>(null) }
 
     val desiredDrawerEntryTab = remember(pendingDrawerEntryRequest?.id) {
@@ -114,9 +115,9 @@ fun PgcContent(
         }
     }
 
-    val handleDefaultFocusReady: () -> Unit = handleDefaultFocusReady@{
+    val handleDefaultFocusReady: (Any) -> Unit = handleDefaultFocusReady@{ readyKey ->
         if (!active) return@handleDefaultFocusReady
-        topNavReadyTab = focusedTab
+        topNavReadyTab = readyKey as? PgcTopNavItem
         onDefaultFocusReady?.invoke()
     }
 
@@ -125,6 +126,7 @@ fun PgcContent(
             pgcContentViewModel.updateRuntimeState(activeTab, ContentRuntimeState.Frozen)
             return@LaunchedEffect
         }
+        contentReadyTab = null
         previousActiveTab
             ?.takeIf { it != activeTab }
             ?.let { pgcContentViewModel.updateRuntimeState(it, ContentRuntimeState.Frozen) }
@@ -156,8 +158,15 @@ fun PgcContent(
                 defaultFocusRequester = navFocusRequester,
                 onDefaultFocusReady = handleDefaultFocusReady,
                 contentFocusRequester = contentEntryFocusRequester,
+                contentFocusReadyKey = contentReadyTab,
                 onLeftBoundaryExit = { drawerFocusRequester.requestFocus() },
                 onRightBoundaryExit = { drawerFocusRequester.requestFocus() },
+                onContentFocusRequested = { nav ->
+                    val target = nav as PgcTopNavItem
+                    if (target != activeTab) {
+                        pgcContentViewModel.onTabClicked(target)
+                    }
+                },
                 onSelectedChanged = { nav ->
                     pgcContentViewModel.onTabFocused(nav as PgcTopNavItem)
                 },
@@ -221,6 +230,9 @@ fun PgcContent(
                                 pgcContentViewModel = pgcContentViewModel,
                                 contentEntryFocusRequester = contentEntryFocusRequester,
                                 tabFocusRequester = navFocusRequester,
+                                onContentEntryReady = {
+                                    if (tabActive) contentReadyTab = tab
+                                },
                                 active = tabActive
                             )
                         }
@@ -242,6 +254,7 @@ private fun PgcActiveTabContent(
     pgcContentViewModel: PgcContentViewModel,
     contentEntryFocusRequester: FocusRequester,
     tabFocusRequester: FocusRequester,
+    onContentEntryReady: () -> Unit,
     active: Boolean
 ) {
     val activeContentEntryFocusRequester = contentEntryFocusRequester.takeIf { active }
@@ -256,6 +269,7 @@ private fun PgcActiveTabContent(
                 pgcViewModel = pgcViewModel,
                 contentEntryFocusRequester = activeContentEntryFocusRequester,
                 tabFocusRequester = activeTabFocusRequester,
+                onContentEntryReady = onContentEntryReady,
                 active = active
             ) { lazyListState ->
                 AnimeContent(
@@ -263,6 +277,7 @@ private fun PgcActiveTabContent(
                     pgcViewModel = pgcViewModel,
                     contentEntryFocusRequester = activeContentEntryFocusRequester,
                     tabFocusRequester = activeTabFocusRequester,
+                    onContentEntryReady = onContentEntryReady,
                     active = active
                 )
             }
@@ -276,6 +291,7 @@ private fun PgcActiveTabContent(
                 pgcViewModel = pgcViewModel,
                 contentEntryFocusRequester = activeContentEntryFocusRequester,
                 tabFocusRequester = activeTabFocusRequester,
+                onContentEntryReady = onContentEntryReady,
                 active = active
             ) { lazyListState ->
                 GuoChuangContent(
@@ -283,6 +299,7 @@ private fun PgcActiveTabContent(
                     pgcViewModel = pgcViewModel,
                     contentEntryFocusRequester = activeContentEntryFocusRequester,
                     tabFocusRequester = activeTabFocusRequester,
+                    onContentEntryReady = onContentEntryReady,
                     active = active
                 )
             }
@@ -296,6 +313,7 @@ private fun PgcActiveTabContent(
                 pgcViewModel = pgcViewModel,
                 contentEntryFocusRequester = activeContentEntryFocusRequester,
                 tabFocusRequester = activeTabFocusRequester,
+                onContentEntryReady = onContentEntryReady,
                 active = active
             ) { lazyListState ->
                 MovieContent(
@@ -303,6 +321,7 @@ private fun PgcActiveTabContent(
                     pgcViewModel = pgcViewModel,
                     contentEntryFocusRequester = activeContentEntryFocusRequester,
                     tabFocusRequester = activeTabFocusRequester,
+                    onContentEntryReady = onContentEntryReady,
                     active = active
                 )
             }
@@ -316,6 +335,7 @@ private fun PgcActiveTabContent(
                 pgcViewModel = pgcViewModel,
                 contentEntryFocusRequester = activeContentEntryFocusRequester,
                 tabFocusRequester = activeTabFocusRequester,
+                onContentEntryReady = onContentEntryReady,
                 active = active
             ) { lazyListState ->
                 DocumentaryContent(
@@ -323,6 +343,7 @@ private fun PgcActiveTabContent(
                     pgcViewModel = pgcViewModel,
                     contentEntryFocusRequester = activeContentEntryFocusRequester,
                     tabFocusRequester = activeTabFocusRequester,
+                    onContentEntryReady = onContentEntryReady,
                     active = active
                 )
             }
@@ -336,6 +357,7 @@ private fun PgcActiveTabContent(
                 pgcViewModel = pgcViewModel,
                 contentEntryFocusRequester = activeContentEntryFocusRequester,
                 tabFocusRequester = activeTabFocusRequester,
+                onContentEntryReady = onContentEntryReady,
                 active = active
             ) { lazyListState ->
                 TvContent(
@@ -343,6 +365,7 @@ private fun PgcActiveTabContent(
                     pgcViewModel = pgcViewModel,
                     contentEntryFocusRequester = activeContentEntryFocusRequester,
                     tabFocusRequester = activeTabFocusRequester,
+                    onContentEntryReady = onContentEntryReady,
                     active = active
                 )
             }
@@ -356,6 +379,7 @@ private fun PgcActiveTabContent(
                 pgcViewModel = pgcViewModel,
                 contentEntryFocusRequester = activeContentEntryFocusRequester,
                 tabFocusRequester = activeTabFocusRequester,
+                onContentEntryReady = onContentEntryReady,
                 active = active
             ) { lazyListState ->
                 VarietyContent(
@@ -363,6 +387,7 @@ private fun PgcActiveTabContent(
                     pgcViewModel = pgcViewModel,
                     contentEntryFocusRequester = activeContentEntryFocusRequester,
                     tabFocusRequester = activeTabFocusRequester,
+                    onContentEntryReady = onContentEntryReady,
                     active = active
                 )
             }
@@ -377,6 +402,7 @@ private fun PgcTabContent(
     pgcViewModel: PgcViewModel,
     contentEntryFocusRequester: FocusRequester?,
     tabFocusRequester: FocusRequester?,
+    onContentEntryReady: () -> Unit,
     active: Boolean,
     content: @Composable (LazyListState) -> Unit
 ) {

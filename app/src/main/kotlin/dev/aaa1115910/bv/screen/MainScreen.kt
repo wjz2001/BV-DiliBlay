@@ -216,18 +216,48 @@ fun MainScreen(
         }
     }
 
+    fun isContentItem(item: LeftNaviItem): Boolean {
+        return item == LeftNaviItem.Home ||
+                item == LeftNaviItem.Follow ||
+                item == LeftNaviItem.UGC ||
+                item == LeftNaviItem.PGC
+    }
+
+    fun requestDefaultFocusForActiveContent() {
+        val item = activeDrawerItem
+        if (!isContentItem(item)) {
+            userFocusRequester.requestFocus()
+            return
+        }
+
+        pendingContentFocus = newPendingContentFocus(
+            item = item,
+            entryTarget = null
+        )
+        requestFocusForContent(item, null)
+        if (currentReadyItem == item) {
+            pendingContentFocus = null
+        }
+    }
+
     val onFocusToContent: (MainContentFocusTarget) -> Unit = { entryTarget ->
-        when (val item = activeDrawerItem) {
-            LeftNaviItem.Home,
-            LeftNaviItem.Follow,
-            LeftNaviItem.UGC,
-            LeftNaviItem.PGC -> {
+        val resolvedItem = if (leftNaviExpanded) focusedDrawerItem else activeDrawerItem
+        logger.fInfo {
+            "onFocusToContent: active=$activeDrawerItem, focused=$focusedDrawerItem, resolved=$resolvedItem, target=$entryTarget"
+        }
+        if (isContentItem(resolvedItem)) {
+                if (activeDrawerItem != resolvedItem) {
+                    lastActiveDrawerItem = activeDrawerItem
+                }
+                focusedDrawerItem = resolvedItem
+                activeDrawerItem = resolvedItem
                 pendingContentFocus = newPendingContentFocus(
-                    item = item,
+                    item = resolvedItem,
                     entryTarget = entryTarget
                 )
-            }
-            else -> Unit
+                logger.fInfo {
+                    "new pending content focus: item=$resolvedItem, target=$entryTarget, pendingId=${pendingContentFocus?.id}"
+                }
         }
     }
 
@@ -273,7 +303,7 @@ fun MainScreen(
             delay(360) // 等待动画完成再恢复焦点和头像按钮
             if (!leftNaviExpanded) {
                 showCollapsedUserButton = true
-                userFocusRequester.requestFocus()
+                requestDefaultFocusForActiveContent()
             }
         }
     }

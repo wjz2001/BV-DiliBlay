@@ -31,6 +31,7 @@ fun AnimeContent(
     pgcViewModel: PgcAnimeViewModel,
     contentEntryFocusRequester: FocusRequester? = null,
     tabFocusRequester: FocusRequester? = null,
+    onContentEntryReady: () -> Unit = {},
     active: Boolean = true
 ) {
     val context = LocalContext.current
@@ -61,6 +62,7 @@ fun AnimeContent(
         active = active,
         contentEntryFocusRequester = contentEntryFocusRequester,
         tabFocusRequester = tabFocusRequester,
+        onContentEntryReady = onContentEntryReady,
         featureButtons = {
             AnimeFeatureButtons(
                 modifier = Modifier.padding(vertical = 24.dp),

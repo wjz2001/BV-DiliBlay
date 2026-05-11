@@ -42,9 +42,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -54,32 +51,26 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Icon
-import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Tab
-import androidx.tv.material3.TabRow
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.component.BvTabLabel
+import dev.aaa1115910.bv.component.BvUnderlineTabRow
 import dev.aaa1115910.bv.component.MainTopBarContainer
 import dev.aaa1115910.bv.component.MainTopTabDefaults
-import dev.aaa1115910.bv.component.mainTopTabIndicator
 import dev.aaa1115910.bv.component.MainTopTabSeparator
-import dev.aaa1115910.bv.component.ifElse
-import dev.aaa1115910.bv.component.mainTopTabColors
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
@@ -117,6 +108,7 @@ fun FavoriteScreen(
     toViewViewModel: ToViewViewModel = koinViewModel(),
     contentEntryFocusRequester: FocusRequester? = null,
     tabFocusRequester: FocusRequester? = null,
+    onContentEntryReady: () -> Unit = {},
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -533,13 +525,6 @@ fun FavoriteScreen(
         }
     }
 
-    val density = LocalDensity.current
-    val tabLabelFontSize = MaterialTheme.typography.labelLarge.fontSize
-    val filterIconSizeDp = with(density) {
-        // 让 icon 和文字等高
-        tabLabelFontSize.toDp()
-    }
-
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -571,7 +556,7 @@ fun FavoriteScreen(
     ) {
         if (folderList.isNotEmpty()) {
             MainTopBarContainer {
-                TabRow(
+                BvUnderlineTabRow(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = MainTopTabDefaults.TabRowHorizontalPadding)
@@ -582,110 +567,74 @@ fun FavoriteScreen(
                             } else {
                                 favoriteViewModel.syncFolderActivationToCurrent()
                             }
-                        }
-                        .focusRestorer(favoriteTabFocusRequester),
-                    selectedTabIndex = currentTabIndex,
-                    separator = { MainTopTabSeparator() },
-                    indicator = mainTopTabIndicator(currentTabIndex),
-                ) {
-                folderList.forEachIndexed { index, folderMetadata ->
-                    val folderId = folderMetadata.id
-                    val queryState = folderQueryStates[folderId]
-                    val isSearching = queryState?.debouncedQuery?.isNotBlank() == true
-                    var longPressTriggered by remember(folderId) { mutableStateOf(false) }
-
-                    Tab(
-                        colors = mainTopTabColors(),
-                        modifier = Modifier
-                            .ifElse(
-                                index == focusTargetIndex,
-                                Modifier
-                                    .focusRequester(favoriteTabFocusRequester)
-                                    .onGloballyPositioned {
-                                        readyFocusTargetFolderId = folderId
-                                    }
-                            )
-                            .focusProperties {
-                                down = favoriteContentEntryFocusRequester
-                            }
-                            .onPreviewKeyEvent { event ->
-                                val isConfirmKey =
-                                    event.key == Key.DirectionCenter ||
-                                            event.key == Key.Enter ||
-                                            event.key == Key.Spacebar
-
-                                if (!isConfirmKey) return@onPreviewKeyEvent false
-
-                                if (event.type == KeyEventType.KeyDown) {
-                                    if (event.nativeKeyEvent.isLongPress) {
-                                        if (!longPressTriggered) {
-                                            longPressTriggered = true
-                                            activateFolderForSearchAction(folderMetadata)
-
-                                            // debouncedQuery 非空才算“搜索态”
-                                            val isSearchingNow =
-                                                folderQueryStates[folderId]?.debouncedQuery?.isNotBlank() == true
-
-                                            if (isSearchingNow) {
-                                                // 已在搜索态：再次长按 => 清空搜索
-                                                clearFolderQuery(folderId)
-                                            } else {
-                                                // 未搜索：长按打开 dialog
-                                                showSearchDialog = true
-                                                searchDialogFolderId = folderId
-                                            }
-                                        }
-                                        return@onPreviewKeyEvent true
-                                    }
-                                    return@onPreviewKeyEvent false
-                                }
-
-                                if (event.type == KeyEventType.KeyUp && longPressTriggered) {
-                                    longPressTriggered = false
-                                    return@onPreviewKeyEvent true
-                                }
-
-                                false
-                            },
-                        selected = displayFocusedFolderId == folderId,
-                        onFocus = {
-                            if (focusedFolderId != folderId) {
-                                favoriteViewModel.onFolderFocused(folderId)
-                            }
                         },
-                        onClick = {
+                    items = folderList,
+                    selectedItem = folderList.getOrNull(currentTabIndex),
+                    entryFocusItem = folderList.getOrNull(focusTargetIndex),
+                    itemKey = { it.id },
+                    defaultFocusRequester = favoriteTabFocusRequester,
+                    onDefaultFocusReady = { readyKey ->
+                        readyFocusTargetFolderId = readyKey as? Long
+                    },
+                    separator = { MainTopTabSeparator() },
+                    onSelectedChanged = { folderMetadata ->
+                        if (focusedFolderId != folderMetadata.id) {
+                            favoriteViewModel.onFolderFocused(folderMetadata.id)
+                        }
+                    },
+                    onClick = { folderMetadata ->
+                        activateFolderByClick(folderMetadata)
+                    },
+                    onLongClick = { folderMetadata ->
+                        val folderId = folderMetadata.id
+                        activateFolderForSearchAction(folderMetadata)
+
+                        // debouncedQuery 非空才算“搜索态”
+                        val isSearchingNow =
+                            folderQueryStates[folderId]?.debouncedQuery?.isNotBlank() == true
+
+                        if (isSearchingNow) {
+                            // 已在搜索态：再次长按 => 清空搜索
+                            clearFolderQuery(folderId)
+                        } else {
+                            // 未搜索：长按打开 dialog
+                            showSearchDialog = true
+                            searchDialogFolderId = folderId
+                        }
+                        true
+                    },
+                    contentFocusRequester = favoriteContentEntryFocusRequester,
+                    onContentFocusRequested = { folderMetadata ->
+                        if (activeFolderId != folderMetadata.id) {
                             activateFolderByClick(folderMetadata)
                         }
-                    ) {
+                    },
+                    autoRequestEntryFocus = false,
+                    tabContent = { folderMetadata, _, _ ->
+                        val folderId = folderMetadata.id
+                        val queryState = folderQueryStates[folderId]
+                        val isSearching = queryState?.debouncedQuery?.isNotBlank() == true
+
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(MainTopTabDefaults.TabContentHeight),
                             contentAlignment = Alignment.Center
                         ) {
-                            Row(
-                                modifier = Modifier.padding(MainTopTabDefaults.TabContentPadding),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                if (isSearching) {
+                            BvTabLabel(
+                                text = folderMetadata.title,
+                                icon = { iconSize ->
                                     Icon(
-                                        modifier = Modifier.size(filterIconSizeDp),
+                                        modifier = Modifier.size(iconSize),
                                         imageVector = Icons.Rounded.FilterList,
                                         contentDescription = null
                                     )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                }
-
-                                Text(
-                                    text = folderMetadata.title,
-                                    color = LocalContentColor.current,
-                                    style = MaterialTheme.typography.labelLarge
-                                )
-                            }
+                                },
+                                showIcon = isSearching
+                            )
                         }
-                    }
-                }
-                }
+                    },
+                )
             }
         }
 
@@ -701,7 +650,8 @@ fun FavoriteScreen(
             horizontalWrapItemCount = visibleFavorites.size,
             horizontalWrapColumnCount = 4,
             entryFocusRequester = favoriteContentEntryFocusRequester,
-            upFocusRequester = favoriteTabFocusRequester
+            upFocusRequester = favoriteTabFocusRequester,
+            onEntryFocusReady = onContentEntryReady
         ) { cardUiStateFor ->
             if (visibleFavorites.isNotEmpty()) {
                 itemsIndexed(

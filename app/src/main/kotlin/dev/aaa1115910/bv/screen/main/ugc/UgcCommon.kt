@@ -40,6 +40,7 @@ fun UgcRegionScaffold(
     active: Boolean = true,
     contentEntryFocusRequester: FocusRequester? = null,
     tabFocusRequester: FocusRequester? = null,
+    onContentEntryReady: () -> Unit = {},
     onLoadMore: () -> Unit,
     onAddWatchLater: ((Long) -> Unit),
     onGoToUpPage: ((Long, String) -> Unit),
@@ -68,7 +69,8 @@ fun UgcRegionScaffold(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalWrapItemCount = state.ugcItems.size,
         entryFocusRequester = contentEntryFocusRequester,
-        upFocusRequester = tabFocusRequester
+        upFocusRequester = tabFocusRequester,
+        onEntryFocusReady = onContentEntryReady
     ) { cardUiStateFor ->
         // 用index的话快速刷新有概率闪退
         itemsIndexed(

@@ -25,6 +25,7 @@ fun TvContent(
     pgcViewModel: PgcTvViewModel,
     contentEntryFocusRequester: FocusRequester? = null,
     tabFocusRequester: FocusRequester? = null,
+    onContentEntryReady: () -> Unit = {},
     active: Boolean = true
 ) {
     val context = LocalContext.current
@@ -40,6 +41,7 @@ fun TvContent(
         active = active,
         contentEntryFocusRequester = contentEntryFocusRequester,
         tabFocusRequester = tabFocusRequester,
+        onContentEntryReady = onContentEntryReady,
         featureButtons = {
             TvFeatureButtons(
                 modifier = Modifier.padding(vertical = 24.dp),

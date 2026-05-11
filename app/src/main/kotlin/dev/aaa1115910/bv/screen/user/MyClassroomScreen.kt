@@ -36,6 +36,7 @@ fun MyClassroomScreen(
     refreshSerial: Long = 0L,
     contentEntryFocusRequester: FocusRequester? = null,
     tabFocusRequester: FocusRequester? = null,
+    onContentEntryReady: () -> Unit = {},
     myClassroomViewModel: MyClassroomViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
@@ -70,7 +71,8 @@ fun MyClassroomScreen(
         horizontalWrapItemCount = courses.size,
         horizontalWrapColumnCount = 4,
         entryFocusRequester = contentEntryFocusRequester,
-        upFocusRequester = tabFocusRequester
+        upFocusRequester = tabFocusRequester,
+        onEntryFocusReady = onContentEntryReady
     ) { cardUiStateFor ->
         if (courses.isNotEmpty()) {
             itemsIndexed(courses, key = { _, course -> course.seasonId }) { index, course ->

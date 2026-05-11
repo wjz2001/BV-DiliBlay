@@ -25,6 +25,7 @@ fun DocumentaryContent(
     pgcViewModel: PgcDocumentaryViewModel,
     contentEntryFocusRequester: FocusRequester? = null,
     tabFocusRequester: FocusRequester? = null,
+    onContentEntryReady: () -> Unit = {},
     active: Boolean = true
 ) {
     val context = LocalContext.current
@@ -40,6 +41,7 @@ fun DocumentaryContent(
         active = active,
         contentEntryFocusRequester = contentEntryFocusRequester,
         tabFocusRequester = tabFocusRequester,
+        onContentEntryReady = onContentEntryReady,
         featureButtons = {
             DocumentaryFeatureButtons(
                 modifier = Modifier.padding(vertical = 24.dp),

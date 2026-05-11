@@ -44,6 +44,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -106,6 +107,7 @@ fun SearchResultScreen(
     keyword: String? = null,
     enableProxy: Boolean? = null,
     contentEntryFocusRequester: FocusRequester? = null,
+    onContentEntryReady: () -> Unit = {},
     onBackToInput: (() -> Unit)? = null,
     searchResultViewModel: SearchResultViewModel = koinViewModel(),
     toViewViewModel: ToViewViewModel = koinViewModel()
@@ -119,6 +121,7 @@ fun SearchResultScreen(
     val tabRowFocusRequester = contentEntryFocusRequester ?: internalTabRowFocusRequester
     val internalContentEntryFocusRequester = remember { FocusRequester() }
     val resultContentEntryFocusRequester = internalContentEntryFocusRequester
+    var contentReadySearchType by remember { mutableStateOf<SearchTypeTopNavItem?>(null) }
 
     var rowSize by remember { mutableIntStateOf(4) }
 
@@ -301,6 +304,13 @@ fun SearchResultScreen(
                         selectedItem = focusedSearchType.toTopNavItem(),
                         defaultFocusRequester = tabRowFocusRequester,
                         contentFocusRequester = resultContentEntryFocusRequester,
+                        contentFocusReadyKey = contentReadySearchType,
+                        onContentFocusRequested = { nav ->
+                            val target = (nav as SearchTypeTopNavItem).toSearchType()
+                            if (target != activeSearchType) {
+                                searchResultViewModel.onSearchTypeClicked(target)
+                            }
+                        },
                         onSelectedChanged = { nav ->
                             val target = (nav as SearchTypeTopNavItem).toSearchType()
                             searchResultViewModel.onSearchTypeFocused(target)
@@ -342,6 +352,10 @@ fun SearchResultScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .focusRequester(resultContentEntryFocusRequester)
+                        .onGloballyPositioned {
+                            contentReadySearchType = searchResult.type.toTopNavItem()
+                            onContentEntryReady()
+                        }
                         .focusProperties {
                             up = tabRowFocusRequester
                         }
@@ -374,6 +388,10 @@ fun SearchResultScreen(
                     horizontalArrangement = Arrangement.spacedBy(24.dp),
                     entryFocusRequester = resultContentEntryFocusRequester,
                     upFocusRequester = tabRowFocusRequester,
+                    onEntryFocusReady = {
+                        contentReadySearchType = searchResult.type.toTopNavItem()
+                        onContentEntryReady()
+                    },
                     horizontalWrapItemCount = currentItems.size,
                     horizontalWrapColumnCount = rowSize
                 ) { cardUiStateFor ->

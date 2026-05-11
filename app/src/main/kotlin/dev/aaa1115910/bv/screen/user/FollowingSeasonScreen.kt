@@ -62,6 +62,7 @@ fun FollowingSeasonScreen(
     refreshSerial: Long = 0L,
     contentEntryFocusRequester: FocusRequester? = null,
     tabFocusRequester: FocusRequester? = null,
+    onContentEntryReady: () -> Unit = {},
     followingSeasonViewModel: FollowingSeasonViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
@@ -148,7 +149,8 @@ fun FollowingSeasonScreen(
             horizontalWrapItemCount = followingSeasons.size,
             horizontalWrapColumnCount = 6,
             entryFocusRequester = contentEntryFocusRequester,
-            upFocusRequester = tabFocusRequester
+            upFocusRequester = tabFocusRequester,
+            onEntryFocusReady = onContentEntryReady
         ) { cardUiStateFor ->
             if (followingSeasons.isNotEmpty()) {
                 itemsIndexed(

@@ -25,6 +25,7 @@ fun MovieContent(
     pgcViewModel: PgcMovieViewModel,
     contentEntryFocusRequester: FocusRequester? = null,
     tabFocusRequester: FocusRequester? = null,
+    onContentEntryReady: () -> Unit = {},
     active: Boolean = true
 ) {
     val context = LocalContext.current
@@ -40,6 +41,7 @@ fun MovieContent(
         active = active,
         contentEntryFocusRequester = contentEntryFocusRequester,
         tabFocusRequester = tabFocusRequester,
+        onContentEntryReady = onContentEntryReady,
         featureButtons = {
             MovieFeatureButtons(
                 modifier = Modifier.padding(vertical = 24.dp),

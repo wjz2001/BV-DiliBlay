@@ -89,6 +89,7 @@ fun HomeContent(
     val activeTab = homeContentViewModel.activeTab
     var focusOnContent by remember { mutableStateOf(false) }
     val contentEntryFocusRequester = remember { FocusRequester() }
+    var contentReadyTab by remember { mutableStateOf<HomeTopNavItem?>(null) }
     var searchPage by rememberSaveable { mutableStateOf(HomeSearchPage.Input) }
     var searchKeyword by rememberSaveable { mutableStateOf("") }
     var searchEnableProxy by rememberSaveable { mutableStateOf(false) }
@@ -213,9 +214,9 @@ fun HomeContent(
         }
     }
 
-    val handleDefaultFocusReady: () -> Unit = handleDefaultFocusReady@{
+    val handleDefaultFocusReady: (Any) -> Unit = handleDefaultFocusReady@{ readyKey ->
         if (!active) return@handleDefaultFocusReady
-        topNavReadyTab = focusedTab
+        topNavReadyTab = readyKey as? HomeTopNavItem
         onDefaultFocusReady?.invoke()
     }
 
@@ -247,8 +248,15 @@ fun HomeContent(
                 focusedLeadingIcon = homeFocusedLeadingIcon,
                 onTabConfirmLongPress = { nav -> handleTopNavConfirmLongPress(nav as HomeTopNavItem) },
                 contentFocusRequester = contentEntryFocusRequester,
+                contentFocusReadyKey = contentReadyTab,
                 onLeftBoundaryExit = { drawerFocusRequester.requestFocus() },
                 onRightBoundaryExit = { drawerFocusRequester.requestFocus() },
+                onContentFocusRequested = { nav ->
+                    val target = nav as HomeTopNavItem
+                    if (target != activeTab) {
+                        homeContentViewModel.onTabClicked(target)
+                    }
+                },
                 onSelectedChanged = { nav -> homeContentViewModel.onTabFocused(nav as HomeTopNavItem) },
                 onClick = { nav ->
                     val target = nav as HomeTopNavItem
@@ -326,7 +334,10 @@ fun HomeContent(
                                             koinViewModel<SearchInputViewModel>()
                                         SearchInputScreen(
                                             defaultFocusRequester = contentEntryFocusRequester,
-                                            onDefaultFocusReady = handleDefaultFocusReady,
+                                            onDefaultFocusReady = {
+                                                handleDefaultFocusReady(tab)
+                                                if (tabActive) contentReadyTab = tab
+                                            },
                                             onSearchSubmit = { keyword, enableProxy ->
                                                 searchKeyword = keyword
                                                 searchEnableProxy = enableProxy
@@ -343,6 +354,9 @@ fun HomeContent(
                                             keyword = searchKeyword,
                                             enableProxy = searchEnableProxy,
                                             contentEntryFocusRequester = contentEntryFocusRequester,
+                                            onContentEntryReady = {
+                                                if (tabActive) contentReadyTab = tab
+                                            },
                                             onBackToInput = { searchPage = HomeSearchPage.Input },
                                             searchResultViewModel = searchResultViewModel
                                         )
@@ -357,6 +371,9 @@ fun HomeContent(
                                     backToTabRow = backToTabRow,
                                     contentEntryFocusRequester = contentEntryFocusRequester,
                                     tabFocusRequester = navFocusRequester,
+                                    onContentEntryReady = {
+                                        if (tabActive) contentReadyTab = tab
+                                    },
                                     active = tabActive
                                 )
                             }
@@ -380,6 +397,7 @@ private fun HomeActiveTabContent(
     backToTabRow: () -> Unit,
     contentEntryFocusRequester: FocusRequester,
     tabFocusRequester: FocusRequester,
+    onContentEntryReady: () -> Unit,
     active: Boolean
 ) {
     val gridState = rememberHomeGridState(tab, homeContentViewModel)
@@ -416,7 +434,8 @@ private fun HomeActiveTabContent(
                 activationSerial = activationSerial,
                 refreshSerial = consumedRefreshSerial,
                 contentEntryFocusRequester = activeContentEntryFocusRequester,
-                tabFocusRequester = activeTabFocusRequester
+                tabFocusRequester = activeTabFocusRequester,
+                onContentEntryReady = onContentEntryReady
             )
         }
         HomeTopNavItem.Popular -> {
@@ -426,7 +445,8 @@ private fun HomeActiveTabContent(
                 activationSerial = activationSerial,
                 refreshSerial = consumedRefreshSerial,
                 contentEntryFocusRequester = activeContentEntryFocusRequester,
-                tabFocusRequester = activeTabFocusRequester
+                tabFocusRequester = activeTabFocusRequester,
+                onContentEntryReady = onContentEntryReady
             )
         }
         HomeTopNavItem.Dynamics -> {
@@ -437,7 +457,8 @@ private fun HomeActiveTabContent(
                 refreshSerial = consumedRefreshSerial,
                 longPressSerial = consumedLongPressSerial,
                 contentEntryFocusRequester = activeContentEntryFocusRequester,
-                tabFocusRequester = activeTabFocusRequester
+                tabFocusRequester = activeTabFocusRequester,
+                onContentEntryReady = onContentEntryReady
             )
         }
         HomeTopNavItem.ToView -> {
@@ -450,6 +471,7 @@ private fun HomeActiveTabContent(
                 toViewViewModel = toViewViewModel,
                 contentEntryFocusRequester = activeContentEntryFocusRequester,
                 tabFocusRequester = activeTabFocusRequester,
+                onContentEntryReady = onContentEntryReady,
                 onBack = backToTabRow
             )
         }
@@ -466,6 +488,7 @@ private fun HomeActiveTabContent(
                 toViewViewModel = toViewViewModel,
                 contentEntryFocusRequester = activeContentEntryFocusRequester,
                 tabFocusRequester = activeTabFocusRequester,
+                onContentEntryReady = onContentEntryReady,
                 onSearchStateChanged = homeContentViewModel::updateHistorySearching
             )
         }
@@ -481,6 +504,7 @@ private fun HomeActiveTabContent(
                 toViewViewModel = toViewViewModel,
                 contentEntryFocusRequester = activeContentEntryFocusRequester,
                 tabFocusRequester = activeTabFocusRequester,
+                onContentEntryReady = onContentEntryReady,
                 onBack = backToTabRow
             )
         }
@@ -494,6 +518,7 @@ private fun HomeActiveTabContent(
                 refreshSerial = consumedRefreshSerial,
                 contentEntryFocusRequester = activeContentEntryFocusRequester,
                 tabFocusRequester = activeTabFocusRequester,
+                onContentEntryReady = onContentEntryReady,
                 followingSeasonViewModel = followingSeasonViewModel
             )
         }
@@ -502,7 +527,8 @@ private fun HomeActiveTabContent(
             activationSerial = activationSerial,
             refreshSerial = consumedRefreshSerial,
             contentEntryFocusRequester = activeContentEntryFocusRequester,
-            tabFocusRequester = activeTabFocusRequester
+            tabFocusRequester = activeTabFocusRequester,
+            onContentEntryReady = onContentEntryReady
         )
     }
 }

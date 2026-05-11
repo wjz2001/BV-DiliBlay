@@ -20,7 +20,8 @@ object MainTopTabDefaults {
     val TabSeparatorWidth = 12.dp
     val TabRowHorizontalPadding = 12.dp
     val TabContentHeight = MainChromeDefaults.TopNavTabHeight
-    val TabContentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+    // val TabContentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+    val TabContentPadding = PaddingValues(horizontal = 20.dp, vertical = 6.dp)
 }
 
 @Composable

@@ -54,7 +54,8 @@ fun PopularScreen(
     activationSerial: Long = 0L,
     refreshSerial: Long = 0L,
     contentEntryFocusRequester: FocusRequester? = null,
-    tabFocusRequester: FocusRequester? = null
+    tabFocusRequester: FocusRequester? = null,
+    onContentEntryReady: () -> Unit = {}
 ) {
     val popularViewModel: PopularViewModel = koinViewModel()
     val toViewViewModel: ToViewViewModel = koinViewModel()
@@ -113,7 +114,8 @@ fun PopularScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalWrapItemCount = popularVideoList.size,
         entryFocusRequester = contentEntryFocusRequester,
-        upFocusRequester = tabFocusRequester
+        upFocusRequester = tabFocusRequester,
+        onEntryFocusReady = onContentEntryReady
     ) { cardUiStateFor ->
         itemsIndexed(
             items = popularVideoList,

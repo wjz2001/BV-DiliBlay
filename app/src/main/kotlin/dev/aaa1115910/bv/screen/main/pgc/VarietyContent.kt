@@ -25,6 +25,7 @@ fun VarietyContent(
     pgcViewModel: PgcVarietyViewModel,
     contentEntryFocusRequester: FocusRequester? = null,
     tabFocusRequester: FocusRequester? = null,
+    onContentEntryReady: () -> Unit = {},
     active: Boolean = true
 ) {
     val context = LocalContext.current
@@ -40,6 +41,7 @@ fun VarietyContent(
         active = active,
         contentEntryFocusRequester = contentEntryFocusRequester,
         tabFocusRequester = tabFocusRequester,
+        onContentEntryReady = onContentEntryReady,
         featureButtons = {
             VarietyFeatureButtons(
                 modifier = Modifier.padding(vertical = 24.dp),

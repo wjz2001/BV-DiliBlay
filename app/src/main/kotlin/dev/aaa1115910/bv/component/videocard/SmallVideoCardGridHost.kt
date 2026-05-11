@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -59,7 +60,9 @@ private class GridRowWrapController(
     var enabled: Boolean = true
     var itemCount: Int = 0
     var entryFocusRequester: FocusRequester? = null
+    var upFocusRequester: FocusRequester? = null
     var enableHorizontalLinks: Boolean = true
+    var onEntryFocusReady: (() -> Unit)? = null
 
     private fun requesterFor(index: Int): FocusRequester {
         if (index == 0) {
@@ -74,7 +77,7 @@ private class GridRowWrapController(
         val rowStart = (index / columnCount) * columnCount
         val rowEnd = minOf(rowStart + columnCount - 1, itemCount - 1)
 
-        return this
+        var modifier = this
             .focusRequester(requesterFor(index))
             .focusProperties {
                 if (enableHorizontalLinks && rowStart != rowEnd) {
@@ -90,7 +93,16 @@ private class GridRowWrapController(
                         requesterFor(index + 1)
                     }
                 }
+                if (rowStart == 0) {
+                    up = upFocusRequester ?: FocusRequester.Default
+                }
             }
+        if (index == 0) {
+            modifier = modifier.onGloballyPositioned {
+                onEntryFocusReady?.invoke()
+            }
+        }
+        return modifier
     }
 }
 
@@ -166,6 +178,7 @@ fun SmallVideoCardGridHost(
     enableRowHorizontalWrap: Boolean = true,
     entryFocusRequester: FocusRequester? = null,
     upFocusRequester: FocusRequester? = null,
+    onEntryFocusReady: (() -> Unit)? = null,
     horizontalWrapItemCount: Int = 0,
     horizontalWrapColumnCount: Int = 4,
     content: LazyGridScope.((Long) -> SmallVideoCardItemUiState?) -> Unit
@@ -202,7 +215,9 @@ fun SmallVideoCardGridHost(
                 (enableRowHorizontalWrap || entryFocusRequester != null)
         itemCount = horizontalWrapItemCount
         this.entryFocusRequester = entryFocusRequester
+        this.upFocusRequester = upFocusRequester
         this.enableHorizontalLinks = enableRowHorizontalWrap
+        this.onEntryFocusReady = onEntryFocusReady
     }
     val cardUiStateFor = remember(cardUiMap) {
         { aid: Long -> cardUiMap[aid] }
@@ -289,6 +304,9 @@ fun SmallVideoCardGridHost(
                     up = upFocusRequester ?: FocusRequester.Default
                 }
                 .focusable()
+                .onGloballyPositioned {
+                    onEntryFocusReady?.invoke()
+                }
         } else {
             modifier
         }

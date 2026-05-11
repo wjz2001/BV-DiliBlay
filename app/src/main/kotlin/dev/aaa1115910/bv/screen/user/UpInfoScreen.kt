@@ -304,7 +304,6 @@ fun UpSpaceScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             horizontalWrapItemCount = visibleVideos.size,
-            enableVerticalLinks = true,
             entryFocusRequester = firstItemFocusRequester,
             upFocusRequester = searchFocusRequester,
             onNavigateUp = { mid, name ->

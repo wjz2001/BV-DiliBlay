@@ -51,13 +51,12 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
@@ -65,26 +64,25 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
-import androidx.tv.material3.Border
-import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.LocalContentColor
+import androidx.tv.material3.Border
+import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
-import androidx.tv.material3.Tab
-import androidx.tv.material3.TabDefaults
-import androidx.tv.material3.TabRow
-import androidx.tv.material3.TabRowDefaults
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.BlockTagItem
+import dev.aaa1115910.bv.component.BvTabLabel
+import dev.aaa1115910.bv.component.BvUnderlineTabRow
 import dev.aaa1115910.bv.component.FollowGroupSelectDialog
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.MainChromeDefaults
+import dev.aaa1115910.bv.component.MainTopBarContainer
+import dev.aaa1115910.bv.component.MainTopTabSeparator
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
-import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
 import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
 import dev.aaa1115910.bv.screen.user.EmptyTip
@@ -130,7 +128,8 @@ fun FollowContent(
     val contentEntryFocusRequester = remember { FocusRequester() }
 
     var focusOnTabs by remember { mutableStateOf(true) }
-    var readyFocusTargetGroupId by remember { mutableStateOf<Int?>(null) }
+    var topNavReadyGroupId by remember { mutableStateOf<Int?>(null) }
+    var contentReadyGroupId by remember { mutableStateOf<Int?>(null) }
     var showSearchDialog by remember { mutableStateOf(false) }
     var searchDialogGroupId by remember { mutableStateOf<Int?>(null) }
     var searchFieldHasFocus by remember { mutableStateOf(false) }
@@ -205,15 +204,6 @@ fun FollowContent(
         }
     }
 
-    val currentTabIndex by remember(displayFocusedGroupId, groupList) {
-        derivedStateOf {
-            if (groupList.isEmpty()) return@derivedStateOf 0
-            groupList.indexOfFirst { it.groupId == displayFocusedGroupId }
-                .takeIf { it >= 0 }
-                ?: 0
-        }
-    }
-
     val requestedGroupFocusId = remember(
         pendingDrawerEntryRequest?.id,
         groupList,
@@ -262,21 +252,6 @@ fun FollowContent(
         }
     }
 
-    val navFocusTabIndex by remember(
-        pendingDrawerEntryRequest?.id,
-        focusTargetIndex,
-        displayFocusedGroupId,
-        groupList
-    ) {
-        derivedStateOf {
-            if (pendingDrawerEntryRequest != null) return@derivedStateOf focusTargetIndex
-            if (groupList.isEmpty()) return@derivedStateOf 0
-            groupList.indexOfFirst { it.groupId == displayFocusedGroupId }
-                .takeIf { it >= 0 }
-                ?: 0
-        }
-    }
-
     val visibleUsers by remember {
         derivedStateOf {
             val groupId = followViewModel.currentGroupId
@@ -292,14 +267,6 @@ fun FollowContent(
                             it.sign.contains(query, ignoreCase = true)
                 }
             }
-        }
-    }
-
-    val tabRequesters = remember { mutableMapOf<Int, FocusRequester>() }
-    groupList.forEach { group ->
-        androidx.compose.runtime.key(group.groupId) {
-            val requester = remember { FocusRequester() }
-            tabRequesters[group.groupId] = requester
         }
     }
     val userRequesters = remember { mutableMapOf<String, FocusRequester>() }
@@ -361,20 +328,20 @@ fun FollowContent(
     }
 
     LaunchedEffect(groupList, focusTargetGroupId) {
-        readyFocusTargetGroupId = null
+        topNavReadyGroupId = null
     }
 
-    LaunchedEffect(readyFocusTargetGroupId, focusTargetGroupId, active) {
+    LaunchedEffect(topNavReadyGroupId, focusTargetGroupId, active) {
         if (!active) return@LaunchedEffect
         val targetGroupId = focusTargetGroupId ?: return@LaunchedEffect
-        if (readyFocusTargetGroupId == targetGroupId) {
+        if (topNavReadyGroupId == targetGroupId) {
             onDefaultFocusReady?.invoke()
         }
     }
 
     LaunchedEffect(
         pendingDrawerEntryRequest?.id,
-        readyFocusTargetGroupId,
+        topNavReadyGroupId,
         focusTargetGroupId,
         followViewModel.activeGroupId,
         followViewModel.focusedGroupId,
@@ -383,7 +350,7 @@ fun FollowContent(
         if (!active) return@LaunchedEffect
         val request = pendingDrawerEntryRequest ?: return@LaunchedEffect
         val targetGroupId = focusTargetGroupId ?: return@LaunchedEffect
-        if (readyFocusTargetGroupId != targetGroupId) return@LaunchedEffect
+        if (topNavReadyGroupId != targetGroupId) return@LaunchedEffect
         if (followViewModel.activeGroupId != targetGroupId) return@LaunchedEffect
         if (followViewModel.focusedGroupId != targetGroupId) return@LaunchedEffect
 
@@ -392,9 +359,10 @@ fun FollowContent(
     }
 
     val visibleCount = visibleUsers.size
-    val density = LocalDensity.current
-    val tabLabelFontSize = MaterialTheme.typography.labelLarge.fontSize
-    val filterIconSizeDp = with(density) { tabLabelFontSize.toDp() }
+
+    LaunchedEffect(currentGroupId, visibleUsers) {
+        contentReadyGroupId = null
+    }
 
     Column(
         modifier = Modifier
@@ -427,176 +395,98 @@ fun FollowContent(
             }
 
             else -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(MainChromeDefaults.Size)
-                        .padding(12.dp, MainChromeDefaults.TopNavVerticalPadding)
+                MainTopBarContainer(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    TabRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 12.dp, end = 12.dp)
-                            .onFocusChanged { state ->
-                                focusOnTabs = state.hasFocus
-                                if (!state.hasFocus) {
-                                    followViewModel.syncGroupActivationToCurrent()
-                                }
-                            },
-                        selectedTabIndex = currentTabIndex,
-                        separator = { Spacer(modifier = Modifier.width(12.dp)) },
-                        indicator = { tabPositions, doesTabRowHaveFocus ->
-                            tabPositions.getOrNull(currentTabIndex)?.let { currentTabPosition ->
-                                TabRowDefaults.PillIndicator(
-                                    currentTabPosition = currentTabPosition,
-                                    doesTabRowHaveFocus = doesTabRowHaveFocus,
-                                    activeColor = MaterialTheme.colorScheme.primary,
-                                    inactiveColor = MaterialTheme.colorScheme.primaryContainer
-                                )
-                            }
-                        }
-                    ) {
-                        groupList.forEachIndexed { index, group ->
-                            val groupId = group.groupId
-                            val queryState = groupQueryStates[groupId]
-                            val isSearching = queryState?.debouncedQuery?.isNotBlank() == true
-                            var longPressTriggered by remember(groupId) { mutableStateOf(false) }
-
-                            Tab(
-                                colors = TabDefaults.pillIndicatorTabColors(
-                                    contentColor = MaterialTheme.colorScheme.onSurface,
-                                    inactiveContentColor = MaterialTheme.colorScheme.onSurface,
-                                    selectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    focusedContentColor = MaterialTheme.colorScheme.onPrimary,
-                                    focusedSelectedContentColor = MaterialTheme.colorScheme.onPrimary
-                                ),
-                                modifier = Modifier
-                                    .ifElse(
-                                        index == navFocusTabIndex,
-                                        Modifier
-                                            .focusRequester(navFocusRequester)
-                                            .onGloballyPositioned {
-                                                readyFocusTargetGroupId = groupId
-                                            }
-                                    )
-                                    .ifElse(
-                                        index != focusTargetIndex,
-                                        Modifier.focusRequester(tabRequesters.getValue(groupId))
-                                    )
-                                    .focusProperties {
-                                        left = if (index == 0) {
-                                            drawerFocusRequester
-                                        } else {
-                                            tabRequesters.getValue(groupList[index - 1].groupId)
-                                        }
-                                        right = if (index == groupList.lastIndex) {
-                                            drawerFocusRequester
-                                        } else {
-                                            tabRequesters.getValue(groupList[index + 1].groupId)
-                                        }
-                                        up = FocusRequester.Cancel
-                                        down = if (visibleUsers.isNotEmpty()) {
-                                            contentEntryFocusRequester
-                                        } else {
-                                            FocusRequester.Cancel
-                                        }
-                                    }
-                                    .onPreviewKeyEvent { event ->
-                                        val isConfirmKey =
-                                            event.key == Key.DirectionCenter ||
-                                                    event.key == Key.Enter ||
-                                                    event.key == Key.Spacebar
-
-                                        if (event.type == KeyEventType.KeyDown) {
-                                            if (event.key == Key.DirectionLeft && index == 0) {
-                                                drawerFocusRequester.requestFocus(scope)
-                                                return@onPreviewKeyEvent true
-                                            }
-                                            if (event.key == Key.DirectionRight && index == groupList.lastIndex) {
-                                                drawerFocusRequester.requestFocus(scope)
-                                                return@onPreviewKeyEvent true
-                                            }
-                                            if (event.key == Key.DirectionDown && visibleUsers.isNotEmpty()) {
-                                                contentEntryFocusRequester.requestFocus(scope)
-                                                return@onPreviewKeyEvent true
-                                            }
-                                        }
-
-                                        if (!isConfirmKey) return@onPreviewKeyEvent false
-
-                                        if (event.type == KeyEventType.KeyDown) {
-                                            if (event.nativeKeyEvent.isLongPress) {
-                                                if (!longPressTriggered) {
-                                                    longPressTriggered = true
-                                                    followViewModel.onGroupClicked(groupId)
-                                                    val isSearchingNow =
-                                                        groupQueryStates[groupId]?.debouncedQuery?.isNotBlank() == true
-                                                    if (isSearchingNow) {
-                                                        clearGroupQuery(groupId)
-                                                    } else {
-                                                        showSearchDialog = true
-                                                        searchDialogGroupId = groupId
-                                                    }
-                                                }
-                                                return@onPreviewKeyEvent true
-                                            }
-                                            return@onPreviewKeyEvent false
-                                        }
-
-                                        if (event.type == KeyEventType.KeyUp && longPressTriggered) {
-                                            longPressTriggered = false
-                                            return@onPreviewKeyEvent true
-                                        }
-
-                                        false
-                                    },
-                                selected = displayFocusedGroupId == groupId,
-                                onFocus = {
-                                    if (focusedGroupId != groupId) {
-                                        followViewModel.onGroupFocused(groupId)
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        BvUnderlineTabRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(end = 88.dp)
+                                .onFocusChanged { state ->
+                                    focusOnTabs = state.hasFocus
+                                    if (!state.hasFocus) {
+                                        followViewModel.syncGroupActivationToCurrent()
                                     }
                                 },
-                                onClick = {
-                                    followViewModel.onGroupClicked(groupId)
+                            items = groupList,
+                            selectedItem = groupList.firstOrNull { it.groupId == displayFocusedGroupId },
+                            entryFocusItem = if (pendingDrawerEntryRequest == null) {
+                                null
+                            } else {
+                                groupList.firstOrNull { it.groupId == requestedGroupFocusId }
+                            },
+                            itemKey = { it.groupId },
+                            defaultFocusRequester = navFocusRequester,
+                            onDefaultFocusReady = { readyKey ->
+                                val readyGroupId = readyKey as? Int
+                                if (readyGroupId != null && topNavReadyGroupId != readyGroupId) {
+                                    topNavReadyGroupId = readyGroupId
                                 }
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(32.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        if (isSearching) {
-                                            Icon(
-                                                modifier = Modifier.size(filterIconSizeDp),
-                                                imageVector = Icons.Rounded.FilterList,
-                                                contentDescription = null
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                        }
+                            },
+                            separator = { MainTopTabSeparator() },
+                            onSelectedChanged = { group ->
+                                if (followViewModel.focusedGroupId != group.groupId) {
+                                    followViewModel.onGroupFocused(group.groupId)
+                                }
+                            },
+                            onClick = { group ->
+                                followViewModel.onGroupClicked(group.groupId)
+                            },
+                            onLongClick = { group ->
+                                followViewModel.onGroupClicked(group.groupId)
+                                val isSearchingNow =
+                                    groupQueryStates[group.groupId]?.debouncedQuery?.isNotBlank() == true
+                                if (isSearchingNow) {
+                                    clearGroupQuery(group.groupId)
+                                } else {
+                                    showSearchDialog = true
+                                    searchDialogGroupId = group.groupId
+                                }
+                                true
+                            },
+                            onLeftExit = {
+                                drawerFocusRequester.requestFocus(scope)
+                            },
+                            onRightExit = {
+                                drawerFocusRequester.requestFocus(scope)
+                            },
+                            contentFocusRequester = contentEntryFocusRequester,
+                            contentFocusReadyKey = contentReadyGroupId,
+                            onContentFocusRequested = { group ->
+                                if (currentGroupId != group.groupId) {
+                                    followViewModel.onGroupClicked(group.groupId)
+                                }
+                            },
+                            blockUp = true,
+                            autoRequestEntryFocus = false,
+                            tabContent = { group, _, _ ->
+                                val groupId = group.groupId
+                                val queryState = groupQueryStates[groupId]
+                                val isSearching = queryState?.debouncedQuery?.isNotBlank() == true
 
-                                        Text(
-                                            text = group.title,
-                                            color = LocalContentColor.current,
-                                            style = MaterialTheme.typography.labelLarge
+                                BvTabLabel(
+                                    text = group.title,
+                                    icon = { iconSize ->
+                                        Icon(
+                                            modifier = Modifier.size(iconSize),
+                                            imageVector = Icons.Rounded.FilterList,
+                                            contentDescription = null
                                         )
-                                    }
-                                }
+                                    },
+                                    showIcon = isSearching
+                                )
                             }
-                        }
-                    }
+                        )
 
-                    Text(
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .padding(end = 12.dp),
-                        text = stringResource(R.string.load_data_count, visibleCount),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                        Text(
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .padding(start = 12.dp),
+                            text = stringResource(R.string.load_data_count, visibleCount),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(6.dp))
@@ -641,10 +531,25 @@ fun FollowContent(
                             UpCard(
                                 modifier = Modifier
                                     .focusRequester(contentRequesterForIndex(index))
+                                    .then(
+                                        if (index == 0) {
+                                            Modifier.onGloballyPositioned {
+                                                if (active && currentGroupId != null) {
+                                                    contentReadyGroupId = currentGroupId
+                                                }
+                                            }
+                                        } else {
+                                            Modifier
+                                        }
+                                    )
                                     .focusProperties {
                                         left = contentRequesterForIndex(focusLink.leftIndex)
                                         right = contentRequesterForIndex(focusLink.rightIndex)
-                                        up = contentRequesterForIndex(focusLink.upIndex)
+                                        up = if (index < 4) {
+                                            navFocusRequester
+                                        } else {
+                                            contentRequesterForIndex(focusLink.upIndex)
+                                        }
                                         down = contentRequesterForIndex(focusLink.downIndex)
                                     },
                                 face = user.avatar,

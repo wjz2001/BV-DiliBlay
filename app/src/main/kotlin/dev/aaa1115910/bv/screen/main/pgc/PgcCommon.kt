@@ -46,6 +46,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
@@ -86,6 +87,7 @@ fun PgcScaffold(
     active: Boolean = true,
     contentEntryFocusRequester: FocusRequester? = null,
     tabFocusRequester: FocusRequester? = null,
+    onContentEntryReady: () -> Unit = {},
     featureButtons: (@Composable () -> Unit)? = null
 ) {
     val context = LocalContext.current
@@ -117,6 +119,9 @@ fun PgcScaffold(
                         .width(880.dp)
                         .padding(32.dp, 0.dp)
                         .focusRequester(carouselFocusRequester)
+                        .onGloballyPositioned {
+                            onContentEntryReady()
+                        }
                         .focusProperties {
                             up = tabFocusRequester ?: FocusRequester.Default
                         },

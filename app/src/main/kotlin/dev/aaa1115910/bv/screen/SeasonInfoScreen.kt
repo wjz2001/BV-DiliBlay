@@ -86,8 +86,6 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
-import androidx.tv.material3.Tab
-import androidx.tv.material3.TabRow
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import dev.aaa1115910.biliapi.entity.video.season.Episode
@@ -96,6 +94,7 @@ import dev.aaa1115910.biliapi.entity.video.season.SeasonDetail
 import dev.aaa1115910.biliapi.repositories.UserRepository
 import dev.aaa1115910.biliapi.repositories.VideoDetailRepository
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.component.BvUnderlineTabRow
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.buttons.SeasonInfoButtons
 import dev.aaa1115910.bv.component.ifElse
@@ -764,6 +763,7 @@ fun SeasonEpisodesDialog(
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val tabCount by remember { mutableIntStateOf(ceil(episodes.size / 20.0).toInt()) }
+    val tabItems = remember(tabCount) { (0 until tabCount).toList() }
     val selectedEpisodes = remember { mutableStateListOf<Episode>() }
 
     val tabRowFocusRequester = remember { FocusRequester() }
@@ -800,7 +800,7 @@ fun SeasonEpisodesDialog(
                     // TabRow 只有一项 Tab 时会导致崩溃，但如果只有一项 Tab 的时候也没必要显示
                     // https://issuetracker.google.com/issues/264018028
                     if (tabCount > 1) {
-                        TabRow(
+                        BvUnderlineTabRow(
                             modifier = Modifier
                                 .onFocusChanged {
                                     if (it.hasFocus) {
@@ -809,29 +809,26 @@ fun SeasonEpisodesDialog(
                                         }
                                     }
                                 },
-                            selectedTabIndex = selectedTabIndex,
+                            items = tabItems,
+                            selectedItem = selectedTabIndex,
+                            entryFocusItem = selectedTabIndex,
+                            itemKey = { it },
+                            defaultFocusRequester = tabRowFocusRequester,
                             separator = { Spacer(modifier = Modifier.width(12.dp)) },
-                        ) {
-                            for (i in 0 until tabCount) {
-                                Tab(
-                                    modifier = if (i == 0) Modifier.focusRequester(
-                                        tabRowFocusRequester
-                                    ) else Modifier,
-                                    selected = i == selectedTabIndex,
-                                    onFocus = { selectedTabIndex = i },
-                                ) {
-                                    Text(
-                                        text = "P${i * 20 + 1}-${(i + 1) * 20}",
-                                        fontSize = 12.sp,
-                                        color = LocalContentColor.current,
-                                        modifier = Modifier.padding(
-                                            horizontal = 16.dp,
-                                            vertical = 6.dp
-                                        )
+                            onSelectedChanged = { selectedTabIndex = it },
+                            autoRequestEntryFocus = false,
+                            tabContent = { index, _, _ ->
+                                Text(
+                                    text = "P${index * 20 + 1}-${(index + 1) * 20}",
+                                    fontSize = 12.sp,
+                                    color = LocalContentColor.current,
+                                    modifier = Modifier.padding(
+                                        horizontal = 16.dp,
+                                        vertical = 6.dp
                                     )
-                                }
-                            }
-                        }
+                                )
+                            },
+                        )
                     }
 
                     SmallVideoCardGridHost(

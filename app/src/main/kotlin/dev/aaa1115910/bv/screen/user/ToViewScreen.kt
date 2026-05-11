@@ -41,9 +41,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -53,32 +50,26 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Icon
-import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Tab
-import androidx.tv.material3.TabRow
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.component.BvTabLabel
+import dev.aaa1115910.bv.component.BvUnderlineTabRow
 import dev.aaa1115910.bv.component.MainTopBarContainer
 import dev.aaa1115910.bv.component.MainTopTabDefaults
-import dev.aaa1115910.bv.component.mainTopTabIndicator
 import dev.aaa1115910.bv.component.MainTopTabSeparator
 import dev.aaa1115910.bv.component.RadioMenuSelectDialog
-import dev.aaa1115910.bv.component.ifElse
-import dev.aaa1115910.bv.component.mainTopTabColors
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
@@ -113,6 +104,7 @@ fun ToViewScreen(
     toViewViewModel: ToViewViewModel = koinViewModel(),
     contentEntryFocusRequester: FocusRequester? = null,
     tabFocusRequester: FocusRequester? = null,
+    onContentEntryReady: () -> Unit = {},
     onBack: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -130,7 +122,6 @@ fun ToViewScreen(
     var pendingRemovalAid by remember { mutableStateOf<Long?>(null) }
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     var showDeleteWatchedDialog by remember { mutableStateOf(false) }
-    var openDeleteWatchedDialogOnKeyUp by remember { mutableStateOf(false) }
     var showSearchDialog by remember { mutableStateOf(false) }
     var searchDialogTabIndex by remember { mutableStateOf<Int?>(null) }
     var searchFieldHasFocus by remember { mutableStateOf(false) }
@@ -263,14 +254,9 @@ fun ToViewScreen(
     }
 
     val tabTitles = remember { listOf("未看完", "已看完") }
+    val tabItems = remember(tabTitles) { tabTitles.indices.toList() }
     val searchFocusedLineColor = C.primary
     val searchUnfocusedLineColor = C.onSurfaceVariant
-    val density = LocalDensity.current
-    val tabLabelFontSize = MaterialTheme.typography.labelLarge.fontSize
-    val filterIconSizeDp = with(density) {
-        tabLabelFontSize.toDp()
-    }
-
     fun requestTabsFocus() {
         pendingBackToTabsFocus = true
         toViewTabFocusRequester.requestFocus()
@@ -319,7 +305,7 @@ fun ToViewScreen(
             }
     ) {
         MainTopBarContainer {
-            TabRow(
+            BvUnderlineTabRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = MainTopTabDefaults.TabRowHorizontalPadding)
@@ -328,106 +314,68 @@ fun ToViewScreen(
                         if (state.hasFocus) {
                             pendingBackToTabsFocus = false
                         }
-                    }
-                    .focusRestorer(toViewTabFocusRequester),
-                selectedTabIndex = selectedTabIndex,
+                    },
+                items = tabItems,
+                selectedItem = selectedTabIndex,
+                entryFocusItem = selectedTabIndex,
+                itemKey = { it },
+                defaultFocusRequester = toViewTabFocusRequester,
+                onDefaultFocusReady = { readyKey ->
+                    readyFocusTargetTabIndex = readyKey as? Int
+                },
                 separator = { MainTopTabSeparator() },
-                indicator = mainTopTabIndicator(selectedTabIndex)
-            ) {
-                tabTitles.forEachIndexed { index, title ->
-                    var longPressTriggered by remember(index) { mutableStateOf(false) }
-                    Tab(
-                        colors = mainTopTabColors(),
-                        modifier = Modifier
-                            .ifElse(
-                                index == selectedTabIndex,
-                                Modifier
-                                    .focusRequester(toViewTabFocusRequester)
-                                    .onGloballyPositioned { readyFocusTargetTabIndex = index }
-                            )
-                            .focusProperties {
-                                down = toViewContentEntryFocusRequester
-                            }
-                            .onPreviewKeyEvent { event ->
-                                val isConfirmKey =
-                                    event.key == Key.DirectionCenter ||
-                                            event.key == Key.Enter ||
-                                            event.key == Key.Spacebar
+                onSelectedChanged = { index ->
+                    if (selectedTabIndex != index) {
+                        selectedTabIndex = index
+                    }
+                },
+                onClick = { index -> selectedTabIndex = index },
+                onLongClick = { index ->
+                    selectedTabIndex = index
+                    if (index == 1) {
+                        showDeleteWatchedDialog = true
+                    } else {
+                        val isSearching =
+                            tabQueryStates[0]?.debouncedQuery?.isNotBlank() == true
+                        if (isSearching) {
+                            clearTabQuery(0)
+                        } else {
+                            showSearchDialog = true
+                            searchDialogTabIndex = 0
+                        }
+                    }
+                    true
+                },
+                contentFocusRequester = toViewContentEntryFocusRequester,
+                onContentFocusRequested = { index ->
+                    if (selectedTabIndex != index) {
+                        selectedTabIndex = index
+                    }
+                },
+                autoRequestEntryFocus = false,
+                tabContent = { index, _, _ ->
+                    val title = tabTitles[index]
 
-                                if (!isConfirmKey) return@onPreviewKeyEvent false
-
-                                if (event.type == KeyEventType.KeyDown) {
-                                    if (event.nativeKeyEvent.isLongPress) {
-                                        if (!longPressTriggered) {
-                                            longPressTriggered = true
-                                            selectedTabIndex = index
-                                            if (index == 1) {
-                                                openDeleteWatchedDialogOnKeyUp = true
-                                            } else {
-                                                openDeleteWatchedDialogOnKeyUp = false
-                                                val isSearching =
-                                                    tabQueryStates[0]?.debouncedQuery?.isNotBlank() == true
-                                                if (isSearching) {
-                                                    clearTabQuery(0)
-                                                } else {
-                                                    showSearchDialog = true
-                                                    searchDialogTabIndex = 0
-                                                }
-                                            }
-                                        }
-                                        return@onPreviewKeyEvent true
-                                    }
-                                    return@onPreviewKeyEvent false
-                                }
-
-                                if (event.type == KeyEventType.KeyUp && longPressTriggered) {
-                                    longPressTriggered = false
-                                    if (openDeleteWatchedDialogOnKeyUp && index == 1) {
-                                        openDeleteWatchedDialogOnKeyUp = false
-                                        showDeleteWatchedDialog = true
-                                    }
-                                    return@onPreviewKeyEvent true
-                                }
-
-                                false
-                            },
-                        selected = selectedTabIndex == index,
-                        onFocus = {
-                            if (selectedTabIndex != index) {
-                                selectedTabIndex = index
-                            }
-                        },
-                        onClick = { selectedTabIndex = index }
-                    ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(MainTopTabDefaults.TabContentHeight),
                             contentAlignment = Alignment.Center
                         ) {
-                            Row(
-                                modifier = Modifier.padding(MainTopTabDefaults.TabContentPadding),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                if (index == 0 && tabQueryStates[0]?.debouncedQuery?.isNotBlank() == true) {
+                            BvTabLabel(
+                                text = title,
+                                icon = { iconSize ->
                                     Icon(
-                                        modifier = Modifier.size(filterIconSizeDp),
+                                        modifier = Modifier.size(iconSize),
                                         imageVector = Icons.Rounded.FilterList,
                                         contentDescription = null
                                     )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                }
-
-                                Text(
-                                    text = title,
-                                    color = LocalContentColor.current,
-                                    style = MaterialTheme.typography.labelLarge
-                                )
-                            }
+                                },
+                                showIcon = index == 0 && tabQueryStates[0]?.debouncedQuery?.isNotBlank() == true
+                            )
                         }
-                    }
-                }
-            }
+                },
+            )
         }
 
         Spacer(modifier = Modifier.height(6.dp))
@@ -442,7 +390,8 @@ fun ToViewScreen(
             horizontalWrapItemCount = visibleItems.size,
             horizontalWrapColumnCount = 4,
             entryFocusRequester = toViewContentEntryFocusRequester,
-            upFocusRequester = toViewTabFocusRequester
+            upFocusRequester = toViewTabFocusRequester,
+            onEntryFocusReady = onContentEntryReady
         ) { cardUiStateFor ->
             if (visibleItems.isNotEmpty()) {
                 itemsIndexed(

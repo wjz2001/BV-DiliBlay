@@ -55,7 +55,8 @@ fun RecommendScreen(
     activationSerial: Long = 0L,
     refreshSerial: Long = 0L,
     contentEntryFocusRequester: FocusRequester? = null,
-    tabFocusRequester: FocusRequester? = null
+    tabFocusRequester: FocusRequester? = null,
+    onContentEntryReady: () -> Unit = {}
 ) {
     val recommendViewModel: RecommendViewModel = koinViewModel()
     val toViewViewModel: ToViewViewModel = koinViewModel()
@@ -114,7 +115,8 @@ fun RecommendScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalWrapItemCount = recommendVideoList.size,
         entryFocusRequester = contentEntryFocusRequester,
-        upFocusRequester = tabFocusRequester
+        upFocusRequester = tabFocusRequester,
+        onEntryFocusReady = onContentEntryReady
     ) { cardUiStateFor ->
         itemsIndexed(
             items = recommendVideoList,
