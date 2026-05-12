@@ -144,7 +144,8 @@ fun HomeContent(
             homeContentViewModel.updateRuntimeState(activeTab, ContentRuntimeState.Frozen)
             return@LaunchedEffect
         }
-        previousActiveTab
+        val previous = previousActiveTab
+        previous
             ?.takeIf { it != activeTab }
             ?.let { homeContentViewModel.updateRuntimeState(it, ContentRuntimeState.Frozen) }
         previousActiveTab = activeTab
@@ -245,6 +246,8 @@ fun HomeContent(
                 modifier = Modifier,
                 items = reorderedItems,
                 selectedItem = focusedTab,
+                activeItem = activeTab,
+                autoRefreshItems = Prefs.homeAutoRefreshTopNavItems,
                 entryFocusItem = desiredDrawerEntryTab,
                 defaultFocusRequester = navFocusRequester,
                 onDefaultFocusReady = handleDefaultFocusReady,
@@ -260,6 +263,9 @@ fun HomeContent(
                     if (target != activeTab) {
                         homeContentViewModel.onTabClicked(target)
                     }
+                },
+                onAutoRefreshRequested = { nav ->
+                    homeContentViewModel.requestUserRefresh(nav as HomeTopNavItem)
                 },
                 onSelectedChanged = { nav -> homeContentViewModel.onTabFocused(nav as HomeTopNavItem) },
                 onClick = { nav ->

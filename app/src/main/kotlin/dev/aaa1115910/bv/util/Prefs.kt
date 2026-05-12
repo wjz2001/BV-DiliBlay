@@ -336,6 +336,20 @@ object Prefs {
         restore = { HomeTopNavItem.fromCode(it) }
     )
 
+    var homeAutoRefreshTopNavItems by pref(
+        PrefKeys.prefHomeAutoRefreshTopNavItemsKey,
+        emptyList<HomeTopNavItem>(),
+        save = { list -> list.joinToString(",") { it.code.toString() } },
+        restore = { str ->
+            if (str.isBlank()) emptyList()
+            else str.split(",")
+                .mapNotNull { it.trim().toIntOrNull() }
+                .map { HomeTopNavItem.fromCode(it) }
+                .filterNot { it == HomeTopNavItem.Search }
+                .distinct()
+        }
+    )
+
     var showVideoInfo by pref(PrefKeys.prefShowVideoInfoKey, true)
     var showPersistentSeek by pref(PrefKeys.prefShowPersistentSeekKey, true)
     var focusAlwaysCenter by pref(PrefKeys.prefFocusAlwaysCenterKey, false)
@@ -515,6 +529,7 @@ private object PrefKeys {
     val prefDensityKey = floatPreferencesKey("density")
     val prefThemeModeKey = intPreferencesKey("theme_mode")
     val prefFirstHomeTopNavItemKey = intPreferencesKey("first_home_top_nav")
+    val prefHomeAutoRefreshTopNavItemsKey = stringPreferencesKey("home_auto_refresh_top_nav_items")
     val prefShowVideoInfoKey = booleanPreferencesKey("show_video_info")
     val prefShowPersistentSeekKey = booleanPreferencesKey("show_persistent_seek")
     val prefFocusAlwaysCenterKey = booleanPreferencesKey("focus_always_center")

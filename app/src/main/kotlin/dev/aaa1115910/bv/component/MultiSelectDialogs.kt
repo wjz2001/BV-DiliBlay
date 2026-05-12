@@ -27,6 +27,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
@@ -491,6 +492,45 @@ internal fun BlockPageSelectDialog(
         dismissOrder = DismissOrder.SubmitThenHide
     ) { page ->
         Text(text = page.displayName)
+    }
+}
+
+/**
+ * 首页顶部导航切入自动刷新多选框。
+ *
+ * 这是 HomeTopNav 专用设置，不下放到 BvTabRow 或其它 tab row 封装里。
+ */
+@Composable
+internal fun HomeTopNavRefreshSelectDialog(
+    modifier: Modifier = Modifier,
+    show: Boolean,
+    title: String,
+    items: List<HomeTopNavItem> = HomeTopNavItem.entries.filterNot { it == HomeTopNavItem.Search },
+    initialSelectedItems: List<HomeTopNavItem> = emptyList(),
+    onHideDialog: () -> Unit,
+    onSubmit: (List<HomeTopNavItem>) -> Unit
+) {
+    val context = LocalContext.current
+
+    SimpleMultiSelectDialog(
+        modifier = modifier,
+        show = show,
+        title = title,
+        items = items,
+        initialSelectedIds = initialSelectedItems,
+        itemId = { it },
+        onHideDialog = onHideDialog,
+        onSubmit = { selectedItems ->
+            onSubmit(
+                selectedItems
+                    .filterNot { it == HomeTopNavItem.Search }
+                    .distinct()
+            )
+        },
+        submitMode = SubmitMode.OnDismiss,
+        dismissOrder = DismissOrder.SubmitThenHide
+    ) { item ->
+        Text(text = item.getDisplayName(context))
     }
 }
 

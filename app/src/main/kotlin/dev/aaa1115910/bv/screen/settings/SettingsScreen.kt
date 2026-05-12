@@ -91,6 +91,7 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.settings.LogsActivity
 import dev.aaa1115910.bv.activities.settings.SpeedTestActivity
 import dev.aaa1115910.bv.component.HomeTopNavItem
+import dev.aaa1115910.bv.component.HomeTopNavRefreshSelectDialog
 import dev.aaa1115910.bv.component.RadioMenuSelectListContent
 import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedItem
 import dev.aaa1115910.bv.component.settings.CookiesDialog
@@ -1007,9 +1008,24 @@ private fun uiSettingsEntries(): List<SettingsEntry> {
         mutableStateOf(ThemeMode.fromOrdinal(themeModeOrdinal))
     }
     var selectedFirstHomeTopNavItem by remember { mutableStateOf(Prefs.firstHomeTopNavItem) }
+    var selectedHomeAutoRefreshTopNavItems by remember {
+        mutableStateOf(Prefs.homeAutoRefreshTopNavItems)
+    }
+    var showHomeAutoRefreshTopNavDialog by remember { mutableStateOf(false) }
     var showVideoInfo by remember { mutableStateOf(Prefs.showVideoInfo) }
     var showPersistentSeek by remember { mutableStateOf(Prefs.showPersistentSeek) }
     var focusAlwaysCenter by remember { mutableStateOf(Prefs.focusAlwaysCenter) }
+
+    HomeTopNavRefreshSelectDialog(
+        show = showHomeAutoRefreshTopNavDialog,
+        title = "切入时自动刷新",
+        initialSelectedItems = selectedHomeAutoRefreshTopNavItems,
+        onHideDialog = { showHomeAutoRefreshTopNavDialog = false },
+        onSubmit = {
+            selectedHomeAutoRefreshTopNavItems = it
+            Prefs.homeAutoRefreshTopNavItems = it
+        }
+    )
 
     return listOf(
         radioEntry(
@@ -1024,6 +1040,19 @@ private fun uiSettingsEntries(): List<SettingsEntry> {
             },
             text = { it.getDisplayName(context) },
             itemKey = { it.name }
+        ),
+        actionEntry(
+            id = "home_auto_refresh_top_nav_items",
+            title = "切入时自动刷新",
+            supportText = if (selectedHomeAutoRefreshTopNavItems.isEmpty()) {
+                "未启用"
+            } else {
+                selectedHomeAutoRefreshTopNavItems.joinToString("、") {
+                    it.getDisplayName(context)
+                }
+            },
+            actionText = "选择自动刷新的顶部导航项",
+            onClick = { showHomeAutoRefreshTopNavDialog = true }
         ),
         switchEntry(
             id = "show_video_info",

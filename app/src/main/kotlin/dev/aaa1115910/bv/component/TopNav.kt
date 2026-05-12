@@ -6,6 +6,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -22,6 +27,8 @@ fun TopNav(
     modifier: Modifier = Modifier,
     items: List<TopNavItem>,
     selectedItem: TopNavItem? = null,
+    activeItem: TopNavItem? = null,
+    autoRefreshItems: Collection<TopNavItem> = emptySet<TopNavItem>(),
     entryFocusItem: TopNavItem? = null,
     defaultFocusRequester: FocusRequester? = null,
     onDefaultFocusReady: ((Any) -> Unit)? = null,
@@ -33,10 +40,21 @@ fun TopNav(
     onLeftBoundaryExit: (() -> Unit)? = null,
     onRightBoundaryExit: (() -> Unit)? = null,
     onContentFocusRequested: (TopNavItem) -> Unit = {},
+    onAutoRefreshRequested: (TopNavItem) -> Unit = {},
     onSelectedChanged: (TopNavItem) -> Unit = {},
     onClick: (TopNavItem) -> Unit = {}
 ) {
     val context = LocalContext.current
+    var previousActiveItem by remember { mutableStateOf<TopNavItem?>(null) }
+
+    LaunchedEffect(activeItem, autoRefreshItems) {
+        val previous = previousActiveItem
+        previousActiveItem = activeItem
+        val target = activeItem ?: return@LaunchedEffect
+        if (previous != null && previous != target && target in autoRefreshItems) {
+            onAutoRefreshRequested(target)
+        }
+    }
 
     MainTopBarContainer(modifier = modifier) {
         Row(
