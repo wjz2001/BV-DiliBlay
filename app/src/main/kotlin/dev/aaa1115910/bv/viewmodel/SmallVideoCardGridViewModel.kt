@@ -7,9 +7,14 @@ import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.biliapi.entity.user.CoAuthor
 import dev.aaa1115910.biliapi.http.BiliHttpApi
+import dev.aaa1115910.biliapi.metrics.VideoMetricsEnvelope
+import dev.aaa1115910.biliapi.metrics.VideoMetricsFacade
+import dev.aaa1115910.biliapi.metrics.VideoMetricsPriority
+import dev.aaa1115910.biliapi.metrics.VideoMetricsRequest
 import dev.aaa1115910.biliapi.repositories.FavoriteRepository
 import dev.aaa1115910.biliapi.repositories.VideoDetailRepository
 import dev.aaa1115910.bv.component.videocard.CoAuthorCacheStore
+import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.util.Prefs
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.collections.immutable.ImmutableList
@@ -44,11 +49,13 @@ private const val MAX_CARD_UI_STATES = 512
  * 这些状态是“卡片自己展示要用到的”，但不应该再由 SmallVideoCard 内部自己维护：
  * - isFavorite：收藏图标是否高亮
  * - hasMultipleCoAuthors：UP 图标显示单人还是多人
+ * - metrics：VideoMetricsFacade 输出的完整统计与运行时信息
  */
 @Immutable
 data class SmallVideoCardItemUiState(
     val isFavorite: Boolean = false,
-    val hasMultipleCoAuthors: Boolean = false
+    val hasMultipleCoAuthors: Boolean = false,
+    val metrics: VideoMetricsEnvelope? = null
 )
 
 /**
@@ -123,7 +130,8 @@ sealed interface SmallVideoCardGridEvent {
 @KoinViewModel
 class SmallVideoCardGridViewModel(
     private val favoriteRepository: FavoriteRepository,
-    private val videoDetailRepository: VideoDetailRepository
+    private val videoDetailRepository: VideoDetailRepository,
+    private val videoMetricsFacade: VideoMetricsFacade
 ) : ViewModel() {
 
     private val _cardUiMap =
@@ -167,6 +175,11 @@ class SmallVideoCardGridViewModel(
      * 防止重复发起 coAuthors 预取。
      */
     private val coAuthorPrefetchJobs = ConcurrentHashMap<Long, Job>()
+
+    /**
+     * 防止同一 aid 的 metrics 重复发起加载。
+     */
+    private val metricsJobs = ConcurrentHashMap<Long, Job>()
 
     /**
      * 页面级可观察状态。
@@ -273,6 +286,42 @@ class SmallVideoCardGridViewModel(
             avid = aid,
             apiType = Prefs.apiType
         )
+    }
+
+    /**
+     * 加载并保存 VideoMetricsFacade 提供的完整 envelope。
+     *
+     * 当前 SmallVideoCard 只展示 view / danmaku；其余字段仍保留在 metrics 中，
+     * 供后续 UI 直接消费。
+     */
+    fun ensureMetricsLoaded(data: VideoCardData) {
+        val aid = data.avid
+        if (_cardUiMap.value[aid]?.metrics != null) return
+        if (metricsJobs[aid]?.isActive == true) return
+
+        metricsJobs[aid] = viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                videoMetricsFacade.load(
+                    VideoMetricsRequest(
+                        aid = data.avid,
+                        cid = data.cid,
+                        allowStale = true,
+                        priority = VideoMetricsPriority.VISIBLE
+                    )
+                )
+            }.onSuccess { envelope ->
+                withContext(Dispatchers.Main) {
+                    updateCardUi(aid) { it.copy(metrics = envelope) }
+                }
+            }.onFailure { e ->
+                if (e is CancellationException) return@onFailure
+                logger.warn {
+                    "load video metrics failed: aid=$aid, error=${e.stackTraceToString()}"
+                }
+            }
+
+            metricsJobs.remove(aid)
+        }
     }
 
     /**

@@ -104,6 +104,7 @@ import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.resizedImageUrl
 import dev.aaa1115910.bv.util.rememberTvImageRequest
+import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.viewmodel.SmallVideoCardItemUiState
 import kotlin.Int
 import kotlin.math.min
@@ -269,6 +270,10 @@ private fun SmallVideoCardCore(
 
     val isHostMode = hostVm != null
 
+    LaunchedEffect(data.avid, data.cid, hostVm) {
+        hostVm?.ensureMetricsLoaded(data)
+    }
+
     val canWatchLater = onAddWatchLater != null
     val canFavorite = hostUiState.capabilities.canFavorite
     val canHistory = hostUiState.capabilities.canHistory
@@ -280,6 +285,9 @@ private fun SmallVideoCardCore(
 
     val isFavorite = itemUiState.isFavorite
     val hasMultipleCoAuthors = itemUiState.hasMultipleCoAuthors
+    val metricsSnapshot = itemUiState.metrics?.snapshot
+    val playString = metricsSnapshot?.view.toWanString().ifEmpty { data.playString }
+    val danmakuString = metricsSnapshot?.danmaku.toWanString().ifEmpty { data.danmakuString }
 
     val canGoToUpPage = if (isHostMode) {
         data.upMid != null
@@ -486,8 +494,8 @@ private fun SmallVideoCardCore(
             } else {
                 CardCover(
                     cover = data.cover,
-                    play = data.playString,
-                    danmaku = data.danmakuString,
+                    play = playString,
+                    danmaku = danmakuString,
                     time = data.timeString,
                     interactive = interactive,
                     coverDensityMultiplier = coverDensityMultiplier,
