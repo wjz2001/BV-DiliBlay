@@ -320,6 +320,8 @@ fun VideoInfoScreen(
             lastPlayedAid = targetAid
         }
 
+        val preserveDetailOnBackStack = uiState.showVideoInfo && !uiState.fromController
+
         launchPlayerActivity(
             context = context,
             avid = targetAid,
@@ -329,9 +331,9 @@ fun VideoInfoScreen(
             played = playedTime,
             source = VideoSource.Ugc,
             author = videoDetailState.author,
-            enableUgcDetailBackStack = true
+            enableUgcDetailBackStack = preserveDetailOnBackStack
         )
-        context.finish()
+        if (!preserveDetailOnBackStack) context.finish()
     }
 
     fun playCurrentVideo(cid: Long? = null) {

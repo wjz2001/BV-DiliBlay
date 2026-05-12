@@ -85,6 +85,7 @@ fun VideoPlayerV3Screen(
     fun finishPlayer() {
         playerViewModel.setSuppressPlayerErrors(true)
         playerViewModel.getUgcDetailBackStackForExit()
+            .drop(1)
             .forEach { aid ->
                 VideoInfoActivity.actionStart(context, aid = aid)
             }
