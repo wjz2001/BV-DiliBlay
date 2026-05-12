@@ -1022,11 +1022,12 @@ fun VideoInfoData(
                             fontSize = 25.sp
                         )
                     ) {
+                        val metrics = videoDetail.metrics?.snapshot
                         Text(text = "发布于 ${videoDetail.publishDate.formatPubTimeString()}")
                         Text(text = "·")
-                        Text(text = "播放量 ${(videoDetail.stat.view).toWanString()}")
+                        Text(text = "播放量 ${(metrics?.view ?: videoDetail.stat.view.toLong()).toWanString()}")
                         Text(text = "·")
-                        Text(text = "弹幕 ${(videoDetail.stat.danmaku).toWanString()}")
+                        Text(text = "弹幕 ${(metrics?.danmaku ?: videoDetail.stat.danmaku.toLong()).toWanString()}")
                     }
                 }
             }
@@ -1049,7 +1050,8 @@ fun VideoInfoData(
                             if (actionDownRequester != null) down = actionDownRequester
                         },
                     isFavorite = isFavorite,
-                    countText = videoDetail.stat.favorite.toWanString(),
+                    countText = (videoDetail.metrics?.snapshot?.favorite
+                        ?: videoDetail.stat.favorite.toLong()).toWanString(),
                     userFavoriteFolders = userFavoriteFolders,
                     favoriteFolderIds = favoriteFolderIds,
                     onAddToDefaultFavoriteFolder = onAddToDefaultFavoriteFolder,
@@ -1067,7 +1069,8 @@ fun VideoInfoData(
                             up = upButtonFocusRequester
                             if (actionDownRequester != null) down = actionDownRequester
                         },
-                    countText = videoDetail.stat.reply.toWanString(),
+                    countText = (videoDetail.metrics?.snapshot?.reply
+                        ?: videoDetail.stat.reply.toLong()).toWanString(),
                     onClick = { showCommentsDialog = true }
                 )
 
@@ -1083,7 +1086,8 @@ fun VideoInfoData(
                             if (actionDownRequester != null) down = actionDownRequester
                         },
                     isLiked = isLiked,
-                    countText = videoDetail.stat.like.toWanString(),
+                    countText = (videoDetail.metrics?.snapshot?.like
+                        ?: videoDetail.stat.like.toLong()).toWanString(),
                     onClick = { onUpdateLiked(!isLiked) },
                     onLongClick = { onSendVideoOneClickTripleAction() }
                 )
@@ -1099,7 +1103,8 @@ fun VideoInfoData(
                             if (actionDownRequester != null) down = actionDownRequester
                         },
                     isCoined = isCoined,
-                    countText = videoDetail.stat.coin.toWanString(),
+                    countText = (videoDetail.metrics?.snapshot?.coin
+                        ?: videoDetail.stat.coin.toLong()).toWanString(),
                     onClick = onSendVideoCoin,
                 )
 

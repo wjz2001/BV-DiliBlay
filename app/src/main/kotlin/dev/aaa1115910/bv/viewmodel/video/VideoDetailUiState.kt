@@ -8,6 +8,7 @@ import dev.aaa1115910.biliapi.entity.video.VideoDetail.Stat
 import dev.aaa1115910.biliapi.entity.video.VideoPage
 import dev.aaa1115910.biliapi.entity.video.season.UgcSeason
 import dev.aaa1115910.biliapi.http.entity.relation.RelationTag
+import dev.aaa1115910.biliapi.metrics.VideoMetricsEnvelope
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -39,6 +40,7 @@ data class VideoDetailState(
     val title: String,
     val publishDate: Date,
     val stat: Stat,
+    val metrics: VideoMetricsEnvelope? = null,
     val author: Author,
     val tags: ImmutableList<Tag>,
     val isUpowerExclusive: Boolean = false,

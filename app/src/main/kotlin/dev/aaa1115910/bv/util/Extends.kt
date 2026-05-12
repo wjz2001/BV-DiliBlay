@@ -209,3 +209,9 @@ fun Int?.toWanString(): String =
         if (it < 10_000) it.toString()
         else "${(it / 1000) / 10f}万"
     }.orEmpty()
+
+fun Long?.toWanString(): String =
+    this?.let {
+        if (it < 10_000L) it.toString()
+        else "${(it / 1000) / 10f}万"
+    }.orEmpty()

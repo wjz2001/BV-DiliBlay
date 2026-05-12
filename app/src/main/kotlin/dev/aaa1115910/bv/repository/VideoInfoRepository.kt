@@ -3,6 +3,9 @@ package dev.aaa1115910.bv.repository
 import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.entity.user.CoAuthor
 import dev.aaa1115910.biliapi.entity.video.RelatedVideo
+import dev.aaa1115910.biliapi.metrics.VideoMetricsFacade
+import dev.aaa1115910.biliapi.metrics.VideoMetricsPriority
+import dev.aaa1115910.biliapi.metrics.VideoMetricsRequest
 import dev.aaa1115910.biliapi.repositories.VideoDetailRepository
 import dev.aaa1115910.bv.component.videocard.CoAuthorCacheStore
 import dev.aaa1115910.bv.entity.VideoListItem
@@ -11,6 +14,7 @@ import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.viewmodel.video.VideoDetailState
 import kotlinx.collections.immutable.toPersistentList
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -19,7 +23,10 @@ import kotlinx.coroutines.sync.withLock
 import org.koin.core.annotation.Single
 
 @Single
-class VideoInfoRepository(private val videoDetailRepository: VideoDetailRepository) {
+class VideoInfoRepository(
+    private val videoDetailRepository: VideoDetailRepository,
+    private val videoMetricsFacade: VideoMetricsFacade
+) {
     private val _videoList = MutableStateFlow<List<VideoListItem>>(emptyList())
     private val _videoDetailState = MutableStateFlow<VideoDetailState?>(null)
 
@@ -130,6 +137,20 @@ class VideoInfoRepository(private val videoDetailRepository: VideoDetailReposito
                 aid = aid,
                 preferApiType = preferApiType
             )
+            val metrics = runCatching {
+                videoMetricsFacade.load(
+                    VideoMetricsRequest(
+                        aid = videoDetail.aid,
+                        bvid = videoDetail.bvid,
+                        cid = videoDetail.cid,
+                        allowStale = true,
+                        priority = VideoMetricsPriority.VISIBLE
+                    )
+                )
+            }.getOrElse {
+                if (it is CancellationException) throw it
+                null
+            }
 
             val videoDetailState = VideoDetailState(
                 aid = videoDetail.aid,
@@ -144,6 +165,7 @@ class VideoInfoRepository(private val videoDetailRepository: VideoDetailReposito
                 cover = videoDetail.cover,
                 publishDate = videoDetail.publishDate,
                 stat = videoDetail.stat,
+                metrics = metrics,
                 author = videoDetail.author,
                 tags = videoDetail.tags.toPersistentList(),
                 isUpowerExclusive = videoDetail.isUpowerExclusive,
