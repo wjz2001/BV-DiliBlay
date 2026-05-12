@@ -441,17 +441,22 @@ class UserRepository(
         page: Int,
         offset: String,
         updateBaseline: String,
+        webType: String = "video",
+        subscribedSeasonIds: Set<Long>? = null,
         preferApiType: ApiType = ApiType.Web
     ): DynamicVideoData {
         return when (preferApiType) {
             ApiType.Web -> {
                 val responseData = BiliHttpApi.getDynamicList(
-                    type = "video",
+                    type = webType,
                     page = page,
                     offset = offset,
                     sessData = authRepository.sessionData ?: ""
                 ).getResponseData()
-                DynamicVideoData.fromDynamicData(responseData)
+                DynamicVideoData.fromDynamicData(
+                    data = responseData,
+                    subscribedSeasonIds = subscribedSeasonIds
+                )
             }
 
             ApiType.App -> {

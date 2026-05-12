@@ -13,10 +13,16 @@ data class DynamicVideoData(
 ) {
     companion object {
         private val logger = KotlinLogging.logger { }
-        fun fromDynamicData(data: dev.aaa1115910.biliapi.http.entity.dynamic.DynamicData): DynamicVideoData {
+        fun fromDynamicData(
+            data: dev.aaa1115910.biliapi.http.entity.dynamic.DynamicData,
+            subscribedSeasonIds: Set<Long>? = null
+        ): DynamicVideoData {
             val videos = data.items.mapNotNull { item ->
                 runCatching {
-                    DynamicVideo.fromDynamicVideoItem(item)
+                    DynamicVideo.fromDynamicVideoItem(
+                        item = item,
+                        subscribedSeasonIds = subscribedSeasonIds
+                    )
                 }.onFailure {
                     logger.warn {
                         "Skip web dynamic item: id=${item.idStr}, type=${item.type}, " +
@@ -84,6 +90,7 @@ data class DynamicVideoData(
  * @property play 视频播放量
  * @property danmaku 视频弹幕数
  * @property pubTime 视频发布时间
+ * @property pubTs 视频发布时间戳
  */
 data class DynamicVideo(
     val aid: Long,
@@ -99,25 +106,59 @@ data class DynamicVideo(
     val play: Int,
     val danmaku: Int,
     val pubTime: String? = null,
+    val pubTs: Int? = null
 ) {
     companion object {
-        fun fromDynamicVideoItem(item: dev.aaa1115910.biliapi.http.entity.dynamic.DynamicItem): DynamicVideo? {
-            val archive = item.modules.moduleDynamic.major?.archive ?: return null
+        fun fromDynamicVideoItem(
+            item: dev.aaa1115910.biliapi.http.entity.dynamic.DynamicItem,
+            subscribedSeasonIds: Set<Long>? = null
+        ): DynamicVideo? {
+            val major = item.modules.moduleDynamic.major ?: return null
             val author = item.modules.moduleAuthor
-            return DynamicVideo(
-                aid = archive.aid.toLong(),
-                bvid = archive.bvid,
-                cid = 0,
-                title = archive.title
-                    .replace("动态视频｜", ""),
-                cover = archive.cover,
-                author = author.name,
-                authorMid = author.mid,
-                duration = convertStringTimeToSeconds(archive.durationText),
-                play = convertStringPlayCountToNumberPlayCount(archive.stat.play),
-                danmaku = convertStringPlayCountToNumberPlayCount(archive.stat.danmaku),
-                pubTime = author.pubTime
-            )
+
+            major.archive?.let { archive ->
+                return DynamicVideo(
+                    aid = archive.aid.toLong(),
+                    bvid = archive.bvid,
+                    cid = 0,
+                    title = archive.title
+                        .replace("动态视频｜", ""),
+                    cover = archive.cover,
+                    author = author.name,
+                    authorMid = author.mid,
+                    duration = convertStringTimeToSeconds(archive.durationText),
+                    play = convertStringPlayCountToNumberPlayCount(archive.stat.play),
+                    danmaku = convertStringPlayCountToNumberPlayCount(archive.stat.danmaku),
+                    pubTime = author.pubTime,
+                    pubTs = author.pubTs
+                )
+            }
+
+            major.ugcSeason?.let { ugcSeason ->
+                val seasonId = ugcSeason.seasonId
+                    ?: ugcSeason.jumpUrl?.let { extractSeasonIdFromUrl(it) }
+                    ?: return null
+
+                if (subscribedSeasonIds != null && seasonId !in subscribedSeasonIds) return null
+
+                val aid = ugcSeason.aid ?: ugcSeason.avid ?: return null
+                return DynamicVideo(
+                    aid = aid,
+                    bvid = ugcSeason.bvid,
+                    cid = 0,
+                    title = ugcSeason.title,
+                    cover = ugcSeason.cover,
+                    author = author.name,
+                    authorMid = author.mid,
+                    duration = convertStringTimeToSeconds(ugcSeason.durationText),
+                    play = convertStringPlayCountToNumberPlayCount(ugcSeason.stat.play),
+                    danmaku = convertStringPlayCountToNumberPlayCount(ugcSeason.stat.danmaku),
+                    pubTime = author.pubTime,
+                    pubTs = author.pubTs
+                )
+            }
+
+            return null
         }
 
         fun fromDynamicVideoItem(item: bilibili.app.dynamic.v2.DynamicItem): DynamicVideo? {
@@ -129,7 +170,7 @@ data class DynamicVideo(
                     ?: return null
             val desc =
                 item.modulesList.firstOrNull { it.moduleType == DynModuleType.module_desc }?.moduleDesc
-            val isDynamicVideo = author?.ptimeLabelText?.contains("动态视频") ?: false
+            val isDynamicVideo = author.ptimeLabelText?.contains("动态视频") ?: false
             when (dynamic.moduleItemCase) {
                 ModuleDynamic.ModuleItemCase.DYN_ARCHIVE -> {
                     val archive = dynamic.dynArchive
@@ -191,6 +232,17 @@ data class DynamicVideo(
             }
         }
     }
+}
+
+private fun extractSeasonIdFromUrl(url: String): Long? {
+    val listMatch = Regex("""/lists/(\d+)""").find(url)
+    if (listMatch != null) return listMatch.groupValues[1].toLongOrNull()
+
+    val sidMatch = Regex("""[?&]sid=(\d+)""").find(url)
+    if (sidMatch != null) return sidMatch.groupValues[1].toLongOrNull()
+
+    val seasonMatch = Regex("""[?&]season_id=(\d+)""").find(url)
+    return seasonMatch?.groupValues?.getOrNull(1)?.toLongOrNull()
 }
 
 private fun convertStringTimeToSeconds(time: String): Int {

@@ -12,6 +12,7 @@ import androidx.compose.material.icons.rounded.PsychologyAlt
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.Subscriptions
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -56,6 +57,7 @@ import dev.aaa1115910.bv.screen.user.FavoriteScreen
 import dev.aaa1115910.bv.screen.user.FollowingSeasonScreen
 import dev.aaa1115910.bv.screen.user.HistoryScreen
 import dev.aaa1115910.bv.screen.user.MyClassroomScreen
+import dev.aaa1115910.bv.screen.user.SubscribedCollectionScreen
 import dev.aaa1115910.bv.screen.user.ToViewScreen
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.viewmodel.UserViewModel
@@ -65,6 +67,7 @@ import dev.aaa1115910.bv.viewmodel.search.SearchResultViewModel
 import dev.aaa1115910.bv.viewmodel.user.FavoriteViewModel
 import dev.aaa1115910.bv.viewmodel.user.FollowingSeasonViewModel
 import dev.aaa1115910.bv.viewmodel.user.HistoryViewModel
+import dev.aaa1115910.bv.viewmodel.user.SubscribedCollectionViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import org.koin.androidx.compose.koinViewModel
 
@@ -120,6 +123,7 @@ fun HomeContent(
                 HomeTopNavItem.FollowingSeason -> TopNavLeadingIcon.Vector(Icons.Rounded.LiveTv)
                 HomeTopNavItem.Search -> TopNavLeadingIcon.Vector(Icons.Rounded.Search)
                 HomeTopNavItem.MyClassroom -> TopNavLeadingIcon.Vector(Icons.Rounded.PsychologyAlt)
+                HomeTopNavItem.SubscribedCollection -> TopNavLeadingIcon.Vector(Icons.Rounded.Subscriptions)
                 null -> null
             }
         }
@@ -530,6 +534,23 @@ private fun HomeActiveTabContent(
             tabFocusRequester = activeTabFocusRequester,
             onContentEntryReady = onContentEntryReady
         )
+        HomeTopNavItem.SubscribedCollection -> {
+            val subscribedCollectionViewModel: SubscribedCollectionViewModel =
+                koinViewModel<SubscribedCollectionViewModel>()
+            val toViewViewModel: ToViewViewModel = koinViewModel<ToViewViewModel>()
+            SubscribedCollectionScreen(
+                lazyGridState = gridState,
+                active = active,
+                activationSerial = activationSerial,
+                refreshSerial = consumedRefreshSerial,
+                favoriteViewModel = subscribedCollectionViewModel,
+                toViewViewModel = toViewViewModel,
+                contentEntryFocusRequester = activeContentEntryFocusRequester,
+                tabFocusRequester = activeTabFocusRequester,
+                onContentEntryReady = onContentEntryReady,
+                onBack = backToTabRow
+            )
+        }
     }
 }
 

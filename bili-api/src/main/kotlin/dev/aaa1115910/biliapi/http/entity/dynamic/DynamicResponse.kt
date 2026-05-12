@@ -151,19 +151,19 @@ data class DynamicItem(
                 @SerialName("jump_url")
                 val jumpUrl: String,
                 @SerialName("reserve_total")
-                val reserveTotal: Int,
-                val rid: Int,
-                val state: Int,
-                val stypc: Int,
-                val title: String,
+                val reserveTotal: Int = 0,
+                val rid: Int = 0,
+                val state: Int = 0,
+                val stypc: Int = 0,
+                val title: String = "",
                 @SerialName("up_mid")
-                val upMid: Int
+                val upMid: Int = 0
             ) {
                 @Serializable
                 data class Desc(
                     val style: Int,
                     val text: String,
-                    val visible: Boolean
+                    val visible: Boolean = true
                 )
             }
 
@@ -195,6 +195,8 @@ data class DynamicItem(
             @Serializable
             data class Major(
                 val archive: Archive? = null,
+                @SerialName("ugc_season")
+                val ugcSeason: UgcSeason? = null,
                 @SerialName("live_rcmd")
                 val liveRcmd: LiveRcmd? = null,
                 val type: String
@@ -228,6 +230,28 @@ data class DynamicItem(
                     data class Stat(
                         val danmaku: String,
                         val play: String
+                    )
+                }
+
+                @Serializable
+                data class UgcSeason(
+                    val aid: Long? = null,
+                    val avid: Long? = null,
+                    val bvid: String? = null,
+                    val cover: String = "",
+                    @SerialName("duration_text")
+                    val durationText: String = "",
+                    @SerialName("jump_url")
+                    val jumpUrl: String? = null,
+                    @SerialName("season_id")
+                    val seasonId: Long? = null,
+                    val stat: Stat = Stat(),
+                    val title: String = ""
+                ) {
+                    @Serializable
+                    data class Stat(
+                        val danmaku: String = "",
+                        val play: String = ""
                     )
                 }
 

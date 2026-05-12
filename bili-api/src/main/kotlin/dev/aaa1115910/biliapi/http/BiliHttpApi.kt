@@ -46,6 +46,9 @@ import dev.aaa1115910.biliapi.http.entity.user.favorite.FavoriteItemIdListRespon
 import dev.aaa1115910.biliapi.http.entity.user.favorite.UserFavoriteFoldersData
 import dev.aaa1115910.biliapi.http.entity.user.garb.Equip
 import dev.aaa1115910.biliapi.http.entity.user.garb.EquipPart
+import dev.aaa1115910.biliapi.http.entity.user.subscription.SubscriptionData
+import dev.aaa1115910.biliapi.http.entity.user.subscription.SubscriptionSeasonData
+import dev.aaa1115910.biliapi.http.entity.user.subscription.SeasonArchivesData
 import dev.aaa1115910.biliapi.http.entity.relation.RelationTag
 import dev.aaa1115910.biliapi.http.entity.relation.RelationTagMember
 import dev.aaa1115910.biliapi.http.entity.video.AddCoin
@@ -95,7 +98,6 @@ import io.ktor.utils.io.jvm.javaio.toInputStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
@@ -449,7 +451,7 @@ object BiliHttpApi {
         parameter("timezone_offset", timezoneOffset)
         parameter("type", type)
         parameter("page", page)
-        offset?.let { parameter("offset", offset) }
+        offset?.takeIf { it.isNotBlank() }?.let { parameter("offset", it) }
         header("Cookie", "SESSDATA=$sessData;")
     }.body()
 
@@ -662,6 +664,57 @@ object BiliHttpApi {
         parameter("rid", rid)
         accessKey?.let { parameter("access_key", it) }
         sessData?.let { header("Cookie", "SESSDATA=$it;") }
+    }.body()
+
+    /**
+     * 获取用户订阅的收藏夹/合集列表
+     */
+    suspend fun getCollectedFavoriteFolders(
+        mid: Long,
+        pageSize: Int = 20,
+        pageNumber: Int = 1,
+        sessData: String = ""
+    ): BiliResponse<SubscriptionData> = client.get("/x/v3/fav/folder/collected/list") {
+        parameter("up_mid", mid)
+        parameter("ps", pageSize)
+        parameter("pn", pageNumber)
+        parameter("platform", "web")
+        header("Cookie", "SESSDATA=$sessData;")
+    }.body()
+
+    /**
+     * 获取订阅合集的视频列表
+     */
+    suspend fun getFavoriteSeasonList(
+        seasonId: Long,
+        pageSize: Int = 20,
+        pageNumber: Int = 1,
+        sessData: String = ""
+    ): BiliResponse<SubscriptionSeasonData> = client.get("/x/space/fav/season/list") {
+        parameter("season_id", seasonId)
+        parameter("ps", pageSize)
+        parameter("pn", pageNumber)
+        header("Cookie", "SESSDATA=$sessData;")
+    }.body()
+
+    /**
+     * 获取指定视频合集的视频列表
+     */
+    suspend fun getSeasonArchivesList(
+        mid: Long,
+        seasonId: Long,
+        pageSize: Int = 20,
+        pageNumber: Int = 1,
+        sortReverse: Boolean = false,
+        sessData: String = ""
+    ): BiliResponse<SeasonArchivesData> = client.get("/x/polymer/web-space/seasons_archives_list") {
+        parameter("mid", mid)
+        parameter("season_id", seasonId)
+        parameter("page_num", pageNumber)
+        parameter("page_size", pageSize)
+        parameter("sort_reverse", sortReverse)
+        header("Referer", "https://space.bilibili.com/$mid/lists/$seasonId")
+        header("Cookie", "SESSDATA=$sessData;")
     }.body()
 
     /**

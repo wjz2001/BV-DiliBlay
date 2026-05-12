@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewModelScope
 import dev.aaa1115910.biliapi.entity.user.DynamicVideo
 import dev.aaa1115910.biliapi.http.entity.AuthFailureException
+import dev.aaa1115910.biliapi.repositories.SubscriptionRepository
 import dev.aaa1115910.biliapi.repositories.UserRepository
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.BuildConfig
@@ -24,11 +25,11 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.CancellationException
-import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,7 +46,8 @@ import org.koin.core.annotation.KoinViewModel
 @KoinViewModel
 class DynamicViewModel(
     private val bvUserRepository: BvUserRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val subscriptionRepository: SubscriptionRepository
 ) : RuntimeAwareViewModel() {
     private val logger = KotlinLogging.logger {}
 
@@ -120,6 +122,8 @@ class DynamicViewModel(
 
     private val maxItems = 600
     private var loadedAccountSessionKey = bvUserRepository.accountSessionKey()
+
+    private var subscribedSeasonIds: Set<Long>? = null
 
     private fun buildRefreshPlaceholder(): DynamicVideo = DynamicVideo(
         aid = REFRESH_PLACEHOLDER_AID,
@@ -270,13 +274,14 @@ class DynamicViewModel(
                 val baselineSeed = updateBaseline.orEmpty()
 
                 // 只拉最新 1 页并立即落地
-                val firstData = userRepository.getDynamicVideos(
+                val firstData = getDynamicVideosWithSubscribedCollections(
                     page = 1,
                     offset = "",
                     updateBaseline = baselineSeed,
+                    includeSubscribedCollections = true,
                     preferApiType = Prefs.apiType
                 )
-                if (!coroutineContext.isActive || expectedGen != generation) return
+                if (!currentCoroutineContext().isActive || expectedGen != generation) return
 
                 val firstFiltered = dev.aaa1115910.bv.block.BlockManager.filterList(
                     page = dev.aaa1115910.bv.block.BlockPage.Dynamics,
@@ -372,21 +377,22 @@ class DynamicViewModel(
 
                     try {
                         withTimeout(CATCH_UP_TOTAL_TIMEOUT_MS) {
-                            while (coroutineContext.isActive && expectedGen == generation) {
+                            while (currentCoroutineContext().isActive && expectedGen == generation) {
                                 if (cursorOffset.isBlank()) {
                                     reachNoMore = true
                                     break
                                 }
 
                                 val data = withTimeout(CATCH_UP_PAGE_TIMEOUT_MS) {
-                                    userRepository.getDynamicVideos(
+                                    getDynamicVideosWithSubscribedCollections(
                                         page = page,
                                         offset = cursorOffset,
                                         updateBaseline = baselineForCatchUp,
+                                        includeSubscribedCollections = false,
                                         preferApiType = Prefs.apiType
                                     )
                                 }
-                                if (!coroutineContext.isActive || expectedGen != generation) return@withTimeout
+                                if (!currentCoroutineContext().isActive || expectedGen != generation) return@withTimeout
 
                                 lastConsumedPage = page
 
@@ -570,14 +576,15 @@ class DynamicViewModel(
 
             logger.fInfo { "Load dynamic page: $page, offset=$historyOffset" }
 
-            val data = userRepository.getDynamicVideos(
+            val data = getDynamicVideosWithSubscribedCollections(
                 page = page,
                 offset = offset,
                 updateBaseline = updateBaseline.orEmpty(),
+                includeSubscribedCollections = page == 1,
                 preferApiType = Prefs.apiType
             )
 
-            if (!coroutineContext.isActive || expectedGen != generation) return
+            if (!currentCoroutineContext().isActive || expectedGen != generation) return
 
             val filtered = dev.aaa1115910.bv.block.BlockManager.filterList(
                 page = dev.aaa1115910.bv.block.BlockPage.Dynamics,
@@ -685,6 +692,7 @@ class DynamicViewModel(
         if (now - lastRefreshMs < 1500) return
 
         initialLoadState = LoadState.Loading
+        subscribedSeasonIds = null
         viewModelScope.launch(Dispatchers.IO) {
             loadMoreInBackground(
                 mode = LoadMode.RefreshNew,
@@ -710,6 +718,7 @@ class DynamicViewModel(
         refreshPlaceholderIndex = -1
         initialLoadState = LoadState.Idle
         loadedAccountSessionKey = bvUserRepository.accountSessionKey()
+        subscribedSeasonIds = null
     }
 
     private fun ensureAccountStateFresh() {
@@ -733,6 +742,83 @@ class DynamicViewModel(
         _dynamicList.update { list -> list.take(maxItems).toPersistentList() }
         aidSet.clear()
         _dynamicList.value.forEach { aidSet.add(it.aid) }
+    }
+
+    private suspend fun getDynamicVideosWithSubscribedCollections(
+        page: Int,
+        offset: String,
+        updateBaseline: String,
+        includeSubscribedCollections: Boolean,
+        preferApiType: dev.aaa1115910.biliapi.entity.ApiType
+    ): dev.aaa1115910.biliapi.entity.user.DynamicVideoData {
+        val seasonIds = if (includeSubscribedCollections) {
+            getSubscribedSeasonIds()
+        } else {
+            null
+        }
+
+        return when (preferApiType) {
+            dev.aaa1115910.biliapi.entity.ApiType.Web if !seasonIds.isNullOrEmpty() -> {
+                userRepository.getDynamicVideos(
+                    page = page,
+                    offset = offset,
+                    updateBaseline = updateBaseline,
+                    webType = "all",
+                    subscribedSeasonIds = seasonIds,
+                    preferApiType = preferApiType
+                )
+            }
+            dev.aaa1115910.biliapi.entity.ApiType.App if !seasonIds.isNullOrEmpty() -> {
+                val appData = userRepository.getDynamicVideos(
+                    page = page,
+                    offset = offset,
+                    updateBaseline = updateBaseline,
+                    preferApiType = preferApiType
+                )
+                val subscribedData = userRepository.getDynamicVideos(
+                    page = 1,
+                    offset = "",
+                    updateBaseline = "",
+                    webType = "all",
+                    subscribedSeasonIds = seasonIds,
+                    preferApiType = dev.aaa1115910.biliapi.entity.ApiType.Web
+                )
+                appData.copy(
+                    videos = mergeDynamicVideos(appData.videos, subscribedData.videos),
+                    sourceItemCount = appData.sourceItemCount + subscribedData.sourceItemCount
+                )
+            }
+            else -> userRepository.getDynamicVideos(
+                page = page,
+                offset = offset,
+                updateBaseline = updateBaseline,
+                preferApiType = preferApiType
+            )
+        }
+    }
+
+    private suspend fun getSubscribedSeasonIds(): Set<Long>? {
+        subscribedSeasonIds?.let { return it }
+        val ids = runCatching {
+            subscriptionRepository.getSubscribedCollections(mid = Prefs.uid).map { it.id }.toSet()
+        }.onFailure {
+            logger.fWarn { "Load subscribed collections failed: ${it.stackTraceToString()}" }
+        }.getOrNull()
+        subscribedSeasonIds = ids
+        return ids
+    }
+
+    private fun mergeDynamicVideos(
+        first: List<DynamicVideo>,
+        second: List<DynamicVideo>
+    ): List<DynamicVideo> {
+        val merged = (first + second)
+            .sortedWith(
+                compareByDescending<DynamicVideo> { it.pubTs ?: Int.MIN_VALUE }
+                    .thenByDescending { it.aid }
+            )
+        val seen = HashSet<Long>(merged.size)
+        return merged.filter { seen.add(it.aid) }
     }
 
     override fun onRuntimeActive() {

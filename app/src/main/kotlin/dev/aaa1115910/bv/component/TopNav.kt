@@ -96,15 +96,19 @@ interface TopNavItem {
 }
 
 enum class HomeTopNavItem(val code: Int, private val displayName: String) : TopNavItem {
-    Dynamics(0, "动态"),
-    History(1, "历史"),
-    Favorite(2, "收藏"),
-    ToView(3, "稍后再看"),
-    Recommend(4, "推荐"),
-    Popular(5, "热门"),
-    FollowingSeason(6, "我追的番"),
-    Search(7, "搜索"),
-    MyClassroom(8, "我的课堂");
+    Search(0, "搜索"),
+    Dynamics(1, "动态"),
+    History(2, "历史"),
+    Favorite(3, "收藏"),
+    SubscribedCollection(4, "订阅合集"),
+    MyClassroom(5, "我的课堂"),
+    ToView(6, "稍后再看"),
+    Recommend(7, "推荐"),
+    Popular(8, "热门"),
+    FollowingSeason(9, "我追的番");
+
+
+
 
     companion object {
         fun fromCode(code: Int): HomeTopNavItem {
