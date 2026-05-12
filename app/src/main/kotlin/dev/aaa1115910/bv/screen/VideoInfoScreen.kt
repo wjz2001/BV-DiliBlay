@@ -1,6 +1,5 @@
 package dev.aaa1115910.bv.screen
 
-import java.util.Locale
 import android.app.Activity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -58,12 +57,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
@@ -75,7 +72,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.FocusRequester.Companion.Default
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
@@ -165,7 +161,6 @@ import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.repository.StartupCoverRepository
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.effect.VideoDetailUiEffect
-
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.buildRichTextTokens
@@ -427,17 +422,17 @@ fun VideoInfoScreen(
 
     when {
         uiState.shouldShowLoading -> {
-            FullScreenMessage(message = "Loading...")
+            FullScreenMessage(message = "加载中……")
         }
 
         uiState.loadingState == VideoInfoState.Error -> {
-            FullScreenMessage(message = uiState.errorTip)
+            FullScreenMessage(message = uiState.errorTip, isLooping = false)
         }
 
         else -> {
             val videoDetailState = uiState.videoDetailState
             if (videoDetailState == null) {
-                FullScreenMessage(message = "Loading...")
+                FullScreenMessage(message = "加载中……")
                 return
             }
 
@@ -751,16 +746,52 @@ fun VideoInfoScreen(
 }
 
 @Composable
-private fun FullScreenMessage(message: String) {
+fun FullScreenMessage(
+    message: String,
+    isLooping: Boolean = true // 是否循环播放
+) {
+    var displayedText by remember { mutableStateOf("") }
+
+    // 当 message 发生变化（比如从"加载中"变成"网络错误"）时，协程会重新启动
+    LaunchedEffect(key1 = message, key2 = isLooping) {
+        if (isLooping) {
+            // 无限循环：适合“加载中”
+            while (true) {
+                displayedText = ""
+                for (i in 1..message.length) {
+                    displayedText = message.substring(0, i)
+                    delay(200L) // 加载打字速度
+                }
+                delay(800L) // 完整显示后停顿一会儿，再清空重来
+            }
+        } else {
+            // 单次播放：适合“错误提示”
+            displayedText = ""
+            for (i in 1..message.length) {
+                displayedText = message.substring(0, i)
+                delay(100L) // 错误提示的打字速度可以稍微快一点
+            }
+            // 循环结束，协程结束，文字就一直停留在屏幕上了
+        }
+    }
+
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(C.background),
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
     ) {
-        Text(
-            modifier = Modifier.align(Alignment.Center),
-            text = message
-        )
+        // 使用两层 Text 叠加：底层透明占位，顶层显示动画
+        // 这样可以确保 Box 的宽度一开始就是最大宽度，防止打字过程发生“中心点偏移”的跳动
+        Box {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.titleLarge,
+                color = Color.Transparent // 透明占位
+            )
+            Text(
+                text = displayedText,
+                style = MaterialTheme.typography.titleLarge
+            )
+        }
     }
 }
 
