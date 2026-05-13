@@ -2,6 +2,7 @@ package dev.aaa1115910.bv.network
 
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.util.LogCatcherUtil
+import dev.aaa1115910.bv.util.Prefs
 import io.ktor.http.ContentDisposition
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -18,19 +19,57 @@ import io.ktor.server.response.respondFile
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.io.FileNotFoundException
+import java.net.BindException
 
 object HttpServer {
     var server: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     fun startServer() {
-        server = embeddedServer(CIO, port = 0) {
+        if (server != null) return
+
+        val savedPort = Prefs.logHttpServerPort.takeIf { it in 1024..65535 }
+        server = savedPort
+            ?.let { port -> startServerOrNull(port) }
+            ?: startServerOrNull(0)
+
+        saveResolvedPort()
+    }
+
+    private fun startServerOrNull(
+        port: Int
+    ): EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? {
+        val newServer = embeddedServer(CIO, port = port) {
             homeModule()
             logsUiStaticModule()
             logsUiStaticModule()
                 logsApiModule()
+        }
+        return runCatching {
+            newServer.start(wait = false)
+            newServer
+        }.getOrElse { e ->
+            newServer.stop(gracePeriodMillis = 1000, timeoutMillis = 2000)
+            if (port != 0 && e.isAddressAlreadyInUse()) {
+                null
+            } else {
+                throw e
             }
-            server?.start(wait = false)
+        }
+    }
+
+    private fun saveResolvedPort() {
+        scope.launch {
+            val resolvedPort = server?.engine?.resolvedConnectors()?.firstOrNull()?.port ?: 0
+            if (resolvedPort != 0 && resolvedPort != Prefs.logHttpServerPort) {
+                Prefs.logHttpServerPort = resolvedPort
+            }
+        }
     }
 
     fun stopServer() {
@@ -226,5 +265,14 @@ object HttpServer {
             "ico" -> ContentType.Image.XIcon
             else -> ContentType.Application.OctetStream
         }
+    }
+
+    private fun Throwable.isAddressAlreadyInUse(): Boolean {
+        var cause: Throwable? = this
+        while (cause != null) {
+            if (cause is BindException) return true
+            cause = cause.cause
+        }
+        return false
     }
 }

@@ -309,6 +309,7 @@ object Prefs {
     )
 
     var showFps by pref(PrefKeys.prefShowFpsKey, false)
+    var logHttpServerPort by pref(PrefKeys.prefLogHttpServerPortKey, 0)
 
     var buvid by pref(PrefKeys.prefBuvidKey, "")
     var buvid3 by pref(PrefKeys.prefBuvid3Key, "")
@@ -524,6 +525,7 @@ private object PrefKeys {
     val prefContinuePlayAutoSubtitleEnabledKey =
         booleanPreferencesKey("continue_play_auto_subtitle_enabled")
     val prefShowFpsKey = booleanPreferencesKey("sf")
+    val prefLogHttpServerPortKey = intPreferencesKey("log_http_server_port")
     val prefBuvidKey = stringPreferencesKey("random_buvid")
     val prefBuvid3Key = stringPreferencesKey("random_buvid3")
     val prefDensityKey = floatPreferencesKey("density")
