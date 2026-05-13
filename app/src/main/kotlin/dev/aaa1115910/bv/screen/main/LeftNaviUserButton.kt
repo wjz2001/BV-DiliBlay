@@ -42,6 +42,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -60,6 +61,7 @@ fun LeftNaviUserButton(
     avatar: String,
     username: String,
     focusRequester: FocusRequester,
+    collapsedSize: Dp = MainChromeDefaults.Size,
     isFocused: Boolean,
     onFocusChanged: (Boolean) -> Unit,
     onPreviewKeyEvent: (androidx.compose.ui.input.key.KeyEvent) -> Boolean = { false },
@@ -84,9 +86,9 @@ fun LeftNaviUserButton(
         label = "userButtonPressProgress"
     )
 
-    val buttonWidth = if (expanded) 360.dp else MainChromeDefaults.Size
-    val buttonHeight = if (expanded) 280.dp else MainChromeDefaults.Size
-    val avatarSize = if (expanded) 136.dp else MainChromeDefaults.Size - 4.dp
+    val buttonWidth = if (expanded) 360.dp else collapsedSize
+    val buttonHeight = if (expanded) 280.dp else collapsedSize
+    val avatarSize = if (expanded) 136.dp else collapsedSize - 4.dp
     val avatarModel = remember(avatar) { avatar.asHighResolutionBiliAvatar() }
     val avatarRequest = rememberTvImageRequest(
         url = avatarModel,

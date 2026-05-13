@@ -2,8 +2,11 @@ package dev.aaa1115910.bv.component
 
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -16,6 +19,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.Alignment
 import androidx.tv.material3.Icon
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
 import dev.aaa1115910.biliapi.entity.ugc.UgcType
@@ -25,6 +29,7 @@ import dev.aaa1115910.bv.util.getDisplayName
 @Composable
 fun TopNav(
     modifier: Modifier = Modifier,
+    leadingContent: @Composable () -> Unit,
     items: List<TopNavItem>,
     selectedItem: TopNavItem? = null,
     activeItem: TopNavItem? = null,
@@ -59,47 +64,65 @@ fun TopNav(
     MainTopBarContainer(modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            BvUnderlineTabRow(
-                modifier = Modifier,
-                items = items,
-                selectedItem = selectedItem,
-                entryFocusItem = entryFocusItem,
-                itemKey = { it },
-                itemText = { it.getDisplayName(context) },
-                itemIcon = { item, iconSize ->
-                    when (val icon = focusedLeadingIcon?.invoke(item)) {
-                        is TopNavLeadingIcon.Vector -> Icon(
-                            modifier = Modifier.size(iconSize),
-                            imageVector = icon.imageVector,
-                            contentDescription = null
-                        )
+            Box(
+                modifier = Modifier.size(MainChromeDefaults.Size),
+                contentAlignment = Alignment.Center
+            ) {
+                leadingContent()
+            }
 
-                        is TopNavLeadingIcon.DrawableRes -> Icon(
-                            modifier = Modifier.size(iconSize),
-                            painter = painterResource(icon.resId),
-                            contentDescription = null
-                        )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(vertical = MainChromeDefaults.TopNavVerticalPadding),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(horizontalArrangement = Arrangement.Center) {
+                    BvUnderlineTabRow(
+                        modifier = Modifier,
+                        items = items,
+                        selectedItem = selectedItem,
+                        entryFocusItem = entryFocusItem,
+                        itemKey = { it },
+                        itemText = { it.getDisplayName(context) },
+                        itemIcon = { item, iconSize ->
+                            when (val icon = focusedLeadingIcon?.invoke(item)) {
+                                is TopNavLeadingIcon.Vector -> Icon(
+                                    modifier = Modifier.size(iconSize),
+                                    imageVector = icon.imageVector,
+                                    contentDescription = null
+                                )
 
-                        null -> Unit
-                    }
-                },
-                itemHasIcon = { item -> focusedLeadingIcon?.invoke(item) != null },
-                iconMode = BvTabIconMode.FocusedIconText,
-                separator = { MainTopTabSeparator() },
-                defaultFocusRequester = defaultFocusRequester,
-                onDefaultFocusReady = onDefaultFocusReady,
-                onSelectedChanged = onSelectedChanged,
-                onClick = onClick,
-                onLongClick = onTabConfirmLongPress,
-                onLeftExit = onLeftBoundaryExit,
-                onRightExit = onRightBoundaryExit,
-                contentFocusRequester = contentFocusRequester,
-                contentFocusReadyKey = contentFocusReadyKey,
-                onContentFocusRequested = onContentFocusRequested,
-                blockUp = true
-            )
+                                is TopNavLeadingIcon.DrawableRes -> Icon(
+                                    modifier = Modifier.size(iconSize),
+                                    painter = painterResource(icon.resId),
+                                    contentDescription = null
+                                )
+
+                                null -> Unit
+                            }
+                        },
+                        itemHasIcon = { item -> focusedLeadingIcon?.invoke(item) != null },
+                        iconMode = BvTabIconMode.FocusedIconText,
+                        separator = { MainTopTabSeparator() },
+                        defaultFocusRequester = defaultFocusRequester,
+                        onDefaultFocusReady = onDefaultFocusReady,
+                        onSelectedChanged = onSelectedChanged,
+                        onClick = onClick,
+                        onLongClick = onTabConfirmLongPress,
+                        onLeftExit = onLeftBoundaryExit,
+                        onRightExit = onRightBoundaryExit,
+                        contentFocusRequester = contentFocusRequester,
+                        contentFocusReadyKey = contentFocusReadyKey,
+                        onContentFocusRequested = onContentFocusRequested,
+                        blockUp = true
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.size(MainChromeDefaults.Size))
         }
     }
 }
@@ -123,7 +146,8 @@ enum class HomeTopNavItem(val code: Int, private val displayName: String) : TopN
     ToView(6, "稍后再看"),
     Recommend(7, "推荐"),
     Popular(8, "热门"),
-    FollowingSeason(9, "我追的番");
+    FollowingSeason(9, "我追的番"),
+    Follow(10, "我的关注");
 
 
 

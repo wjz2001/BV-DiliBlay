@@ -51,6 +51,7 @@ import org.koin.androidx.compose.koinViewModel
 fun PgcContent(
     navFocusRequester: FocusRequester,
     drawerFocusRequester: FocusRequester,
+    topBarLeadingContent: @Composable () -> Unit,
     pendingDrawerEntryRequest: MainContentEntryRequest? = null,
     onDrawerEntryConsumed: (Long) -> Unit = {},
     onDefaultFocusReady: (() -> Unit)? = null,
@@ -152,6 +153,7 @@ fun PgcContent(
         topBar = {
             TopNav(
                 modifier = Modifier.padding(end = 80.dp),
+                leadingContent = topBarLeadingContent,
                 items = PgcTopNavItem.entries,
                 selectedItem = focusedTab,
                 entryFocusItem = desiredDrawerEntryTab,

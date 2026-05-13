@@ -300,6 +300,7 @@ fun SearchResultScreen(
                     )
                     TopNav(
                         modifier = Modifier.weight(2f),
+                        leadingContent = {},
                         items = SearchTypeTopNavItem.entries,
                         selectedItem = focusedSearchType.toTopNavItem(),
                         defaultFocusRequester = tabRowFocusRequester,

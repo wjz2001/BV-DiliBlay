@@ -49,11 +49,11 @@ import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.activities.user.UserSwitchActivity
 import dev.aaa1115910.bv.component.BlackoutSwitch
 import dev.aaa1115910.bv.repository.UserRepository
-import dev.aaa1115910.bv.screen.main.FollowContent
 import dev.aaa1115910.bv.screen.main.HomeContent
 import dev.aaa1115910.bv.screen.main.LeftNaviContent
 import dev.aaa1115910.bv.screen.main.LeftNaviItem
 import dev.aaa1115910.bv.screen.main.LeftNaviUserButton
+import dev.aaa1115910.bv.screen.main.LiveContent
 import dev.aaa1115910.bv.screen.main.PgcContent
 import dev.aaa1115910.bv.screen.main.UgcContent
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
@@ -106,15 +106,16 @@ fun MainScreen(
 
     val scope = rememberCoroutineScope()
 
-    val followFocusRequester = remember { FocusRequester() }
+    val liveFocusRequester = remember { FocusRequester() }
     val mainFocusRequester = remember { FocusRequester() }
     val ugcFocusRequester = remember { FocusRequester() }
     val pgcFocusRequester = remember { FocusRequester() }
 
     val homeDrawerFocusRequester = remember { FocusRequester() }
-    val followDrawerFocusRequester = remember { FocusRequester() }
+    val liveDrawerFocusRequester = remember { FocusRequester() }
     val ugcDrawerFocusRequester = remember { FocusRequester() }
     val pgcDrawerFocusRequester = remember { FocusRequester() }
+    val topBarUserFocusRequester = remember { FocusRequester() }
     val userFocusRequester = remember { FocusRequester() }
     val settingsFocusRequester = remember { FocusRequester() }
 
@@ -131,7 +132,6 @@ fun MainScreen(
 
     // 状态控制
     var leftNaviExpanded by remember { mutableStateOf(false) }
-    var showCollapsedUserButton by remember { mutableStateOf(true) }
     var showFirstLaunchMainDialog by remember { mutableStateOf(Prefs.showFirstLaunchMainDialog) }
     var userIsFocused by remember { mutableStateOf(false) }
     var userLongPressTriggered by remember { mutableStateOf(false) }
@@ -192,7 +192,7 @@ fun MainScreen(
                     LeftNaviItem.Home -> mainFocusRequester.requestFocus(scope)
                     LeftNaviItem.UGC -> ugcFocusRequester.requestFocus(scope)
                     LeftNaviItem.PGC -> pgcFocusRequester.requestFocus(scope)
-                    LeftNaviItem.Follow -> followFocusRequester.requestFocus(scope)
+                    LeftNaviItem.Live -> liveFocusRequester.requestFocus(scope)
                     else -> Unit
                 }
             }.onFailure {
@@ -218,7 +218,7 @@ fun MainScreen(
 
     fun isContentItem(item: LeftNaviItem): Boolean {
         return item == LeftNaviItem.Home ||
-                item == LeftNaviItem.Follow ||
+                item == LeftNaviItem.Live ||
                 item == LeftNaviItem.UGC ||
                 item == LeftNaviItem.PGC
     }
@@ -281,7 +281,7 @@ fun MainScreen(
     fun currentDrawerFocusRequester(): FocusRequester {
         return when (focusedDrawerItem) {
             LeftNaviItem.Home -> homeDrawerFocusRequester
-            LeftNaviItem.Follow -> followDrawerFocusRequester
+            LeftNaviItem.Live -> liveDrawerFocusRequester
             LeftNaviItem.UGC -> ugcDrawerFocusRequester
             LeftNaviItem.PGC -> pgcDrawerFocusRequester
             else -> homeDrawerFocusRequester
@@ -291,7 +291,6 @@ fun MainScreen(
     fun expandLeftNavi() {
         if (leftNaviExpanded) return
         userButtonColorAnimationEnabled = false
-        showCollapsedUserButton = false
         leftNaviExpanded = true
     }
 
@@ -300,9 +299,8 @@ fun MainScreen(
         leftNaviExpanded = false
         userButtonColorAnimationEnabled = true
         scope.launch {
-            delay(360) // 等待动画完成再恢复焦点和头像按钮
+            delay(360) // 等待动画完成再恢复焦点
             if (!leftNaviExpanded) {
-                showCollapsedUserButton = true
                 requestDefaultFocusForActiveContent()
             }
         }
@@ -394,6 +392,31 @@ fun MainScreen(
         }
     }
 
+    val topBarLeadingContent: @Composable () -> Unit = {
+        LeftNaviUserButton(
+            modifier = Modifier
+                .zIndex(1f)
+                .graphicsLayer {
+                    translationX = -drawerWidthPx * mainContentPushProgress -
+                            size.width * drawerSlideProgress
+                    alpha = 1f - drawerSlideProgress
+                },
+            expanded = false,
+            colorAnimationEnabled = userButtonColorAnimationEnabled,
+            isLogin = userViewModel.isLogin,
+            avatar = userViewModel.face,
+            username = userViewModel.username,
+            focusRequester = topBarUserFocusRequester,
+            isFocused = userIsFocused,
+            onFocusChanged = {
+                userIsFocused = it
+                if (!it) userLongPressTriggered = false
+            },
+            onPreviewKeyEvent = onUserButtonPreviewKeyEvent,
+            onClick = { expandLeftNavi() }
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -443,13 +466,14 @@ fun MainScreen(
                                 .runtimeContainerInputEnabled(activeContent)
                         ) {
                             when (item) {
-                                LeftNaviItem.Follow -> FollowContent(
-                                    navFocusRequester = followFocusRequester,
-                                    drawerFocusRequester = if (leftNaviExpanded) followDrawerFocusRequester else userFocusRequester,
+                                LeftNaviItem.Live -> LiveContent(
+                                    navFocusRequester = liveFocusRequester,
+                                    drawerFocusRequester = if (leftNaviExpanded) liveDrawerFocusRequester else topBarUserFocusRequester,
+                                    topBarLeadingContent = topBarLeadingContent,
                                     pendingDrawerEntryRequest = drawerEntryRequest,
                                     onDrawerEntryConsumed = consumeDrawerEntryRequest,
                                     onDefaultFocusReady = {
-                                        onContentDefaultFocusReady(LeftNaviItem.Follow)
+                                        onContentDefaultFocusReady(LeftNaviItem.Live)
                                     },
                                     active = activeContent
                                 )
@@ -459,7 +483,8 @@ fun MainScreen(
                                         koinViewModel<HomeContentViewModel>()
                                     HomeContent(
                                         navFocusRequester = mainFocusRequester,
-                                        drawerFocusRequester = if (leftNaviExpanded) homeDrawerFocusRequester else userFocusRequester,
+                                        drawerFocusRequester = if (leftNaviExpanded) homeDrawerFocusRequester else topBarUserFocusRequester,
+                                        topBarLeadingContent = topBarLeadingContent,
                                         pendingDrawerEntryRequest = drawerEntryRequest,
                                         onDrawerEntryConsumed = consumeDrawerEntryRequest,
                                         onDefaultFocusReady = {
@@ -473,7 +498,8 @@ fun MainScreen(
 
                                 LeftNaviItem.UGC -> UgcContent(
                                     navFocusRequester = ugcFocusRequester,
-                                    drawerFocusRequester = if (leftNaviExpanded) ugcDrawerFocusRequester else userFocusRequester,
+                                    drawerFocusRequester = if (leftNaviExpanded) ugcDrawerFocusRequester else topBarUserFocusRequester,
+                                    topBarLeadingContent = topBarLeadingContent,
                                     pendingDrawerEntryRequest = drawerEntryRequest,
                                     onDrawerEntryConsumed = consumeDrawerEntryRequest,
                                     onDefaultFocusReady = {
@@ -484,7 +510,8 @@ fun MainScreen(
 
                                 LeftNaviItem.PGC -> PgcContent(
                                     navFocusRequester = pgcFocusRequester,
-                                    drawerFocusRequester = if (leftNaviExpanded) pgcDrawerFocusRequester else userFocusRequester,
+                                    drawerFocusRequester = if (leftNaviExpanded) pgcDrawerFocusRequester else topBarUserFocusRequester,
+                                    topBarLeadingContent = topBarLeadingContent,
                                     pendingDrawerEntryRequest = drawerEntryRequest,
                                     onDrawerEntryConsumed = consumeDrawerEntryRequest,
                                     onDefaultFocusReady = {
@@ -551,7 +578,7 @@ fun MainScreen(
                 },
             selectedItem = activeDrawerItem,
             homeFocusRequester = homeDrawerFocusRequester,
-            followFocusRequester = followDrawerFocusRequester,
+            liveFocusRequester = liveDrawerFocusRequester,
             ugcFocusRequester = ugcDrawerFocusRequester,
             pgcFocusRequester = pgcDrawerFocusRequester,
             onLeftNaviItemChanged = { activateDrawerItem(it) },
@@ -616,28 +643,6 @@ fun MainScreen(
             }
         )
 
-        // ========== 悬浮的初始小头像 ==========
-        if (showCollapsedUserButton) {
-            LeftNaviUserButton(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .zIndex(3f),
-                expanded = false,
-                colorAnimationEnabled = userButtonColorAnimationEnabled,
-                isLogin = userViewModel.isLogin,
-                avatar = userViewModel.face,
-                username = userViewModel.username,
-                focusRequester = userFocusRequester,
-                isFocused = userIsFocused,
-                onFocusChanged = {
-                    userIsFocused = it
-                    if (!it) userLongPressTriggered = false
-                },
-                onPreviewKeyEvent = onUserButtonPreviewKeyEvent,
-                onClick = { expandLeftNavi() }
-            )
-        }
-
         if (showFirstLaunchMainDialog) {
             val closeFirstLaunchMainDialog = {
                 showFirstLaunchMainDialog = false
@@ -676,7 +681,7 @@ fun MainScreen(
 fun MainContentShell(item: LeftNaviItem) {
     val title = when (item) {
         LeftNaviItem.Home -> "首页"
-        LeftNaviItem.Follow -> "我的关注"
+        LeftNaviItem.Live -> "直播"
         LeftNaviItem.UGC -> "分区"
         LeftNaviItem.PGC -> "番剧影视"
         else -> ""
