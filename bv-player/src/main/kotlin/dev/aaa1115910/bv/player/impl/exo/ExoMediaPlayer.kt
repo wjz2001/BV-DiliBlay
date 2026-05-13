@@ -6,6 +6,7 @@ import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.Effect
 import androidx.media3.common.Format
+import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -21,6 +22,8 @@ import androidx.media3.exoplayer.source.LoadEventInfo
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MediaLoadData
 import dev.aaa1115910.bv.player.AbstractVideoPlayer
+import dev.aaa1115910.bv.player.PlaybackRequest
+import dev.aaa1115910.bv.player.PlaybackSource
 import dev.aaa1115910.bv.player.VideoPlayerOptions
 import dev.aaa1115910.bv.player.formatMinSec
 import java.io.IOException
@@ -32,7 +35,6 @@ open class ExoMediaPlayer(
 ) : AbstractVideoPlayer(), Player.Listener {
 
     var mPlayer: ExoPlayer? = null
-    private var mMediaSource: MediaSource? = null
     private var prepareStartElapsedMs: Long = 0L
     private var prepareSerial: Long = 0L
     private var firstReadyElapsedMs: Long = 0L
@@ -327,7 +329,7 @@ open class ExoMediaPlayer(
     }
 
     @OptIn(UnstableApi::class)
-    override fun setHeader(headers: Map<String, String>) {
+    private fun setHeader(headers: Map<String, String>) {
         BvPlayerDiag.i(
             event = "setHeader",
             player = mPlayer,
@@ -362,19 +364,8 @@ open class ExoMediaPlayer(
     }
 
     @OptIn(UnstableApi::class)
-    override fun playUrl(videoUrl: String?, audioUrl: String?) {
-        BvPlayerDiag.i(
-            event = "playUrl",
-            player = mPlayer,
-            msg = "prepareSerial=${prepareSerial + 1} ${BvPlayerDiag.source(videoUrl, audioUrl)}"
-        )
-        mMediaSource = buildMediaSource(videoUrl, audioUrl)
-    }
-
-    @OptIn(UnstableApi::class)
-    override fun prepare() {
+    override fun prepare(request: PlaybackRequest) {
         val player = mPlayer ?: return
-        val mediaSource = mMediaSource ?: return
 
         needsEffectReapplyAfterReady = hasNonIdentityVideoTransform()
         needsEffectReapplyAfterViewAttach = true
@@ -386,9 +377,34 @@ open class ExoMediaPlayer(
             event = "prepare",
             player = player,
             msg = "serial=$prepareSerial hasTransform=${hasNonIdentityVideoTransform()} " +
-                    "needsEffectReapplyAfterViewAttach=$needsEffectReapplyAfterViewAttach"
+                    "needsEffectReapplyAfterViewAttach=$needsEffectReapplyAfterViewAttach " +
+                    "startPositionMs=${request.startPositionMs} source=${request.source.diagName()}"
         )
-        player.setMediaSource(mediaSource)
+
+        setHeader(request.headers)
+
+        when (val source = request.source) {
+            is PlaybackSource.Single -> {
+                BvPlayerDiag.i(
+                    event = "setMediaItem",
+                    player = player,
+                    msg = "prepareSerial=$prepareSerial url=${BvPlayerDiag.source(source.url, null)} " +
+                            "startPositionMs=${request.startPositionMs}"
+                )
+                player.setMediaItem(MediaItem.fromUri(source.url), request.startPositionMs.coerceAtLeast(0L))
+            }
+
+            is PlaybackSource.SeparateVideoAudio -> {
+                BvPlayerDiag.i(
+                    event = "setMediaSource",
+                    player = player,
+                    msg = "prepareSerial=$prepareSerial ${BvPlayerDiag.source(source.videoUrl, source.audioUrl)} " +
+                            "startPositionMs=${request.startPositionMs}"
+                )
+                val mediaSource = buildMediaSource(source.videoUrl, source.audioUrl) ?: return
+                player.setMediaSource(mediaSource, request.startPositionMs.coerceAtLeast(0L))
+            }
+        }
 
         // 官方要求 prepare 前至少调用一次 setVideoEffects
         applyCurrentVideoEffects()
@@ -439,7 +455,6 @@ open class ExoMediaPlayer(
         mPlayer?.removeAnalyticsListener(analyticsListener)
         mPlayer?.release()
         mPlayer = null
-        mMediaSource = null
         resetTimeline()
     }
 
@@ -451,11 +466,6 @@ open class ExoMediaPlayer(
 
     override val bufferedPercentage: Int
         get() = mPlayer?.bufferedPercentage ?: 0
-
-    override fun setOptions() {
-        BvPlayerDiag.i("setOptions", mPlayer, "playWhenReady=true ${prepareTiming()}")
-        mPlayer?.playWhenReady = true
-    }
 
     override var speed: Float
         get() = mPlayer?.playbackParameters?.speed ?: 1f
@@ -718,5 +728,12 @@ open class ExoMediaPlayer(
             }
             ?.let { "${it.className}.${it.methodName}:${it.lineNumber}" }
             ?: "unknown"
+    }
+
+    private fun PlaybackSource.diagName(): String {
+        return when (this) {
+            is PlaybackSource.Single -> "Single"
+            is PlaybackSource.SeparateVideoAudio -> "SeparateVideoAudio"
+        }
     }
 }

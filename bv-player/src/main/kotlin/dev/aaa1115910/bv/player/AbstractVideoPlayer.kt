@@ -10,14 +10,8 @@ abstract class AbstractVideoPlayer {
      */
     abstract fun initPlayer()
 
-    /** 设置请求头 */
-    abstract fun setHeader(headers: Map<String, String>)
-
-    /** 设置播放地址 */
-    abstract fun playUrl(videoUrl: String? = null, audioUrl: String? = null)
-
     /** 准备开始播放 */
-    abstract fun prepare()
+    abstract fun prepare(request: PlaybackRequest)
 
     /** 播放 */
     abstract fun start()
@@ -53,9 +47,6 @@ abstract class AbstractVideoPlayer {
 
     /** 缓冲百分比 */
     abstract val bufferedPercentage: Int
-
-    /** 设置其他播放配置 */
-    abstract fun setOptions()
 
     /** 播放速度 */
     abstract var speed: Float

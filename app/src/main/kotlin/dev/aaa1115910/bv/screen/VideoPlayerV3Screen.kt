@@ -253,10 +253,6 @@ fun VideoPlayerV3Screen(
                 .background(AppBlack),
             contentAlignment = Alignment.Center
         ) {
-            LaunchedEffect(videoPlayer) {
-                videoPlayer.setOptions()
-            }
-
             val actualVideoWidth = videoPlayer.videoWidth
             val actualVideoHeight = videoPlayer.videoHeight
 

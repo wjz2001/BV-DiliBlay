@@ -11,6 +11,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import dev.aaa1115910.bv.player.AbstractVideoPlayer
 import dev.aaa1115910.bv.player.BvPlayerSurface
+import dev.aaa1115910.bv.player.PlaybackRequest
+import dev.aaa1115910.bv.player.PlaybackSource
 import dev.aaa1115910.bv.player.VideoPlayerListener
 import dev.aaa1115910.bv.player.VideoPlayerOptions
 import dev.aaa1115910.bv.player.impl.exo.ExoMediaPlayer
@@ -80,9 +82,15 @@ fun BvPlayerSurfacePreview(
     player: AbstractVideoPlayer
 ) {
     LaunchedEffect(Unit) {
-        player.setOptions()
-        player.playUrl(videoUrl, audioUrl)
-        player.prepare()
+        player.prepare(
+            PlaybackRequest(
+                source = PlaybackSource.SeparateVideoAudio(
+                    videoUrl = videoUrl,
+                    audioUrl = audioUrl
+                )
+            )
+        )
+        player.start()
     }
 
     BvPlayerSurface(

@@ -36,6 +36,8 @@ import dev.aaa1115910.bv.entity.VideoRotation
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.player.AbstractVideoPlayer
+import dev.aaa1115910.bv.player.PlaybackRequest
+import dev.aaa1115910.bv.player.PlaybackSource
 import dev.aaa1115910.bv.player.VideoPlayerListener
 import dev.aaa1115910.bv.player.VideoPlayerOptions
 import dev.aaa1115910.bv.player.impl.exo.ExoPlayerFactory
@@ -304,11 +306,6 @@ class VideoPlayerV3ViewModel(
             }
             syncDanmakuHostStateFromPlayerState()
             onBufferingStateChanged(false)
-
-            if (_uiState.value.lastPlayed > 0) {
-                seekToLastPlayed()
-                _uiState.update { it.copy(lastPlayed = 0L) }
-            }
         }
 
         override fun onPause() {
@@ -689,13 +686,10 @@ class VideoPlayerV3ViewModel(
                         apiType = currentPlayApiType,
                         qn = _uiState.value.mediaProfileState.qualityId,
                         codec = _uiState.value.mediaProfileState.videoCodec,
-                        audio = _uiState.value.mediaProfileState.audio
+                        audio = _uiState.value.mediaProfileState.audio,
+                        startPositionMs = pendingResumePositionMs
                     )
-                    if (pendingResumePositionMs > 0) {
-                        player.seekTo(pendingResumePositionMs, "recreateResume")
-                        _uiState.update { it.copy(lastPlayed = 0L) }
-                    }
-                    player.setOptions()
+                    _uiState.update { it.copy(lastPlayed = 0L) }
                     player.start()
                 }.onFailure {
                     Log.e("BugDebug", "ViewModel: replay with cached playData failed", it)
@@ -708,7 +702,6 @@ class VideoPlayerV3ViewModel(
                     }
                 }
             } else {
-                player.setOptions()
                 val st = _uiState.value
                 Log.w("BugDebug", "ViewModel: playData is null, fallback to loadPlayUrl")
                 loadPlayUrl(
@@ -936,12 +929,9 @@ class VideoPlayerV3ViewModel(
                     apiType = currentPlayApiType,
                     qn = new.qualityId,
                     codec = new.videoCodec,
-                    audio = new.audio
+                    audio = new.audio,
+                    startPositionMs = currentPosition
                 )
-
-                if (currentPosition > 0) {
-                    player.seekTo(currentPosition, "reapplyVideoTransform")
-                }
                 player.start()
             }
         }
@@ -1924,6 +1914,7 @@ class VideoPlayerV3ViewModel(
                     qn = targetQualityId,
                     codec = targetCodec,
                     audio = targetAudio,
+                    startPositionMs = consumeInitialStartPosition()
                 )
                 videoPlayer?.start()
             }
@@ -2097,7 +2088,8 @@ class VideoPlayerV3ViewModel(
         apiType: ApiType,
         qn: Int? = null,
         codec: VideoCodec? = null,
-        audio: Audio? = null
+        audio: Audio? = null,
+        startPositionMs: Long = 0L
     ) {
         val player = videoPlayer ?: return
         val state = _uiState.value
@@ -2168,12 +2160,24 @@ class VideoPlayerV3ViewModel(
         applyVideoTransformToPlayer()
 
         val playbackHeaders = buildPlaybackHeaders(apiType)
-        player.setHeader(playbackHeaders)
         logger.fInfo {
             "Apply playback headers for apiType=$apiType, referer=${playbackHeaders.containsKey("referer")}"
         }
-        player.playUrl(videoUrl, audioUrl)
-        player.prepare()
+        val playbackSource = if (audioUrl == null) {
+            PlaybackSource.Single(url = videoUrl)
+        } else {
+            PlaybackSource.SeparateVideoAudio(
+                videoUrl = videoUrl,
+                audioUrl = audioUrl
+            )
+        }
+        player.prepare(
+            PlaybackRequest(
+                source = playbackSource,
+                headers = playbackHeaders,
+                startPositionMs = startPositionMs.coerceAtLeast(0L)
+            )
+        )
 
         _uiState.update {
             it.copy(
@@ -2181,6 +2185,16 @@ class VideoPlayerV3ViewModel(
                 videoWidth = actualVideoItem.width
             )
         }
+    }
+
+    private fun consumeInitialStartPosition(): Long {
+        val startPositionMs = _uiState.value.lastPlayed.coerceAtLeast(0L)
+        if (startPositionMs > 0L) {
+            logger.fInfo { "Use initial start position: ${startPositionMs.formatHourMinSec()}" }
+            seekDanmakuHost(startPositionMs)
+            _uiState.update { it.copy(lastPlayed = 0L) }
+        }
+        return startPositionMs
     }
 
     private suspend fun updateSubtitle(
@@ -2551,22 +2565,6 @@ class VideoPlayerV3ViewModel(
                     )
                 )
             }
-        }
-    }
-
-    private fun seekToLastPlayed() {
-        val time = _uiState.value.lastPlayed
-        logger.fInfo { "Back to history: ${time.formatHourMinSec()}" }
-
-        videoPlayer?.seekTo(time, "restoreLastPlayed")
-        seekDanmakuHost(time)
-
-        _uiState.update { it.copy(showBackToStart = true) }
-
-        backToStartCountdownJob?.cancel()
-        backToStartCountdownJob = viewModelScope.launch {
-            delay(5000)
-            _uiState.update { it.copy(showBackToStart = false) }
         }
     }
 
