@@ -15,7 +15,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -24,6 +23,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -45,7 +45,6 @@ import androidx.tv.material3.TabRow
 import androidx.tv.material3.TabRowDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.util.fInfo
-import dev.aaa1115910.bv.util.requestFocus
 import io.github.oshai.kotlinlogging.KotlinLogging
 
 enum class BvTabIndicator {
@@ -166,12 +165,13 @@ fun <T> BvTabRow(
     blockUp: Boolean = false,
     blockDown: Boolean = false,
     autoRequestEntryFocus: Boolean = true,
+    backFocusTarget: BvBackFocusTarget? = BvBackFocusTarget.TabRow,
+    backFocusEnabled: Boolean = true,
     tabContent: (@Composable RowScope.(item: T, selected: Boolean, focused: Boolean) -> Unit)? = null
 ) {
     if (items.isEmpty()) return
 
     val internalFocusRequester = remember { FocusRequester() }
-    val scope = rememberCoroutineScope()
     val entryFocusRequester = defaultFocusRequester ?: internalFocusRequester
     val itemKeys = remember(items) { items.map(itemKey) }
     val selectedItemKey = selectedItem?.let(itemKey)
@@ -184,6 +184,13 @@ fun <T> BvTabRow(
     var isFocusBelowTabRow by remember(itemKeys) { mutableStateOf(false) }
     var pendingContentFocusKey by remember(itemKeys) { mutableStateOf<Any?>(null) }
     var lastDefaultFocusPositionedState by remember(itemKeys) { mutableStateOf<String?>(null) }
+    val backFocusRegistry = LocalBvBackFocusRegistry.current
+
+    RegisterBvBackFocusTarget(
+        target = backFocusTarget,
+        requester = entryFocusRequester,
+        enabled = backFocusEnabled
+    )
 
     LaunchedEffect(autoRequestEntryFocus, entryFocusItemKey, focusTargetIndex) {
         if (!autoRequestEntryFocus) return@LaunchedEffect
@@ -200,160 +207,176 @@ fun <T> BvTabRow(
             pendingContentFocusKey = null
             return@LaunchedEffect
         }
-        if (contentFocusReadyKey == null || contentFocusReadyKey == pendingKey) {
-            requester.requestFocus(scope)
+        if (contentFocusReadyKey != null && contentFocusReadyKey != pendingKey) {
+            return@LaunchedEffect
+        }
+
+        repeat(3) {
+            withFrameNanos { }
+            val focused = runCatching { requester.requestFocus() }.getOrDefault(false)
+            if (focused) {
+                pendingContentFocusKey = null
+                return@LaunchedEffect
+            }
+        }
+        if (contentFocusReadyKey == null) {
             pendingContentFocusKey = null
         }
     }
 
-        TabRow(
-            modifier = modifier
-                .focusRestorer(entryFocusRequester)
-                .focusGroup(),
+    TabRow(
+        modifier = modifier
+            .onFocusChanged { state ->
+                if (backFocusEnabled && backFocusTarget != null) {
+                    backFocusRegistry?.updateFocus(backFocusTarget, state.hasFocus)
+                }
+            }
+            .focusRestorer(entryFocusRequester)
+            .focusGroup(),
+        selectedTabIndex = selectedTabIndex,
+        separator = separator ?: { Spacer(modifier = Modifier.width(separatorWidth)) },
+        indicator = bvTabIndicator(
+            indicator = indicator,
             selectedTabIndex = selectedTabIndex,
-            separator = separator ?: { Spacer(modifier = Modifier.width(separatorWidth)) },
-            indicator = bvTabIndicator(
-                indicator = indicator,
-                selectedTabIndex = selectedTabIndex,
-                retainIndicatorWhenFocusBelow = retainIndicatorWhenFocusBelow,
-                isFocusBelowTabRow = isFocusBelowTabRow
-            )
-        ) {
-            items.forEachIndexed { index, item ->
-                val key = itemKeys[index]
-                var confirmLongPressTriggered by remember(key) { mutableStateOf(false) }
-                val focused = focusedTabIndex == index
-                val selected = selectedTabIndex == index
-                var tabModifier = Modifier
-                    .focusProperties {
-                        if (blockUp) up = FocusRequester.Cancel
-                    }
-                    .onPreviewKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyDown) {
-                            when (event.key) {
-                                Key.DirectionLeft -> {
-                                    if (index == 0 && onLeftExit != null) {
-                                        onLeftExit()
-                                        return@onPreviewKeyEvent true
-                                    }
-                                }
-
-                                Key.DirectionRight -> {
-                                    if (index == items.lastIndex && onRightExit != null) {
-                                        onRightExit()
-                                        return@onPreviewKeyEvent true
-                                    }
-                                }
-
-                                Key.DirectionUp -> {
-                                    if (onUp?.invoke(item) == true) return@onPreviewKeyEvent true
-                                    if (blockUp) return@onPreviewKeyEvent true
-                                }
-
-                                Key.DirectionDown -> {
-                                    if (onDown?.invoke(item) == true) {
-                                        isFocusBelowTabRow = true
-                                        return@onPreviewKeyEvent true
-                                    }
-                                    if (contentFocusRequester != null) {
-                                        isFocusBelowTabRow = true
-                                        pendingContentFocusKey = key
-                                        onContentFocusRequested(item)
-                                        return@onPreviewKeyEvent true
-                                    }
-                                    if (blockDown) return@onPreviewKeyEvent true
-                                }
-
-                                else -> Unit
-                            }
-                        }
-
-                        val isConfirmKey =
-                            event.key == Key.DirectionCenter ||
-                                    event.key == Key.Enter ||
-                                    event.key == Key.Spacebar
-                        if (!isConfirmKey) return@onPreviewKeyEvent false
-
-                        when (event.type) {
-                            KeyEventType.KeyDown -> {
-                                if (event.nativeKeyEvent.isLongPress) {
-                                    if (onLongClick == null) {
-                                        return@onPreviewKeyEvent false
-                                    }
-                                    if (!confirmLongPressTriggered) {
-                                        confirmLongPressTriggered = onLongClick(item)
-                                    }
-                                    return@onPreviewKeyEvent confirmLongPressTriggered
-                                }
-                                false
-                            }
-
-                            KeyEventType.KeyUp -> {
-                                if (confirmLongPressTriggered) {
-                                    confirmLongPressTriggered = false
-                                    true
-                                } else {
-                                    onConfirm(item)
-                                    true
+            retainIndicatorWhenFocusBelow = retainIndicatorWhenFocusBelow,
+            isFocusBelowTabRow = isFocusBelowTabRow
+        )
+    ) {
+        items.forEachIndexed { index, item ->
+            val key = itemKeys[index]
+            var confirmLongPressTriggered by remember(key) { mutableStateOf(false) }
+            val focused = focusedTabIndex == index
+            val selected = selectedTabIndex == index
+            var tabModifier = Modifier
+                .focusProperties {
+                    if (blockUp) up = FocusRequester.Cancel
+                }
+                .onPreviewKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyDown) {
+                        when (event.key) {
+                            Key.DirectionLeft -> {
+                                if (index == 0 && onLeftExit != null) {
+                                    onLeftExit()
+                                    return@onPreviewKeyEvent true
                                 }
                             }
 
-                            else -> false
+                            Key.DirectionRight -> {
+                                if (index == items.lastIndex && onRightExit != null) {
+                                    onRightExit()
+                                    return@onPreviewKeyEvent true
+                                }
+                            }
+
+                            Key.DirectionUp -> {
+                                if (onUp?.invoke(item) == true) return@onPreviewKeyEvent true
+                                if (blockUp) return@onPreviewKeyEvent true
+                            }
+
+                            Key.DirectionDown -> {
+                                if (onDown?.invoke(item) == true) {
+                                    isFocusBelowTabRow = true
+                                    return@onPreviewKeyEvent true
+                                }
+                                if (contentFocusRequester != null) {
+                                    isFocusBelowTabRow = true
+                                    pendingContentFocusKey = key
+                                    onContentFocusRequested(item)
+                                    return@onPreviewKeyEvent true
+                                }
+                                if (blockDown) return@onPreviewKeyEvent true
+                            }
+
+                            else -> Unit
                         }
                     }
 
-                if (index == focusTargetIndex) {
-                    tabModifier = tabModifier
-                        .focusRequester(entryFocusRequester)
-                        .onGloballyPositioned {
-                            val state = buildString {
-                                append("key=").append(key)
-                                append(", index=").append(index)
-                                append(", selected=").append(selected)
-                                append(", focused=").append(focused)
-                                append(", focusTargetIndex=").append(focusTargetIndex)
-                            }
-                            if (lastDefaultFocusPositionedState != state) {
-                                lastDefaultFocusPositionedState = state
-                                bvTabRowFocusLogger.fInfo {
-                                    "default focus target positioned: $state"
+                    val isConfirmKey =
+                        event.key == Key.DirectionCenter ||
+                                event.key == Key.Enter ||
+                                event.key == Key.Spacebar
+                    if (!isConfirmKey) return@onPreviewKeyEvent false
+
+                    when (event.type) {
+                        KeyEventType.KeyDown -> {
+                            if (event.nativeKeyEvent.isLongPress) {
+                                if (onLongClick == null) {
+                                    return@onPreviewKeyEvent false
                                 }
+                                if (!confirmLongPressTriggered) {
+                                    confirmLongPressTriggered = onLongClick(item)
+                                }
+                                return@onPreviewKeyEvent confirmLongPressTriggered
                             }
-                            onDefaultFocusReady?.invoke(key)
+                            false
                         }
+
+                        KeyEventType.KeyUp -> {
+                            if (confirmLongPressTriggered) {
+                                confirmLongPressTriggered = false
+                                true
+                            } else {
+                                onConfirm(item)
+                                true
+                            }
+                        }
+
+                        else -> false
+                    }
                 }
 
-                Tab(
-                    colors = when (indicator) {
-                        BvTabIndicator.Pill -> mainTopTabColors()
-                        BvTabIndicator.Underline -> TabDefaults.underlinedIndicatorTabColors()
-                    },
-                    modifier = tabModifier,
-                    selected = selected,
-                    onFocus = {
-                        isFocusBelowTabRow = false
-                        confirmLongPressTriggered = false
-                        focusedTabIndex = index
-                        onSelectedChanged(item)
-                    },
-                    onClick = { onConfirm(item) }
-                ) {
-                    if (tabContent != null) {
-                        tabContent(item, selected, focused)
-                    } else {
-                        BvTabDefaultContent(
-                            item = item,
-                            text = itemText,
-                            icon = itemIcon,
-                            hasIcon = itemHasIcon,
-                            iconMode = iconMode,
-                            focused = focused
-                        )
+            if (index == focusTargetIndex) {
+                tabModifier = tabModifier
+                    .focusRequester(entryFocusRequester)
+                    .onGloballyPositioned {
+                        val state = buildString {
+                            append("key=").append(key)
+                            append(", index=").append(index)
+                            append(", selected=").append(selected)
+                            append(", focused=").append(focused)
+                            append(", focusTargetIndex=").append(focusTargetIndex)
+                        }
+                        if (lastDefaultFocusPositionedState != state) {
+                            lastDefaultFocusPositionedState = state
+                            bvTabRowFocusLogger.fInfo {
+                                "default focus target positioned: $state"
+                            }
+                        }
+                        onDefaultFocusReady?.invoke(key)
                     }
+            }
+
+            Tab(
+                colors = when (indicator) {
+                    BvTabIndicator.Pill -> mainTopTabColors()
+                    BvTabIndicator.Underline -> TabDefaults.underlinedIndicatorTabColors()
+                },
+                modifier = tabModifier,
+                selected = selected,
+                onFocus = {
+                    isFocusBelowTabRow = false
+                    confirmLongPressTriggered = false
+                    focusedTabIndex = index
+                    onSelectedChanged(item)
+                },
+                onClick = { onConfirm(item) }
+            ) {
+                if (tabContent != null) {
+                    tabContent(item, selected, focused)
+                } else {
+                    BvTabDefaultContent(
+                        item = item,
+                        text = itemText,
+                        icon = itemIcon,
+                        hasIcon = itemHasIcon,
+                        iconMode = iconMode,
+                        focused = focused
+                    )
                 }
             }
         }
     }
+}
 
 /**
  * 胶囊样式的 [BvTabRow]。
@@ -391,6 +414,8 @@ fun <T> BvPillTabRow(
     blockUp: Boolean = false,
     blockDown: Boolean = false,
     autoRequestEntryFocus: Boolean = true,
+    backFocusTarget: BvBackFocusTarget? = BvBackFocusTarget.TabRow,
+    backFocusEnabled: Boolean = true,
     tabContent: (@Composable RowScope.(item: T, selected: Boolean, focused: Boolean) -> Unit)? = null
 ) {
     BvTabRow(
@@ -423,6 +448,8 @@ fun <T> BvPillTabRow(
         blockUp = blockUp,
         blockDown = blockDown,
         autoRequestEntryFocus = autoRequestEntryFocus,
+        backFocusTarget = backFocusTarget,
+        backFocusEnabled = backFocusEnabled,
         tabContent = tabContent
     )
 }
@@ -463,6 +490,8 @@ fun <T> BvUnderlineTabRow(
     blockUp: Boolean = false,
     blockDown: Boolean = false,
     autoRequestEntryFocus: Boolean = true,
+    backFocusTarget: BvBackFocusTarget? = BvBackFocusTarget.TabRow,
+    backFocusEnabled: Boolean = true,
     tabContent: (@Composable RowScope.(item: T, selected: Boolean, focused: Boolean) -> Unit)? = null
 ) {
     BvTabRow(
@@ -495,6 +524,8 @@ fun <T> BvUnderlineTabRow(
         blockUp = blockUp,
         blockDown = blockDown,
         autoRequestEntryFocus = autoRequestEntryFocus,
+        backFocusTarget = backFocusTarget,
+        backFocusEnabled = backFocusEnabled,
         tabContent = tabContent
     )
 }
@@ -502,12 +533,12 @@ fun <T> BvUnderlineTabRow(
 /**
  * 用于设置页配置 BvTabRow 的可见项和显示顺序。
  *
- * 该 Dialog 内部复用 OrderedMultiSelectDialog，关闭时输出已经按用户选择顺序排序后的 ID 列表。
+ * 内部复用 [OrderedMultiSelectListContent]，适合放在设置页详情列里使用。
  *
  * 数据流：
  * 1. allItems 是完整 tab 列表。
  * 2. enabledOrderedIds 是当前启用且已经排好序的 tab ID 列表。
- * 3. 用户提交后，onSubmit 返回新的启用有序 ID 列表。
+ * 3. 用户调整选择后，onSubmit 返回新的启用有序 ID 列表。
  * 4. 页面保存这个 ID 列表，并按它过滤、排序 allItems。
  * 5. 页面把过滤排序后的 items 传给 BvTabRow。
  *
@@ -515,10 +546,8 @@ fun <T> BvUnderlineTabRow(
  * 不要使用列表下标作为 ID。下标会随着过滤、插入、删除或排序变化而改变，无法稳定还原
  */
 @Composable
-fun <T, ID : Any> BvTabOrderDialog(
-    visible: Boolean,
-    onDismissRequest: () -> Unit,
-    title: String,
+fun <T, ID : Any> BvTabOrderListContent(
+    modifier: Modifier = Modifier,
     allItems: List<T>,
     enabledOrderedIds: List<ID>,
     itemId: (T) -> ID,
@@ -526,21 +555,53 @@ fun <T, ID : Any> BvTabOrderDialog(
     text: (T) -> String,
     itemKey: ((T) -> Any)? = null,
     defaultFocusKey: Any? = enabledOrderedIds.firstOrNull(),
-    defaultFocusIndex: Int? = null
+    defaultFocusIndex: Int? = null,
+    requestDefaultFocus: Boolean = true
 ) {
-    OrderedMultiSelectDialog(
-        visible = visible,
-        onDismissRequest = onDismissRequest,
-        title = title,
+    var selectedOrders by remember(allItems, enabledOrderedIds) {
+        mutableStateOf(
+            enabledOrderedIds
+                .filter { id -> allItems.any { item -> itemId(item) == id } }
+                .distinct()
+                .mapIndexed { index, id -> id to index + 1 }
+                .toMap()
+        )
+    }
+
+    OrderedMultiSelectListContent(
+        modifier = modifier,
         items = allItems,
-        initialSelectedIds = enabledOrderedIds,
+        selectedOrders = selectedOrders,
         itemId = itemId,
-        onSubmit = onSubmit,
+        onSelectedOrdersChange = { orders ->
+            selectedOrders = orders
+            onSubmit(
+                orders.entries
+                    .sortedBy { it.value }
+                    .map { it.key }
+            )
+        },
         text = text,
         itemKey = itemKey ?: { itemId(it) },
         defaultFocusKey = defaultFocusKey,
-        defaultFocusIndex = defaultFocusIndex
+        defaultFocusIndex = defaultFocusIndex,
+        requestDefaultFocus = requestDefaultFocus
     )
+}
+
+/**
+ * 按设置页保存的启用 ID 列表过滤并排序 tab。
+ *
+ * 该函数和 [BvTabOrderListContent] 配套使用：设置页保存 [enabledOrderedIds]，业务页把返回值传给
+ * [BvTabRow] / [BvPillTabRow] / [BvUnderlineTabRow]。
+ */
+fun <T, ID : Any> filterOrderedBvTabItems(
+    allItems: List<T>,
+    enabledOrderedIds: List<ID>,
+    itemId: (T) -> ID
+): List<T> {
+    val itemById = allItems.associateBy(itemId)
+    return enabledOrderedIds.mapNotNull { id -> itemById[id] }
 }
 
 @Composable
