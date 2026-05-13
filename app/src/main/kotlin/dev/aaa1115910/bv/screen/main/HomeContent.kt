@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DynamicFeed
+import androidx.compose.material.icons.rounded.HowToReg
 import androidx.compose.material.icons.rounded.LiveTv
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.PsychologyAlt
@@ -54,6 +55,7 @@ import dev.aaa1115910.bv.screen.main.runtime.runtimeContainerInputEnabled
 import dev.aaa1115910.bv.screen.search.SearchInputScreen
 import dev.aaa1115910.bv.screen.search.SearchResultScreen
 import dev.aaa1115910.bv.screen.user.FavoriteScreen
+import dev.aaa1115910.bv.screen.user.FollowScreen
 import dev.aaa1115910.bv.screen.user.FollowingSeasonScreen
 import dev.aaa1115910.bv.screen.user.HistoryScreen
 import dev.aaa1115910.bv.screen.user.MyClassroomScreen
@@ -65,6 +67,7 @@ import dev.aaa1115910.bv.viewmodel.main.HomeContentViewModel
 import dev.aaa1115910.bv.viewmodel.search.SearchInputViewModel
 import dev.aaa1115910.bv.viewmodel.search.SearchResultViewModel
 import dev.aaa1115910.bv.viewmodel.user.FavoriteViewModel
+import dev.aaa1115910.bv.viewmodel.user.FollowViewModel
 import dev.aaa1115910.bv.viewmodel.user.FollowingSeasonViewModel
 import dev.aaa1115910.bv.viewmodel.user.HistoryViewModel
 import dev.aaa1115910.bv.viewmodel.user.SubscribedCollectionViewModel
@@ -80,6 +83,7 @@ private enum class HomeSearchPage {
 fun HomeContent(
     navFocusRequester: FocusRequester,
     drawerFocusRequester: FocusRequester,
+    topBarLeadingContent: @Composable () -> Unit,
     pendingDrawerEntryRequest: MainContentEntryRequest? = null,
     onDrawerEntryConsumed: (Long) -> Unit = {},
     onDefaultFocusReady: (() -> Unit)? = null,
@@ -121,6 +125,7 @@ fun HomeContent(
                 HomeTopNavItem.Recommend -> TopNavLeadingIcon.Vector(Icons.Rounded.ThumbUp)
                 HomeTopNavItem.Popular -> TopNavLeadingIcon.Vector(Icons.Rounded.LocalFireDepartment)
                 HomeTopNavItem.FollowingSeason -> TopNavLeadingIcon.Vector(Icons.Rounded.LiveTv)
+                HomeTopNavItem.Follow -> TopNavLeadingIcon.Vector(Icons.Rounded.HowToReg)
                 HomeTopNavItem.Search -> TopNavLeadingIcon.Vector(Icons.Rounded.Search)
                 HomeTopNavItem.MyClassroom -> TopNavLeadingIcon.Vector(Icons.Rounded.PsychologyAlt)
                 HomeTopNavItem.SubscribedCollection -> TopNavLeadingIcon.Vector(Icons.Rounded.Subscriptions)
@@ -244,6 +249,7 @@ fun HomeContent(
         topBar = {
             TopNav(
                 modifier = Modifier,
+                leadingContent = topBarLeadingContent,
                 items = reorderedItems,
                 selectedItem = focusedTab,
                 activeItem = activeTab,
@@ -512,6 +518,20 @@ private fun HomeActiveTabContent(
                 refreshSerial = consumedRefreshSerial,
                 favoriteViewModel = favoriteViewModel,
                 toViewViewModel = toViewViewModel,
+                contentEntryFocusRequester = activeContentEntryFocusRequester,
+                tabFocusRequester = activeTabFocusRequester,
+                onContentEntryReady = onContentEntryReady,
+                onBack = backToTabRow
+            )
+        }
+        HomeTopNavItem.Follow -> {
+            val followViewModel: FollowViewModel = koinViewModel<FollowViewModel>()
+            FollowScreen(
+                lazyGridState = gridState,
+                active = active,
+                activationSerial = activationSerial,
+                refreshSerial = consumedRefreshSerial,
+                followViewModel = followViewModel,
                 contentEntryFocusRequester = activeContentEntryFocusRequester,
                 tabFocusRequester = activeTabFocusRequester,
                 onContentEntryReady = onContentEntryReady,

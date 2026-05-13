@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.HowToReg
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.OndemandVideo
 import androidx.compose.material.icons.filled.Settings
@@ -69,7 +69,7 @@ fun LeftNaviContent(
     modifier: Modifier = Modifier,
     selectedItem: LeftNaviItem,
     homeFocusRequester: FocusRequester,
-    followFocusRequester: FocusRequester,
+    liveFocusRequester: FocusRequester,
     ugcFocusRequester: FocusRequester,
     pgcFocusRequester: FocusRequester,
     onLeftNaviItemChanged: (LeftNaviItem) -> Unit,
@@ -89,7 +89,7 @@ fun LeftNaviContent(
 
     val contentItems = listOf(
         LeftNaviItem.Home,
-        LeftNaviItem.Follow,
+        LeftNaviItem.Live,
         LeftNaviItem.UGC,
         LeftNaviItem.PGC
     )
@@ -237,14 +237,14 @@ fun LeftNaviContent(
                 contentItems.forEach { item ->
                     val itemText = when (item) {
                         LeftNaviItem.Home -> "首页"
-                        LeftNaviItem.Follow -> "我的关注"
+                        LeftNaviItem.Live -> "直播"
                         LeftNaviItem.UGC -> "分区"
                         LeftNaviItem.PGC -> "番剧影视"
                         else -> ""
                     }
                     val itemFocusRequester = when (item) {
                         LeftNaviItem.Home -> homeFocusRequester
-                        LeftNaviItem.Follow -> followFocusRequester
+                        LeftNaviItem.Live -> liveFocusRequester
                         LeftNaviItem.UGC -> ugcFocusRequester
                         LeftNaviItem.PGC -> pgcFocusRequester
                         else -> error("Unexpected item: $item")
@@ -509,7 +509,7 @@ enum class LeftNaviItem(
 ) {
     User(displayIcon = Icons.Default.AccountCircle),
     Home(displayIcon = Icons.Default.Home),
-    Follow(displayIcon = Icons.Default.HowToReg),
+    Live(displayIcon = Icons.Default.Videocam),
     UGC(displayIcon = Icons.Default.OndemandVideo),
     PGC(displayIcon = Icons.Default.Movie),
     Settings(displayIcon = Icons.Default.Settings),
@@ -533,7 +533,7 @@ private fun LeftNaviContentPreview() {
         LeftNaviContent(
             selectedItem = LeftNaviItem.Home,
             homeFocusRequester = remember { FocusRequester() },
-            followFocusRequester = remember { FocusRequester() },
+            liveFocusRequester = remember { FocusRequester() },
             ugcFocusRequester = remember { FocusRequester() },
             pgcFocusRequester = remember { FocusRequester() },
             onLeftNaviItemChanged = {},

@@ -1,4 +1,4 @@
-package dev.aaa1115910.bv.screen.main
+package dev.aaa1115910.bv.screen.user
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -35,6 +35,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -83,9 +84,6 @@ import dev.aaa1115910.bv.component.MainChromeDefaults
 import dev.aaa1115910.bv.component.MainTopBarContainer
 import dev.aaa1115910.bv.component.MainTopTabSeparator
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
-import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
-import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
-import dev.aaa1115910.bv.screen.user.EmptyTip
 import dev.aaa1115910.bv.tv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.theme.C
@@ -112,20 +110,25 @@ private data class GridFocusLink(
 )
 
 @Composable
-fun FollowContent(
-    navFocusRequester: FocusRequester,
-    drawerFocusRequester: FocusRequester,
-    pendingDrawerEntryRequest: MainContentEntryRequest? = null,
-    onDrawerEntryConsumed: (Long) -> Unit = {},
-    onDefaultFocusReady: (() -> Unit)? = null,
+fun FollowScreen(
+    modifier: Modifier = Modifier,
     lazyGridState: LazyGridState = rememberLazyGridState(),
+    active: Boolean = true,
+    activationSerial: Long = 0L,
+    refreshSerial: Long = 0L,
     followViewModel: FollowViewModel = koinViewModel(),
-    active: Boolean = true
+    contentEntryFocusRequester: FocusRequester? = null,
+    tabFocusRequester: FocusRequester? = null,
+    onContentEntryReady: () -> Unit = {},
+    onBack: () -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
-    val contentEntryFocusRequester = remember { FocusRequester() }
+    val defaultFocusRequester = remember { FocusRequester() }
+    val internalContentEntryFocusRequester = remember { FocusRequester() }
+    val followTabFocusRequester = contentEntryFocusRequester ?: defaultFocusRequester
+    val followContentEntryFocusRequester = internalContentEntryFocusRequester
 
     var focusOnTabs by remember { mutableStateOf(true) }
     var topNavReadyGroupId by remember { mutableStateOf<Int?>(null) }
@@ -204,37 +207,9 @@ fun FollowContent(
         }
     }
 
-    val requestedGroupFocusId = remember(
-        pendingDrawerEntryRequest?.id,
-        groupList,
-        followViewModel.preferredGroupFocusId
-    ) {
-        when (pendingDrawerEntryRequest?.target) {
-            MainContentFocusTarget.LeftEntry -> groupList.firstOrNull()?.groupId
-            MainContentFocusTarget.RightEntry -> groupList.lastOrNull()?.groupId
-            null -> resolveGroupIdInList(followViewModel.preferredGroupFocusId)
-                ?: groupList.firstOrNull()?.groupId
-        }
-    }
-
-    LaunchedEffect(
-        pendingDrawerEntryRequest?.id,
-        requestedGroupFocusId,
-        groupList,
-        followViewModel.activeGroupId,
-        followViewModel.focusedGroupId,
-        active
-    ) {
-        if (!active) return@LaunchedEffect
-        if (pendingDrawerEntryRequest == null) return@LaunchedEffect
-        val desiredGroupId = requestedGroupFocusId ?: return@LaunchedEffect
-        if (groupList.none { it.groupId == desiredGroupId }) return@LaunchedEffect
-
-        if (followViewModel.activeGroupId != desiredGroupId) {
-            followViewModel.onGroupClicked(desiredGroupId)
-        } else if (followViewModel.focusedGroupId != desiredGroupId) {
-            followViewModel.onGroupFocused(desiredGroupId)
-        }
+    val requestedGroupFocusId = remember(groupList, followViewModel.preferredGroupFocusId) {
+        resolveGroupIdInList(followViewModel.preferredGroupFocusId)
+            ?: groupList.firstOrNull()?.groupId
     }
 
     val focusTargetIndex by remember(requestedGroupFocusId, groupList) {
@@ -285,7 +260,7 @@ fun FollowContent(
 
     fun contentRequesterForIndex(index: Int): FocusRequester {
         return if (index == 0) {
-            contentEntryFocusRequester
+            followContentEntryFocusRequester
         } else {
             userRequesters.getValue(visibleUsers[index].stableKey)
         }
@@ -309,6 +284,21 @@ fun FollowContent(
             followViewModel.freezeFollowScreen()
         }
         followViewModel.syncGroupActivationToCurrent()
+    }
+
+    LaunchedEffect(active, activationSerial) {
+        if (!active) return@LaunchedEffect
+        if (activationSerial == 0L) return@LaunchedEffect
+        withFrameNanos { }
+        followViewModel.activateFollowScreen()
+    }
+
+    LaunchedEffect(active, refreshSerial) {
+        if (!active) return@LaunchedEffect
+        if (refreshSerial == 0L) return@LaunchedEffect
+        lazyGridState.scrollToItem(0)
+        followViewModel.freezeFollowScreen()
+        followViewModel.activateFollowScreen()
     }
 
     DisposableEffect(Unit) {
@@ -335,27 +325,8 @@ fun FollowContent(
         if (!active) return@LaunchedEffect
         val targetGroupId = focusTargetGroupId ?: return@LaunchedEffect
         if (topNavReadyGroupId == targetGroupId) {
-            onDefaultFocusReady?.invoke()
+            onContentEntryReady()
         }
-    }
-
-    LaunchedEffect(
-        pendingDrawerEntryRequest?.id,
-        topNavReadyGroupId,
-        focusTargetGroupId,
-        followViewModel.activeGroupId,
-        followViewModel.focusedGroupId,
-        active
-    ) {
-        if (!active) return@LaunchedEffect
-        val request = pendingDrawerEntryRequest ?: return@LaunchedEffect
-        val targetGroupId = focusTargetGroupId ?: return@LaunchedEffect
-        if (topNavReadyGroupId != targetGroupId) return@LaunchedEffect
-        if (followViewModel.activeGroupId != targetGroupId) return@LaunchedEffect
-        if (followViewModel.focusedGroupId != targetGroupId) return@LaunchedEffect
-
-        navFocusRequester.requestFocus(scope)
-        onDrawerEntryConsumed(request.id)
     }
 
     val visibleCount = visibleUsers.size
@@ -365,11 +336,19 @@ fun FollowContent(
     }
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .onPreviewKeyEvent {
                 if (showSearchDialog && it.key == Key.Back && it.type == KeyEventType.KeyUp) {
                     closeSearchDialog(apply = true)
+                    return@onPreviewKeyEvent true
+                }
+                if (it.key == Key.Back && it.type == KeyEventType.KeyUp) {
+                    if (focusOnTabs) {
+                        onBack()
+                    } else {
+                        followTabFocusRequester.requestFocus(scope)
+                    }
                     return@onPreviewKeyEvent true
                 }
                 false
@@ -398,7 +377,14 @@ fun FollowContent(
                 MainTopBarContainer(
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Box(modifier = Modifier.fillMaxWidth()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                horizontal = 12.dp,
+                                vertical = MainChromeDefaults.TopNavVerticalPadding
+                            )
+                    ) {
                         BvUnderlineTabRow(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -411,13 +397,9 @@ fun FollowContent(
                                 },
                             items = groupList,
                             selectedItem = groupList.firstOrNull { it.groupId == displayFocusedGroupId },
-                            entryFocusItem = if (pendingDrawerEntryRequest == null) {
-                                null
-                            } else {
-                                groupList.firstOrNull { it.groupId == requestedGroupFocusId }
-                            },
+                            entryFocusItem = groupList.firstOrNull { it.groupId == requestedGroupFocusId },
                             itemKey = { it.groupId },
-                            defaultFocusRequester = navFocusRequester,
+                            defaultFocusRequester = followTabFocusRequester,
                             onDefaultFocusReady = { readyKey ->
                                 val readyGroupId = readyKey as? Int
                                 if (readyGroupId != null && topNavReadyGroupId != readyGroupId) {
@@ -445,13 +427,11 @@ fun FollowContent(
                                 }
                                 true
                             },
-                            onLeftExit = {
-                                drawerFocusRequester.requestFocus(scope)
+                            onUp = {
+                                onBack()
+                                true
                             },
-                            onRightExit = {
-                                drawerFocusRequester.requestFocus(scope)
-                            },
-                            contentFocusRequester = contentEntryFocusRequester,
+                            contentFocusRequester = followContentEntryFocusRequester,
                             contentFocusReadyKey = contentReadyGroupId,
                             onContentFocusRequested = { group ->
                                 if (currentGroupId != group.groupId) {
@@ -494,10 +474,10 @@ fun FollowContent(
                 TvLazyVerticalGrid(
                     modifier = Modifier
                         .fillMaxSize()
-                        .focusRestorer(contentEntryFocusRequester)
+                        .focusRestorer(followContentEntryFocusRequester)
                         .onPreviewKeyEvent {
                             if (it.key == Key.Back && it.type == KeyEventType.KeyUp) {
-                                navFocusRequester.requestFocus(scope)
+                                followTabFocusRequester.requestFocus(scope)
                                 true
                             } else {
                                 false
@@ -546,7 +526,7 @@ fun FollowContent(
                                         left = contentRequesterForIndex(focusLink.leftIndex)
                                         right = contentRequesterForIndex(focusLink.rightIndex)
                                         up = if (index < 4) {
-                                            navFocusRequester
+                                            followTabFocusRequester
                                         } else {
                                             contentRequesterForIndex(focusLink.upIndex)
                                         }

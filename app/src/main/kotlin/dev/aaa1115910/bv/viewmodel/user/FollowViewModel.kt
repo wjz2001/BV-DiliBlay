@@ -286,7 +286,8 @@ class FollowViewModel(
     }
 
     private suspend fun initFollowedUsers() {
-        RelationGroupsDataSource.getSnapshotOrNull()?.let { cachedSnapshot ->
+        val cachedSnapshot = RelationGroupsDataSource.getSnapshotOrNull()
+        cachedSnapshot?.let {
             applySnapshot(cachedSnapshot)
             withContext(Dispatchers.Main) {
                 updating = false
@@ -294,6 +295,7 @@ class FollowViewModel(
         }
 
         refreshSelfEntryInfo()
+        cachedSnapshot?.let { applySnapshot(it) }
 
         val result = RelationGroupsDataSource.refresh(RelationRefreshTrigger.FollowScreen)
         result.snapshot?.let { refreshedSnapshot ->
