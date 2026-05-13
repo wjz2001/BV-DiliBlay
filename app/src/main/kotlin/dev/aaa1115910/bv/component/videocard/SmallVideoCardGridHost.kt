@@ -14,11 +14,17 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -37,6 +43,8 @@ import dev.aaa1115910.bv.viewmodel.SmallVideoCardGridUiState
 import dev.aaa1115910.bv.viewmodel.SmallVideoCardGridViewModel
 import dev.aaa1115910.bv.viewmodel.SmallVideoCardItemUiState
 import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 /**
@@ -63,6 +71,8 @@ private class GridRowWrapController(
     var upFocusRequester: FocusRequester? = null
     var enableHorizontalLinks: Boolean = true
     var onEntryFocusReady: (() -> Unit)? = null
+    var gridState: LazyGridState? = null
+    var scope: CoroutineScope? = null
 
     private fun requesterFor(index: Int): FocusRequester {
         if (index == 0) {
@@ -71,14 +81,49 @@ private class GridRowWrapController(
         return requesters.getOrPut(index) { FocusRequester() }
     }
 
+    private fun sameColumnTarget(index: Int, rowOffset: Int): Int? {
+        val target = index + columnCount * rowOffset
+        return target.takeIf { it in 0 until itemCount }
+    }
+
+    private fun moveFocusTo(index: Int) {
+        val state = gridState ?: return
+        val coroutineScope = scope ?: return
+        coroutineScope.launch {
+            state.scrollToItem(index)
+            requesterFor(index).requestFocus()
+        }
+    }
+
     fun Modifier.modifierFor(index: Int): Modifier {
         if (!enabled || itemCount <= 0 || index !in 0 until itemCount) return this
 
         val rowStart = (index / columnCount) * columnCount
         val rowEnd = minOf(rowStart + columnCount - 1, itemCount - 1)
+        val upTarget = sameColumnTarget(index, -1)
+        val downTarget = sameColumnTarget(index, 1)
 
         var modifier = this
             .focusRequester(requesterFor(index))
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+
+                when (event.key) {
+                    Key.DirectionUp -> {
+                        val target = upTarget ?: return@onPreviewKeyEvent false
+                        moveFocusTo(target)
+                        true
+                    }
+
+                    Key.DirectionDown -> {
+                        val target = downTarget ?: return@onPreviewKeyEvent false
+                        moveFocusTo(target)
+                        true
+                    }
+
+                    else -> false
+                }
+            }
             .focusProperties {
                 if (enableHorizontalLinks && rowStart != rowEnd) {
                     left = if (index == rowStart) {
@@ -95,7 +140,10 @@ private class GridRowWrapController(
                 }
                 if (rowStart == 0) {
                     up = upFocusRequester ?: FocusRequester.Default
+                } else {
+                    upTarget?.let { up = requesterFor(it) }
                 }
+                downTarget?.let { down = requesterFor(it) }
             }
         if (index == 0) {
             modifier = modifier.onGloballyPositioned {
@@ -189,6 +237,7 @@ fun SmallVideoCardGridHost(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val cardUiMap by viewModel.cardUiMap.collectAsStateWithLifecycle()
     val coAuthorsDialogState = rememberCoAuthorsDialogState()
+    val scope = rememberCoroutineScope()
 
     /**
      * 默认导航实现：
@@ -218,6 +267,8 @@ fun SmallVideoCardGridHost(
         this.upFocusRequester = upFocusRequester
         this.enableHorizontalLinks = enableRowHorizontalWrap
         this.onEntryFocusReady = onEntryFocusReady
+        this.gridState = state
+        this.scope = scope
     }
     val cardUiStateFor = remember(cardUiMap) {
         { aid: Long -> cardUiMap[aid] }
