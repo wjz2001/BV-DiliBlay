@@ -2,7 +2,6 @@ package dev.aaa1115910.bv.component.videocard
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyGridState
@@ -14,18 +13,9 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -33,8 +23,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.CoAuthorsDialogHost
-import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.FavoriteDialog
+import dev.aaa1115910.bv.component.TvGridFocusHost
 import dev.aaa1115910.bv.component.handleUpHomeClick
 import dev.aaa1115910.bv.component.rememberCoAuthorsDialogState
 import dev.aaa1115910.bv.util.toast
@@ -43,8 +33,6 @@ import dev.aaa1115910.bv.viewmodel.SmallVideoCardGridUiState
 import dev.aaa1115910.bv.viewmodel.SmallVideoCardGridViewModel
 import dev.aaa1115910.bv.viewmodel.SmallVideoCardItemUiState
 import androidx.lifecycle.repeatOnLifecycle
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 /**
@@ -59,113 +47,6 @@ val LocalSmallVideoCardGridViewModel =
 
 val LocalSmallVideoCardGridUiState =
     compositionLocalOf { SmallVideoCardGridUiState() }
-
-private class GridRowWrapController(
-    private val columnCount: Int
-) {
-    private val requesters = mutableMapOf<Int, FocusRequester>()
-
-    var enabled: Boolean = true
-    var itemCount: Int = 0
-    var entryFocusRequester: FocusRequester? = null
-    var upFocusRequester: FocusRequester? = null
-    var enableHorizontalLinks: Boolean = true
-    var onEntryFocusReady: (() -> Unit)? = null
-    var gridState: LazyGridState? = null
-    var scope: CoroutineScope? = null
-
-    private fun requesterFor(index: Int): FocusRequester {
-        if (index == 0) {
-            entryFocusRequester?.let { return it }
-        }
-        return requesters.getOrPut(index) { FocusRequester() }
-    }
-
-    private fun sameColumnTarget(index: Int, rowOffset: Int): Int? {
-        val target = index + columnCount * rowOffset
-        return target.takeIf { it in 0 until itemCount }
-    }
-
-    private fun moveFocusTo(index: Int) {
-        val state = gridState ?: return
-        val coroutineScope = scope ?: return
-        coroutineScope.launch {
-            state.scrollToItem(index)
-            requesterFor(index).requestFocus()
-        }
-    }
-
-    fun Modifier.modifierFor(index: Int): Modifier {
-        if (!enabled || itemCount <= 0 || index !in 0 until itemCount) return this
-
-        val rowStart = (index / columnCount) * columnCount
-        val rowEnd = minOf(rowStart + columnCount - 1, itemCount - 1)
-        val upTarget = sameColumnTarget(index, -1)
-        val downTarget = sameColumnTarget(index, 1)
-
-        var modifier = this
-            .focusRequester(requesterFor(index))
-            .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-
-                when (event.key) {
-                    Key.DirectionUp -> {
-                        val target = upTarget ?: return@onPreviewKeyEvent false
-                        moveFocusTo(target)
-                        true
-                    }
-
-                    Key.DirectionDown -> {
-                        val target = downTarget ?: return@onPreviewKeyEvent false
-                        moveFocusTo(target)
-                        true
-                    }
-
-                    else -> false
-                }
-            }
-            .focusProperties {
-                if (enableHorizontalLinks && rowStart != rowEnd) {
-                    left = if (index == rowStart) {
-                        requesterFor(rowEnd)
-                    } else {
-                        requesterFor(index - 1)
-                    }
-
-                    right = if (index == rowEnd) {
-                        requesterFor(rowStart)
-                    } else {
-                        requesterFor(index + 1)
-                    }
-                }
-                if (rowStart == 0) {
-                    up = upFocusRequester ?: FocusRequester.Default
-                } else {
-                    upTarget?.let { up = requesterFor(it) }
-                }
-                downTarget?.let { down = requesterFor(it) }
-            }
-        if (index == 0) {
-            modifier = modifier.onGloballyPositioned {
-                onEntryFocusReady?.invoke()
-            }
-        }
-        return modifier
-    }
-}
-
-private val LocalGridRowWrapController =
-    compositionLocalOf<GridRowWrapController?> { null }
-
-@Composable
-fun rememberGridRowWrapModifier(index: Int): Modifier {
-    val controller = LocalGridRowWrapController.current
-    return if (controller != null) {
-        with(controller) { Modifier.modifierFor(index) }
-    } else {
-        Modifier
-    }
-}
 
 /**
  * SmallVideoCard 的页面级宿主（Host）。
@@ -227,8 +108,8 @@ fun SmallVideoCardGridHost(
     entryFocusRequester: FocusRequester? = null,
     upFocusRequester: FocusRequester? = null,
     onEntryFocusReady: (() -> Unit)? = null,
-    horizontalWrapItemCount: Int = 0,
-    horizontalWrapColumnCount: Int = 4,
+    focusItemCount: Int = 0,
+    focusColumnCount: Int = 4,
     content: LazyGridScope.((Long) -> SmallVideoCardItemUiState?) -> Unit
 ) {
     val viewModel: SmallVideoCardGridViewModel = koinViewModel()
@@ -237,7 +118,6 @@ fun SmallVideoCardGridHost(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val cardUiMap by viewModel.cardUiMap.collectAsStateWithLifecycle()
     val coAuthorsDialogState = rememberCoAuthorsDialogState()
-    val scope = rememberCoroutineScope()
 
     /**
      * 默认导航实现：
@@ -256,20 +136,6 @@ fun SmallVideoCardGridHost(
     val favoriteFolders = remember { mutableStateListOf<FavoriteFolderMetadata>() }
     val selectedFolderIds = remember { mutableStateListOf<Long>() }
 
-    val rowWrapController = remember(horizontalWrapColumnCount) {
-        horizontalWrapColumnCount.let(::GridRowWrapController)
-    }.apply {
-        enabled = horizontalWrapItemCount > 0 &&
-                horizontalWrapColumnCount > 0 &&
-                (enableRowHorizontalWrap || entryFocusRequester != null)
-        itemCount = horizontalWrapItemCount
-        this.entryFocusRequester = entryFocusRequester
-        this.upFocusRequester = upFocusRequester
-        this.enableHorizontalLinks = enableRowHorizontalWrap
-        this.onEntryFocusReady = onEntryFocusReady
-        this.gridState = state
-        this.scope = scope
-    }
     val cardUiStateFor = remember(cardUiMap) {
         { aid: Long -> cardUiMap[aid] }
     }
@@ -345,32 +211,24 @@ fun SmallVideoCardGridHost(
      */
     CompositionLocalProvider(
         LocalSmallVideoCardGridViewModel provides viewModel,
-        LocalSmallVideoCardGridUiState provides uiState,
-        LocalGridRowWrapController provides rowWrapController
+        LocalSmallVideoCardGridUiState provides uiState
     ) {
-        val gridModifier = if (horizontalWrapItemCount <= 0 && entryFocusRequester != null) {
-            modifier
-                .focusRequester(entryFocusRequester)
-                .focusProperties {
-                    up = upFocusRequester ?: FocusRequester.Default
-                }
-                .focusable()
-                .onGloballyPositioned {
-                    onEntryFocusReady?.invoke()
-                }
-        } else {
-            modifier
-        }
-
-        TvLazyVerticalGrid(
+        TvGridFocusHost(
             columns = columns,
-            modifier = gridModifier,
+            modifier = modifier,
             state = state,
             contentPadding = contentPadding,
             verticalArrangement = verticalArrangement,
             horizontalArrangement = horizontalArrangement,
-            content = { content(cardUiStateFor) }
-        )
+            enableRowHorizontalWrap = enableRowHorizontalWrap,
+            entryFocusRequester = entryFocusRequester,
+            upFocusRequester = upFocusRequester,
+            onEntryFocusReady = onEntryFocusReady,
+            focusItemCount = focusItemCount,
+            focusColumnCount = focusColumnCount
+        ) {
+            content(cardUiStateFor)
+        }
     }
 
     /**

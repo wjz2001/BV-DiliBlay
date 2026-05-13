@@ -51,7 +51,7 @@ import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
-import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
+import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.tv.component.TvAlertDialog
@@ -191,7 +191,7 @@ fun HistoryScreen(
         contentPadding = PaddingValues(24.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
         horizontalArrangement = Arrangement.spacedBy(24.dp),
-        horizontalWrapItemCount = visibleHistories.size,
+        focusItemCount = visibleHistories.size,
         entryFocusRequester = contentEntryFocusRequester,
         upFocusRequester = tabFocusRequester,
         onEntryFocusReady = onContentEntryReady
@@ -205,7 +205,7 @@ fun HistoryScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     SmallVideoCard(
-                        frameModifier = rememberGridRowWrapModifier(index),
+                        frameModifier = rememberTvGridFocusModifier(index),
                         uiState = cardUiStateFor(history.avid),
                         data = history,
                         onClick = {

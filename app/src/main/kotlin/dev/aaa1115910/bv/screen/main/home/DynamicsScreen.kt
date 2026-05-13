@@ -36,7 +36,7 @@ import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
-import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
+import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
@@ -171,7 +171,7 @@ fun DynamicsScreen(
             contentPadding = PaddingValues(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalWrapItemCount = focusableWrapIndexMap.size,
+            focusItemCount = focusableWrapIndexMap.size,
             entryFocusRequester = contentEntryFocusRequester,
             upFocusRequester = tabFocusRequester,
             onEntryFocusReady = onContentEntryReady
@@ -184,7 +184,7 @@ fun DynamicsScreen(
 
                 SmallVideoCard(
                     frameModifier = focusableWrapIndexMap[item.aid]
-                        ?.let { rememberGridRowWrapModifier(it) }
+                        ?.let { rememberTvGridFocusModifier(it) }
                         ?: Modifier,
                     uiState = cardUiStateFor(item.aid),
                     data = remember(item, isRefreshPlaceholder) {

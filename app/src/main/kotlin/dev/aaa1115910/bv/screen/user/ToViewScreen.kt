@@ -72,7 +72,7 @@ import dev.aaa1115910.bv.component.MainTopTabSeparator
 import dev.aaa1115910.bv.component.RadioMenuSelectDialog
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
-import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
+import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
@@ -387,8 +387,8 @@ fun ToViewScreen(
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
-            horizontalWrapItemCount = visibleItems.size,
-            horizontalWrapColumnCount = 4,
+            focusItemCount = visibleItems.size,
+            focusColumnCount = 4,
             entryFocusRequester = toViewContentEntryFocusRequester,
             upFocusRequester = toViewTabFocusRequester,
             onEntryFocusReady = onContentEntryReady
@@ -401,7 +401,7 @@ fun ToViewScreen(
                 ) { index, item ->
                     Box(contentAlignment = Alignment.Center) {
                         SmallVideoCard(
-                            frameModifier = rememberGridRowWrapModifier(index),
+                            frameModifier = rememberTvGridFocusModifier(index),
                             uiState = cardUiStateFor(item.avid),
                             data = item,
                             pendingRemoval = pendingRemovalAid == item.avid,

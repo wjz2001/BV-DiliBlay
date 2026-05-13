@@ -59,7 +59,7 @@ import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
-import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
+import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.theme.C
@@ -303,7 +303,7 @@ fun UpSpaceScreen(
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
-            horizontalWrapItemCount = visibleVideos.size,
+            focusItemCount = visibleVideos.size,
             entryFocusRequester = firstItemFocusRequester,
             upFocusRequester = searchFocusRequester,
             onNavigateUp = { mid, name ->
@@ -332,7 +332,7 @@ fun UpSpaceScreen(
                         },
                     ) {
                         SmallVideoCard(
-                            frameModifier = rememberGridRowWrapModifier(index),
+                            frameModifier = rememberTvGridFocusModifier(index),
                             uiState = cardUiStateFor(video.avid),
                             data = video,
                             onClick = {

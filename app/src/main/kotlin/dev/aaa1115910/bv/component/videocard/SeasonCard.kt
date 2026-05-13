@@ -170,7 +170,7 @@ private fun SeasonCardPreview() {
     BVTheme(themeMode = ThemeMode.DARK) {
         SmallVideoCardGridHost(
             columns = GridCells.Fixed(6),
-            horizontalWrapColumnCount = 6
+            focusColumnCount = 6
         ) { cardUiStateFor ->
             repeat(6) {
                 item {
@@ -194,7 +194,7 @@ private fun SeasonCardLightPreview() {
     BVTheme(themeMode = ThemeMode.LIGHT) {
         SmallVideoCardGridHost(
             columns = GridCells.Fixed(6),
-            horizontalWrapColumnCount = 6
+            focusColumnCount = 6
         ) { cardUiStateFor ->
             repeat(6) {
                 item {

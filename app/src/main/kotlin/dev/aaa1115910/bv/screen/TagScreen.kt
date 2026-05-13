@@ -37,7 +37,7 @@ import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
-import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
+import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.theme.C
@@ -140,7 +140,7 @@ fun TagScreen(
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
-            horizontalWrapItemCount = uiState.value.videoList.size
+            focusItemCount = uiState.value.videoList.size
         ) { cardUiStateFor ->
             itemsIndexed(
                 items = uiState.value.videoList,
@@ -150,7 +150,7 @@ fun TagScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     SmallVideoCard(
-                        frameModifier = rememberGridRowWrapModifier(index),
+                        frameModifier = rememberTvGridFocusModifier(index),
                         uiState = cardUiStateFor(video.aid),
                         data = VideoCardData(
                             avid = video.aid,

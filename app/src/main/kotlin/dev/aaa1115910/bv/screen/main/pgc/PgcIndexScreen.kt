@@ -41,13 +41,12 @@ import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.pgc.IndexFilter
 import dev.aaa1115910.bv.component.videocard.SeasonCard
-import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
+import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.getDisplayName
 import dev.aaa1115910.bv.viewmodel.index.PgcIndexViewModel
-import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
 import dev.aaa1115910.bv.ui.theme.C
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.androidx.compose.koinViewModel
@@ -135,15 +134,15 @@ fun PgcIndexScreen(
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
-            horizontalWrapItemCount = pgcItems.size,
-            horizontalWrapColumnCount = 6
+            focusItemCount = pgcItems.size,
+            focusColumnCount = 6
         ) { cardUiStateFor ->
             itemsIndexed(
                 items = pgcItems,
                 key = { _, pgcItem -> pgcItem.seasonId }
             ) { index, pgcItem ->
                 SeasonCard(
-                    modifier = rememberGridRowWrapModifier(index),
+                    modifier = rememberTvGridFocusModifier(index),
                     data = SeasonCardData.fromPgcItem(pgcItem),
                     onFocus = {
                         currentSeasonIndex = index

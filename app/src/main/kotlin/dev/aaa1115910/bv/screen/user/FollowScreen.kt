@@ -40,8 +40,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
@@ -52,7 +50,6 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
@@ -83,7 +80,8 @@ import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.MainChromeDefaults
 import dev.aaa1115910.bv.component.MainTopBarContainer
 import dev.aaa1115910.bv.component.MainTopTabSeparator
-import dev.aaa1115910.bv.component.TvLazyVerticalGrid
+import dev.aaa1115910.bv.component.TvGridFocusHost
+import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
 import dev.aaa1115910.bv.tv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.theme.C
@@ -101,13 +99,6 @@ private class GroupQueryState {
     var debouncedQuery by mutableStateOf("")
     var debounceJob: Job? = null
 }
-
-private data class GridFocusLink(
-    val leftIndex: Int,
-    val rightIndex: Int,
-    val upIndex: Int,
-    val downIndex: Int
-)
 
 @Composable
 fun FollowScreen(
@@ -244,28 +235,6 @@ fun FollowScreen(
             }
         }
     }
-    val userRequesters = remember { mutableMapOf<String, FocusRequester>() }
-    visibleUsers.forEach { user ->
-        androidx.compose.runtime.key(user.stableKey) {
-            val requester = remember { FocusRequester() }
-            userRequesters[user.stableKey] = requester
-        }
-    }
-    val contentFocusLinks = remember(visibleUsers) {
-        buildGridFocusLinks(
-            itemCount = visibleUsers.size,
-            columns = 4
-        )
-    }
-
-    fun contentRequesterForIndex(index: Int): FocusRequester {
-        return if (index == 0) {
-            followContentEntryFocusRequester
-        } else {
-            userRequesters.getValue(visibleUsers[index].stableKey)
-        }
-    }
-
     LaunchedEffect(lifecycleOwner, active) {
         if (!active) return@LaunchedEffect
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -471,7 +440,7 @@ fun FollowScreen(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                TvLazyVerticalGrid(
+                TvGridFocusHost(
                     modifier = Modifier
                         .fillMaxSize()
                         .focusRestorer(followContentEntryFocusRequester)
@@ -487,7 +456,16 @@ fun FollowScreen(
                     columns = GridCells.Fixed(4),
                     contentPadding = PaddingValues(24.dp),
                     verticalArrangement = Arrangement.spacedBy(24.dp),
-                    horizontalArrangement = Arrangement.spacedBy(24.dp)
+                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    entryFocusRequester = followContentEntryFocusRequester,
+                    upFocusRequester = followTabFocusRequester,
+                    onEntryFocusReady = {
+                        if (active && currentGroupId != null) {
+                            contentReadyGroupId = currentGroupId
+                        }
+                    },
+                    focusItemCount = visibleUsers.size,
+                    focusColumnCount = 4
                 ) {
                     if (visibleUsers.isEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
@@ -507,31 +485,8 @@ fun FollowScreen(
                             items = visibleUsers,
                             key = { _, user -> user.stableKey }
                         ) { index, user ->
-                            val focusLink = contentFocusLinks[index]
                             UpCard(
-                                modifier = Modifier
-                                    .focusRequester(contentRequesterForIndex(index))
-                                    .then(
-                                        if (index == 0) {
-                                            Modifier.onGloballyPositioned {
-                                                if (active && currentGroupId != null) {
-                                                    contentReadyGroupId = currentGroupId
-                                                }
-                                            }
-                                        } else {
-                                            Modifier
-                                        }
-                                    )
-                                    .focusProperties {
-                                        left = contentRequesterForIndex(focusLink.leftIndex)
-                                        right = contentRequesterForIndex(focusLink.rightIndex)
-                                        up = if (index < 4) {
-                                            followTabFocusRequester
-                                        } else {
-                                            contentRequesterForIndex(focusLink.upIndex)
-                                        }
-                                        down = contentRequesterForIndex(focusLink.downIndex)
-                                    },
+                                modifier = rememberTvGridFocusModifier(index),
                                 face = user.avatar,
                                 sign = if (user.isSelfEntry && user.sign.isBlank()) {
                                     "我的主页"
@@ -626,51 +581,6 @@ fun FollowScreen(
                 properties = DialogProperties(usePlatformDefaultWidth = false)
             )
         }
-    }
-}
-
-private fun buildGridFocusLinks(
-    itemCount: Int,
-    columns: Int
-): List<GridFocusLink> {
-    if (itemCount <= 0 || columns <= 0) return emptyList()
-
-    val rowCount = ((itemCount - 1) / columns) + 1
-
-    fun rowStart(index: Int): Int = (index / columns) * columns
-    fun rowEnd(index: Int): Int = minOf(rowStart(index) + columns - 1, itemCount - 1)
-    fun column(index: Int): Int = index % columns
-    fun row(index: Int): Int = index / columns
-
-    fun findUp(index: Int): Int {
-        val col = column(index)
-        for (step in 1..rowCount) {
-            val candidateRow = (row(index) - step + rowCount) % rowCount
-            val candidate = candidateRow * columns + col
-            if (candidate < itemCount) return candidate
-        }
-        return index
-    }
-
-    fun findDown(index: Int): Int {
-        val col = column(index)
-        for (step in 1..rowCount) {
-            val candidateRow = (row(index) + step) % rowCount
-            val candidate = candidateRow * columns + col
-            if (candidate < itemCount) return candidate
-        }
-        return index
-    }
-
-    return List(itemCount) { index ->
-        val currentRowStart = rowStart(index)
-        val currentRowEnd = rowEnd(index)
-        GridFocusLink(
-            leftIndex = if (index == currentRowStart) currentRowEnd else index - 1,
-            rightIndex = if (index == currentRowEnd) currentRowStart else index + 1,
-            upIndex = findUp(index),
-            downIndex = findDown(index)
-        )
     }
 }
 

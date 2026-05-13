@@ -21,7 +21,7 @@ import dev.aaa1115910.biliapi.entity.cheese.PurchasedCourse
 import dev.aaa1115910.bv.activities.video.CheeseSeasonActivity
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
-import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
+import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.viewmodel.user.MyClassroomViewModel
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -68,8 +68,8 @@ fun MyClassroomScreen(
         contentPadding = PaddingValues(24.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
         horizontalArrangement = Arrangement.spacedBy(24.dp),
-        horizontalWrapItemCount = courses.size,
-        horizontalWrapColumnCount = 4,
+        focusItemCount = courses.size,
+        focusColumnCount = 4,
         entryFocusRequester = contentEntryFocusRequester,
         upFocusRequester = tabFocusRequester,
         onEntryFocusReady = onContentEntryReady
@@ -77,7 +77,7 @@ fun MyClassroomScreen(
         if (courses.isNotEmpty()) {
             itemsIndexed(courses, key = { _, course -> course.seasonId }) { index, course ->
                 SmallVideoCard(
-                    frameModifier = rememberGridRowWrapModifier(index),
+                    frameModifier = rememberTvGridFocusModifier(index),
                     uiState = cardUiStateFor(-course.seasonId),
                     data = course.toVideoCardData(),
                     titleMaxLines = 3,

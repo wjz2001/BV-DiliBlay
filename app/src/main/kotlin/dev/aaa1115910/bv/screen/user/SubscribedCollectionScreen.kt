@@ -78,7 +78,7 @@ import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.component.mainTopTabColors
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
-import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
+import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.state.GridViewportState
 import dev.aaa1115910.bv.tv.component.TvAlertDialog
@@ -680,8 +680,8 @@ fun SubscribedCollectionScreen(
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
-            horizontalWrapItemCount = visibleFavorites.size,
-            horizontalWrapColumnCount = 4,
+            focusItemCount = visibleFavorites.size,
+            focusColumnCount = 4,
             entryFocusRequester = favoriteContentEntryFocusRequester,
             upFocusRequester = favoriteTabFocusRequester,
             onEntryFocusReady = onContentEntryReady
@@ -693,7 +693,7 @@ fun SubscribedCollectionScreen(
                 ) { index, favorite ->
                     Box(contentAlignment = Alignment.Center) {
                         SmallVideoCard(
-                            frameModifier = rememberGridRowWrapModifier(index),
+                            frameModifier = rememberTvGridFocusModifier(index),
                             uiState = cardUiStateFor(favorite.avid),
                             data = favorite,
                             onClick = {

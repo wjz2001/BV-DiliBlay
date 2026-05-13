@@ -42,7 +42,7 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SeasonCard
-import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
+import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.util.ImageSize
@@ -146,8 +146,8 @@ fun FollowingSeasonScreen(
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
-            horizontalWrapItemCount = followingSeasons.size,
-            horizontalWrapColumnCount = 6,
+            focusItemCount = followingSeasons.size,
+            focusColumnCount = 6,
             entryFocusRequester = contentEntryFocusRequester,
             upFocusRequester = tabFocusRequester,
             onEntryFocusReady = onContentEntryReady
@@ -158,7 +158,7 @@ fun FollowingSeasonScreen(
                     key = { _, followingSeason -> followingSeason.seasonId }
                 ) { index, followingSeason ->
                     SeasonCard(
-                        modifier = rememberGridRowWrapModifier(index),
+                        modifier = rememberTvGridFocusModifier(index),
                         data = SeasonCardData(
                             seasonId = followingSeason.seasonId,
                             title = followingSeason.title,

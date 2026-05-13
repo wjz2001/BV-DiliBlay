@@ -2901,7 +2901,7 @@ fun <T> PagedVideoInfinityListDialog(
                         contentPadding = contentPadding,
                         verticalArrangement = Arrangement.spacedBy(verticalSpacing.dp),
                         horizontalArrangement = Arrangement.spacedBy(horizontalSpacing.dp),
-                        horizontalWrapColumnCount = columnCount
+                        focusColumnCount = columnCount
                     ) { cardUiStateFor ->
                         itemsIndexed(
                             items = selectedItems,

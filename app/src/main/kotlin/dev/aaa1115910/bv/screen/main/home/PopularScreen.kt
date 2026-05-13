@@ -32,7 +32,7 @@ import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
-import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
+import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.screen.main.runtime.ContentRuntimeState
 import dev.aaa1115910.bv.ui.effect.UiEffect
@@ -112,7 +112,7 @@ fun PopularScreen(
         contentPadding = PaddingValues(24.dp),
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
-        horizontalWrapItemCount = popularVideoList.size,
+        focusItemCount = popularVideoList.size,
         entryFocusRequester = contentEntryFocusRequester,
         upFocusRequester = tabFocusRequester,
         onEntryFocusReady = onContentEntryReady
@@ -122,7 +122,7 @@ fun PopularScreen(
             key = { _, item -> item.aid }
         ) { index, item ->
             SmallVideoCard(
-                frameModifier = rememberGridRowWrapModifier(index),
+                frameModifier = rememberTvGridFocusModifier(index),
                 uiState = cardUiStateFor(item.aid),
                 data = remember(item) {         // `VideoCardData` 只在 item 变动时重建
                     VideoCardData(

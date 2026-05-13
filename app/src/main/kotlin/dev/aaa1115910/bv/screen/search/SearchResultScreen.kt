@@ -75,7 +75,7 @@ import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SeasonCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
-import dev.aaa1115910.bv.component.videocard.rememberGridRowWrapModifier
+import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
@@ -393,8 +393,8 @@ fun SearchResultScreen(
                         contentReadySearchType = searchResult.type.toTopNavItem()
                         onContentEntryReady()
                     },
-                    horizontalWrapItemCount = currentItems.size,
-                    horizontalWrapColumnCount = rowSize
+                    focusItemCount = currentItems.size,
+                    focusColumnCount = rowSize
                 ) { cardUiStateFor ->
                     itemsIndexed(
                         items = currentItems,
@@ -408,7 +408,7 @@ fun SearchResultScreen(
                         }
                     ) { index, item ->
                         SearchResultListItem(
-                            modifier = rememberGridRowWrapModifier(index),
+                            modifier = rememberTvGridFocusModifier(index),
                             searchResult = item,
                             uiState = (item as? SearchTypeResult.Video)?.let { cardUiStateFor(it.aid) },
                             onClick = { onClickResult(item) },
