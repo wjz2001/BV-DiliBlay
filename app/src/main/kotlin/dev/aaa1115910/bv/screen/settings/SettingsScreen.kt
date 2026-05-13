@@ -15,6 +15,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
@@ -37,13 +39,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
@@ -55,6 +57,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
@@ -77,6 +80,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
+import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemColors
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
@@ -92,16 +96,18 @@ import dev.aaa1115910.bv.activities.settings.LogsActivity
 import dev.aaa1115910.bv.activities.settings.SpeedTestActivity
 import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.component.HomeTopNavRefreshSelectDialog
+import dev.aaa1115910.bv.component.RadioMenuSelectDialog
 import dev.aaa1115910.bv.component.RadioMenuSelectListContent
-import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedItem
-import dev.aaa1115910.bv.component.settings.CookiesDialog
+import dev.aaa1115910.bv.component.SettingsBottomIndicator
 import dev.aaa1115910.bv.component.settings.SettingCycleListItem
+import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
 import dev.aaa1115910.bv.component.settings.SettingsNavigationListItem
 import dev.aaa1115910.bv.component.settings.actionEntry
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoCodec
+import dev.aaa1115910.bv.network.HttpServer
 import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
 import dev.aaa1115910.bv.screen.settings.content.BlockSetting
 import dev.aaa1115910.bv.ui.theme.BVTheme
@@ -113,11 +119,14 @@ import dev.aaa1115910.bv.util.CodecType
 import dev.aaa1115910.bv.util.CodecUtil
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.viewmodel.settings.LogsViewModel
 import dev.aaa1115910.bv.viewmodel.settings.SettingsStorageViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
+import java.net.Inet4Address
+import java.net.NetworkInterface
 import java.text.DecimalFormat
 import kotlin.math.pow
 import androidx.compose.ui.platform.LocalResources
@@ -134,7 +143,6 @@ private enum class SettingsMenuNavItem(private val strRes: Int) {
     UI(R.string.settings_item_ui),
     Other(R.string.settings_item_other),
     Block(R.string.settings_item_block),
-    Storage(R.string.settings_item_storage),
     Network(R.string.settings_item_network),
     Info(R.string.settings_item_info),
     About(R.string.settings_item_about);
@@ -855,7 +863,6 @@ private fun settingsEntries(category: SettingsMenuNavItem): List<SettingsEntry> 
         SettingsMenuNavItem.UI -> uiSettingsEntries()
         SettingsMenuNavItem.Other -> otherSettingsEntries()
         SettingsMenuNavItem.Network -> networkSettingsEntries()
-        SettingsMenuNavItem.Storage -> storageSettingsEntries()
         SettingsMenuNavItem.Info -> infoSettingsEntries()
         SettingsMenuNavItem.About -> aboutSettingsEntries()
         SettingsMenuNavItem.Block -> blockSettingsEntries()
@@ -903,10 +910,11 @@ private fun audioVideoSettingsEntries(): List<SettingsEntry> {
     var selectedResolution by remember { mutableStateOf(Prefs.defaultQuality) }
     var selectedVideoCodec by remember { mutableStateOf(Prefs.defaultVideoCodec) }
     var selectedAudioCodec by remember { mutableStateOf(Prefs.defaultAudio) }
-    var selectedPlaySpeed by remember { mutableStateOf(Prefs.defaultPlaySpeed) }
     var selectedActionAfterPlay by remember { mutableStateOf(Prefs.actionAfterPlay) }
     var enableSoftwareVideoRenderer by remember { mutableStateOf(Prefs.enableSoftwareVideoDecoder) }
     var enableFfmpegAudioRenderer by remember { mutableStateOf(Prefs.enableFfmpegAudioRenderer) }
+    var inIncognitoMode by remember { mutableStateOf(Prefs.incognitoMode) }
+    var showFps by remember { mutableStateOf(Prefs.showFps) }
 
     return listOf(
         radioEntry(
@@ -949,19 +957,6 @@ private fun audioVideoSettingsEntries(): List<SettingsEntry> {
             itemKey = { it.name }
         ),
         radioEntry(
-            id = "default_play_speed",
-            title = "默认播放速度",
-            supportText = "当前：${selectedPlaySpeed.getDisplayName(context)}",
-            items = PlaySpeedItem.entries.toList(),
-            selected = selectedPlaySpeed,
-            onSelected = {
-                selectedPlaySpeed = it
-                Prefs.defaultPlaySpeed = it
-            },
-            text = { it.getDisplayName(context) },
-            itemKey = { it.name }
-        ),
-        radioEntry(
             id = "action_after_play",
             title = "播放结束动作",
             supportText = "当前：${selectedActionAfterPlay.getDisplayName(context)}",
@@ -993,6 +988,30 @@ private fun audioVideoSettingsEntries(): List<SettingsEntry> {
                 enableFfmpegAudioRenderer = it
                 Prefs.enableFfmpegAudioRenderer = it
             }
+        ),
+        switchEntry(
+            id = "incognito_mode",
+            title = stringResource(R.string.user_info_Incognito_mode_title),
+            supportText = if (inIncognitoMode) {
+                stringResource(R.string.user_info_Incognito_mode_on)
+            } else {
+                stringResource(R.string.user_info_Incognito_mode_off)
+            },
+            checked = inIncognitoMode,
+            onCheckedChange = {
+                inIncognitoMode = it
+                Prefs.incognitoMode = it
+            }
+        ),
+        switchEntry(
+            id = "show_fps",
+            title = stringResource(R.string.settings_other_fps_title),
+            supportText = stringResource(R.string.settings_other_fps_text),
+            checked = showFps,
+            onCheckedChange = {
+                showFps = it
+                Prefs.showFps = it
+            }
         )
     )
 }
@@ -1018,7 +1037,7 @@ private fun uiSettingsEntries(): List<SettingsEntry> {
 
     HomeTopNavRefreshSelectDialog(
         show = showHomeAutoRefreshTopNavDialog,
-        title = "切入时自动刷新",
+        title = "主页页面切入自动刷新",
         initialSelectedItems = selectedHomeAutoRefreshTopNavItems,
         onHideDialog = { showHomeAutoRefreshTopNavDialog = false },
         onSubmit = {
@@ -1043,7 +1062,7 @@ private fun uiSettingsEntries(): List<SettingsEntry> {
         ),
         actionEntry(
             id = "home_auto_refresh_top_nav_items",
-            title = "切入时自动刷新",
+            title = "主页页面切入自动刷新",
             supportText = if (selectedHomeAutoRefreshTopNavItems.isEmpty()) {
                 "未启用"
             } else {
@@ -1051,7 +1070,7 @@ private fun uiSettingsEntries(): List<SettingsEntry> {
                     it.getDisplayName(context)
                 }
             },
-            actionText = "选择自动刷新的顶部导航项",
+            actionText = "选择需要自动刷新的顶部导航项",
             onClick = { showHomeAutoRefreshTopNavDialog = true }
         ),
         switchEntry(
@@ -1110,65 +1129,41 @@ private fun uiSettingsEntries(): List<SettingsEntry> {
 @Composable
 private fun otherSettingsEntries(): List<SettingsEntry> {
     val context = LocalContext.current
-    var showCookiesDialog by remember { mutableStateOf(false) }
-    var showFps by remember { mutableStateOf(Prefs.showFps) }
-    var inIncognitoMode by remember { mutableStateOf(Prefs.incognitoMode) }
-    var selectedApi by remember { mutableStateOf(Prefs.apiType) }
+    val logsViewModel: LogsViewModel = koinViewModel()
+    var host by remember { mutableStateOf("x.x.x.x") }
+    var port by remember { mutableIntStateOf(0) }
+    val logServerAddress = "http://$host:$port/"
+    val logServerSupportText = "请输入 $logServerAddress，或扫描右侧二维码进入日志管理界面"
 
-    CookiesDialog(
-        show = showCookiesDialog,
-        onHideDialog = { showCookiesDialog = false }
-    )
+    LaunchedEffect(Unit) {
+        host = resolveWifiIpAddress()
+        port = HttpServer.server?.engine?.resolvedConnectors()?.firstOrNull()?.port ?: 0
+        logsViewModel.waitPortAndGenerateServerQr(host)
+    }
+
+    LaunchedEffect(logsViewModel.resolvedPort) {
+        if (logsViewModel.resolvedPort != 0) {
+            port = logsViewModel.resolvedPort
+            if (host.isBlank() || host == "x.x.x.x") {
+                host = resolveWifiIpAddress()
+            }
+        }
+    }
 
     return listOf(
-        cycleEntry(
-            id = "api_type",
-            title = "接口选择",
-            supportText = "",
-            items = listOf(ApiType.App, ApiType.Web),
-            selected = selectedApi,
-            onSelected = {
-                selectedApi = it
-                Prefs.apiType = it
-            },
-            trailingText = { it.displayName() },
-        ),
-        actionEntry(
-            id = "cookies",
-            title = stringResource(R.string.settings_other_cookies_title),
-            supportText = stringResource(R.string.settings_other_cookies_text),
-            actionText = "打开 Cookies",
-            onClick = { showCookiesDialog = true }
-        ),
-        switchEntry(
-            id = "incognito_mode",
-            title = stringResource(R.string.user_info_Incognito_mode_title),
-            supportText = if (inIncognitoMode) {
-                stringResource(R.string.user_info_Incognito_mode_on)
-            } else {
-                stringResource(R.string.user_info_Incognito_mode_off)
-            },
-            checked = inIncognitoMode,
-            onCheckedChange = {
-                inIncognitoMode = it
-                Prefs.incognitoMode = it
-            }
-        ),
-        switchEntry(
-            id = "show_fps",
-            title = stringResource(R.string.settings_other_fps_title),
-            supportText = stringResource(R.string.settings_other_fps_text),
-            checked = showFps,
-            onCheckedChange = {
-                showFps = it
-                Prefs.showFps = it
-            }
-        ),
-        actionEntry(
+        customEntry(
+            id = "storage_management",
+            title = stringResource(R.string.settings_item_storage),
+            supportText = "清理缓存与日志",
+        ) {
+            StorageManagementDetail(focused = it)
+        },
+        logEntry(
             id = "create_logs",
             title = stringResource(R.string.settings_create_logs_title),
-            supportText = stringResource(R.string.settings_create_logs_text),
+            supportText = logServerSupportText,
             actionText = "打开日志",
+            serverQrImage = logsViewModel.serverQrImage,
             onClick = {
                 context.startActivity(Intent(context, LogsActivity::class.java))
             }
@@ -1310,6 +1305,7 @@ private fun networkSettingsEntries(
     var proxyHttpServer by remember { mutableStateOf(Prefs.proxyHttpServer) }
     var proxyGRPCServer by remember { mutableStateOf(Prefs.proxyGRPCServer) }
     var preferOfficialCdn by remember { mutableStateOf(Prefs.preferOfficialCdn) }
+    var selectedApi by remember { mutableStateOf(Prefs.apiType) }
     var showProxyHttpServerEditDialog by remember { mutableStateOf(false) }
     var showProxyGRPCServerEditDialog by remember { mutableStateOf(false) }
 
@@ -1343,6 +1339,18 @@ private fun networkSettingsEntries(
     )
 
     return listOf(
+        cycleEntry(
+            id = "api_type",
+            title = "接口选择",
+            supportText = "",
+            items = listOf(ApiType.App, ApiType.Web),
+            selected = selectedApi,
+            onSelected = {
+                selectedApi = it
+                Prefs.apiType = it
+            },
+            trailingText = { it.displayName() },
+        ),
         switchEntry(
             id = "enable_proxy",
             title = stringResource(R.string.settings_network_enable_proxy_title),
@@ -1395,22 +1403,23 @@ private fun networkSettingsEntries(
 }
 
 @Composable
-private fun storageSettingsEntries(): List<SettingsEntry> {
+private fun StorageManagementDetail(focused: Boolean) {
     val context = LocalContext.current
     val storageViewModel: SettingsStorageViewModel = koinViewModel()
+    val scope = rememberCoroutineScope()
+    val itemFocusRequester = remember { FocusRequester() }
+    val confirmItems = remember { listOf("是", "否") }
     var showConfirmDialog by remember { mutableStateOf(false) }
     var clearFun: (() -> Unit)? by remember { mutableStateOf(null) }
     var content by remember { mutableStateOf("") }
-    var size by remember { mutableLongStateOf(0L) }
 
     val titleImageCache = stringResource(R.string.settings_storage_image_cache)
     val titleOthersCache = stringResource(R.string.settings_storage_others_cache)
     val titleCrashLogs = stringResource(R.string.settings_storage_crash_logs)
 
-    val showClearDialog: (String, Long, () -> Unit) -> Unit = { title, cacheSize, clear ->
+    val showClearDialog: (String, () -> Unit) -> Unit = { title, clear ->
         clearFun = clear
         content = title
-        size = cacheSize
         showConfirmDialog = true
     }
 
@@ -1418,51 +1427,60 @@ private fun storageSettingsEntries(): List<SettingsEntry> {
         storageViewModel.refresh(context.cacheDir, context.filesDir)
     }
 
-    ConfirmDeleteDialog(
-        show = showConfirmDialog,
-        onHideDialog = { showConfirmDialog = false },
-        content = content,
-        size = size,
-        clearFiles = {
-            clearFun?.invoke()
+    LaunchedEffect(focused) {
+        if (focused) {
+            delay(50L)
+            itemFocusRequester.requestFocus(scope)
         }
+    }
+
+    RadioMenuSelectDialog(
+        visible = showConfirmDialog,
+        onDismissRequest = { showConfirmDialog = false },
+        title = "是否删除$content",
+        items = confirmItems,
+        selected = { it == "否" },
+        onSelect = {
+            if (it == "是") clearFun?.invoke()
+            showConfirmDialog = false
+        },
+        text = { it },
+        itemKey = { it },
+        defaultFocusKey = "否"
     )
 
-    return listOf(
-        actionEntry(
-            id = "image_cache",
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        SettingListItem(
+            modifier = Modifier.focusRequester(itemFocusRequester),
             title = titleImageCache,
             supportText = cacheSizeText(storageViewModel.loading, storageViewModel.imageCacheSize),
-            actionText = "清除",
             onClick = {
-                showClearDialog(titleImageCache, storageViewModel.imageCacheSize) {
+                showClearDialog(titleImageCache) {
                     storageViewModel.clearImageCaches(context.cacheDir, context.filesDir)
                 }
             }
-        ),
-        actionEntry(
-            id = "others_cache",
+        )
+        SettingListItem(
             title = titleOthersCache,
             supportText = cacheSizeText(storageViewModel.loading, storageViewModel.updateCacheSize),
-            actionText = "清除",
             onClick = {
-                showClearDialog(titleOthersCache, storageViewModel.updateCacheSize) {
+                showClearDialog(titleOthersCache) {
                     storageViewModel.clearOthersCaches(context.cacheDir, context.filesDir)
                 }
             }
-        ),
-        actionEntry(
-            id = "crash_logs",
+        )
+        SettingListItem(
             title = titleCrashLogs,
             supportText = cacheSizeText(storageViewModel.loading, storageViewModel.crashLogsSize),
-            actionText = "清除",
             onClick = {
-                showClearDialog(titleCrashLogs, storageViewModel.crashLogsSize) {
+                showClearDialog(titleCrashLogs) {
                     storageViewModel.clearCrashLogs(context.cacheDir, context.filesDir)
                 }
             }
         )
-    )
+    }
 }
 
 @Composable
@@ -1533,7 +1551,7 @@ private fun blockSettingsEntries(): List<SettingsEntry> {
     return listOf(
         customEntry(
             id = "block_settings",
-            title = stringResource(R.string.settings_item_block),
+            title = "黑名单",
             supportText = "屏蔽分组、页面与更新",
         ) {
             BlockSetting(
@@ -1543,6 +1561,67 @@ private fun blockSettingsEntries(): List<SettingsEntry> {
         }
     )
 }
+
+private fun logEntry(
+    id: String,
+    title: String,
+    supportText: String,
+    actionText: String,
+    serverQrImage: ImageBitmap?,
+    onClick: () -> Unit
+) = SettingsEntry(
+    id = id,
+    title = title,
+    supportText = supportText,
+    autoScrollableDetail = false,
+    detailContent = { focused ->
+        Column(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            ListItem(
+                modifier = SettingsBottomIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    animatedSelected = focused,
+                    fixedSelected = false,
+                    color = C.primary
+                ),
+                headlineContent = { Text(text = actionText) },
+                supportingContent = { Text(text = supportText) },
+                onClick = onClick,
+                selected = focused,
+                colors = settingsTransparentListItemColors()
+            )
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                val qrSize = if (maxWidth < maxHeight) maxWidth else maxHeight
+                Box(
+                    modifier = Modifier
+                        .size(qrSize)
+                        .clip(MaterialTheme.shapes.large)
+                        .background(C.surface),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (serverQrImage != null) {
+                        Image(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(20.dp),
+                            bitmap = serverQrImage,
+                            contentDescription = null
+                        )
+                    } else {
+                        Text(text = "正在获取端口……")
+                    }
+                }
+            }
+        }
+    }
+)
 
 private fun <T> radioEntry(
     id: String,
@@ -1761,38 +1840,6 @@ private fun ProxyServerEditDialog(
 }
 
 @Composable
-private fun ConfirmDeleteDialog(
-    modifier: Modifier = Modifier,
-    show: Boolean,
-    onHideDialog: () -> Unit,
-    content: String,
-    size: Long,
-    clearFiles: () -> Unit
-) {
-    if (show) {
-        AlertDialog(
-            modifier = modifier,
-            onDismissRequest = onHideDialog,
-            title = { Text(text = "清除$content") },
-            text = { Text(text = "${size / 1024 / 1024} MB") },
-            confirmButton = {
-                Button(onClick = {
-                    clearFiles()
-                    onHideDialog()
-                }) {
-                    Text(text = "确定")
-                }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = onHideDialog) {
-                    Text(text = "取消")
-                }
-            }
-        )
-    }
-}
-
-@Composable
 private fun cacheSizeText(loading: Boolean, size: Long): String {
     return if (loading) {
         stringResource(R.string.settings_storage_calculating)
@@ -1806,6 +1853,23 @@ private fun ApiType.displayName(): String {
         ApiType.App -> "App 接口"
         ApiType.Web -> "Web 接口"
     }
+}
+
+private fun resolveWifiIpAddress(): String {
+    return runCatching {
+        val interfaces = NetworkInterface.getNetworkInterfaces()
+        for (intf in interfaces) {
+            if (intf.name.equals("wlan0", ignoreCase = true)) {
+                val addresses = intf.inetAddresses
+                for (addr in addresses) {
+                    if (!addr.isLoopbackAddress && addr is Inet4Address) {
+                        return@runCatching addr.hostAddress ?: ""
+                    }
+                }
+            }
+        }
+        ""
+    }.getOrDefault("")
 }
 
 @Composable
