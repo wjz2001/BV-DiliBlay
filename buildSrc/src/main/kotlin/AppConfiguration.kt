@@ -37,8 +37,8 @@ object AppConfiguration {
             now.atZone(BEIJING_ZONE)
         )
 
-        // 按北京时间取分钟，并按 6 分钟一档分桶：0..9
-        val minuteBucket = now.atZone(BEIJING_ZONE).minute / 6
+        // 按北京时间取分钟，并按 90 分钟一档分桶：0..9
+        val minuteBucket = now.atZone(BEIJING_ZONE).minute / 90
 
         val candidate = baseCode + hours * 10 + minuteBucket
         if (candidate > 2_100_000_000L) error("versionCode overflow: $candidate")
@@ -75,16 +75,8 @@ object AppConfiguration {
     fun buildVersionName(vc: Int): String {
         val dt = ZonedDateTime.now(ZoneId.of("Asia/Shanghai"))
         val datePart = dt.format(DateTimeFormatter.ofPattern("yy.MM.dd")) // 例如 26.04.13
-        val gitHash = "git rev-parse --short HEAD".exec().trim()
+        val minsdk = "Android 6.0"
 
-        return "v$datePart${hotfixSuffix()}.r$vc.$gitHash"
+        return "v$datePart${hotfixSuffix()}.r$vc.$minsdk"
     }
-}
-
-fun String.exec(): String {
-    val parts = this.trim().split(Regex("\\s+"))
-    val process = ProcessBuilder(parts)
-        .redirectErrorStream(true)
-        .start()
-    return process.inputStream.bufferedReader().readText().trim()
 }
