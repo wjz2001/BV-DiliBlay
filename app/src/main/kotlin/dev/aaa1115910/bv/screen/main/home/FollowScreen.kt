@@ -1,4 +1,4 @@
-package dev.aaa1115910.bv.screen.user
+package dev.aaa1115910.bv.screen.main.home
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -40,7 +40,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -77,8 +76,8 @@ import dev.aaa1115910.bv.component.BvTabLabel
 import dev.aaa1115910.bv.component.BvUnderlineTabRow
 import dev.aaa1115910.bv.component.FollowGroupSelectDialog
 import dev.aaa1115910.bv.component.LoadingTip
-import dev.aaa1115910.bv.component.MainChromeDefaults
 import dev.aaa1115910.bv.component.MainTopBarContainer
+import dev.aaa1115910.bv.component.MainTopTabDefaults
 import dev.aaa1115910.bv.component.MainTopTabSeparator
 import dev.aaa1115910.bv.component.TvGridFocusHost
 import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
@@ -343,77 +342,72 @@ fun FollowScreen(
             }
 
             else -> {
-                MainTopBarContainer(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Box(
+                MainTopBarContainer {
+                    BvUnderlineTabRow(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(
-                                horizontal = 12.dp,
-                                vertical = MainChromeDefaults.TopNavVerticalPadding
-                            )
-                    ) {
-                        BvUnderlineTabRow(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(end = 88.dp)
-                                .onFocusChanged { state ->
-                                    focusOnTabs = state.hasFocus
-                                    if (!state.hasFocus) {
-                                        followViewModel.syncGroupActivationToCurrent()
-                                    }
-                                },
-                            items = groupList,
-                            selectedItem = groupList.firstOrNull { it.groupId == displayFocusedGroupId },
-                            entryFocusItem = groupList.firstOrNull { it.groupId == requestedGroupFocusId },
-                            itemKey = { it.groupId },
-                            defaultFocusRequester = followTabFocusRequester,
-                            onDefaultFocusReady = { readyKey ->
-                                val readyGroupId = readyKey as? Int
-                                if (readyGroupId != null && topNavReadyGroupId != readyGroupId) {
-                                    topNavReadyGroupId = readyGroupId
+                            .padding(horizontal = MainTopTabDefaults.TabRowHorizontalPadding)
+                            .onFocusChanged { state ->
+                                focusOnTabs = state.hasFocus
+                                if (!state.hasFocus) {
+                                    followViewModel.syncGroupActivationToCurrent()
                                 }
                             },
-                            separator = { MainTopTabSeparator() },
-                            onSelectedChanged = { group ->
-                                if (followViewModel.focusedGroupId != group.groupId) {
-                                    followViewModel.onGroupFocused(group.groupId)
-                                }
-                            },
-                            onClick = { group ->
+                        items = groupList,
+                        selectedItem = groupList.firstOrNull { it.groupId == displayFocusedGroupId },
+                        entryFocusItem = groupList.firstOrNull { it.groupId == requestedGroupFocusId },
+                        itemKey = { it.groupId },
+                        defaultFocusRequester = followTabFocusRequester,
+                        onDefaultFocusReady = { readyKey ->
+                            val readyGroupId = readyKey as? Int
+                            if (readyGroupId != null && topNavReadyGroupId != readyGroupId) {
+                                topNavReadyGroupId = readyGroupId
+                            }
+                        },
+                        separator = { MainTopTabSeparator() },
+                        onSelectedChanged = { group ->
+                            if (followViewModel.focusedGroupId != group.groupId) {
+                                followViewModel.onGroupFocused(group.groupId)
+                            }
+                        },
+                        onClick = { group ->
+                            followViewModel.onGroupClicked(group.groupId)
+                        },
+                        onLongClick = { group ->
+                            followViewModel.onGroupClicked(group.groupId)
+                            val isSearchingNow =
+                                groupQueryStates[group.groupId]?.debouncedQuery?.isNotBlank() == true
+                            if (isSearchingNow) {
+                                clearGroupQuery(group.groupId)
+                            } else {
+                                showSearchDialog = true
+                                searchDialogGroupId = group.groupId
+                            }
+                            true
+                        },
+                        onUp = {
+                            onBack()
+                            true
+                        },
+                        contentFocusRequester = followContentEntryFocusRequester,
+                        contentFocusReadyKey = contentReadyGroupId,
+                        onContentFocusRequested = { group ->
+                            if (currentGroupId != group.groupId) {
                                 followViewModel.onGroupClicked(group.groupId)
-                            },
-                            onLongClick = { group ->
-                                followViewModel.onGroupClicked(group.groupId)
-                                val isSearchingNow =
-                                    groupQueryStates[group.groupId]?.debouncedQuery?.isNotBlank() == true
-                                if (isSearchingNow) {
-                                    clearGroupQuery(group.groupId)
-                                } else {
-                                    showSearchDialog = true
-                                    searchDialogGroupId = group.groupId
-                                }
-                                true
-                            },
-                            onUp = {
-                                onBack()
-                                true
-                            },
-                            contentFocusRequester = followContentEntryFocusRequester,
-                            contentFocusReadyKey = contentReadyGroupId,
-                            onContentFocusRequested = { group ->
-                                if (currentGroupId != group.groupId) {
-                                    followViewModel.onGroupClicked(group.groupId)
-                                }
-                            },
-                            blockUp = true,
-                            autoRequestEntryFocus = false,
-                            tabContent = { group, _, _ ->
-                                val groupId = group.groupId
-                                val queryState = groupQueryStates[groupId]
-                                val isSearching = queryState?.debouncedQuery?.isNotBlank() == true
+                            }
+                        },
+                        autoRequestEntryFocus = false,
+                        tabContent = { group, _, _ ->
+                            val groupId = group.groupId
+                            val queryState = groupQueryStates[groupId]
+                            val isSearching = queryState?.debouncedQuery?.isNotBlank() == true
 
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(MainTopTabDefaults.TabContentHeight),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 BvTabLabel(
                                     text = group.title,
                                     icon = { iconSize ->
@@ -426,24 +420,25 @@ fun FollowScreen(
                                     showIcon = isSearching
                                 )
                             }
-                        )
-
-                        Text(
-                            modifier = Modifier
-                                .align(Alignment.CenterEnd)
-                                .padding(start = 12.dp),
-                            text = stringResource(R.string.load_data_count, visibleCount),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                        }
+                    )
                 }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp),
+                    text = stringResource(R.string.load_data_count, visibleCount),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
                 Spacer(modifier = Modifier.height(6.dp))
 
                 TvGridFocusHost(
                     modifier = Modifier
                         .fillMaxSize()
-                        .focusRestorer(followContentEntryFocusRequester)
                         .onPreviewKeyEvent {
                             if (it.key == Key.Back && it.type == KeyEventType.KeyUp) {
                                 followTabFocusRequester.requestFocus(scope)
@@ -460,9 +455,8 @@ fun FollowScreen(
                     entryFocusRequester = followContentEntryFocusRequester,
                     upFocusRequester = followTabFocusRequester,
                     onEntryFocusReady = {
-                        if (active && currentGroupId != null) {
-                            contentReadyGroupId = currentGroupId
-                        }
+                        contentReadyGroupId = currentGroupId
+                        onContentEntryReady()
                     },
                     focusItemCount = visibleUsers.size,
                     focusColumnCount = 4

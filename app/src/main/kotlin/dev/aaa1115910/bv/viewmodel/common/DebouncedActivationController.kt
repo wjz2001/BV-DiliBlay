@@ -11,7 +11,7 @@ import kotlinx.coroutines.launch
 class DebouncedActivationController<T>(
     initial: T,
     private val scope: CoroutineScope,
-    private val debounceMillis: Long = 900L,
+    private val debounceMillis: Long = 700L,
 ) {
     var focused by mutableStateOf(initial)
         private set

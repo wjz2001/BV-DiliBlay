@@ -1,4 +1,4 @@
-package dev.aaa1115910.bv.screen.user
+package dev.aaa1115910.bv.screen.main.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues

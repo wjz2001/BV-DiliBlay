@@ -3,7 +3,7 @@ package dev.aaa1115910.bv.activities.user
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import dev.aaa1115910.bv.activities.setThemedContentWhenStartupReady
-import dev.aaa1115910.bv.screen.user.UserSwitchScreen
+import dev.aaa1115910.bv.screen.main.home.UserSwitchScreen
 
 class UserSwitchActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

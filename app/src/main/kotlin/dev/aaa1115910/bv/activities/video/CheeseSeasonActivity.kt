@@ -5,7 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import dev.aaa1115910.bv.activities.setThemedContentWhenStartupReady
-import dev.aaa1115910.bv.screen.CheeseSeasonScreen
+import dev.aaa1115910.bv.screen.main.home.CheeseSeasonScreen
 import dev.aaa1115910.bv.viewmodel.video.CheeseSeasonViewModel
 import org.koin.androidx.viewmodel.ext.android.viewModel
 

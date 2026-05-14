@@ -1,4 +1,4 @@
-package dev.aaa1115910.bv.screen
+package dev.aaa1115910.bv.screen.main.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -52,6 +52,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -62,6 +63,7 @@ import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.entity.VideoSource
+import dev.aaa1115910.bv.screen.VideoPartButton
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.focusedBorder
@@ -382,7 +384,7 @@ private fun CheeseEpisodeList(
     targetEpisodeIndex: Int,
     hasAutoFocusedEpisode: Boolean,
     onAutoFocusHandled: () -> Unit,
-    horizontalSpacing: androidx.compose.ui.unit.Dp,
+    horizontalSpacing: Dp,
     introFocusEnabled: Boolean,
     expanded: Boolean,
     onEpisodeClick: (CheeseEpisode) -> Unit

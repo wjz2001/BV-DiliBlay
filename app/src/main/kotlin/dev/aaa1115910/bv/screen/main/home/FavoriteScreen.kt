@@ -1,4 +1,4 @@
-package dev.aaa1115910.bv.screen.user
+package dev.aaa1115910.bv.screen.main.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -123,6 +123,7 @@ fun FavoriteScreen(
     var focusOnTabs by remember { mutableStateOf(true) }
     var pendingBackToTabsFocus by remember { mutableStateOf(false) }
     var readyFocusTargetFolderId by remember { mutableStateOf<Long?>(null) }
+    var contentReadyFolderId by remember { mutableStateOf<Long?>(null) }
 
     // 每个收藏夹自己的搜索状态（切换收藏夹不清空；离开本页面才清空）
     val folderQueryStates = remember { mutableStateMapOf<Long, FolderQueryState>() }
@@ -497,12 +498,22 @@ fun FavoriteScreen(
         readyFocusTargetFolderId = null
     }
 
+    LaunchedEffect(currentFolderId, visibleFavorites.size) {
+        contentReadyFolderId = null
+    }
+
     LaunchedEffect(
         pendingBackToTabsFocus,
         readyFocusTargetFolderId,
-        focusTargetFolderId
+        focusTargetFolderId,
+        active
     ) {
+        if (!active) return@LaunchedEffect
         val targetFolderId = focusTargetFolderId ?: return@LaunchedEffect
+
+        if (readyFocusTargetFolderId == targetFolderId) {
+            onContentEntryReady()
+        }
 
         if (
             pendingBackToTabsFocus &&
@@ -604,10 +615,15 @@ fun FavoriteScreen(
                         true
                     },
                     contentFocusRequester = favoriteContentEntryFocusRequester,
+                    contentFocusReadyKey = contentReadyFolderId,
                     onContentFocusRequested = { folderMetadata ->
                         if (activeFolderId != folderMetadata.id) {
                             activateFolderByClick(folderMetadata)
                         }
+                    },
+                    onUp = {
+                        onBack()
+                        true
                     },
                     autoRequestEntryFocus = false,
                     tabContent = { folderMetadata, _, _ ->
@@ -651,7 +667,10 @@ fun FavoriteScreen(
             focusColumnCount = 4,
             entryFocusRequester = favoriteContentEntryFocusRequester,
             upFocusRequester = favoriteTabFocusRequester,
-            onEntryFocusReady = onContentEntryReady
+            onEntryFocusReady = {
+                contentReadyFolderId = currentFolderId
+                onContentEntryReady()
+            }
         ) { cardUiStateFor ->
             if (visibleFavorites.isNotEmpty()) {
                 itemsIndexed(

@@ -1,4 +1,4 @@
-package dev.aaa1115910.bv.screen.user.lock
+package dev.aaa1115910.bv.screen.main.home.lock
 
 import android.app.Activity
 import androidx.activity.compose.BackHandler
@@ -35,7 +35,7 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.entity.db.UserDB
 import dev.aaa1115910.bv.repository.UserRepository
-import dev.aaa1115910.bv.screen.user.UserItem
+import dev.aaa1115910.bv.screen.main.home.UserItem
 import dev.aaa1115910.bv.util.toast
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.launch
@@ -214,7 +214,7 @@ private fun UserLockSettingsContent(
                 contentPadding = PaddingValues(horizontal = 12.dp)
             ) {
                 item {
-                    UserItem(
+                    _root_ide_package_.dev.aaa1115910.bv.screen.main.home.UserItem(
                         avatar = user.avatar,
                         username = user.username
                     )

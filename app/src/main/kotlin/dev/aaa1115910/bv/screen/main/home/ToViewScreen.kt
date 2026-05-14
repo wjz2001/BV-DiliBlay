@@ -1,4 +1,4 @@
-package dev.aaa1115910.bv.screen.user
+package dev.aaa1115910.bv.screen.main.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -118,6 +118,7 @@ fun ToViewScreen(
     var focusOnTabs by remember { mutableStateOf(true) }
     var pendingBackToTabsFocus by remember { mutableStateOf(false) }
     var readyFocusTargetTabIndex by remember { mutableStateOf<Int?>(null) }
+    var contentReadyTabIndex by remember { mutableStateOf<Int?>(null) }
 
     var pendingRemovalAid by remember { mutableStateOf<Long?>(null) }
     var selectedTabIndex by remember { mutableIntStateOf(0) }
@@ -271,9 +272,14 @@ fun ToViewScreen(
 
     LaunchedEffect(selectedTabIndex) {
         readyFocusTargetTabIndex = null
+        contentReadyTabIndex = null
     }
 
-    LaunchedEffect(pendingBackToTabsFocus, readyFocusTargetTabIndex, selectedTabIndex) {
+    LaunchedEffect(pendingBackToTabsFocus, readyFocusTargetTabIndex, selectedTabIndex, active) {
+        if (!active) return@LaunchedEffect
+        if (readyFocusTargetTabIndex == selectedTabIndex) {
+            onContentEntryReady()
+        }
         if (pendingBackToTabsFocus && readyFocusTargetTabIndex == selectedTabIndex) {
             pendingBackToTabsFocus = false
             toViewTabFocusRequester.requestFocus()
@@ -347,10 +353,15 @@ fun ToViewScreen(
                     true
                 },
                 contentFocusRequester = toViewContentEntryFocusRequester,
+                contentFocusReadyKey = contentReadyTabIndex,
                 onContentFocusRequested = { index ->
                     if (selectedTabIndex != index) {
                         selectedTabIndex = index
                     }
+                },
+                onUp = {
+                    onBack()
+                    true
                 },
                 autoRequestEntryFocus = false,
                 tabContent = { index, _, _ ->
@@ -391,7 +402,10 @@ fun ToViewScreen(
             focusColumnCount = 4,
             entryFocusRequester = toViewContentEntryFocusRequester,
             upFocusRequester = toViewTabFocusRequester,
-            onEntryFocusReady = onContentEntryReady
+            onEntryFocusReady = {
+                contentReadyTabIndex = selectedTabIndex
+                onContentEntryReady()
+            }
         ) { cardUiStateFor ->
             if (visibleItems.isNotEmpty()) {
                 itemsIndexed(

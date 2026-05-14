@@ -49,7 +49,7 @@ private class TvGridFocusController(
 
     private fun sameColumnTarget(index: Int, rowOffset: Int): Int? {
         val target = index + columnCount * rowOffset
-        return target.takeIf { it in 0..itemCount }
+        return target.takeIf { it >= 0 && it < itemCount }
     }
 
     private fun moveFocusTo(index: Int) {
@@ -62,7 +62,7 @@ private class TvGridFocusController(
     }
 
     fun Modifier.modifierFor(index: Int): Modifier {
-        if (!enabled || itemCount <= 0 || index !in 0..itemCount) return this
+        if (!enabled || itemCount <= 0 || index < 0 || index >= itemCount) return this
 
         val rowStart = (index / columnCount) * columnCount
         val rowEnd = minOf(rowStart + columnCount - 1, itemCount - 1)

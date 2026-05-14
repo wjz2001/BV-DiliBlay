@@ -1,4 +1,4 @@
-package dev.aaa1115910.bv.screen.user
+package dev.aaa1115910.bv.screen.main.home
 
 import android.app.Activity
 import android.content.Intent
@@ -76,7 +76,7 @@ import dev.aaa1115910.bv.activities.user.UserLockSettingsActivity
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.db.UserDB
 import dev.aaa1115910.bv.repository.UserRepository
-import dev.aaa1115910.bv.screen.user.lock.UnlockSwitchUserContent
+import dev.aaa1115910.bv.screen.main.home.lock.UnlockSwitchUserContent
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.requestFocus
@@ -172,7 +172,7 @@ fun UserSwitchScreen(
                 }
             )
                 if (showUnlock) {
-                    UnlockSwitchUserContent(
+                    _root_ide_package_.dev.aaa1115910.bv.screen.main.home.lock.UnlockSwitchUserContent(
                         modifier = Modifier.focusRequester(unlockFocusRequester),
                         userList = userList,
                         unlockUser = unlockUser!!,

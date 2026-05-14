@@ -5,7 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import dev.aaa1115910.bv.activities.setThemedContentWhenStartupReady
-import dev.aaa1115910.bv.screen.user.lock.UserLockSettingsScreen
+import dev.aaa1115910.bv.screen.main.home.lock.UserLockSettingsScreen
 
 class UserLockSettingsActivity : ComponentActivity() {
 
