@@ -29,7 +29,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -94,7 +93,6 @@ fun HomeContent(
     val firstTab = remember { Prefs.firstHomeTopNavItem }
     val focusedTab = homeContentViewModel.focusedTab
     val activeTab = homeContentViewModel.activeTab
-    var focusOnContent by remember { mutableStateOf(false) }
     val contentEntryFocusRequester = remember { FocusRequester() }
     var contentReadyTab by remember { mutableStateOf<HomeTopNavItem?>(null) }
     var searchPage by rememberSaveable { mutableStateOf(HomeSearchPage.Input) }
@@ -102,7 +100,7 @@ fun HomeContent(
     var searchEnableProxy by rememberSaveable { mutableStateOf(false) }
     var previousActiveTab by remember { mutableStateOf<HomeTopNavItem?>(null) }
 
-    val backToTabRow: () -> Unit = {
+    val backToTopNav: () -> Unit = {
         navFocusRequester.requestFocus()
     }
 
@@ -281,27 +279,15 @@ fun HomeContent(
                     if (shouldRefresh && target != HomeTopNavItem.Search) {
                         homeContentViewModel.requestUserRefresh(target)
                     }
-                }
+                },
+                backFocusEnabled = active
             )
         }
     ) { innerPadding ->
         Box(
             modifier = Modifier
                 .padding(innerPadding)
-                .onFocusChanged { focusOnContent = it.hasFocus }
                 .onPreviewKeyEvent {
-                    if (it.key == Key.Back) {
-                        if (activeTab == HomeTopNavItem.Search &&
-                            searchPage == HomeSearchPage.Result
-                        ) {
-                            return@onPreviewKeyEvent false
-                        }
-                        if (it.type == KeyEventType.KeyUp && focusOnContent) {
-                            backToTabRow()
-                            return@onPreviewKeyEvent true
-                        }
-                    }
-
                     if (it.key == Key.Menu) {
                         if (activeTab == HomeTopNavItem.Search) return@onPreviewKeyEvent false
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
@@ -381,10 +367,10 @@ fun HomeContent(
                             }
 
                             else -> key(tab) {
-                                HomeActiveTabContent(
-                                    tab = tab,
-                                    homeContentViewModel = homeContentViewModel,
-                                    backToTabRow = backToTabRow,
+                                    HomeActiveTabContent(
+                                        tab = tab,
+                                        homeContentViewModel = homeContentViewModel,
+                                        backToTopNav = backToTopNav,
                                     contentEntryFocusRequester = contentEntryFocusRequester,
                                     tabFocusRequester = navFocusRequester,
                                     onContentEntryReady = {
@@ -410,7 +396,7 @@ private fun HomeTabShell() {
 private fun HomeActiveTabContent(
     tab: HomeTopNavItem,
     homeContentViewModel: HomeContentViewModel,
-    backToTabRow: () -> Unit,
+    backToTopNav: () -> Unit,
     contentEntryFocusRequester: FocusRequester,
     tabFocusRequester: FocusRequester,
     onContentEntryReady: () -> Unit,
@@ -488,7 +474,7 @@ private fun HomeActiveTabContent(
                 contentEntryFocusRequester = activeContentEntryFocusRequester,
                 tabFocusRequester = activeTabFocusRequester,
                 onContentEntryReady = onContentEntryReady,
-                onBack = backToTabRow
+                onBack = backToTopNav
             )
         }
         HomeTopNavItem.History -> {
@@ -521,7 +507,7 @@ private fun HomeActiveTabContent(
                 contentEntryFocusRequester = activeContentEntryFocusRequester,
                 tabFocusRequester = activeTabFocusRequester,
                 onContentEntryReady = onContentEntryReady,
-                onBack = backToTabRow
+                onBack = backToTopNav
             )
         }
         HomeTopNavItem.Follow -> {
@@ -535,7 +521,7 @@ private fun HomeActiveTabContent(
                 contentEntryFocusRequester = activeContentEntryFocusRequester,
                 tabFocusRequester = activeTabFocusRequester,
                 onContentEntryReady = onContentEntryReady,
-                onBack = backToTabRow
+                onBack = backToTopNav
             )
         }
         HomeTopNavItem.FollowingSeason -> {
@@ -574,7 +560,7 @@ private fun HomeActiveTabContent(
                 contentEntryFocusRequester = activeContentEntryFocusRequester,
                 tabFocusRequester = activeTabFocusRequester,
                 onContentEntryReady = onContentEntryReady,
-                onBack = backToTabRow
+                onBack = backToTopNav
             )
         }
     }

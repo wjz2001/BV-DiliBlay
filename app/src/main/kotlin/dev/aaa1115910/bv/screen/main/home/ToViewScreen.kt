@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -60,7 +59,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Icon
-import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
@@ -114,9 +112,6 @@ fun ToViewScreen(
     val defaultFocusRequester = remember { FocusRequester() }
     val internalContentEntryFocusRequester = remember { FocusRequester() }
     val toViewTabFocusRequester = contentEntryFocusRequester ?: defaultFocusRequester
-    val toViewContentEntryFocusRequester = internalContentEntryFocusRequester
-    var focusOnTabs by remember { mutableStateOf(true) }
-    var pendingBackToTabsFocus by remember { mutableStateOf(false) }
     var readyFocusTargetTabIndex by remember { mutableStateOf<Int?>(null) }
     var contentReadyTabIndex by remember { mutableStateOf<Int?>(null) }
 
@@ -258,14 +253,8 @@ fun ToViewScreen(
     val tabItems = remember(tabTitles) { tabTitles.indices.toList() }
     val searchFocusedLineColor = C.primary
     val searchUnfocusedLineColor = C.onSurfaceVariant
-    fun requestTabsFocus() {
-        pendingBackToTabsFocus = true
-        toViewTabFocusRequester.requestFocus()
-    }
-
     DisposableEffect(Unit) {
         onDispose {
-            pendingBackToTabsFocus = false
             readyFocusTargetTabIndex = null
         }
     }
@@ -275,14 +264,10 @@ fun ToViewScreen(
         contentReadyTabIndex = null
     }
 
-    LaunchedEffect(pendingBackToTabsFocus, readyFocusTargetTabIndex, selectedTabIndex, active) {
+    LaunchedEffect(readyFocusTargetTabIndex, selectedTabIndex, active) {
         if (!active) return@LaunchedEffect
         if (readyFocusTargetTabIndex == selectedTabIndex) {
             onContentEntryReady()
-        }
-        if (pendingBackToTabsFocus && readyFocusTargetTabIndex == selectedTabIndex) {
-            pendingBackToTabsFocus = false
-            toViewTabFocusRequester.requestFocus()
         }
     }
 
@@ -299,14 +284,6 @@ fun ToViewScreen(
                     return@onPreviewKeyEvent true
                 }
 
-                if (it.key == Key.Back && it.type == KeyEventType.KeyUp) {
-                    if (focusOnTabs) {
-                        onBack()
-                    } else {
-                        requestTabsFocus()
-                    }
-                    return@onPreviewKeyEvent true
-                }
                 false
             }
     ) {
@@ -314,13 +291,7 @@ fun ToViewScreen(
             BvUnderlineTabRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = MainTopTabDefaults.TabRowHorizontalPadding)
-                    .onFocusChanged { state ->
-                        focusOnTabs = state.hasFocus
-                        if (state.hasFocus) {
-                            pendingBackToTabsFocus = false
-                        }
-                    },
+                    .padding(horizontal = MainTopTabDefaults.TabRowHorizontalPadding),
                 items = tabItems,
                 selectedItem = selectedTabIndex,
                 entryFocusItem = selectedTabIndex,
@@ -352,7 +323,7 @@ fun ToViewScreen(
                     }
                     true
                 },
-                contentFocusRequester = toViewContentEntryFocusRequester,
+                contentFocusRequester = internalContentEntryFocusRequester,
                 contentFocusReadyKey = contentReadyTabIndex,
                 onContentFocusRequested = { index ->
                     if (selectedTabIndex != index) {
@@ -363,6 +334,7 @@ fun ToViewScreen(
                     onBack()
                     true
                 },
+                backFocusEnabled = active,
                 autoRequestEntryFocus = false,
                 tabContent = { index, _, _ ->
                     val title = tabTitles[index]
@@ -400,7 +372,7 @@ fun ToViewScreen(
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             focusItemCount = visibleItems.size,
             focusColumnCount = 4,
-            entryFocusRequester = toViewContentEntryFocusRequester,
+            entryFocusRequester = internalContentEntryFocusRequester,
             upFocusRequester = toViewTabFocusRequester,
             onEntryFocusReady = {
                 contentReadyTabIndex = selectedTabIndex

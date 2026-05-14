@@ -311,14 +311,6 @@ fun FollowScreen(
                     closeSearchDialog(apply = true)
                     return@onPreviewKeyEvent true
                 }
-                if (it.key == Key.Back && it.type == KeyEventType.KeyUp) {
-                    if (focusOnTabs) {
-                        onBack()
-                    } else {
-                        followTabFocusRequester.requestFocus(scope)
-                    }
-                    return@onPreviewKeyEvent true
-                }
                 false
             }
     ) {
@@ -389,6 +381,7 @@ fun FollowScreen(
                             onBack()
                             true
                         },
+                        backFocusEnabled = active,
                         contentFocusRequester = followContentEntryFocusRequester,
                         contentFocusReadyKey = contentReadyGroupId,
                         onContentFocusRequested = { group ->
@@ -438,15 +431,7 @@ fun FollowScreen(
 
                 TvGridFocusHost(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .onPreviewKeyEvent {
-                            if (it.key == Key.Back && it.type == KeyEventType.KeyUp) {
-                                followTabFocusRequester.requestFocus(scope)
-                                true
-                            } else {
-                                false
-                            }
-                        },
+                        .fillMaxSize(),
                     state = lazyGridState,
                     columns = GridCells.Fixed(4),
                     contentPadding = PaddingValues(24.dp),

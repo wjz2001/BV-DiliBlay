@@ -16,7 +16,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -66,7 +65,6 @@ fun UgcContent(
     val focusedTab = ugcViewModel.focusedTab
     val activeTab = ugcViewModel.activeTab
     val ugcScaffoldStateMap by ugcViewModel.ugcScaffoldStateMap.collectAsStateWithLifecycle()
-    var focusOnContent by remember { mutableStateOf(false) }
     val contentEntryFocusRequester = remember { FocusRequester() }
     val ugcTopNavItems = UgcTopNavItem.entries
     var topNavReadyTab by remember { mutableStateOf<UgcTopNavItem?>(null) }
@@ -207,20 +205,15 @@ fun UgcContent(
                     if (shouldRefresh) {
                         ugcViewModel.requestUserRefresh(target)
                     }
-                }
+                },
+                backFocusEnabled = active
             )
         }
     ) { innerPadding ->
         Box(
             modifier = Modifier
                 .padding(innerPadding)
-                .onFocusChanged { focusOnContent = it.hasFocus }
                 .onPreviewKeyEvent {
-                    if (it.key == Key.Back && it.type == KeyEventType.KeyUp && focusOnContent) {
-                        navFocusRequester.requestFocus()
-                        return@onPreviewKeyEvent true
-                    }
-
                     if (it.key == Key.Menu) {
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
                         ugcViewModel.requestUserRefresh(activeTab)

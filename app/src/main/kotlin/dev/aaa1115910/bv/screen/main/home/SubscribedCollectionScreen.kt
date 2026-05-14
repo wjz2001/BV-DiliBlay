@@ -118,7 +118,6 @@ fun SubscribedCollectionScreen(
     val favoriteTabFocusRequester = contentEntryFocusRequester ?: defaultFocusRequester
     val favoriteContentEntryFocusRequester = internalContentEntryFocusRequester
     var focusOnTabs by remember { mutableStateOf(true) }
-    var pendingBackToTabsFocus by remember { mutableStateOf(false) }
     var readyFocusTargetFolderId by remember { mutableStateOf<Long?>(null) }
     var contentReadyFolderId by remember { mutableStateOf<Long?>(null) }
 
@@ -288,11 +287,6 @@ fun SubscribedCollectionScreen(
         if (favoriteViewModel.currentFavoriteFolderMetadata?.id != folderId) {
             favoriteViewModel.switchToFolder(folderMetadata)
         }
-    }
-
-    fun requestTabsFocus() {
-        pendingBackToTabsFocus = true
-        favoriteTabFocusRequester.requestFocus(scope)
     }
 
     fun closeSearchDialog(apply: Boolean) {
@@ -500,7 +494,6 @@ fun SubscribedCollectionScreen(
     }
 
     LaunchedEffect(
-        pendingBackToTabsFocus,
         readyFocusTargetFolderId,
         focusTargetFolderId,
         active
@@ -510,14 +503,6 @@ fun SubscribedCollectionScreen(
 
         if (readyFocusTargetFolderId == targetFolderId) {
             onContentEntryReady()
-        }
-
-        if (
-            pendingBackToTabsFocus &&
-            readyFocusTargetFolderId == targetFolderId
-        ) {
-            pendingBackToTabsFocus = false
-            favoriteTabFocusRequester.requestFocus(scope)
         }
     }
 
@@ -542,21 +527,6 @@ fun SubscribedCollectionScreen(
                     closeSearchDialog(apply = true)
                     return@onPreviewKeyEvent true
                 }
-                // 只处理返回键的抬起事件
-                if (it.key == Key.Back && it.type == KeyEventType.KeyUp) {
-                    // 如果焦点当前在 TabRow 上
-                    if (focusOnTabs) {
-                        // 调用父组件传递的 onBack 回调
-                        onBack()
-                    } else {
-                        // 如果焦点在下面的内容（LazyVerticalGrid）里，
-                        // 则将焦点移动到 TabRow
-                        favoriteTabFocusRequester.requestFocus()
-                    }
-                    // 返回 true，表示此事件已处理，系统无需再做默认的返回操作
-                    return@onPreviewKeyEvent true
-                }
-                // 对于其他按键，返回 false
                 false
             },
         horizontalAlignment = Alignment.Start
@@ -570,9 +540,7 @@ fun SubscribedCollectionScreen(
                         .padding(horizontal = MainTopTabDefaults.TabRowHorizontalPadding)
                         .onFocusChanged { state ->
                             focusOnTabs = state.hasFocus
-                            if (state.hasFocus) {
-                                pendingBackToTabsFocus = false
-                            } else {
+                            if (!state.hasFocus) {
                                 favoriteViewModel.syncFolderActivationToCurrent()
                             }
                         },
@@ -622,6 +590,7 @@ fun SubscribedCollectionScreen(
                         onBack()
                         true
                     },
+                    backFocusEnabled = active,
                     autoRequestEntryFocus = false,
                     tabContent = { folderMetadata, _, _ ->
                         val folderId = folderMetadata.id

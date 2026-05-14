@@ -99,7 +99,7 @@ fun PgcScaffold(
 
     LazyColumn(
         modifier = modifier.onPreviewKeyEvent {
-            if ((it.key == Key.Back || it.key == Key.DirectionUp) && it.type == KeyEventType.KeyUp) {
+            if (it.key == Key.DirectionUp && it.type == KeyEventType.KeyUp) {
                 tabFocusRequester?.requestFocus()
                 return@onPreviewKeyEvent tabFocusRequester != null
             }

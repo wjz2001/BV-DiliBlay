@@ -44,6 +44,7 @@ fun TopNav(
     contentFocusReadyKey: Any? = null,
     onLeftBoundaryExit: (() -> Unit)? = null,
     onRightBoundaryExit: (() -> Unit)? = null,
+    backFocusEnabled: Boolean = true,
     onContentFocusRequested: (TopNavItem) -> Unit = {},
     onAutoRefreshRequested: (TopNavItem) -> Unit = {},
     onSelectedChanged: (TopNavItem) -> Unit = {},
@@ -117,6 +118,8 @@ fun TopNav(
                         contentFocusRequester = contentFocusRequester,
                         contentFocusReadyKey = contentFocusReadyKey,
                         onContentFocusRequested = onContentFocusRequested,
+                        backFocusTarget = BvBackFocusTarget.TopNav,
+                        backFocusEnabled = backFocusEnabled,
                         blockUp = true
                     )
                 }

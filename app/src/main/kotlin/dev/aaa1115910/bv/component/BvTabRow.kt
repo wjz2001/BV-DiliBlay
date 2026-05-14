@@ -224,42 +224,42 @@ fun <T> BvTabRow(
         }
     }
 
-    TabRow(
-        modifier = modifier
-            .onFocusChanged { state ->
-                if (backFocusEnabled && backFocusTarget != null) {
-                    backFocusRegistry?.updateFocus(backFocusTarget, state.hasFocus)
+        TabRow(
+            modifier = modifier
+                .onFocusChanged { state ->
+                    if (backFocusEnabled && backFocusTarget != null) {
+                        backFocusRegistry?.updateFocus(backFocusTarget, state.hasFocus)
+                    }
                 }
-            }
-            .focusRestorer(entryFocusRequester)
-            .focusGroup(),
-        selectedTabIndex = selectedTabIndex,
-        separator = separator ?: { Spacer(modifier = Modifier.width(separatorWidth)) },
-        indicator = bvTabIndicator(
-            indicator = indicator,
+                .focusRestorer(entryFocusRequester)
+                .focusGroup(),
             selectedTabIndex = selectedTabIndex,
-            retainIndicatorWhenFocusBelow = retainIndicatorWhenFocusBelow,
-            isFocusBelowTabRow = isFocusBelowTabRow
-        )
-    ) {
-        items.forEachIndexed { index, item ->
-            val key = itemKeys[index]
-            var confirmLongPressTriggered by remember(key) { mutableStateOf(false) }
-            val focused = focusedTabIndex == index
-            val selected = selectedTabIndex == index
-            var tabModifier = Modifier
-                .focusProperties {
-                    if (blockUp) up = FocusRequester.Cancel
-                }
-                .onPreviewKeyEvent { event ->
-                    if (event.type == KeyEventType.KeyDown) {
-                        when (event.key) {
-                            Key.DirectionLeft -> {
-                                if (index == 0 && onLeftExit != null) {
-                                    onLeftExit()
-                                    return@onPreviewKeyEvent true
+            separator = separator ?: { Spacer(modifier = Modifier.width(separatorWidth)) },
+            indicator = bvTabIndicator(
+                indicator = indicator,
+                selectedTabIndex = selectedTabIndex,
+                retainIndicatorWhenFocusBelow = retainIndicatorWhenFocusBelow,
+                isFocusBelowTabRow = isFocusBelowTabRow
+            )
+        ) {
+            items.forEachIndexed { index, item ->
+                val key = itemKeys[index]
+                var confirmLongPressTriggered by remember(key) { mutableStateOf(false) }
+                val focused = focusedTabIndex == index
+                val selected = selectedTabIndex == index
+                var tabModifier = Modifier
+                    .focusProperties {
+                        if (blockUp) up = FocusRequester.Cancel
+                    }
+                    .onPreviewKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown) {
+                            when (event.key) {
+                                Key.DirectionLeft -> {
+                                    if (index == 0 && onLeftExit != null) {
+                                        onLeftExit()
+                                        return@onPreviewKeyEvent true
+                                    }
                                 }
-                            }
 
                             Key.DirectionRight -> {
                                 if (index == items.lastIndex && onRightExit != null) {

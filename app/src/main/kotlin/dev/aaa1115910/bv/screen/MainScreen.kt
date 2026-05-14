@@ -48,6 +48,8 @@ import dev.aaa1115910.bv.activities.settings.SettingsActivity
 import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.activities.user.UserSwitchActivity
 import dev.aaa1115910.bv.component.BlackoutSwitch
+import dev.aaa1115910.bv.component.LocalBvBackFocusRegistry
+import dev.aaa1115910.bv.component.rememberBvBackFocusRegistry
 import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.screen.main.HomeContent
 import dev.aaa1115910.bv.screen.main.LeftNaviContent
@@ -97,6 +99,7 @@ fun MainScreen(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val logger = KotlinLogging.logger("MainScreen")
+    val backFocusRegistry = rememberBvBackFocusRegistry()
     var lastPressBack: Long by remember { mutableLongStateOf(0L) }
 
     val initialDrawerItem = LeftNaviItem.Home
@@ -387,6 +390,8 @@ fun MainScreen(
     BackHandler {
         if (leftNaviExpanded) {
             collapseLeftNavi()
+        } else if (backFocusRegistry.handleBack()) {
+            return@BackHandler
         } else {
             handleBack()
         }
@@ -417,11 +422,12 @@ fun MainScreen(
         )
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
+    CompositionLocalProvider(LocalBvBackFocusRegistry provides backFocusRegistry) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+        ) {
         // ========== 主页内容区域 ==========
         Box(
             modifier = Modifier
@@ -673,6 +679,7 @@ fun MainScreen(
                     confirmButton = {}
                 )
             }
+        }
         }
     }
 }

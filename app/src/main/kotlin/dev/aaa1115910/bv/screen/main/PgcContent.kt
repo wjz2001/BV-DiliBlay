@@ -179,7 +179,8 @@ fun PgcContent(
                     if (shouldReload) {
                         pgcContentViewModel.requestUserRefresh(target)
                     }
-                }
+                },
+                backFocusEnabled = active
             )
         }
     ) { innerPadding ->
