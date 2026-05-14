@@ -66,6 +66,7 @@ import dev.aaa1115910.biliapi.entity.search.Hotword
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.search.SearchKeyword
 import dev.aaa1115910.bv.component.search.SoftKeyboard
+import dev.aaa1115910.bv.component.search.SoftKeyboardType
 import dev.aaa1115910.bv.entity.db.SearchHistoryDB
 import dev.aaa1115910.bv.tv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.theme.BVTheme
@@ -388,6 +389,8 @@ private fun SearchInput(
 
     // 用 TextFieldValue 承载光标位置（selection）
     var fieldValue by remember { mutableStateOf(TextFieldValue(searchKeyword)) }
+    var keyboardType by remember { mutableStateOf(SoftKeyboardType.English) }
+    var symbolKeyboardSourceType by remember { mutableStateOf(SoftKeyboardType.English) }
 
     // 外部（SoftKeyboard）修改了 searchKeyword 时，同步回输入框文本
     // 只在未聚焦时同步，避免覆盖用户在输入框内移动的光标
@@ -397,9 +400,53 @@ private fun SearchInput(
         }
     }
 
+    fun updateFieldValue(value: TextFieldValue) {
+        fieldValue = value
+        onSearchKeywordChange(value.text)
+    }
+
+    fun insertText(text: String) {
+        val cursorPosition = fieldValue.selection.start.coerceIn(0, fieldValue.text.length)
+        val newText = fieldValue.text.substring(0, cursorPosition) +
+                text +
+                fieldValue.text.substring(cursorPosition)
+        updateFieldValue(
+            fieldValue.copy(
+                text = newText,
+                selection = TextRange(cursorPosition + text.length)
+            )
+        )
+    }
+
+    fun deleteBackward() {
+        val cursorPosition = fieldValue.selection.start.coerceIn(0, fieldValue.text.length)
+        if (cursorPosition == 0) return
+
+        val newText = fieldValue.text.removeRange(cursorPosition - 1, cursorPosition)
+        updateFieldValue(
+            fieldValue.copy(
+                text = newText,
+                selection = TextRange(cursorPosition - 1)
+            )
+        )
+    }
+
+    fun moveCursor(offset: Int) {
+        val cursorPosition = fieldValue.selection.start.coerceIn(0, fieldValue.text.length)
+        fieldValue = fieldValue.copy(
+            selection = TextRange((cursorPosition + offset).coerceIn(0, fieldValue.text.length))
+        )
+    }
+
     Box(
         modifier = modifier
-            .width(280.dp)
+            .width(
+                when (keyboardType) {
+                    SoftKeyboardType.English -> 280.dp
+                    SoftKeyboardType.Japanese -> 456.dp
+                    SoftKeyboardType.Symbol -> 412.dp
+                }
+            )
             .fillMaxHeight()
             .focusGroup(),
         contentAlignment = Alignment.TopCenter
@@ -439,16 +486,28 @@ private fun SearchInput(
             )
             SoftKeyboard(
                 firstButtonFocusRequester = firstButtonFocusRequester,
+                keyboardType = keyboardType,
                 showSearchWithProxy = showProxyOptions,
                 enableSearchWithProxy = enableProxy,
-                onClick = { onSearchKeywordChange(searchKeyword + it) },
-                onClear = { onSearchKeywordChange("") },
-                onDelete = {
-                    if (searchKeyword.isNotEmpty()) {
-                        onSearchKeywordChange(searchKeyword.dropLast(1))
+                onClick = { insertText(it) },
+                onClear = { updateFieldValue(TextFieldValue("")) },
+                onDelete = { deleteBackward() },
+                onMoveCursorLeft = { moveCursor(-1) },
+                onMoveCursorRight = { moveCursor(1) },
+                onSearch = { onSearch(fieldValue.text) },
+                onOpenSymbolKeyboard = {
+                    if (keyboardType != SoftKeyboardType.Symbol) {
+                        symbolKeyboardSourceType = keyboardType
+                    }
+                    keyboardType = SoftKeyboardType.Symbol
+                },
+                onKeyboardTypeChange = {
+                    keyboardType = if (keyboardType == SoftKeyboardType.Symbol && it == SoftKeyboardType.English) {
+                        symbolKeyboardSourceType
+                    } else {
+                        it
                     }
                 },
-                onSearch = { onSearch(searchKeyword) },
                 onEnableSearchWithProxyChange = onEnableProxyChange,
                 onFirstButtonPlaced = onDefaultFocusReady
             )
