@@ -260,8 +260,6 @@ fun HomeContent(
                 onTabConfirmLongPress = { nav -> handleTopNavConfirmLongPress(nav as HomeTopNavItem) },
                 contentFocusRequester = contentEntryFocusRequester,
                 contentFocusReadyKey = contentReadyTab,
-                onLeftBoundaryExit = { drawerFocusRequester.requestFocus() },
-                onRightBoundaryExit = { drawerFocusRequester.requestFocus() },
                 onContentFocusRequested = { nav ->
                     val target = nav as HomeTopNavItem
                     if (target != activeTab) {

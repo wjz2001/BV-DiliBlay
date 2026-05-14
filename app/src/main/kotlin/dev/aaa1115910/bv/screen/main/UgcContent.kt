@@ -187,8 +187,6 @@ fun UgcContent(
                 onDefaultFocusReady = handleDefaultFocusReady,
                 contentFocusRequester = contentEntryFocusRequester,
                 contentFocusReadyKey = contentReadyTab,
-                onLeftBoundaryExit = { drawerFocusRequester.requestFocus() },
-                onRightBoundaryExit = { drawerFocusRequester.requestFocus() },
                 onContentFocusRequested = { nav ->
                     val target = nav as UgcTopNavItem
                     if (target != activeTab) {

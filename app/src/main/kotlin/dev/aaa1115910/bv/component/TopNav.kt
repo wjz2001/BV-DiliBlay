@@ -16,7 +16,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.Alignment
@@ -68,7 +74,36 @@ fun TopNav(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                modifier = Modifier.size(MainChromeDefaults.Size),
+                modifier = Modifier
+                    .size(MainChromeDefaults.Size)
+                    .focusProperties {
+                        up = FocusRequester.Cancel
+                        down = FocusRequester.Cancel
+                    }
+                    .onPreviewKeyEvent { event ->
+                        when (event.key) {
+                            Key.DirectionLeft -> {
+                                if (onRightBoundaryExit == null) return@onPreviewKeyEvent false
+                                if (event.type == KeyEventType.KeyDown) {
+                                    onRightBoundaryExit()
+                                }
+                                true
+                            }
+
+                            Key.DirectionRight -> {
+                                if (onLeftBoundaryExit == null) return@onPreviewKeyEvent false
+                                if (event.type == KeyEventType.KeyDown) {
+                                    onLeftBoundaryExit()
+                                }
+                                true
+                            }
+
+                            Key.DirectionUp,
+                            Key.DirectionDown -> true
+
+                            else -> false
+                        }
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 leadingContent()

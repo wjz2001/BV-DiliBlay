@@ -49,8 +49,6 @@ fun LiveContent(
             selectedItem = LiveTopNavItem.Live,
             defaultFocusRequester = navFocusRequester,
             onDefaultFocusReady = { onDefaultFocusReady?.invoke() },
-            onLeftBoundaryExit = { drawerFocusRequester.requestFocus() },
-            onRightBoundaryExit = { drawerFocusRequester.requestFocus() },
             backFocusEnabled = active
         )
     }
