@@ -228,14 +228,12 @@ class VideoPlayerV3ViewModel(
 
     private val ugcPagesPrefetchDelayMs = 800L
     private val ugcPagesPrefetchFailureDelayMs = 3000L
-    private val bufferingShowDelayMs = 150L
     private val bufferingMinShowMs = 400L
 
     private val loadGeneration = AtomicLong(0L)
 
     @Volatile
     private var activeLoadGeneration: Long = 0L
-    private var bufferingShowJob: Job? = null
     private var bufferingHideJob: Job? = null
     @Volatile
     private var isRawBuffering: Boolean = false
@@ -1387,7 +1385,6 @@ class VideoPlayerV3ViewModel(
 
     private fun forceShowBufferingTip() {
         isRawBuffering = true
-        bufferingShowJob?.cancel()
         bufferingHideJob?.cancel()
         bufferingVisibleSinceMs = System.currentTimeMillis()
         setBufferingVisible(true)
@@ -1398,17 +1395,11 @@ class VideoPlayerV3ViewModel(
         if (buffering) {
             bufferingHideJob?.cancel()
             if (_uiState.value.isBuffering) return
-            bufferingShowJob?.cancel()
-            bufferingShowJob = viewModelScope.launch {
-                delay(bufferingShowDelayMs)
-                if (!isRawBuffering) return@launch
-                bufferingVisibleSinceMs = System.currentTimeMillis()
-                setBufferingVisible(true)
-            }
+            bufferingVisibleSinceMs = System.currentTimeMillis()
+            setBufferingVisible(true)
             return
         }
 
-        bufferingShowJob?.cancel()
         if (!_uiState.value.isBuffering) return
 
         bufferingHideJob?.cancel()
@@ -2745,7 +2736,6 @@ class VideoPlayerV3ViewModel(
         backToStartCountdownJob?.cancel()
         previewTipCountdownJob?.cancel()
         ugcPagesPrefetchJob?.cancel()
-        bufferingShowJob?.cancel()
         bufferingHideJob?.cancel()
         detachedWorkScope.cancel()
 

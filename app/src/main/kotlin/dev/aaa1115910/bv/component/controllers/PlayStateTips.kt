@@ -8,8 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -17,7 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
@@ -29,22 +27,13 @@ import dev.aaa1115910.bv.ui.theme.C
 @Composable
 fun PlayStateTips(
     modifier: Modifier = Modifier,
-    isPlaying: Boolean,
     isBuffering: Boolean,
     isError: Boolean,
-    showPauseIcon: Boolean = true,
     errorMessage: String? = null
 ) {
     Box(
         modifier = modifier.fillMaxSize()
     ) {
-        if (showPauseIcon && !isPlaying && !isBuffering && !isError) {
-            PauseIcon(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(24.dp)
-            )
-        }
         if (isBuffering && !isError) {
             BufferingTip(
                 modifier = Modifier
@@ -62,29 +51,6 @@ fun PlayStateTips(
 }
 
 @Composable
-fun PauseIcon(
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier,
-        colors = SurfaceDefaults.colors(
-            containerColor = C.scrim,
-            contentColor = C.onScrim
-        ),
-        shape = MaterialTheme.shapes.medium
-    ) {
-        Icon(
-            modifier = Modifier
-                .padding(12.dp, 4.dp)
-                .size(50.dp),
-            imageVector = Icons.Rounded.Pause,
-            contentDescription = null,
-            tint = C.onScrim
-        )
-    }
-}
-
-@Composable
 fun BufferingTip(
     modifier: Modifier = Modifier,
     speed: String
@@ -95,7 +61,7 @@ fun BufferingTip(
             containerColor = C.scrim,
             contentColor = C.onScrim
         ),
-        shape = MaterialTheme.shapes.medium
+        shape = RectangleShape
     ) {
         Row(
             modifier = Modifier.padding(16.dp, 8.dp),
@@ -110,7 +76,7 @@ fun BufferingTip(
             )
             Text(
                 modifier = Modifier,
-                text = "缓冲中...$speed",
+                text = "缓冲中……$speed",
                 fontSize = 24.sp
             )
         }
@@ -138,19 +104,8 @@ fun PlayErrorTip(
                 text = "播放器正在抽风",
                 style = MaterialTheme.typography.titleLarge
             )
-            Text(text = " _(:з」∠)_")
             Spacer(modifier = Modifier.height(12.dp))
             Text(text = "错误信息：${errorMessage ?: "未知错误"}")
-        }
-    }
-}
-
-@Preview
-@Composable
-private fun PauseIconPreview() {
-    BVTheme {
-        Box(modifier = Modifier.padding(10.dp)) {
-            PauseIcon()
         }
     }
 }

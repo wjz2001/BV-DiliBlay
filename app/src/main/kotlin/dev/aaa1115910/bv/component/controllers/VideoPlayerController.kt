@@ -140,17 +140,12 @@ fun VideoPlayerController(
     var showTimeJumpDialog by remember { mutableStateOf(false) }
     var showCommentsDialog by remember { mutableStateOf(false) }
     var focusInfoButtonsOnShow by remember { mutableStateOf(false) }
-    var showPauseIconByUserConfirm by remember { mutableStateOf(false) }
     val rootFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
         runCatching { rootFocusRequester.requestFocus() }
         delay(100)
         runCatching { rootFocusRequester.requestFocus() }
-    }
-
-    LaunchedEffect(isPlaying) {
-        if (isPlaying) showPauseIconByUserConfirm = false
     }
 
     fun calCoefficient(): Int {
@@ -215,12 +210,10 @@ fun VideoPlayerController(
         seekCountdown?.cancel()
     }
 
-    fun onPlayPause(showPauseIcon: Boolean = true) {
+    fun onPlayPause() {
         if (isPlaying) {
-            showPauseIconByUserConfirm = showPauseIcon
             onPause()
         } else {
-            showPauseIconByUserConfirm = false
             onPlay()
         }
     }
@@ -287,18 +280,16 @@ fun VideoPlayerController(
             }
 
             Key.MediaPlayPause -> {
-                onPlayPause(showPauseIcon = false)
+                onPlayPause()
                 return true
             }
 
             Key.MediaPlay -> {
-                showPauseIconByUserConfirm = false
                 if (!isPlaying) onPlay()
                 return true
             }
 
             Key.MediaPause -> {
-                showPauseIconByUserConfirm = false
                 if (isPlaying) onPause()
                 return true
             }
@@ -335,12 +326,11 @@ fun VideoPlayerController(
                             return true
                         }
                     }
-                    onPlayPause(showPauseIcon = true)
+                    onPlayPause()
                     return true
                 }
 
                 Key.DirectionUp -> {
-                    showPauseIconByUserConfirm = false
                     showUpPanelController = true
                     return true
                 }
@@ -369,7 +359,6 @@ fun VideoPlayerController(
                 }
 
                 Key.MediaRewind, Key.DirectionLeft -> {
-                    showPauseIconByUserConfirm = false
                     if (uiState.showSkipToNextEp) onCancelSkipToNextEp()
                     focusInfoButtonsOnShow = false
                     showInfoSeekController = true
@@ -378,7 +367,6 @@ fun VideoPlayerController(
                 }
 
                 Key.MediaFastForward, Key.DirectionRight -> {
-                    showPauseIconByUserConfirm = false
                     focusInfoButtonsOnShow = false
                     showInfoSeekController = true
                     onDirectionRight()
@@ -448,10 +436,8 @@ fun VideoPlayerController(
             )
 
             PlayStateTips(
-                isPlaying = uiState.playerState == PlayerState.Playing,
                 isBuffering = uiState.isBuffering,
                 isError = uiState.playerState is PlayerState.Error,
-                showPauseIcon = showPauseIconByUserConfirm,
                 errorMessage = (uiState.playerState as? PlayerState.Error)?.message,
             )
 
@@ -490,7 +476,7 @@ fun VideoPlayerController(
                 onDirectionLeft = { onDirectionLeft() },
                 onDirectionRight = { onDirectionRight() },
                 onSeekGoTime = { onSeekGoTime() },
-                onPlayPause = { onPlayPause(showPauseIcon = false) },
+                onPlayPause = { onPlayPause() },
                 onDanmakuSwitchChange = {
                     onDanmakuSettingChange(
                         DanmakuSettingAction.SetDanmakuEnabled(!uiState.danmakuState.danmakuEnabled)
