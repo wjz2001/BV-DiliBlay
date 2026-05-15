@@ -167,7 +167,7 @@ private fun BaseMultiSelectDialog(
                 modifier = Modifier
                     .heightIn(max = 320.dp)
                     .verticalScroll(rememberScrollState())
-                    .padding(vertical = 8.dp),
+                    .padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
