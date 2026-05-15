@@ -211,7 +211,9 @@ data class PlayData(
 
         fun fromPlayUrlData(playUrlData: dev.aaa1115910.biliapi.http.entity.video.PlayUrlData): PlayData {
             val hasDash = playUrlData.dash != null
-            val isPreview = !hasDash && playUrlData.durl.isNotEmpty()
+            val isPreview = playUrlData.isPreview == 1 ||
+                    playUrlData.acceptDescription.any { it.contains("试看") } ||
+                    (!hasDash && playUrlData.durl.isNotEmpty())
 
             val audios = playUrlData.dash?.audio
             val dolbyItem = playUrlData.dash?.dolby?.audio?.firstOrNull()
@@ -283,27 +285,46 @@ data class PlayData(
         }
 
         fun fromPlayUrlData(playUrlData: dev.aaa1115910.biliapi.http.entity.proxy.ProxyWebPlayUrlData): PlayData {
+            val hasDash = playUrlData.dash != null
             val videos = playUrlData.dash?.video ?: emptyList()
             val audios = playUrlData.dash?.audio
             val dolbyItem = playUrlData.dash?.dolby?.audio?.firstOrNull()
             val flacItem = playUrlData.dash?.flac?.audio
-            val codec = playUrlData.supportFormats.associate {
-                it.quality to it.codecs!!
-            }
-            val needPay = playUrlData.isPreview == 1
+            val codec = playUrlData.supportFormats
+                .mapNotNull { it.codecs?.let { c -> it.quality to c } }
+                .toMap()
+            val needPay = playUrlData.isPreview == 1 ||
+                    playUrlData.acceptDescription.any { it.contains("试看") } ||
+                    (!hasDash && playUrlData.durl.isNotEmpty())
 
-            val dashVideos = videos.map {
-                DashVideo(
-                    quality = it.id,
-                    baseUrl = it.baseUrl,
-                    bandwidth = it.bandwidth,
-                    codecId = it.id,
-                    width = it.width,
-                    height = it.height,
-                    frameRate = it.frameRate,
-                    backUrl = it.backupUrl,
-                    codecs = it.codecs
-                )
+            val dashVideos = if (hasDash) {
+                videos.map {
+                    DashVideo(
+                        quality = it.id,
+                        baseUrl = it.baseUrl,
+                        bandwidth = it.bandwidth,
+                        codecId = it.id,
+                        width = it.width,
+                        height = it.height,
+                        frameRate = it.frameRate,
+                        backUrl = it.backupUrl,
+                        codecs = it.codecs
+                    )
+                }
+            } else {
+                playUrlData.durl.map {
+                    DashVideo(
+                        quality = playUrlData.quality,
+                        baseUrl = it.url,
+                        bandwidth = 0,
+                        codecId = playUrlData.videoCodecId,
+                        width = 0,
+                        height = 0,
+                        frameRate = "",
+                        backUrl = it.backupUrl,
+                        codecs = ""
+                    )
+                }
             }
             val dashAudios = audios?.map {
                 DashAudio(
@@ -341,27 +362,46 @@ data class PlayData(
         }
 
         fun fromPlayUrlData(playUrlData: dev.aaa1115910.biliapi.http.entity.proxy.ProxyAppPlayUrlData): PlayData {
+            val hasDash = playUrlData.dash != null
             val videos = playUrlData.dash?.video ?: emptyList()
             val audios = playUrlData.dash?.audio
             val dolbyItem = playUrlData.dash?.dolby?.audio?.firstOrNull()
             val flacItem = playUrlData.dash?.flac?.audio
-            val codec = playUrlData.supportFormats.associate {
-                it.quality to it.codecs!!
-            }
-            val needPay = playUrlData.isPreview == 1
+            val codec = playUrlData.supportFormats
+                .mapNotNull { it.codecs?.let { c -> it.quality to c } }
+                .toMap()
+            val needPay = playUrlData.isPreview == 1 ||
+                    playUrlData.acceptDescription.any { it.contains("试看") } ||
+                    (!hasDash && playUrlData.durl.isNotEmpty())
 
-            val dashVideos = videos.map {
-                DashVideo(
-                    quality = it.id,
-                    baseUrl = it.baseUrl,
-                    bandwidth = it.bandwidth,
-                    codecId = it.id,
-                    width = it.width,
-                    height = it.height,
-                    frameRate = it.frameRate,
-                    backUrl = it.backupUrl,
-                    codecs = it.codecs
-                )
+            val dashVideos = if (hasDash) {
+                videos.map {
+                    DashVideo(
+                        quality = it.id,
+                        baseUrl = it.baseUrl,
+                        bandwidth = it.bandwidth,
+                        codecId = it.id,
+                        width = it.width,
+                        height = it.height,
+                        frameRate = it.frameRate,
+                        backUrl = it.backupUrl,
+                        codecs = it.codecs
+                    )
+                }
+            } else {
+                playUrlData.durl.map {
+                    DashVideo(
+                        quality = playUrlData.quality,
+                        baseUrl = it.url,
+                        bandwidth = 0,
+                        codecId = playUrlData.videoCodecId,
+                        width = 0,
+                        height = 0,
+                        frameRate = "",
+                        backUrl = it.backupUrl,
+                        codecs = ""
+                    )
+                }
             }
             val dashAudios = audios?.map {
                 DashAudio(

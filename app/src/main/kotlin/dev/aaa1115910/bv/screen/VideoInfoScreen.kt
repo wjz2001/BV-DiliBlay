@@ -439,6 +439,7 @@ fun VideoInfoScreen(
                 return
             }
             val snapshot = videoDetailState.metrics?.snapshot
+            val isVipVideo = Prefs.showVipVideoArgueTip && snapshot?.isVipVideo == true
             val isPaidVideo = Prefs.showPaidVideoArgueTip && snapshot?.isPaidVideo == true
             val isVerticalVideo = Prefs.showVerticalVideoArgueTip && snapshot?.isVerticalVideo == true
             val tipText = when {
@@ -446,6 +447,25 @@ fun VideoInfoScreen(
                 isPaidVideo -> "付费视频"
                 isVerticalVideo -> "竖屏视频"
                 else -> null
+            }
+            LaunchedEffect(
+                videoDetailState.aid,
+                snapshot?.isVipVideo,
+                snapshot?.isPaidVideo,
+                snapshot?.isVerticalVideo,
+                Prefs.showVipVideoArgueTip,
+                Prefs.showPaidVideoArgueTip,
+                Prefs.showVerticalVideoArgueTip
+            ) {
+                logger.fInfo {
+                    "VideoInfo argue tip metrics: aid=${videoDetailState.aid}, " +
+                            "vip=${snapshot?.isVipVideo}, paid=${snapshot?.isPaidVideo}, " +
+                            "vertical=${snapshot?.isVerticalVideo}, showVip=$isVipVideo, " +
+                            "showPaid=$isPaidVideo, showVertical=$isVerticalVideo, tip=$tipText, " +
+                            "source=${videoDetailState.metrics?.runtime?.sourceId}, " +
+                            "degraded=${videoDetailState.metrics?.runtime?.degraded}, " +
+                            "failureCode=${videoDetailState.metrics?.runtime?.failureCode}"
+                }
             }
 
             val partEntry = remember { FocusRequester() }

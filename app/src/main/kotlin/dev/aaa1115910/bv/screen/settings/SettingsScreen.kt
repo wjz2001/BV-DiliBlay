@@ -1034,6 +1034,7 @@ private fun uiSettingsEntries(): List<SettingsEntry> {
     var showVideoInfo by remember { mutableStateOf(Prefs.showVideoInfo) }
     var showVerticalVideoArgueTip by remember { mutableStateOf(Prefs.showVerticalVideoArgueTip) }
     var showPaidVideoArgueTip by remember { mutableStateOf(Prefs.showPaidVideoArgueTip) }
+    var showVipVideoArgueTip by remember { mutableStateOf(Prefs.showVipVideoArgueTip) }
     var showPersistentSeek by remember { mutableStateOf(Prefs.showPersistentSeek) }
     var focusAlwaysCenter by remember { mutableStateOf(Prefs.focusAlwaysCenter) }
 
@@ -1103,6 +1104,16 @@ private fun uiSettingsEntries(): List<SettingsEntry> {
             onCheckedChange = {
                 showPaidVideoArgueTip = it
                 Prefs.showPaidVideoArgueTip = it
+            }
+        ),
+        switchEntry(
+            id = "show_vip_video_argue_tip",
+            title = "显示大会员视频提示",
+            supportText = "在视频卡片上显示大会员视频角标",
+            checked = showVipVideoArgueTip,
+            onCheckedChange = {
+                showVipVideoArgueTip = it
+                Prefs.showVipVideoArgueTip = it
             }
         ),
         switchEntry(

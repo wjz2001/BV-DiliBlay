@@ -56,7 +56,7 @@ android {
         }
     }
 
-    namespace = AppConfiguration.APP_ID
+    namespace = AppConfiguration.APPLICATION_ID
     compileSdk = AppConfiguration.COMPILE_SDK
 
     defaultConfig {

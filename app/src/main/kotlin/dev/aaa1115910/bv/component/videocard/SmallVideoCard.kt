@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -27,7 +28,9 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CurrencyYen
 import androidx.compose.material.icons.rounded.Group
+import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
@@ -53,6 +56,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.clipRect
@@ -101,17 +105,20 @@ import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.ThemeMode
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.ImageSize
+import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.resizedImageUrl
 import dev.aaa1115910.bv.util.rememberTvImageRequest
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.viewmodel.SmallVideoCardItemUiState
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlin.Int
 import kotlin.math.min
 
 private val CoverStatIconSize = 24.dp
 private val ActionButtonSize = 60.dp
 private val ActionIconSize = 40.dp
+private val smallVideoCardLogger = KotlinLogging.logger {}
 
 private const val SmallVideoCardAnimationDurationMillis = 180
 
@@ -288,6 +295,31 @@ private fun SmallVideoCardCore(
     val metricsSnapshot = itemUiState.metrics?.snapshot
     val playString = metricsSnapshot?.view.toWanString().ifEmpty { data.playString }
     val danmakuString = metricsSnapshot?.danmaku.toWanString().ifEmpty { data.danmakuString }
+    val showVipBadge = Prefs.showVipVideoArgueTip && metricsSnapshot?.isVipVideo == true
+    val showPaidBadge =
+        Prefs.showPaidVideoArgueTip && !showVipBadge && metricsSnapshot?.isPaidVideo == true
+    val showVerticalBadge =
+        Prefs.showVerticalVideoArgueTip && metricsSnapshot?.isVerticalVideo == true
+
+    LaunchedEffect(
+        data.avid,
+        metricsSnapshot?.isVipVideo,
+        metricsSnapshot?.isPaidVideo,
+        metricsSnapshot?.isVerticalVideo,
+        itemUiState.metrics?.runtime?.degraded,
+        itemUiState.metrics?.runtime?.failureCode
+    ) {
+        smallVideoCardLogger.info {
+            "SmallVideoCard badge metrics: aid=${data.avid}, " +
+                    "vip=${metricsSnapshot?.isVipVideo}, " +
+                    "paid=${metricsSnapshot?.isPaidVideo}, " +
+                    "vertical=${metricsSnapshot?.isVerticalVideo}, " +
+                    "showVip=$showVipBadge, showPaid=$showPaidBadge, showVertical=$showVerticalBadge, " +
+                    "source=${itemUiState.metrics?.runtime?.sourceId}, " +
+                    "degraded=${itemUiState.metrics?.runtime?.degraded}, " +
+                    "failureCode=${itemUiState.metrics?.runtime?.failureCode}"
+        }
+    }
 
     val canGoToUpPage = if (isHostMode) {
         data.upMid != null
@@ -500,7 +532,10 @@ private fun SmallVideoCardCore(
                     interactive = interactive,
                     coverDensityMultiplier = coverDensityMultiplier,
                     coverFontScaleMultiplier = coverFontScaleMultiplier,
-                    isFocused = cardHasFocus
+                    isFocused = cardHasFocus,
+                    showPaidBadge = showPaidBadge,
+                    showVipBadge = showVipBadge,
+                    showVerticalBadge = showVerticalBadge
                 )
             }
         }
@@ -894,7 +929,10 @@ fun CardCover(
     interactive: Boolean,
     coverDensityMultiplier: Float,
     coverFontScaleMultiplier: Float,
-    isFocused: Boolean
+    isFocused: Boolean,
+    showPaidBadge: Boolean = false,
+    showVipBadge: Boolean = false,
+    showVerticalBadge: Boolean = false
 ) {
     val desaturateFilter = remember {
         // 调节饱和度
@@ -956,6 +994,31 @@ fun CardCover(
             colorFilter = if (isFocused) null else desaturateFilter
         )
 
+        val badgeSize = minOf(maxWidth, maxHeight) * 0.22f
+        val badgeIconSize = badgeSize * 0.45f
+
+        if (showVipBadge) {
+            VipVideoBadge(
+                modifier = Modifier.align(Alignment.TopStart),
+                size = badgeSize,
+                iconSize = badgeIconSize
+            )
+        } else if (showPaidBadge) {
+            PaidVideoBadge(
+                modifier = Modifier.align(Alignment.TopStart),
+                size = badgeSize,
+                iconSize = badgeIconSize
+            )
+        }
+
+        if (showVerticalBadge) {
+            VerticalVideoBadge(
+                modifier = Modifier.align(Alignment.TopEnd),
+                size = badgeSize,
+                iconSize = badgeIconSize
+            )
+        }
+
         CoverStatsBar(
             play = play,
             danmaku = danmaku,
@@ -963,6 +1026,124 @@ fun CardCover(
             interactive = interactive,
             coverDensityMultiplier = coverDensityMultiplier,
             coverFontScaleMultiplier = coverFontScaleMultiplier
+        )
+    }
+}
+
+private enum class CoverCornerBadgePosition {
+    TopStart,
+    TopEnd
+}
+
+@Composable
+private fun CoverCornerBadge(
+    modifier: Modifier = Modifier,
+    position: CoverCornerBadgePosition,
+    size: Dp,
+    iconSize: Dp,
+    icon: @Composable (Modifier) -> Unit
+) {
+    val iconOffsetX = when (position) {
+        CoverCornerBadgePosition.TopStart -> size / 3f - iconSize / 2f
+        CoverCornerBadgePosition.TopEnd -> size * 2f / 3f - iconSize / 2f
+    }
+    val iconOffsetY = size / 3f - iconSize / 2f
+    val badgeColor = C.bilibili
+
+    Box(
+        modifier = modifier
+            .size(size)
+            .drawWithCache {
+                val canvasSize = this.size
+                val badgePath = Path().apply {
+                    when (position) {
+                        CoverCornerBadgePosition.TopStart -> {
+                            moveTo(0f, 0f)
+                            lineTo(canvasSize.width, 0f)
+                            lineTo(0f, canvasSize.height)
+                        }
+
+                        CoverCornerBadgePosition.TopEnd -> {
+                            moveTo(canvasSize.width, 0f)
+                            lineTo(0f, 0f)
+                            lineTo(canvasSize.width, canvasSize.height)
+                        }
+                    }
+                    close()
+                }
+
+                onDrawBehind {
+                    drawPath(path = badgePath, color = badgeColor)
+                }
+            }
+    ) {
+        icon(
+            Modifier
+                .offset(x = iconOffsetX, y = iconOffsetY)
+                .size(iconSize)
+        )
+    }
+}
+
+@Composable
+private fun PaidVideoBadge(
+    modifier: Modifier = Modifier,
+    size: Dp,
+    iconSize: Dp
+) {
+    CoverCornerBadge(
+        modifier = modifier,
+        position = CoverCornerBadgePosition.TopStart,
+        size = size,
+        iconSize = iconSize
+    ) { iconModifier ->
+        Icon(
+            modifier = iconModifier,
+            imageVector = Icons.Rounded.CurrencyYen,
+            contentDescription = "Paid video",
+            tint = AppWhite
+        )
+    }
+}
+
+@Composable
+private fun VipVideoBadge(
+    modifier: Modifier = Modifier,
+    size: Dp,
+    iconSize: Dp
+) {
+    CoverCornerBadge(
+        modifier = modifier,
+        position = CoverCornerBadgePosition.TopStart,
+        size = size,
+        iconSize = iconSize
+    ) { iconModifier ->
+        Icon(
+            modifier = iconModifier,
+            painter = painterResource(id = R.drawable.vip),
+            contentDescription = "VIP video",
+            tint = AppWhite
+        )
+    }
+}
+
+@Composable
+private fun VerticalVideoBadge(
+    modifier: Modifier = Modifier,
+    size: Dp,
+    iconSize: Dp
+) {
+    CoverCornerBadge(
+        modifier = modifier,
+        position = CoverCornerBadgePosition.TopEnd,
+        size = size,
+        iconSize = iconSize
+    ) { iconModifier ->
+        Icon(
+            modifier = iconModifier,
+            imageVector = Icons.Rounded.PhoneAndroid,
+            contentDescription = "Vertical video",
+            tint = AppWhite
         )
     }
 }

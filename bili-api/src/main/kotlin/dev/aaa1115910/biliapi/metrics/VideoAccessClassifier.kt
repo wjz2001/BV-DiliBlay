@@ -15,7 +15,8 @@ internal object VideoAccessClassifier {
     data class PlaybackAccessFlags(
         val source: PlaybackAccessSource,
         val isVipVideo: Boolean?,
-        val hasPaid: Boolean?
+        val hasPaid: Boolean?,
+        val isPreview: Boolean?
     )
 
     data class ResolvedAccessFlags(
@@ -38,14 +39,22 @@ internal object VideoAccessClassifier {
         }
     }
 
+    fun inferPreview(playUrlData: PlayUrlData): Boolean {
+        return playUrlData.isPreview == 1 ||
+                playUrlData.acceptDescription.any { it.contains("试看") } ||
+                (playUrlData.dash == null && playUrlData.durl.isNotEmpty())
+    }
+
     fun resolveAccessFlags(
         rawPaidVideo: Boolean?,
         isVipVideo: Boolean?,
-        hasPaid: Boolean? = null
+        hasPaid: Boolean? = null,
+        isPreview: Boolean? = null
     ): ResolvedAccessFlags {
         val resolvedPaidVideo = when {
             isVipVideo == true -> false
             hasPaid == true -> false
+            isPreview == true -> true
             rawPaidVideo == null -> null
             else -> rawPaidVideo
         }

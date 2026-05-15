@@ -525,7 +525,8 @@ class VideoMetricsFacadeImpl(
         val unknownFlags = VideoAccessClassifier.PlaybackAccessFlags(
             source = VideoAccessClassifier.PlaybackAccessSource.UNKNOWN,
             isVipVideo = null,
-            hasPaid = null
+            hasPaid = null,
+            isPreview = null
         )
         val cid = view.cid.takeIf { it > 0L } ?: return unknownFlags
         return runCatching {
@@ -546,7 +547,8 @@ class VideoMetricsFacadeImpl(
                     source = VideoAccessClassifier.PlaybackAccessSource.WEB_PGC,
                     isVipVideo = VideoAccessClassifier.inferVipVideo(videoInfo),
                     hasPaid = videoInfo.hasPaid ||
-                            playUrlV2Data.playViewBusinessInfo.userStatus.payInfo.payPackPaid == 1
+                            playUrlV2Data.playViewBusinessInfo.userStatus.payInfo.payPackPaid == 1,
+                    isPreview = VideoAccessClassifier.inferPreview(videoInfo)
                 )
             } else {
                 val playUrlData = BiliHttpApi.getVideoPlayUrl(
@@ -563,7 +565,8 @@ class VideoMetricsFacadeImpl(
                 VideoAccessClassifier.PlaybackAccessFlags(
                     source = VideoAccessClassifier.PlaybackAccessSource.WEB_UGC,
                     isVipVideo = VideoAccessClassifier.inferVipVideo(playUrlData),
-                    hasPaid = playUrlData.hasPaid
+                    hasPaid = playUrlData.hasPaid,
+                    isPreview = VideoAccessClassifier.inferPreview(playUrlData)
                 )
             }
         }.getOrNull() ?: unknownFlags
@@ -575,7 +578,8 @@ class VideoMetricsFacadeImpl(
         val resolvedFlags = VideoAccessClassifier.resolveAccessFlags(
             rawPaidVideo = stat.isPaidVideo,
             isVipVideo = playbackAccessFlags.isVipVideo,
-            hasPaid = playbackAccessFlags.hasPaid
+            hasPaid = playbackAccessFlags.hasPaid,
+            isPreview = playbackAccessFlags.isPreview
         )
         return copy(
             stat = stat.copy(

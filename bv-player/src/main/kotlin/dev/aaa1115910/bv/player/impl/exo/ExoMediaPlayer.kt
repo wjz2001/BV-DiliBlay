@@ -6,7 +6,6 @@ import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.Effect
 import androidx.media3.common.Format
-import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -386,12 +385,13 @@ open class ExoMediaPlayer(
         when (val source = request.source) {
             is PlaybackSource.Single -> {
                 BvPlayerDiag.i(
-                    event = "setMediaItem",
+                    event = "setMediaSource",
                     player = player,
                     msg = "prepareSerial=$prepareSerial url=${BvPlayerDiag.source(source.url, null)} " +
                             "startPositionMs=${request.startPositionMs}"
                 )
-                player.setMediaItem(MediaItem.fromUri(source.url), request.startPositionMs.coerceAtLeast(0L))
+                val mediaSource = buildMediaSource(source.url, null) ?: return
+                player.setMediaSource(mediaSource, request.startPositionMs.coerceAtLeast(0L))
             }
 
             is PlaybackSource.SeparateVideoAudio -> {

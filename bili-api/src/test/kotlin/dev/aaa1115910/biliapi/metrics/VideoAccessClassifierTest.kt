@@ -3,6 +3,7 @@ package dev.aaa1115910.biliapi.metrics
 import dev.aaa1115910.biliapi.http.entity.video.PlayUrlData
 import dev.aaa1115910.biliapi.http.entity.video.RecordInfo
 import dev.aaa1115910.biliapi.http.entity.video.SupportFormat
+import dev.aaa1115910.biliapi.http.entity.video.Durl
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -62,6 +63,30 @@ class VideoAccessClassifierTest {
                 hasPaid = null
             )
         )
+        assertEquals(
+            VideoAccessClassifier.ResolvedAccessFlags(
+                isVipVideo = false,
+                isPaidVideo = true
+            ),
+            VideoAccessClassifier.resolveAccessFlags(
+                rawPaidVideo = false,
+                isVipVideo = false,
+                hasPaid = false,
+                isPreview = true
+            )
+        )
+        assertEquals(
+            VideoAccessClassifier.ResolvedAccessFlags(
+                isVipVideo = false,
+                isPaidVideo = false
+            ),
+            VideoAccessClassifier.resolveAccessFlags(
+                rawPaidVideo = true,
+                isVipVideo = false,
+                hasPaid = true,
+                isPreview = true
+            )
+        )
     }
 
     @Test
@@ -90,10 +115,45 @@ class VideoAccessClassifierTest {
         assertNull(VideoAccessClassifier.inferVipVideo(playUrlData(supportFormats = emptyList())))
     }
 
+    @Test
+    fun `infer preview uses preview flag description and durl fallback`() {
+        assertEquals(
+            true,
+            VideoAccessClassifier.inferPreview(
+                playUrlData(
+                    supportFormats = emptyList(),
+                    isPreview = 1
+                )
+            )
+        )
+        assertEquals(
+            true,
+            VideoAccessClassifier.inferPreview(
+                playUrlData(
+                    supportFormats = emptyList(),
+                    acceptDescription = listOf("试看 6 分钟")
+                )
+            )
+        )
+        assertEquals(
+            true,
+            VideoAccessClassifier.inferPreview(
+                playUrlData(
+                    supportFormats = emptyList(),
+                    durl = listOf(durl())
+                )
+            )
+        )
+    }
+
     private fun playUrlData(
-        supportFormats: List<SupportFormat>
+        supportFormats: List<SupportFormat>,
+        isPreview: Int = 0,
+        acceptDescription: List<String> = emptyList(),
+        durl: List<Durl> = emptyList()
     ): PlayUrlData {
         return PlayUrlData(
+            isPreview = isPreview,
             from = "test",
             result = "suee",
             message = "",
@@ -101,11 +161,12 @@ class VideoAccessClassifierTest {
             format = "dash",
             timeLength = 1,
             acceptFormat = "",
-            acceptDescription = emptyList(),
+            acceptDescription = acceptDescription,
             acceptQuality = emptyList(),
             videoCodecId = 7,
             seekParam = "start",
             seekType = "offset",
+            durl = durl,
             supportFormats = supportFormats,
             recordInfo = RecordInfo(recordIcon = "", record = "")
         )
@@ -121,6 +182,17 @@ class VideoAccessClassifierTest {
             displayDesc = "1080P",
             superScript = "",
             needVip = needVip
+        )
+    }
+
+    private fun durl(): Durl {
+        return Durl(
+            order = 1,
+            length = 1,
+            size = 1,
+            ahead = "",
+            vhead = "",
+            url = "https://example.com/video.mp4"
         )
     }
 }
