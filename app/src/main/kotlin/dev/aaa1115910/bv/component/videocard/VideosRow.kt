@@ -37,6 +37,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -266,10 +267,12 @@ fun VideosRowCore(
             modifier = columnModifier
         ) {
             Text(
-                modifier = Modifier.padding(start = 50.dp),
+                modifier = Modifier.padding(horizontal = 62.dp),
                 text = header,
                 fontSize = fontSize,
-                color = titleColor
+                color = titleColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
 
             LazyRow(
@@ -277,7 +280,7 @@ fun VideosRowCore(
                 modifier = Modifier.padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(24.dp),
                 verticalAlignment = Alignment.Top,
-                contentPadding = PaddingValues(horizontal = 62.dp)
+                contentPadding = PaddingValues(horizontal = 58.dp)
             ) {
                 if (leadingItem != null) {
                     item(key = "${rowStateKey}_leading_item") {

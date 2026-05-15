@@ -39,7 +39,7 @@ fun FavoriteButton(
         contentPadding = PaddingValues(0.dp),
         scale = ButtonDefaults.scale(
             focusedScale = 1f,
-            pressedScale = 1f
+            pressedScale = 0.9f
         ),
         onClick = {
             if (showFavoriteDialog) return@Button

@@ -27,7 +27,7 @@ fun LikeButton(
         contentPadding = PaddingValues(0.dp),
         scale = ButtonDefaults.scale(
             focusedScale = 1f,
-            pressedScale = 1f
+            pressedScale = 0.9f
         ),
         colors = ButtonDefaults.colors(
             pressedContainerColor = MaterialTheme.colorScheme.primary

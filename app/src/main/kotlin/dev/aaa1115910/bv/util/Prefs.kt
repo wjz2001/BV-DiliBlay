@@ -352,6 +352,8 @@ object Prefs {
     )
 
     var showVideoInfo by pref(PrefKeys.prefShowVideoInfoKey, true)
+    var showVerticalVideoArgueTip by pref(PrefKeys.prefShowVerticalVideoArgueTipKey, false)
+    var showPaidVideoArgueTip by pref(PrefKeys.prefShowPaidVideoArgueTipKey, false)
     var showPersistentSeek by pref(PrefKeys.prefShowPersistentSeekKey, true)
     var focusAlwaysCenter by pref(PrefKeys.prefFocusAlwaysCenterKey, false)
     var settingsContentActivated by pref(PrefKeys.prefSettingsContentActivatedKey, false)
@@ -533,6 +535,8 @@ private object PrefKeys {
     val prefFirstHomeTopNavItemKey = intPreferencesKey("first_home_top_nav")
     val prefHomeAutoRefreshTopNavItemsKey = stringPreferencesKey("home_auto_refresh_top_nav_items")
     val prefShowVideoInfoKey = booleanPreferencesKey("show_video_info")
+    val prefShowVerticalVideoArgueTipKey = booleanPreferencesKey("show_vertical_video_argue_tip")
+    val prefShowPaidVideoArgueTipKey = booleanPreferencesKey("show_paid_video_argue_tip")
     val prefShowPersistentSeekKey = booleanPreferencesKey("show_persistent_seek")
     val prefFocusAlwaysCenterKey = booleanPreferencesKey("focus_always_center")
     val prefSettingsContentActivatedKey = booleanPreferencesKey("new_settings_content_activated")

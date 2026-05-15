@@ -42,7 +42,7 @@ fun Modifier.focusedBorder(
 
     onFocusChanged { hasFocus = it.hasFocus }
         .border(
-            width = 3.dp,
+            width = 2.dp,
             color = borderColor,
             shape = shape
         )

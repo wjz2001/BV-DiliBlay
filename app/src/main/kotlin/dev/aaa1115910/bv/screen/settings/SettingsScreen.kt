@@ -1032,6 +1032,8 @@ private fun uiSettingsEntries(): List<SettingsEntry> {
     }
     var showHomeAutoRefreshTopNavDialog by remember { mutableStateOf(false) }
     var showVideoInfo by remember { mutableStateOf(Prefs.showVideoInfo) }
+    var showVerticalVideoArgueTip by remember { mutableStateOf(Prefs.showVerticalVideoArgueTip) }
+    var showPaidVideoArgueTip by remember { mutableStateOf(Prefs.showPaidVideoArgueTip) }
     var showPersistentSeek by remember { mutableStateOf(Prefs.showPersistentSeek) }
     var focusAlwaysCenter by remember { mutableStateOf(Prefs.focusAlwaysCenter) }
 
@@ -1081,6 +1083,26 @@ private fun uiSettingsEntries(): List<SettingsEntry> {
             onCheckedChange = {
                 showVideoInfo = it
                 Prefs.showVideoInfo = it
+            }
+        ),
+        switchEntry(
+            id = "show_vertical_video_argue_tip",
+            title = "显示竖屏警告",
+            supportText = "在视频详情页顶部显示竖屏视频横幅提示",
+            checked = showVerticalVideoArgueTip,
+            onCheckedChange = {
+                showVerticalVideoArgueTip = it
+                Prefs.showVerticalVideoArgueTip = it
+            }
+        ),
+        switchEntry(
+            id = "show_paid_video_argue_tip",
+            title = "显示付费警告",
+            supportText = "在视频详情页顶部显示付费视频横幅提示",
+            checked = showPaidVideoArgueTip,
+            onCheckedChange = {
+                showPaidVideoArgueTip = it
+                Prefs.showPaidVideoArgueTip = it
             }
         ),
         switchEntry(

@@ -148,6 +148,7 @@ import dev.aaa1115910.bv.component.comments.VideoCommentsDialog
 import dev.aaa1115910.bv.component.richtext.RichText
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
+import dev.aaa1115910.bv.component.videocard.VideoPartButton
 import dev.aaa1115910.bv.component.videocard.VideosRow
 import dev.aaa1115910.bv.component.videocard.VideosRowCore
 import dev.aaa1115910.bv.component.buttons.CoinButton
@@ -437,6 +438,15 @@ fun VideoInfoScreen(
                 FullScreenMessage(message = "加载中……")
                 return
             }
+            val snapshot = videoDetailState.metrics?.snapshot
+            val isPaidVideo = Prefs.showPaidVideoArgueTip && snapshot?.isPaidVideo == true
+            val isVerticalVideo = Prefs.showVerticalVideoArgueTip && snapshot?.isVerticalVideo == true
+            val tipText = when {
+                isPaidVideo && isVerticalVideo -> "付费竖屏视频"
+                isPaidVideo -> "付费视频"
+                isVerticalVideo -> "竖屏视频"
+                else -> null
+            }
 
             val partEntry = remember { FocusRequester() }
             val relatedEntry = remember { FocusRequester() }
@@ -445,6 +455,7 @@ fun VideoInfoScreen(
                 videoDetailState.ugcSeason?.sections.orEmpty()
                     .filter { it.episodes.isNotEmpty() }
             }
+            var sharedUgcDialogData by remember { mutableStateOf<UgcSeasonDialogData?>(null) }
 
             val ugcEntries = remember(displayedUgcSections.size) {
                 List(displayedUgcSections.size) { FocusRequester() }
@@ -472,6 +483,7 @@ fun VideoInfoScreen(
                         val density = LocalDensity.current
                         val viewportHeightPx = constraints.maxHeight
 
+                        var tipHeightPx by remember { mutableIntStateOf(0) }
                         var videoInfoHeightPx by remember { mutableIntStateOf(0) }
                         var partRowHeightPx by remember { mutableIntStateOf(0) }
                         val ugcRowHeightsPx = remember { mutableStateMapOf<Int, Int>() }
@@ -487,7 +499,8 @@ fun VideoInfoScreen(
                             ugcRowHeightsPx[it] ?: 0
                         }
 
-                        val baseItemCountAboveRelated = 2 + displayedUgcSections.size
+                        val baseItemCountAboveRelated =
+                            2 + displayedUgcSections.size + if (tipText != null) 1 else 0
                         val spacingAboveRelatedPx = if (relatedVideos.isNotEmpty()) {
                             baseItemCountAboveRelated * itemSpacingPx
                         } else {
@@ -495,6 +508,7 @@ fun VideoInfoScreen(
                         }
 
                         val contentAboveRelatedPx = topPaddingPx +
+                                tipHeightPx +
                                 videoInfoHeightPx +
                                 partRowHeightPx +
                                 ugcTotalHeightPx +
@@ -529,6 +543,16 @@ fun VideoInfoScreen(
                             contentPadding = PaddingValues(top = 8.dp, bottom = 0.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
+                            if (tipText != null) {
+                                item(key = "video_argue_tip") {
+                                    ArgueTip(
+                                        modifier = Modifier
+                                            .onSizeChanged { tipHeightPx = it.height },
+                                        text = tipText
+                                    )
+                                }
+                            }
+
                             item(key = "video_info_data") {
                                 VideoInfoData(
                                     modifier = Modifier
@@ -630,6 +654,7 @@ fun VideoInfoScreen(
                                             section.title
                                         },
                                         episodes = section.episodes,
+                                        onOpenUgcListDialog = { sharedUgcDialogData = it },
                                         onEpisodeClick = { episode: Episode ->
                                             logger.fInfo {
                                                 "Click ugc season part: [aid:${episode.aid}, cid:${episode.cid}]"
@@ -715,6 +740,52 @@ fun VideoInfoScreen(
                                 }
                             }
                         }
+
+                        UgcSeasonListDialog(
+                            show = sharedUgcDialogData != null,
+                            data = sharedUgcDialogData,
+                            onHideDialog = { sharedUgcDialogData = null },
+                            onEpisodeClick = { episode ->
+                                val selectedDialogData = sharedUgcDialogData ?: return@UgcSeasonListDialog
+                                logger.fInfo {
+                                    "Click ugc season part: [aid:${episode.aid}, cid:${episode.cid}]"
+                                }
+
+                                val episodeDisplayTitle =
+                                    episode.longTitle.ifBlank { episode.title }
+
+                                StartupCoverRepository.put(episode.aid, episode.cover)
+
+                                if (Prefs.showVideoInfo) {
+                                    sharedUgcDialogData = null
+                                    VideoInfoActivity.actionStart(context, episode.aid)
+                                } else {
+                                    videoDetailViewModel.updateVideoList(
+                                        selectedDialogData.episodes.map {
+                                            VideoListItem(
+                                                aid = it.aid,
+                                                cid = it.cid,
+                                                seasonId = videoDetailState.ugcSeason?.id,
+                                                title = it.longTitle.ifBlank { it.title }
+                                            )
+                                        }
+                                    )
+                                    performLaunchPlayer(
+                                        targetAid = episode.aid,
+                                        targetCid = episode.cid,
+                                        targetTitle = episodeDisplayTitle,
+                                        targetPartTitle = ""
+                                    )
+                                    sharedUgcDialogData = null
+                                }
+                            },
+                            onAddWatchLater = { aid ->
+                                toViewViewModel.addToView(aid)
+                            },
+                            onGoToUpPage = { mid, upName ->
+                                UpInfoActivity.actionStart(context, mid, upName)
+                            }
+                        )
 
                         FollowGroupSelectDialog(
                             show = showFollowGroupDialog,
@@ -802,30 +873,47 @@ fun ArgueTip(
     modifier: Modifier = Modifier,
     text: String
 ) {
-    Surface(
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 50.dp),
-        colors = SurfaceDefaults.colors(
-            containerColor = Color.Yellow.copy(alpha = 0.2f),
-            contentColor = Color.Yellow
-        ),
-        shape = RectangleShape
+            .padding(horizontal = 58.dp)
+            .height(40.dp)
     ) {
+        Box(
+            modifier = Modifier
+                .width(5.dp)
+                .fillMaxHeight()
+                .background(C.error)
+        )
+
         Row(
-            modifier = Modifier.padding(
-                horizontal = 16.dp,
-                vertical = 8.dp
-            ),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .background(C.errorContainer),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
+                modifier = Modifier.padding(horizontal = 5.dp),
                 imageVector = Icons.Rounded.Warning,
                 contentDescription = null,
-                tint = Color.Yellow
+                tint = C.onError
             )
-            Text(text = text)
+
+            Text(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 8.dp),
+                text = text,
+                color = C.onError,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    platformStyle = PlatformTextStyle(includeFontPadding = false)
+                )
+            )
         }
     }
 }
@@ -877,7 +965,7 @@ fun VideoInfoData(
 
     Row(
         modifier = modifier
-            .padding(horizontal = 50.dp, vertical = 8.dp),
+            .padding(horizontal = 58.dp, vertical = 8.dp),
     ) {
         Surface(
             modifier = Modifier
@@ -942,7 +1030,9 @@ fun VideoInfoData(
             )
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
@@ -1010,33 +1100,45 @@ fun VideoInfoData(
                         )
                     }
                 }
-
-                Row(
-                    modifier = Modifier
-                        .padding(start = 4.dp)
-                        .weight(1f),
-                    verticalAlignment = Alignment.CenterVertically
+                LazyRow(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 5.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    CompositionLocalProvider(
-                        LocalTextStyle provides MaterialTheme.typography.labelMedium.copy(
-                            fontSize = 25.sp
-                        )
-                    ) {
-                        val metrics = videoDetail.metrics?.snapshot
-                        Text(text = "发布于 ${videoDetail.publishDate.formatPubTimeString()}")
-                        Text(text = "·")
-                        Text(text = "播放量 ${(metrics?.view ?: videoDetail.stat.view.toLong()).toWanString()}")
-                        Text(text = "·")
-                        Text(text = "弹幕 ${(metrics?.danmaku ?: videoDetail.stat.danmaku.toLong()).toWanString()}")
+                    items(items = tags) { tag ->
+                        SuggestionChip(
+                            onClick = { onClickTip(tag) },
+                            scale = SuggestionChipDefaults.scale(
+                                focusedScale = 1f,
+                                pressedScale = 0.9f
+                            ),
+                            shape = SuggestionChipDefaults.shape(shape = RectangleShape),
+                            colors = SuggestionChipDefaults.colors(
+                                containerColor = Color.Transparent,
+                                focusedContainerColor = C.secondary,
+                                pressedContainerColor = C.primary,
+                                contentColor = C.onSurface,
+                                focusedContentColor = C.onPrimary,
+                                pressedContentColor = C.onPrimary,
+                            ),
+                            border = SuggestionChipDefaults.border(
+                                border = Border( // 未聚焦边框
+                                    border = BorderStroke(1.dp, C.onBackground),
+                                    shape = RectangleShape
+                                )
+                            )
+                        ) {
+                            Text(text = tag.name)
+                        }
                     }
                 }
+
             }
 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .align(Alignment.End)
-                    .padding(top = 2.dp),
+                    .align(Alignment.End),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -1108,22 +1210,25 @@ fun VideoInfoData(
                     onClick = onSendVideoCoin,
                 )
 
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(20.dp))
 
-                LazyRow(
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 5.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    items(items = tags) { tag ->
-                        SuggestionChip(
-                            onClick = { onClickTip(tag) },
-                            shape = SuggestionChipDefaults.shape(
-                                shape = RectangleShape
-                            )
-                        ) {
-                            Text(text = tag.name)
-                        }
+                    CompositionLocalProvider(
+                        LocalTextStyle provides MaterialTheme.typography.labelMedium.copy(
+                            fontSize = 24.sp
+                        )
+                    ) {
+                        val metrics = videoDetail.metrics?.snapshot
+                        Text(text = "发布于：${videoDetail.publishDate.formatPubTimeString()}")
+                        Text(text = "，")
+                        Text(text = "播放量：${(metrics?.view ?: videoDetail.stat.view.toLong()).toWanString()}")
+                        Text(text = "，")
+                        Text(text = "弹幕 ${(metrics?.danmaku ?: videoDetail.stat.danmaku.toLong()).toWanString()}")
                     }
                 }
             }
@@ -1131,6 +1236,7 @@ fun VideoInfoData(
             VideoDescription(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(top = 3.dp)
                     .weight(1f)
                     .then(
                         if (hasDescription) {
@@ -1186,7 +1292,6 @@ private fun UpButton(
         Row(
             modifier = upInfoModifier
                 .clip(RectangleShape)
-                .background(C.surfaceVariant)
                 .focusedBorder(RectangleShape)
                 .padding(4.dp)
                 .clickable { onClickUp() },
@@ -1200,7 +1305,6 @@ private fun UpButton(
             Row(
                 modifier = followModifier
                     .clip(RectangleShape)
-                    .background(C.surfaceVariant)
                     .focusedBorder(RectangleShape)
                     .padding(horizontal = 4.dp, vertical = 3.dp)
                     .clickable { if (followed) onDelFollow() else onAddFollow() }
@@ -1222,7 +1326,10 @@ private fun UpButton(
                         contentDescription = null,
                         tint = C.onSurface
                     )
-                    Text(text = stringResource(R.string.video_info_follow), color = C.onSurface)
+                    Text(
+                        text = stringResource(R.string.video_info_follow),
+                        color = C.onSurface
+                    )
                 }
             }
         }
@@ -1243,7 +1350,7 @@ fun VideoDescription(
                 .fillMaxWidth()
                 .clip(RectangleShape)
                 .focusedBorder(RectangleShape)
-                .padding(horizontal = 8.dp, vertical = 3.dp)
+                .padding(horizontal = 8.dp)
                 .clickable { showDescriptionDialog = true }
         ) {
             Text(
@@ -2116,101 +2223,6 @@ private fun VideoDescriptionRichContentImagePreviewDialog(
 }
 
 @Composable
-fun DurationUnitText(
-    duration: Int,
-    unit: String,
-    fontSize: Int
-) {
-    // 根据传入的单位标识符，在内部进行计算
-    val value = when (unit.lowercase()) {
-        "h" -> duration / 3600
-        "m" -> (duration % 3600) / 60
-        "s" -> duration % 60
-        else -> 0L
-    }
-    // 在调用 Text 组件时，将 Int 转换为 .sp
-    Text(
-        text = value.toString().padStart(2, '0'),
-        fontSize = fontSize.sp,
-        fontWeight = FontWeight.Bold
-    )
-}
-
-@Composable
-fun VideoPartButton(
-    modifier: Modifier = Modifier,
-    index: Int,
-    title: String,
-    duration: Int,
-    played: Int = 0,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = modifier.height(96.dp),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = C.surfaceVariant,
-            focusedContainerColor = C.inverseSurface,
-            pressedContainerColor = C.inverseSurface
-        ),
-        shape = ClickableSurfaceDefaults.shape(shape = RectangleShape),
-        onClick = { onClick() }
-    ) {
-        //播放进度覆盖
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            //播放进度覆盖
-            Box(
-                modifier = Modifier
-                    .background(C.primaryContainer.copy(alpha = 0.65f))
-                    .fillMaxHeight()
-                    .fillMaxWidth(if (played < 0) 1f else (played / duration.toFloat()))
-            ) {}
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // 左侧：标题
-                Text(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 12.dp, end = 6.dp, top = 12.dp, bottom = 12.dp),
-                    text = "P$index $title",
-                    fontSize = LocalTextStyle.current.fontSize * 1.5,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                VerticalDivider(
-                    // 添加垂直内边距，让线变短一点
-                    modifier = Modifier.padding(vertical = 12.dp),
-                    // 使用 thickness 参数设置分割线的厚度（宽度）
-                    thickness = 1.dp,
-                    // 设置分割线的颜色
-                    color = C.outline
-                )
-                // 右侧：垂直显示的时长
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.SpaceAround,
-                    // 增加内边距，使其与按钮边缘有一定距离
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .padding(start = 6.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)
-                ) {
-                    // 只有当视频时长超过1小时才显示小时
-                    if (duration >= 3600) {
-                        DurationUnitText(duration = duration, unit = "h", fontSize = 24)
-                    }
-                    DurationUnitText(duration = duration, unit = "m", fontSize = 21)
-                    DurationUnitText(duration = duration, unit = "s", fontSize = 19)
-                }
-            }
-        }
-    }
-}
-
-@Composable
 fun VideoPartRowButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
@@ -2268,9 +2280,8 @@ fun VideoPartRow(
         modifier = modifier
             .padding(top = 8.dp)
             .focusRestorer(restoreFallback)
-            .focusGroup()
-            .padding(start = 50.dp),
-        contentPadding = PaddingValues(horizontal = 12.dp),
+            .focusGroup(),
+        contentPadding = PaddingValues(horizontal = 58.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         item {
@@ -2465,6 +2476,7 @@ fun VideoUgcSeasonRow(
     title: String,
     episodes: List<Episode>,
     onEpisodeClick: (Episode) -> Unit,
+    onOpenUgcListDialog: (UgcSeasonDialogData) -> Unit,
     onAddWatchLater: ((Long) -> Unit)? = null,
     onGoToUpPage: ((Long, String) -> Unit)? = null,
     rowStateKey: String? = null,
@@ -2473,8 +2485,6 @@ fun VideoUgcSeasonRow(
     downFocusRequester: FocusRequester? = null,
 ) {
     if (episodes.isEmpty()) return
-
-    var showUgcListDialog by remember { mutableStateOf(false) }
 
     val resolvedRowStateKey = rowStateKey ?: remember(title, episodes) {
         val firstAid = episodes.firstOrNull()?.aid ?: 0L
@@ -2487,6 +2497,14 @@ fun VideoUgcSeasonRow(
         episodes.zip(videos).associate { (episode, videoData) ->
             Triple(videoData.avid, videoData.cid ?: -1L, videoData.epId ?: -1) to episode
         }
+    }
+    val dialogData = remember(title, episodes, videos, episodeByIdentity) {
+        UgcSeasonDialogData(
+            title = title,
+            episodes = episodes,
+            videos = videos,
+            episodeByIdentity = episodeByIdentity
+        )
     }
 
     VideosRowCore(
@@ -2512,30 +2530,34 @@ fun VideoUgcSeasonRow(
             { itemModifier ->
                 UgcSeasonLeadingButton(
                     modifier = itemModifier,
-                    onClick = { showUgcListDialog = true }
+                    onClick = {
+                        onOpenUgcListDialog(dialogData)
+                    }
                 )
             }
         } else {
             null
         }
     )
+}
+
+@Composable
+private fun UgcSeasonListDialog(
+    show: Boolean,
+    data: UgcSeasonDialogData?,
+    onHideDialog: () -> Unit,
+    onEpisodeClick: (Episode) -> Unit,
+    onAddWatchLater: ((Long) -> Unit)? = null,
+    onGoToUpPage: ((Long, String) -> Unit)? = null,
+) {
+    if (data == null) return
 
     PagedVideoInfinityListDialog(
-        show = showUgcListDialog,
-        onHideDialog = { showUgcListDialog = false },
-        items = videos,
-        title = title,
-        itemKey = { Triple(it.avid, it.cid ?: -1L, it.epId ?: -1) },
-        columnCount = 5,
-        pageSize = 35,
-        verticalSpacing = 12,
-        horizontalSpacing = 24,
-        contentPadding = PaddingValues(
-            start = 24.dp,
-            top = 24.dp,
-            end = 24.dp,
-            bottom = 96.dp
-        ),
+        show = show,
+        onHideDialog = onHideDialog,
+        items = data.videos,
+        title = data.title,
+        itemKey = { Triple(it.avid, it.cid ?: -1L, it.epId ?: -1) }
     ) { itemModifier, _, videoData, cardUiStateFor ->
         SmallVideoCard(
             modifier = Modifier,
@@ -2544,10 +2566,9 @@ fun VideoUgcSeasonRow(
             data = videoData,
             titleMaxLines = 3,
             onClick = {
-                episodeByIdentity[
+                data.episodeByIdentity[
                     Triple(videoData.avid, videoData.cid ?: -1L, videoData.epId ?: -1)
                 ]?.let { episode ->
-                    showUgcListDialog = false
                     onEpisodeClick(episode)
                 }
             },
@@ -2573,6 +2594,13 @@ private enum class DialogFocusArea {
     Grid
 }
 
+data class UgcSeasonDialogData(
+    val title: String,
+    val episodes: List<Episode>,
+    val videos: ImmutableList<VideoCardData>,
+    val episodeByIdentity: Map<Triple<Long, Long, Int>, Episode>
+)
+
 @Composable
 fun <T> PagedVideoInfinityListDialog(
     modifier: Modifier = Modifier,
@@ -2583,9 +2611,8 @@ fun <T> PagedVideoInfinityListDialog(
     itemKey: (T) -> Any,
     pageSize: Int = 35,
     columnCount: Int = 5,
-    contentPadding: PaddingValues = PaddingValues(16.dp),
-    verticalSpacing: Int = 10,
-    horizontalSpacing: Int = 20,
+    verticalSpacing: Int = 16,
+    horizontalSpacing: Int = 16,
     tabTextBuilder: (startIndex: Int, endIndex: Int) -> String = { startIndex, endIndex ->
         if (startIndex == endIndex) "P$startIndex" else "P$startIndex-$endIndex"
     },
@@ -2816,16 +2843,15 @@ fun <T> PagedVideoInfinityListDialog(
             Surface(
                 modifier = modifier
                     .fillMaxSize()
-                    .background(C.background),
+                    .background(Color.Black),
                 colors = SurfaceDefaults.colors(
-                    containerColor = C.surface
+                    containerColor = Color.Black
                 ),
                 shape = RectangleShape
             ) {
                 Column(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(48.dp),
+                        .fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Row(
@@ -2835,7 +2861,9 @@ fun <T> PagedVideoInfinityListDialog(
                     ) {
                         Text(
                             text = title,
-                            style = MaterialTheme.typography.headlineMedium,
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontSize = 32.sp
+                            ),
                             color = C.onSurface
                         )
                     }
@@ -2898,7 +2926,7 @@ fun <T> PagedVideoInfinityListDialog(
                             .weight(1f)
                             .fillMaxWidth(),
                         columns = GridCells.Fixed(columnCount),
-                        contentPadding = contentPadding,
+                        contentPadding = PaddingValues(58.dp),
                         verticalArrangement = Arrangement.spacedBy(verticalSpacing.dp),
                         horizontalArrangement = Arrangement.spacedBy(horizontalSpacing.dp),
                         focusColumnCount = columnCount
