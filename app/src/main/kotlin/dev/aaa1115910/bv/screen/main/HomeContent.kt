@@ -104,14 +104,8 @@ fun HomeContent(
         navFocusRequester.requestFocus()
     }
 
-    val getReorderedItems: (HomeTopNavItem) -> List<HomeTopNavItem> = { item ->
-        val allItems = HomeTopNavItem.entries
-        val startIndex = allItems.indexOf(item)
-        if (startIndex == -1) emptyList()
-        else allItems.drop(startIndex) + allItems.take(startIndex)
-    }
     val reorderedItems = remember {
-        getReorderedItems(firstTab)
+        Prefs.homeTopNavItems.ensureVisibleHomeTabs(firstTab)
     }
     val homeFocusedLeadingIcon: (TopNavItem) -> TopNavLeadingIcon? = remember {
         {
@@ -388,6 +382,19 @@ fun HomeContent(
 @Composable
 private fun HomeTabShell() {
     Box(modifier = Modifier.fillMaxSize())
+}
+
+private fun List<HomeTopNavItem>.ensureVisibleHomeTabs(
+    firstTab: HomeTopNavItem
+): List<HomeTopNavItem> {
+    val validItems = HomeTopNavItem.entries.toSet()
+    val orderedItems = filter { it in validItems }.distinct()
+    val visibleItems = if (firstTab in orderedItems) {
+        orderedItems
+    } else {
+        listOf(firstTab) + orderedItems
+    }
+    return visibleItems.ifEmpty { HomeTopNavItem.entries.toList() }
 }
 
 @Composable

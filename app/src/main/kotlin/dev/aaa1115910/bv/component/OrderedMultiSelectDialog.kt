@@ -216,7 +216,6 @@ internal fun <T, ID> OrderedMultiSelectListContent(
 
     LazyColumn(
         state = listState,
-        modifier = modifier.fillMaxWidth(),
         modifier = modifier
             .fillMaxWidth()
             .onFocusChanged { focusState ->

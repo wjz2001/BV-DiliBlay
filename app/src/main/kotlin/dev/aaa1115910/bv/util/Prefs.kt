@@ -337,6 +337,20 @@ object Prefs {
         restore = { HomeTopNavItem.fromCode(it) }
     )
 
+    var homeTopNavItems by pref(
+        PrefKeys.prefHomeTopNavItemsKey,
+        HomeTopNavItem.entries.toList(),
+        save = { list -> list.joinToString(",") { it.code.toString() } },
+        restore = { str ->
+            if (str.isBlank()) HomeTopNavItem.entries.toList()
+            else str.split(",")
+                .mapNotNull { it.trim().toIntOrNull() }
+                .map { HomeTopNavItem.fromCode(it) }
+                .distinct()
+                .ifEmpty { HomeTopNavItem.entries.toList() }
+        }
+    )
+
     var homeAutoRefreshTopNavItems by pref(
         PrefKeys.prefHomeAutoRefreshTopNavItemsKey,
         emptyList<HomeTopNavItem>(),
@@ -534,6 +548,7 @@ private object PrefKeys {
     val prefDensityKey = floatPreferencesKey("density")
     val prefThemeModeKey = intPreferencesKey("theme_mode")
     val prefFirstHomeTopNavItemKey = intPreferencesKey("first_home_top_nav")
+    val prefHomeTopNavItemsKey = stringPreferencesKey("home_top_nav_items")
     val prefHomeAutoRefreshTopNavItemsKey = stringPreferencesKey("home_auto_refresh_top_nav_items")
     val prefShowVideoInfoKey = booleanPreferencesKey("show_video_info")
     val prefShowVerticalVideoArgueTipKey = booleanPreferencesKey("show_vertical_video_argue_tip")

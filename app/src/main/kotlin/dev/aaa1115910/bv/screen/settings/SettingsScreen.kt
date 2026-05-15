@@ -94,6 +94,7 @@ import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.settings.LogsActivity
 import dev.aaa1115910.bv.activities.settings.SpeedTestActivity
+import dev.aaa1115910.bv.component.BvTabOrderListContent
 import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.component.HomeTopNavRefreshSelectDialog
 import dev.aaa1115910.bv.component.RadioMenuSelectDialog
@@ -1027,6 +1028,9 @@ private fun uiSettingsEntries(): List<SettingsEntry> {
         mutableStateOf(ThemeMode.fromOrdinal(themeModeOrdinal))
     }
     var selectedFirstHomeTopNavItem by remember { mutableStateOf(Prefs.firstHomeTopNavItem) }
+    var selectedHomeTopNavItems by remember {
+        mutableStateOf(Prefs.homeTopNavItems.ensureVisibleHomeTabs(Prefs.firstHomeTopNavItem))
+    }
     var selectedHomeAutoRefreshTopNavItems by remember {
         mutableStateOf(Prefs.homeAutoRefreshTopNavItems)
     }
@@ -1059,10 +1063,39 @@ private fun uiSettingsEntries(): List<SettingsEntry> {
             onSelected = {
                 selectedFirstHomeTopNavItem = it
                 Prefs.firstHomeTopNavItem = it
+                selectedHomeTopNavItems = selectedHomeTopNavItems.ensureVisibleHomeTabs(it)
+                Prefs.homeTopNavItems = selectedHomeTopNavItems
             },
             text = { it.getDisplayName(context) },
             itemKey = { it.name }
         ),
+        customEntry(
+            id = "home_top_nav_items",
+            title = "主页面调整",
+            supportText = selectedHomeTopNavItems.joinToString("、") {
+                it.getDisplayName(context)
+            }
+        ) { focused ->
+            BvTabOrderListContent(
+                modifier = Modifier.fillMaxWidth(),
+                allItems = HomeTopNavItem.entries.toList(),
+                enabledOrderedIds = selectedHomeTopNavItems.map { it.code },
+                itemId = { it.code },
+                onSubmit = { ids ->
+                    val nextItems = ids
+                        .map { HomeTopNavItem.fromCode(it) }
+                        .distinct()
+
+                    selectedHomeTopNavItems = nextItems
+                    if (selectedFirstHomeTopNavItem in nextItems) {
+                        Prefs.homeTopNavItems = nextItems
+                    }
+                },
+                text = { it.getDisplayName(context) },
+                defaultFocusKey = selectedFirstHomeTopNavItem.code,
+                requestDefaultFocus = focused
+            )
+        },
         actionEntry(
             id = "home_auto_refresh_top_nav_items",
             title = "主页页面切入自动刷新",
@@ -1165,10 +1198,15 @@ private fun otherSettingsEntries(): List<SettingsEntry> {
     val logsViewModel: LogsViewModel = koinViewModel()
     var host by remember { mutableStateOf("x.x.x.x") }
     var port by remember { mutableIntStateOf(0) }
-    val logServerAddress = "http://$host:$port/"
+    val logServerAddress = if (host.isNotBlank() && host != "x.x.x.x" && port != 0) {
+        "http://$host:$port/"
+    } else {
+        "正在获取端口……"
+    }
     val logServerSupportText = "请输入 $logServerAddress，或扫描右侧二维码进入日志管理界面"
 
     LaunchedEffect(Unit) {
+        HttpServer.startServer()
         host = resolveWifiIpAddress()
         port = HttpServer.server?.engine?.resolvedConnectors()?.firstOrNull()?.port ?: 0
         logsViewModel.waitPortAndGenerateServerQr(host)
@@ -1886,6 +1924,19 @@ private fun ApiType.displayName(): String {
         ApiType.App -> "App 接口"
         ApiType.Web -> "Web 接口"
     }
+}
+
+private fun List<HomeTopNavItem>.ensureVisibleHomeTabs(
+    firstTab: HomeTopNavItem
+): List<HomeTopNavItem> {
+    val validItems = HomeTopNavItem.entries.toSet()
+    val orderedItems = filter { it in validItems }.distinct()
+    val visibleItems = if (firstTab in orderedItems) {
+        orderedItems
+    } else {
+        listOf(firstTab) + orderedItems
+    }
+    return visibleItems.ifEmpty { HomeTopNavItem.entries.toList() }
 }
 
 private fun resolveWifiIpAddress(): String {
