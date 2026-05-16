@@ -11,8 +11,11 @@ import dev.aaa1115910.bv.component.videocard.CoAuthorCacheStore
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.util.formatHourMinSec
+import dev.aaa1115910.bv.util.fInfo
+import dev.aaa1115910.bv.util.fWarn
 import dev.aaa1115910.bv.util.toWanString
 import dev.aaa1115910.bv.viewmodel.video.VideoDetailState
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,6 +30,7 @@ class VideoInfoRepository(
     private val videoDetailRepository: VideoDetailRepository,
     private val videoMetricsFacade: VideoMetricsFacade
 ) {
+    private val logger = KotlinLogging.logger {}
     private val _videoList = MutableStateFlow<List<VideoListItem>>(emptyList())
     private val _videoDetailState = MutableStateFlow<VideoDetailState?>(null)
 
@@ -147,8 +151,21 @@ class VideoInfoRepository(
                         priority = VideoMetricsPriority.VISIBLE
                     )
                 )
+            }.onSuccess { envelope ->
+                logger.fInfo {
+                    "VideoInfo metrics loaded: aid=${videoDetail.aid}, bvid=${videoDetail.bvid}, " +
+                            "cid=${videoDetail.cid}, vip=${envelope.snapshot.isVipVideo}, " +
+                            "paid=${envelope.snapshot.isPaidVideo}, " +
+                            "vertical=${envelope.snapshot.isVerticalVideo}, " +
+                            "source=${envelope.runtime.sourceId}, degraded=${envelope.runtime.degraded}, " +
+                            "failureCode=${envelope.runtime.failureCode}"
+                }
             }.getOrElse {
                 if (it is CancellationException) throw it
+                logger.fWarn {
+                    "VideoInfo metrics load failed: aid=${videoDetail.aid}, bvid=${videoDetail.bvid}, " +
+                            "cid=${videoDetail.cid}, error=${it.stackTraceToString()}"
+                }
                 null
             }
 

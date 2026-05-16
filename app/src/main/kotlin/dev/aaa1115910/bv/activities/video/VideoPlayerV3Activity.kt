@@ -3,7 +3,6 @@ package dev.aaa1115910.bv.activities.video
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.core.view.WindowCompat
@@ -17,6 +16,7 @@ import dev.aaa1115910.bv.activities.setThemedContentWhenStartupReady
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.screen.VideoPlayerV3Screen
+import dev.aaa1115910.bv.util.BvLog
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.viewmodel.player.VideoPlayerV3ViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -97,7 +97,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
     override fun onStart() {
         // 先进入抑制期，再走 super，覆盖 Lifecycle.ON_START 期间可能发生的 surface 相关竞态
         playerViewModel.setSuppressPlayerErrors(true)
-        Log.i("BugDebug", "VideoPlayerV3Activity onStart: suppressPlayerErrors=true (resuming)")
+        BvLog.i("BugDebug", "VideoPlayerV3Activity onStart: suppressPlayerErrors=true (resuming)")
 
         super.onStart()
 
@@ -110,7 +110,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
             delay(500)
             if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
                 playerViewModel.setSuppressPlayerErrors(false)
-                Log.i("BugDebug", "VideoPlayerV3Activity onStart: suppressPlayerErrors=false")
+                BvLog.i("BugDebug", "VideoPlayerV3Activity onStart: suppressPlayerErrors=false")
             }
         }
     }
@@ -132,7 +132,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
     override fun onPause() {
         // 先进入抑制期，再走 super，覆盖 Lifecycle.ON_PAUSE 期间的 surface detach 竞态
         playerViewModel.setSuppressPlayerErrors(true)
-        Log.i("BugDebug", "VideoPlayerV3Activity onPause: suppressPlayerErrors=true")
+        BvLog.i("BugDebug", "VideoPlayerV3Activity onPause: suppressPlayerErrors=true")
 
         super.onPause()
 
@@ -145,7 +145,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
 
     override fun onStop() {
         // 尽量早做，避免 stop 阶段 surfaceDestroyed 触发后再处理
-        Log.i("BugDebug", "VideoPlayerV3Activity onStop: isFinishing=$isFinishing")
+        BvLog.i("BugDebug", "VideoPlayerV3Activity onStop: isFinishing=$isFinishing")
 
         if (!isFinishing) {
             playerViewModel.onHostStopFastResume()
@@ -214,12 +214,12 @@ class VideoPlayerV3Activity : ComponentActivity() {
     private fun dispatchInitialLoadIfNeeded() {
         if (initialLoadDispatched) return
         initialLoadDispatched = true
-        Log.i("BugDebug", "VideoPlayerV3Activity: schedule initial load")
+        BvLog.i("BugDebug", "VideoPlayerV3Activity: schedule initial load")
 
         window.decorView.post {
             window.decorView.post {
                 if (!isFinishing && !isDestroyed) {
-                    Log.i("BugDebug", "VideoPlayerV3Activity: initial loadVideoWithResources()")
+                    BvLog.i("BugDebug", "VideoPlayerV3Activity: initial loadVideoWithResources()")
                     playerViewModel.loadVideoWithResources()
                 }
             }

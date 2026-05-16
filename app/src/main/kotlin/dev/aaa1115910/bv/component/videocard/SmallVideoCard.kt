@@ -106,6 +106,7 @@ import dev.aaa1115910.bv.ui.theme.ThemeMode
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.Prefs
+import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.resizedImageUrl
 import dev.aaa1115910.bv.util.rememberTvImageRequest
@@ -309,7 +310,7 @@ private fun SmallVideoCardCore(
         itemUiState.metrics?.runtime?.degraded,
         itemUiState.metrics?.runtime?.failureCode
     ) {
-        smallVideoCardLogger.info {
+        smallVideoCardLogger.fInfo {
             "SmallVideoCard badge metrics: aid=${data.avid}, " +
                     "vip=${metricsSnapshot?.isVipVideo}, " +
                     "paid=${metricsSnapshot?.isPaidVideo}, " +

@@ -71,6 +71,7 @@ object LogCatcherUtil {
                 ).use { writer ->
                     writer.writeDeviceInfo()
                     writer.writeAppInfo()
+                    writer.writeInAppLogs()
                     writer.appendLine("======== Logs ========")
                     var line: String?
                     while (reader.readLine().also { line = it } != null) {
@@ -107,13 +108,6 @@ object LogCatcherUtil {
         appendLine("Default Codec: ${Prefs.defaultVideoCodec.name}")
         appendLine("Default Audio: ${Prefs.defaultAudio.name}")
         appendLine("Enabled Proxy: ${Prefs.enableProxy}")
-    }
-
-    private fun OutputStreamWriter.writeInAppLogs() {
-        val logs = InAppLogBuffer.snapshot()
-        appendLine("======== In-App Logs ========")
-        appendLine("Count: ${logs.size}")
-        logs.forEach { appendLine(it) }
     }
 
     private fun createFilename(manual: Boolean): String {
@@ -187,6 +181,13 @@ object LogCatcherUtil {
 
         fun appendLine(value: String = "") {
             writers.forEach { it.appendLine(value) }
+        }
+
+        fun writeInAppLogs() {
+            val logs = InAppLogBuffer.snapshot()
+            appendLine("======== In-App Logs ========")
+            appendLine("Count: ${logs.size}")
+            logs.forEach { appendLine(it) }
         }
 
         fun flush() {

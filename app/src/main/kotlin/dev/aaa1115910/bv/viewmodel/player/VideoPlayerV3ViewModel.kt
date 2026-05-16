@@ -2,7 +2,6 @@ package dev.aaa1115910.bv.viewmodel.player
 
 import android.content.Context
 import android.os.Build
-import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -59,6 +58,7 @@ import dev.aaa1115910.bv.ui.state.PlayerState
 import dev.aaa1115910.bv.ui.state.PlayerUiState
 import dev.aaa1115910.bv.ui.state.SeekerState
 import dev.aaa1115910.bv.ui.state.SubtitleState
+import dev.aaa1115910.bv.util.BvLog
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
@@ -259,12 +259,12 @@ class VideoPlayerV3ViewModel(
                 if (isSurfaceDetachError) {
                     surfaceBugDetected = true
                     needRecreateOnStart = true
-                    Log.e("BugDebug", "ViewModel onError suppressed (surface bug): ${error.message}", error)
+                    BvLog.e("BugDebug", "ViewModel onError suppressed (surface bug): ${error.message}", error)
                     return
                 }
             }
 
-            Log.e("BugDebug", "ViewModel onError -> PlayerState.Error", error)
+            BvLog.e("BugDebug", "ViewModel onError -> PlayerState.Error", error)
             logger.info { "onError: $error" }
             onBufferingStateChanged(false)
             _uiState.update {
@@ -596,7 +596,7 @@ class VideoPlayerV3ViewModel(
 
     fun setSuppressPlayerErrors(suppress: Boolean) {
         suppressPlayerErrors = suppress
-        Log.i("BugDebug", "ViewModel setSuppressPlayerErrors=$suppress")
+        BvLog.i("BugDebug", "ViewModel setSuppressPlayerErrors=$suppress")
     }
 
     fun onHostStopReleaseForRecreate() {
@@ -607,7 +607,7 @@ class VideoPlayerV3ViewModel(
 
         _uiState.update { it.copy(lastPlayed = pendingResumePositionMs) }
 
-        Log.i(
+        BvLog.i(
             "BugDebug",
             "ViewModel onHostStopReleaseForRecreate: posMs=$pendingResumePositionMs"
         )
@@ -619,13 +619,13 @@ class VideoPlayerV3ViewModel(
         }
 
         runCatching { player?.release() }
-            .onFailure { Log.e("BugDebug", "ViewModel: release() failed", it) }
+            .onFailure { BvLog.e("BugDebug", "ViewModel: release() failed", it) }
     }
 
     fun onHostStartRecreateAndAutoPlayIfNeeded() {
         if (!needRecreateOnStart) return
         if (!recreateInProgress.compareAndSet(false, true)) {
-            Log.w("BugDebug", "ViewModel onHostStart: recreate already in progress, skip")
+            BvLog.w("BugDebug", "ViewModel onHostStart: recreate already in progress, skip")
             return
         }
 
@@ -640,15 +640,15 @@ class VideoPlayerV3ViewModel(
         try {
             val player = videoPlayer
             if (player == null) {
-                Log.e("BugDebug", "ViewModel onHostStart: videoPlayer is null (unexpected)")
+                BvLog.e("BugDebug", "ViewModel onHostStart: videoPlayer is null (unexpected)")
                 return
             }
 
-            Log.i("BugDebug", "ViewModel onHostStart: recreate player and auto play")
+            BvLog.i("BugDebug", "ViewModel onHostStart: recreate player and auto play")
 
             runCatching { player.initPlayer() }
                 .onFailure {
-                    Log.e("BugDebug", "ViewModel: initPlayer() failed", it)
+                    BvLog.e("BugDebug", "ViewModel: initPlayer() failed", it)
                     _uiState.update { s ->
                         s.copy(
                             playerState = PlayerState.Error(
@@ -663,7 +663,7 @@ class VideoPlayerV3ViewModel(
 
             if (!envLogged) {
                 envLogged = true
-                Log.i(
+                BvLog.i(
                     "BugDebug",
                     "Env: MANUFACTURER=${Build.MANUFACTURER}, MODEL=${Build.MODEL}, SDK=${Build.VERSION.SDK_INT}," +
                             " Media3=${media3Slashy()}, softDecode=${Prefs.enableSoftwareVideoDecoder}"
@@ -690,7 +690,7 @@ class VideoPlayerV3ViewModel(
                     _uiState.update { it.copy(lastPlayed = 0L) }
                     player.start()
                 }.onFailure {
-                    Log.e("BugDebug", "ViewModel: replay with cached playData failed", it)
+                    BvLog.e("BugDebug", "ViewModel: replay with cached playData failed", it)
                     _uiState.update { s ->
                         s.copy(
                             playerState = PlayerState.Error(
@@ -701,7 +701,7 @@ class VideoPlayerV3ViewModel(
                 }
             } else {
                 val st = _uiState.value
-                Log.w("BugDebug", "ViewModel: playData is null, fallback to loadPlayUrl")
+                BvLog.w("BugDebug", "ViewModel: playData is null, fallback to loadPlayUrl")
                 loadPlayUrl(
                     avid = st.aid,
                     cid = st.cid,
@@ -725,7 +725,7 @@ class VideoPlayerV3ViewModel(
         pendingResumePositionMs = player.currentPosition.coerceAtLeast(0L)
         _uiState.update { it.copy(lastPlayed = pendingResumePositionMs) }
 
-        Log.i(
+        BvLog.i(
             "BugDebug",
             "ViewModel onHostStopFastResume: fast=$fastResumeEnabled surfaceBugDetected=$surfaceBugDetected posMs=$pendingResumePositionMs"
         )
@@ -744,7 +744,7 @@ class VideoPlayerV3ViewModel(
 
     fun onHostStartFastResumeOrRecreate() {
         if (needRecreateOnStart) {
-            Log.i("BugDebug", "ViewModel onHostStartFastResumeOrRecreate: recreate")
+            BvLog.i("BugDebug", "ViewModel onHostStartFastResumeOrRecreate: recreate")
             onHostStartRecreateAndAutoPlayIfNeeded()
             surfaceBugDetected = false
             allowFastResumeOnNextStart = false
@@ -753,7 +753,7 @@ class VideoPlayerV3ViewModel(
 
         // 首次启动时跳过 fast resume，避免和 loadVideoWithResources() 的 start 重叠
         if (!allowFastResumeOnNextStart) {
-            Log.i("BugDebug", "ViewModel onHostStartFastResumeOrRecreate: skip fast resume on first start")
+            BvLog.i("BugDebug", "ViewModel onHostStartFastResumeOrRecreate: skip fast resume on first start")
             return
         }
 
@@ -762,7 +762,7 @@ class VideoPlayerV3ViewModel(
             return
         }
 
-        Log.i("BugDebug", "ViewModel onHostStartFastResumeOrRecreate: fast resume")
+        BvLog.i("BugDebug", "ViewModel onHostStartFastResumeOrRecreate: fast resume")
         allowFastResumeOnNextStart = false
         runCatching {
             videoPlayer?.let { player ->
@@ -1839,6 +1839,14 @@ class VideoPlayerV3ViewModel(
 
             logger.fInfo { "Load play data response success" }
             logger.info { "Play data: $localPlayData" }
+            logger.fInfo {
+                "BvPlayerDiag playData: aid=$avid, cid=$cid, epid=$epid, " +
+                        "preferApi=$preferApi, playbackApi=$playbackApi, needPay=${localPlayData.needPay}, " +
+                        "dashVideos=${localPlayData.dashVideos.size}, dashAudios=${localPlayData.dashAudios.size}, " +
+                        "dolby=${localPlayData.dolby != null}, flac=${localPlayData.flac != null}, " +
+                        "qualities=${localPlayData.dashVideos.map { it.quality }.distinct()}, " +
+                        "codecs=${localPlayData.codec}"
+            }
 
             val resolutionMap = localPlayData.dashVideos
                 .distinctBy { it.quality }
@@ -1881,6 +1889,12 @@ class VideoPlayerV3ViewModel(
                 playData = localPlayData,
                 apiType = playbackApi
             )
+            logger.fInfo {
+                "BvPlayerDiag target: aid=$avid, cid=$cid, qn=$targetQualityId, " +
+                        "codec=$targetCodec, audio=$targetAudio, " +
+                        "defaultQn=${Prefs.defaultQuality.code}, defaultCodec=${Prefs.defaultVideoCodec}, " +
+                        "defaultAudio=${Prefs.defaultAudio}"
+            }
 
             if (!isCurrentLoadRequest(generation, avid, cid, epid.takeIf { it != 0 })) {
                 logger.fInfo { "Skip stale playQuality: aid=$avid, cid=$cid, generation=$generation" }
