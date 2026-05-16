@@ -1,7 +1,9 @@
 package dev.aaa1115910.bv.activities
 
+import android.Manifest
 import android.content.Intent
 import android.os.Bundle
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
@@ -40,6 +42,8 @@ import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.ThemeMode
+import dev.aaa1115910.bv.util.ApiTestLoginExportUtil
+import dev.aaa1115910.bv.util.LogCatcherUtil
 import dev.aaa1115910.bv.util.Prefs
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.android.ext.android.inject
@@ -52,6 +56,14 @@ class MainActivity : ComponentActivity() {
 
     //  控制系统 Splash 什么时候撤退
     private val composeReady = AtomicBoolean(false)
+    private var pendingStartMainContent: (() -> Unit)? = null
+    private val requestStoragePermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            val onReady = pendingStartMainContent
+            pendingStartMainContent = null
+            onReady?.invoke()
+            if (granted) LogCatcherUtil.syncLogsToDownloads()
+        }
 
     enum class MainStartupPhase { Shell, RealUi }
     enum class AppScreen { Shell, Error, Main }
@@ -83,7 +95,9 @@ class MainActivity : ComponentActivity() {
                     if (!startupReady) error("Startup not ready")
 
                     // 启动时不再读取 user.lock
-                    phase = MainStartupPhase.RealUi
+                    requestStoragePermissionBeforeStartMain {
+                        phase = MainStartupPhase.RealUi
+                    }
                 }.onFailure {
                     logger.error(it) { "Main startup failed" }
                     startupError = true
@@ -152,6 +166,20 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private fun requestStoragePermissionBeforeStartMain(onReady: () -> Unit) {
+        if (ApiTestLoginExportUtil.canWriteDownloadsWithoutRequest(this)) {
+            onReady()
+            return
+        }
+        if (!ApiTestLoginExportUtil.requiresLegacyWritePermission()) {
+            onReady()
+            return
+        }
+
+        pendingStartMainContent = onReady
+        requestStoragePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
     }
 
     @Composable

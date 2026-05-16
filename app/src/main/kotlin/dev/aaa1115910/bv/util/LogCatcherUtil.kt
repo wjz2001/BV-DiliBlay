@@ -147,7 +147,7 @@ object LogCatcherUtil {
         }
     }
 
-    private fun syncLogsToDownloads() {
+    fun syncLogsToDownloads() {
         if (!ApiTestLoginExportUtil.canWriteDownloadsWithoutRequest(BVApp.context)) {
             logger.warn { "skip syncing logs to Downloads because storage permission is not granted" }
             return
