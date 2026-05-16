@@ -14,10 +14,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CornerSize
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -56,6 +56,7 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Comment
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.ManageHistory
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
@@ -108,6 +109,7 @@ fun ControllerVideoInfo(
     onGoToUpPage: () -> Unit,
     onShowTimeJump: () -> Unit,
     onShowComments: () -> Unit,
+    showVideoInfoEntry: Boolean = false,
     hasMultipleCoAuthors: Boolean = false,
     focusButtonsOnShow: Boolean = false,
     onConsumeFocusButtonsOnShow: () -> Unit = {}
@@ -168,6 +170,7 @@ fun ControllerVideoInfo(
                 onGoToUpPage = onGoToUpPage,
                 onShowTimeJump = onShowTimeJump,
                 onShowComments = onShowComments,
+                showVideoInfoEntry = showVideoInfoEntry,
                 hasMultipleCoAuthors = hasMultipleCoAuthors,
                 focusButtonsOnShow = focusButtonsOnShow,
                 onConsumeFocusButtonsOnShow = onConsumeFocusButtonsOnShow
@@ -256,15 +259,13 @@ fun ControllerVideoInfoBottom(
     onGoToUpPage: () -> Unit,
     onShowTimeJump: () -> Unit,
     onShowComments: () -> Unit,
+    showVideoInfoEntry: Boolean = false,
     hasMultipleCoAuthors: Boolean = false,
     focusButtonsOnShow: Boolean = false,
     onConsumeFocusButtonsOnShow: () -> Unit = {}
 ) {
-    val seekFocusRequester = remember { FocusRequester() }
     val buttonsFocusRequester = remember { FocusRequester() }
     val firstIconFocusRequester = remember { FocusRequester() }
-
-    var isSeekFocused by remember { mutableStateOf(false) }
 
     LaunchedEffect(show) {
         if (show) {
@@ -273,177 +274,205 @@ fun ControllerVideoInfoBottom(
                 if (focusButtonsOnShow) {
                     firstIconFocusRequester.requestFocus()
                     onConsumeFocusButtonsOnShow()
-                } else {
-                    seekFocusRequester.requestFocus()
                 }
             } catch (e: IllegalStateException) {
                 Log.d("ControllerVideoInfo", "requestFocus failed")
             }
         }
     }
-    Column(
+    Box(
         modifier = modifier
             .background(C.scrim)
-            .padding(top = 5.dp),
-        verticalArrangement = Arrangement.Bottom
+            .padding(top = 5.dp)
     ) {
         if (isSeeking && videoShot != null) {
-            VideoShot(
-                modifier = Modifier
-                    .padding(horizontal = 48.dp),
-                videoShot = videoShot,
-                imageCache = videoShotCache,
-                position = goTime,
-                duration = seekerState.totalDuration,
-                coercedOffset = (-24).dp,
-                videoRotation = videoRotation,
-                videoFlip = videoFlip
-            )
+            Box(
+                modifier = Modifier.matchParentSize()
+            ) {
+                VideoShot(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(horizontal = 48.dp)
+                        .offset(y = (-108).dp),
+                    videoShot = videoShot,
+                    imageCache = videoShotCache,
+                    position = goTime,
+                    duration = seekerState.totalDuration,
+                    coercedOffset = (-24).dp,
+                    videoRotation = videoRotation,
+                    videoFlip = videoFlip
+                )
+            }
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            verticalArrangement = Arrangement.Bottom
         ) {
-            Text(
+            Row(
                 modifier = Modifier
-                    .padding(horizontal = 32.dp),
-                text = "${if (isSeeking) goTime.formatHourMinSec() else seekerState.currentTime.formatHourMinSec()} / ${seekerState.totalDuration.formatHourMinSec()}",
-                color = AppWhite,
-                fontWeight = FontWeight.Bold,
-                style = TextStyle(
-                    shadow = Shadow(color = AppBlack, blurRadius = 1f),
-                ),
-            )
-            Text(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 32.dp),
-                textAlign = TextAlign.Center,
-                text = secondTitle,
-                color = AppWhite,
-                style = TextStyle(
-                    shadow = Shadow(color = AppBlack, blurRadius = 1f),
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                modifier = Modifier
-                    .padding(horizontal = 32.dp),
-                text = "${if (isSeeking) goTime.formatHourMinSec() else seekerState.currentTime.formatHourMinSec()} / ${seekerState.totalDuration.formatHourMinSec()}",
-                color = AppWhite,
-                fontWeight = FontWeight.Bold,
-                style = TextStyle(
-                    shadow = Shadow(color = AppBlack, blurRadius = 1f),
-                ),
-            )
-        }
-
-        Row(
-            modifier = Modifier
-                .focusable()
-                .focusRequester(seekFocusRequester)
-                .onKeyEvent {
-                    when (it.key) {
-                        Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
-                            if (it.type == KeyEventType.KeyUp) return@onKeyEvent true
-                            if (isSeeking) {
-                                onSeekGoTime()
-                            } else {
-                                onPlayPause()
-                            }
-                            return@onKeyEvent true
-                        }
-
-                        Key.DirectionLeft, Key.MediaRewind -> {
-                            if (it.type == KeyEventType.KeyUp) return@onKeyEvent true
-                            onDirectionLeft()
-                            return@onKeyEvent true
-                        }
-
-                        Key.DirectionRight, Key.MediaFastForward -> {
-                            if (it.type == KeyEventType.KeyUp) return@onKeyEvent true
-                            onDirectionRight()
-                            return@onKeyEvent true
-                        }
-
-                        Key.DirectionDown -> {
-                            if (it.type == KeyEventType.KeyUp) return@onKeyEvent true
-                            firstIconFocusRequester.requestFocus()
-                            return@onKeyEvent true
-                        }
-                    }
-                    return@onKeyEvent false
-                }
-                .onFocusChanged {
-                    isSeekFocused = it.isFocused
-                },
-        ) {
-            VideoProgressSeek(
-                modifier = Modifier
-                    .focusable()
-                    .fillMaxWidth(),
-                duration = seekerState.totalDuration,
-                position = if (isSeeking) goTime else seekerState.currentTime,
-                bufferedPercentage = seekerState.bufferedPercentage,
-                isPersistentSeek = false
-            )
-        }
-
-        val icons = listOfNotNull(
-            ((if (danmakuEnabled) (R.drawable.danmaku_on_24px) else (R.drawable.danmaku_off_24px)) to "弹幕开关") to
-                    onDanmakuSwitchChange,
-            (R.drawable.comment_24px to "评论") to onShowComments,
-            (R.drawable.manage_history_24px to "时间跳转") to onShowTimeJump,
-            if (source.isUgc) ((if (hasMultipleCoAuthors) R.drawable.group_24px else R.drawable.contact_page_24px) to
-                    "up主页") to onGoToUpPage else null,
-            if (source.isUgc) (R.drawable.related_videos_24px to "相关视频") to onShowRelatedVideos else null,
-            ((if (isLooping) (R.drawable.repeat_one_on_24px) else (R.drawable.repeat_one_24px)) to "循环播放") to
-                    onToggleLoop,
-        )
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(buttonsFocusRequester)
-                .onKeyEvent {
-                    if (it.key == Key.DirectionUp) {
-                        if (it.type == KeyEventType.KeyUp) return@onKeyEvent true
-                        seekFocusRequester.requestFocus()
-                        return@onKeyEvent true
-                    }
-                    return@onKeyEvent false
-                }
-                .padding(horizontal = 24.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start)
-        ) {
-            icons.forEachIndexed { index, (icon, function) ->
-                Surface(
-                    modifier = if (index == 0) Modifier.focusRequester(firstIconFocusRequester) else Modifier,
-                    onClick = function,
-                    shape = ClickableSurfaceDefaults.shape(
-                        shape = MaterialTheme.shapes.small,
+                    .fillMaxWidth()
+                    .padding(bottom = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    modifier = Modifier
+                        .padding(horizontal = 32.dp),
+                    text = "${if (isSeeking) goTime.formatHourMinSec() else seekerState.currentTime.formatHourMinSec()} / ${seekerState.totalDuration.formatHourMinSec()}",
+                    color = AppWhite,
+                    fontWeight = FontWeight.Bold,
+                    style = TextStyle(
+                        shadow = Shadow(color = AppBlack, blurRadius = 1f),
                     ),
-                    colors = ClickableSurfaceDefaults.colors(
-                        containerColor = AppBlack,
-                        contentColor = AppWhite,
-                        focusedContainerColor = AppWhite,
-                        focusedContentColor = AppBlack,
-                        pressedContainerColor = AppWhite,
-                        pressedContentColor = AppBlack
+                )
+                Text(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 32.dp),
+                    textAlign = TextAlign.Center,
+                    text = secondTitle,
+                    color = AppWhite,
+                    style = TextStyle(
+                        shadow = Shadow(color = AppBlack, blurRadius = 1f),
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    modifier = Modifier
+                        .padding(horizontal = 32.dp),
+                    text = "${if (isSeeking) goTime.formatHourMinSec() else seekerState.currentTime.formatHourMinSec()} / ${seekerState.totalDuration.formatHourMinSec()}",
+                    color = AppWhite,
+                    fontWeight = FontWeight.Bold,
+                    style = TextStyle(
+                        shadow = Shadow(color = AppBlack, blurRadius = 1f),
+                    ),
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                VideoProgressSeek(
+                    modifier = Modifier.fillMaxWidth(),
+                    duration = seekerState.totalDuration,
+                    position = if (isSeeking) goTime else seekerState.currentTime,
+                    bufferedPercentage = seekerState.bufferedPercentage,
+                    isPersistentSeek = false
+                )
+            }
+
+            val icons = listOfNotNull(
+                ControllerActionIcon.Resource(
+                    iconRes = if (danmakuEnabled) R.drawable.danmaku_on_24px else R.drawable.danmaku_off_24px,
+                    description = "弹幕开关",
+                    onClick = onDanmakuSwitchChange
+                ),
+                ControllerActionIcon.Resource(
+                    iconRes = R.drawable.comment_24px,
+                    description = "评论",
+                    onClick = onShowComments
+                ),
+                ControllerActionIcon.Resource(
+                    iconRes = R.drawable.manage_history_24px,
+                    description = "时间跳转",
+                    onClick = onShowTimeJump
+                ),
+                if (showVideoInfoEntry) {
+                    ControllerActionIcon.Vector(
+                        imageVector = Icons.Rounded.Info,
+                        description = "详情页",
+                        onClick = onGoToVideoInfo
                     )
-                ) {
-                    Icon(
-                        painter = painterResource(id = icon.first),
-                        contentDescription = icon.second,
-                        modifier = Modifier.padding(5.dp)
+                } else {
+                    null
+                },
+                if (source.isUgc) {
+                    ControllerActionIcon.Resource(
+                        iconRes = if (hasMultipleCoAuthors) R.drawable.group_24px else R.drawable.contact_page_24px,
+                        description = "up主页",
+                        onClick = onGoToUpPage
                     )
+                } else {
+                    null
+                },
+                if (source.isUgc) {
+                    ControllerActionIcon.Resource(
+                        iconRes = R.drawable.related_videos_24px,
+                        description = "相关视频",
+                        onClick = onShowRelatedVideos
+                    )
+                } else {
+                    null
+                },
+                ControllerActionIcon.Resource(
+                    iconRes = if (isLooping) R.drawable.repeat_one_on_24px else R.drawable.repeat_one_24px,
+                    description = "循环播放",
+                    onClick = onToggleLoop
+                ),
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(buttonsFocusRequester)
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start)
+            ) {
+                icons.forEachIndexed { index, icon ->
+                    Surface(
+                        modifier = if (index == 0) Modifier.focusRequester(firstIconFocusRequester) else Modifier,
+                        onClick = icon.onClick,
+                        shape = ClickableSurfaceDefaults.shape(
+                            shape = MaterialTheme.shapes.extraSmall.copy(all = CornerSize(0.dp)),
+                        ),
+                        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+                        colors = ClickableSurfaceDefaults.colors(
+                            containerColor = AppBlack,
+                            contentColor = AppWhite,
+                            focusedContainerColor = AppWhite,
+                            focusedContentColor = AppBlack,
+                            pressedContainerColor = AppWhite,
+                            pressedContentColor = AppBlack
+                        )
+                    ) {
+                        when (icon) {
+                            is ControllerActionIcon.Resource -> {
+                                Icon(
+                                    painter = painterResource(id = icon.iconRes),
+                                    contentDescription = icon.description,
+                                    modifier = Modifier.padding(5.dp)
+                                )
+                            }
+
+                            is ControllerActionIcon.Vector -> {
+                                Icon(
+                                    imageVector = icon.imageVector,
+                                    contentDescription = icon.description,
+                                    modifier = Modifier.padding(5.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+private sealed interface ControllerActionIcon {
+    val description: String
+    val onClick: () -> Unit
+
+    data class Resource(
+        val iconRes: Int,
+        override val description: String,
+        override val onClick: () -> Unit
+    ) : ControllerActionIcon
+
+    data class Vector(
+        val imageVector: androidx.compose.ui.graphics.vector.ImageVector,
+        override val description: String,
+        override val onClick: () -> Unit
+    ) : ControllerActionIcon
 }
 
 @Composable

@@ -62,6 +62,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.component.sidebarFocusUnderlineIndicator
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.ui.state.PlayerChapter
@@ -309,6 +310,7 @@ private fun UpPanelNavItem(
     onFocus: () -> Unit = {},
     onClick: () -> Unit
 ) {
+    var hasFocus by remember { mutableStateOf(false) }
     val itemWidth by animateDpAsState(
         targetValue = if (expanded) expandedWidth else 66.dp,
         animationSpec = spring(
@@ -321,9 +323,17 @@ private fun UpPanelNavItem(
     DenseListItem(
         modifier = modifier
             .width(itemWidth)
-            .onFocusChanged { if (it.hasFocus) onFocus() },
+            .onFocusChanged {
+                hasFocus = it.hasFocus
+                if (it.hasFocus) onFocus()
+            }
+            .sidebarFocusUnderlineIndicator(
+                animatedSelected = hasFocus && !selected,
+                color = AppWhite
+            ),
         selected = selected,
         onClick = onClick,
+        scale = ListItemDefaults.scale(focusedScale = 1f),
         headlineContent = {
             Box {
                 Row(
@@ -381,8 +391,8 @@ private fun UpPanelNavItem(
             contentColor = AppWhite,
             selectedContainerColor = AppGray,
             selectedContentColor = AppBlack,
-            focusedContainerColor = AppWhite,
-            focusedContentColor = AppBlack,
+            focusedContainerColor = Color.Transparent,
+            focusedContentColor = AppWhite,
             focusedSelectedContainerColor = AppWhite,
             focusedSelectedContentColor = AppBlack
         )

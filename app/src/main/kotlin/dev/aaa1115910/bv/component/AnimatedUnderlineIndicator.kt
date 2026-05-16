@@ -118,6 +118,25 @@ internal fun SettingsBottomIndicator(
     visible = true
 )
 
+@Composable
+internal fun Modifier.sidebarFocusUnderlineIndicator(
+    animatedSelected: Boolean,
+    fixedSelected: Boolean = false,
+    color: Color
+): Modifier = this.animatedUnderlineIndicator(
+    animatedSelected = animatedSelected,
+    fixedSelected = fixedSelected,
+    color = color,
+    width = AnimatedUnderlineIndicatorWidth.WidthFraction(0.76f),
+    height = 3.dp,
+    enterAnimationSpec = tween(220),
+    exitAnimationSpec = tween(140),
+    rounded = true,
+    alignment = IndicatorAlignment.Center,
+    verticalOffset = 0.dp,
+    visible = true
+)
+
 private fun Modifier.animatedUnderlineIndicator(
     animatedSelected: Boolean,
     fixedSelected: Boolean,

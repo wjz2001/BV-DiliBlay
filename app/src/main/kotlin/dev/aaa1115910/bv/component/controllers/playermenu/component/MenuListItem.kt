@@ -35,6 +35,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.component.sidebarFocusUnderlineIndicator
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppGray
 import dev.aaa1115910.bv.ui.theme.AppWhite
@@ -51,6 +52,7 @@ fun MenuListItem(
     onFocus: () -> Unit = {},
     onClick: () -> Unit
 ) {
+    var hasFocus by remember { mutableStateOf(false) }
     val itemWidth by animateDpAsState(
         targetValue = if (expanded) 200.dp else 66.dp,
         animationSpec = spring(
@@ -63,9 +65,17 @@ fun MenuListItem(
     DenseListItem(
         modifier = modifier
             .width(itemWidth)
-            .onFocusChanged { if (it.hasFocus) onFocus() },
+            .onFocusChanged {
+                hasFocus = it.hasFocus
+                if (it.hasFocus) onFocus()
+            }
+            .sidebarFocusUnderlineIndicator(
+                animatedSelected = hasFocus && !selected,
+                color = AppWhite
+            ),
         selected = selected,
         onClick = onClick,
+        scale = ListItemDefaults.scale(focusedScale = 1f),
         headlineContent = {
             Box {
                 Row(
@@ -122,8 +132,8 @@ fun MenuListItem(
             contentColor = AppWhite,
             selectedContainerColor = AppGray,
             selectedContentColor = AppBlack,
-            focusedContainerColor = AppWhite,
-            focusedContentColor = AppBlack,
+            focusedContainerColor = Color.Transparent,
+            focusedContentColor = AppWhite,
             focusedSelectedContainerColor = AppWhite,
             focusedSelectedContentColor = AppBlack
         )

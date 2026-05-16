@@ -53,6 +53,7 @@ import dev.aaa1115910.bv.ui.state.PlayerState
 import dev.aaa1115910.bv.ui.state.PlayerUiState
 import dev.aaa1115910.bv.ui.state.SeekerState
 import dev.aaa1115910.bv.ui.theme.AppBlack
+import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.player.DanmakuSettingAction
@@ -511,6 +512,7 @@ fun VideoPlayerController(
                 },
                 onToggleLoop = onToggleLoop,
                 onGoToUpPage = onGoToUpPage,
+                showVideoInfoEntry = !Prefs.showVideoInfo,
                 hasMultipleCoAuthors = uiState.coAuthors.distinctBy { it.mid }.size > 1,
                 onShowTimeJump = {
                     onPause()
