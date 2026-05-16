@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -28,7 +29,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.tv.material3.Button
@@ -42,6 +45,7 @@ import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.ThemeMode
+import dev.aaa1115910.bv.tv.component.TvAlertDialog
 import dev.aaa1115910.bv.util.ApiTestLoginExportUtil
 import dev.aaa1115910.bv.util.LogCatcherUtil
 import dev.aaa1115910.bv.util.Prefs
@@ -80,6 +84,7 @@ class MainActivity : ComponentActivity() {
             var showStartupShell by remember { mutableStateOf(true) }
             var startupError by remember { mutableStateOf(false) }
             var startupErrorMessage by remember { mutableStateOf("启动失败") }
+            var showStoragePermissionDialog by remember { mutableStateOf(false) }
             var retryNonce by remember { mutableIntStateOf(0) }
 
             LaunchedEffect(retryNonce) {
@@ -95,9 +100,14 @@ class MainActivity : ComponentActivity() {
                     if (!startupReady) error("Startup not ready")
 
                     // 启动时不再读取 user.lock
-                    requestStoragePermissionBeforeStartMain {
-                        phase = MainStartupPhase.RealUi
-                    }
+                    requestStoragePermissionBeforeStartMain(
+                        onReady = {
+                            phase = MainStartupPhase.RealUi
+                        },
+                        onPermissionDialogRequired = {
+                            showStoragePermissionDialog = true
+                        }
+                    )
                 }.onFailure {
                     logger.error(it) { "Main startup failed" }
                     startupError = true
@@ -163,12 +173,30 @@ class MainActivity : ComponentActivity() {
                     ) {
                         MainStartupShell()
                     }
+
+                    if (showStoragePermissionDialog) {
+                        StoragePermissionDialog(
+                            onDismiss = {
+                                showStoragePermissionDialog = false
+                                continueStartMainContent()
+                            },
+                            onConfirm = {
+                                showStoragePermissionDialog = false
+                                requestStoragePermissionLauncher.launch(
+                                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+                                )
+                            }
+                        )
+                    }
                 }
             }
         }
     }
 
-    private fun requestStoragePermissionBeforeStartMain(onReady: () -> Unit) {
+    private fun requestStoragePermissionBeforeStartMain(
+        onReady: () -> Unit,
+        onPermissionDialogRequired: () -> Unit
+    ) {
         if (ApiTestLoginExportUtil.canWriteDownloadsWithoutRequest(this)) {
             onReady()
             return
@@ -177,9 +205,20 @@ class MainActivity : ComponentActivity() {
             onReady()
             return
         }
+        if (!Prefs.showLogStoragePermissionDialog) {
+            onReady()
+            return
+        }
 
         pendingStartMainContent = onReady
-        requestStoragePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        Prefs.showLogStoragePermissionDialog = false
+        onPermissionDialogRequired()
+    }
+
+    private fun continueStartMainContent() {
+        val onReady = pendingStartMainContent
+        pendingStartMainContent = null
+        onReady?.invoke()
     }
 
     @Composable
@@ -201,6 +240,34 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier.fillMaxSize(),
                 alignment = Alignment.Center,
                 contentScale = ContentScale.Crop
+            )
+        }
+    }
+
+    @Composable
+    private fun StoragePermissionDialog(
+        onDismiss: () -> Unit,
+        onConfirm: () -> Unit
+    ) {
+        CompositionLocalProvider(
+            LocalDensity provides Density(
+                density = LocalDensity.current.density * 1.5f,
+                fontScale = LocalDensity.current.fontScale * 1.5f
+            )
+        ) {
+            TvAlertDialog(
+                onDismissRequest = onDismiss,
+                title = {
+                    Text(text = "日志管理")
+                },
+                text = {
+                    Text(text = "本应用需要获取存储权限才能把日志导出到用户目录下的 Download 文件夹内，这在特殊情况下很有用。如果你选择不给存储权限，可以直接按返回键，不会影响正常使用。")
+                },
+                confirmButton = {
+                    Button(onClick = onConfirm) {
+                        Text(text = "同意")
+                    }
+                }
             )
         }
     }

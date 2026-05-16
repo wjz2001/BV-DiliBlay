@@ -92,6 +92,7 @@ object Prefs {
     var isLogin by pref(PrefKeys.prefIsLoginKey, false)
     var autoOpenLoginOnFirstLaunch by pref(PrefKeys.prefAutoOpenLoginOnFirstLaunchKey, true)
     var showFirstLaunchMainDialog by pref(PrefKeys.prefShowFirstLaunchMainDialogKey, true)
+    var showLogStoragePermissionDialog by pref(PrefKeys.prefShowLogStoragePermissionDialogKey, true)
     var uid by pref(PrefKeys.prefUidKey, 0L)
     var sid by pref(PrefKeys.prefSidKey, "")
     var sessData by pref(PrefKeys.prefSessDataKey, "")
@@ -513,6 +514,8 @@ private object PrefKeys {
     val prefIsLoginKey = booleanPreferencesKey("il")
     val prefAutoOpenLoginOnFirstLaunchKey = booleanPreferencesKey("auto_open_login_first_launch")
     val prefShowFirstLaunchMainDialogKey = booleanPreferencesKey("show_first_launch_main_dialog")
+    val prefShowLogStoragePermissionDialogKey =
+        booleanPreferencesKey("show_log_storage_permission_dialog")
     val prefUidKey = longPreferencesKey("uid")
     val prefSidKey = stringPreferencesKey("sid")
     val prefSessDataKey = stringPreferencesKey("sd")
