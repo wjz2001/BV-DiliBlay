@@ -15,6 +15,33 @@ import androidx.compose.ui.graphics.Color
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import kotlinx.coroutines.delay
 
+class BlackoutSwitchPhase private constructor(
+    private val label: String
+) {
+    override fun toString(): String = label
+
+    companion object {
+        val Idle = BlackoutSwitchPhase("Idle")
+        val FadingIn = BlackoutSwitchPhase("FadingIn")
+        val Switching = BlackoutSwitchPhase("Switching")
+        val Holding = BlackoutSwitchPhase("Holding")
+        val FadingOut = BlackoutSwitchPhase("FadingOut")
+    }
+}
+
+class BlackoutSwitchTransitionState internal constructor() {
+    var phase by mutableStateOf(BlackoutSwitchPhase.Idle)
+        internal set
+
+    val running: Boolean
+        get() = phase != BlackoutSwitchPhase.Idle
+}
+
+@Composable
+fun rememberBlackoutSwitchTransitionState(): BlackoutSwitchTransitionState {
+    return remember { BlackoutSwitchTransitionState() }
+}
+
 /**
  * 单树切换：过渡期间不会同时存在“两棵不同页面的内容子树”（仍会因遮罩 alpha 变化触发外层重组）。
  *
@@ -43,6 +70,7 @@ fun <T> BlackoutSwitch(
     fadeInMillis: Int = 90,
     fadeOutMillis: Int = 90,
     switchDelayMillis: Long = 0L,
+    transitionState: BlackoutSwitchTransitionState = rememberBlackoutSwitchTransitionState(),
     onSwitched: (T) -> Unit = {},
     content: @Composable (T) -> Unit
 ) {
@@ -50,31 +78,43 @@ fun <T> BlackoutSwitch(
     val alphaAnim = remember { Animatable(0f) }
 
     LaunchedEffect(targetState) {
-        // 兜底：快速连切/取消可能导致 alpha 停在半黑或全黑；即使状态没变，也要把遮罩淡出
-        if (targetState == displayedState) {
-            if (alphaAnim.value > 0f) {
-                if (fadeOutMillis <= 0) alphaAnim.snapTo(0f)
-                else alphaAnim.animateTo(0f, animationSpec = tween(durationMillis = fadeOutMillis))
+        try {
+            // 兜底：快速连切/取消可能导致 alpha 停在半黑或全黑；即使状态没变，也要把遮罩淡出
+            if (targetState == displayedState) {
+                if (alphaAnim.value > 0f) {
+                    transitionState.phase = BlackoutSwitchPhase.FadingOut
+                    if (fadeOutMillis <= 0) alphaAnim.snapTo(0f)
+                    else alphaAnim.animateTo(0f, animationSpec = tween(durationMillis = fadeOutMillis))
+                }
+                return@LaunchedEffect
             }
-            return@LaunchedEffect
-        }
 
-        // 特判：fade=0 且无额外 delay 时，直接切状态，不走“黑一下”的路径（Step2 的 TopNav 扫焦点场景尤其需要）
-        if (fadeInMillis <= 0 && fadeOutMillis <= 0 && switchDelayMillis <= 0L) {
-            if (alphaAnim.value != 0f) alphaAnim.snapTo(0f)
+            // 特判：fade=0 且无额外 delay 时，直接切状态，不走“黑一下”的路径（Step2 的 TopNav 扫焦点场景尤其需要）
+            if (fadeInMillis <= 0 && fadeOutMillis <= 0 && switchDelayMillis <= 0L) {
+                transitionState.phase = BlackoutSwitchPhase.Switching
+                if (alphaAnim.value != 0f) alphaAnim.snapTo(0f)
+                displayedState = targetState
+                onSwitched(targetState)
+                return@LaunchedEffect
+            }
+
+            // 加固：低端盒子 fade=0ms 时直接 snap，避免 0ms 动画仍触发一次调度/挂起
+            transitionState.phase = BlackoutSwitchPhase.FadingIn
+            if (fadeInMillis <= 0) alphaAnim.snapTo(1f)
+            else alphaAnim.animateTo(1f, animationSpec = tween(durationMillis = fadeInMillis))
+            transitionState.phase = BlackoutSwitchPhase.Switching
             displayedState = targetState
             onSwitched(targetState)
-            return@LaunchedEffect
+            if (switchDelayMillis > 0) {
+                transitionState.phase = BlackoutSwitchPhase.Holding
+                delay(switchDelayMillis)
+            }
+            transitionState.phase = BlackoutSwitchPhase.FadingOut
+            if (fadeOutMillis <= 0) alphaAnim.snapTo(0f)
+            else alphaAnim.animateTo(0f, animationSpec = tween(durationMillis = fadeOutMillis))
+        } finally {
+            transitionState.phase = BlackoutSwitchPhase.Idle
         }
-
-        // 加固：低端盒子 fade=0ms 时直接 snap，避免 0ms 动画仍触发一次调度/挂起
-        if (fadeInMillis <= 0) alphaAnim.snapTo(1f)
-        else alphaAnim.animateTo(1f, animationSpec = tween(durationMillis = fadeInMillis))
-        displayedState = targetState
-        onSwitched(targetState)
-        if (switchDelayMillis > 0) delay(switchDelayMillis)
-        if (fadeOutMillis <= 0) alphaAnim.snapTo(0f)
-        else alphaAnim.animateTo(0f, animationSpec = tween(durationMillis = fadeOutMillis))
     }
 
     Box(modifier = modifier) {

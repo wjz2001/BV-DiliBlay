@@ -62,6 +62,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.component.BvTabLabel
 import dev.aaa1115910.bv.component.BvUnderlineTabRow
 import dev.aaa1115910.bv.component.MainTopBarContainer
@@ -70,11 +71,11 @@ import dev.aaa1115910.bv.component.MainTopTabSeparator
 import dev.aaa1115910.bv.component.RadioMenuSelectDialog
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
-import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
+import dev.aaa1115910.bv.component.rememberTvGridFocusTarget
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
-import dev.aaa1115910.bv.tv.component.TvAlertDialog
+import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.toast
@@ -109,9 +110,8 @@ fun ToViewScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val histories by toViewViewModel.histories.collectAsStateWithLifecycle()
-    val defaultFocusRequester = remember { FocusRequester() }
-    val internalContentEntryFocusRequester = remember { FocusRequester() }
-    val toViewTabFocusRequester = contentEntryFocusRequester ?: defaultFocusRequester
+    val toViewTabFocusRequester = tabFocusRequester
+    val toViewContentEntryFocusRequester = contentEntryFocusRequester
     var readyFocusTargetTabIndex by remember { mutableStateOf<Int?>(null) }
     var contentReadyTabIndex by remember { mutableStateOf<Int?>(null) }
 
@@ -323,7 +323,7 @@ fun ToViewScreen(
                     }
                     true
                 },
-                contentFocusRequester = internalContentEntryFocusRequester,
+                contentFocusRequester = toViewContentEntryFocusRequester,
                 contentFocusReadyKey = contentReadyTabIndex,
                 onContentFocusRequested = { index ->
                     if (selectedTabIndex != index) {
@@ -368,11 +368,13 @@ fun ToViewScreen(
             state = gridState,
             columns = GridCells.Fixed(4),
             contentPadding = PaddingValues(24.dp),
+            nodeIdPrefix = "to-view/${tabTitles[selectedTabIndex]}",
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             focusItemCount = visibleItems.size,
+            focusItemKeys = visibleItems.map { WjzFocusItemKey("Long:${it.avid}") },
             focusColumnCount = 4,
-            entryFocusRequester = internalContentEntryFocusRequester,
+            entryFocusRequester = toViewContentEntryFocusRequester,
             upFocusRequester = toViewTabFocusRequester,
             onEntryFocusReady = {
                 contentReadyTabIndex = selectedTabIndex
@@ -387,7 +389,7 @@ fun ToViewScreen(
                 ) { index, item ->
                     Box(contentAlignment = Alignment.Center) {
                         SmallVideoCard(
-                            frameModifier = rememberTvGridFocusModifier(index),
+                            focusTarget = rememberTvGridFocusTarget(index),
                             uiState = cardUiStateFor(item.avid),
                             data = item,
                             pendingRemoval = pendingRemovalAid == item.avid,

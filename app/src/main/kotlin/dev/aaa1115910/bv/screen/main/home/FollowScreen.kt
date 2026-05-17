@@ -62,7 +62,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Icon
-import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
@@ -71,6 +70,7 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.component.BlockTagItem
 import dev.aaa1115910.bv.component.BvTabLabel
 import dev.aaa1115910.bv.component.BvUnderlineTabRow
@@ -81,10 +81,9 @@ import dev.aaa1115910.bv.component.MainTopTabDefaults
 import dev.aaa1115910.bv.component.MainTopTabSeparator
 import dev.aaa1115910.bv.component.TvGridFocusHost
 import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
-import dev.aaa1115910.bv.tv.component.TvAlertDialog
+import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.theme.C
-import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.rememberTvImageRequest
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.FollowViewModel
@@ -115,10 +114,8 @@ fun FollowScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
-    val defaultFocusRequester = remember { FocusRequester() }
-    val internalContentEntryFocusRequester = remember { FocusRequester() }
-    val followTabFocusRequester = contentEntryFocusRequester ?: defaultFocusRequester
-    val followContentEntryFocusRequester = internalContentEntryFocusRequester
+    val followTabFocusRequester = tabFocusRequester
+    val followContentEntryFocusRequester = contentEntryFocusRequester
 
     var focusOnTabs by remember { mutableStateOf(true) }
     var topNavReadyGroupId by remember { mutableStateOf<Int?>(null) }
@@ -437,6 +434,7 @@ fun FollowScreen(
                     contentPadding = PaddingValues(24.dp),
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                     horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    nodeIdPrefix = "follow/${currentGroupId ?: "empty"}/users",
                     entryFocusRequester = followContentEntryFocusRequester,
                     upFocusRequester = followTabFocusRequester,
                     onEntryFocusReady = {
@@ -444,6 +442,7 @@ fun FollowScreen(
                         onContentEntryReady()
                     },
                     focusItemCount = visibleUsers.size,
+                    itemKeys = visibleUsers.map { WjzFocusItemKey("String:${it.stableKey}") },
                     focusColumnCount = 4
                 ) {
                     if (visibleUsers.isEmpty()) {

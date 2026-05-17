@@ -30,11 +30,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -62,6 +60,10 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusNode
 import dev.aaa1115910.bv.component.sidebarFocusUnderlineIndicator
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.VideoListItem
@@ -71,7 +73,6 @@ import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppGray
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.C
-import dev.aaa1115910.bv.util.requestFocus
 
 
 private enum class UpPanelTab(
@@ -84,6 +85,8 @@ private enum class UpPanelTab(
 }
 
 private enum class UpPanelFocusState { Nav, Content }
+
+private val UpPanelNavVideoNodeId = WjzFocusNodeId("player/up-panel/nav/video")
 
 @Composable
 fun UpPanelController(
@@ -104,10 +107,10 @@ fun UpPanelController(
     var selectedTab by remember { mutableStateOf(UpPanelTab.Video) }
     var focusState by remember { mutableStateOf(UpPanelFocusState.Nav) }
     var forceNavExpandedOnOpen by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
 
     // 默认焦点落点：导航“选择视频”
     val navVideoItemFocusRequester = remember { FocusRequester() }
+    val focusCoordinator = LocalWjzFocusCoordinator.current
 
     val chapterBuilt = buildChapterParents(
         chapters = uiState.availableChapters,
@@ -144,7 +147,10 @@ fun UpPanelController(
             selectedTab = UpPanelTab.Video
             focusState = UpPanelFocusState.Nav
             forceNavExpandedOnOpen = hasAnyProgress
-            navVideoItemFocusRequester.requestFocus(scope)
+            focusCoordinator?.requestFocus(
+                nodeId = UpPanelNavVideoNodeId,
+                layer = WjzFocusLayer.Player
+            )
         } else {
             forceNavExpandedOnOpen = false
         }
@@ -412,21 +418,13 @@ private fun UpPanelNavList(
     navVideoItemFocusRequester: FocusRequester,
     onSelectedChanged: (UpPanelTab) -> Unit,
 ) {
-    val listFocusRequester = remember { FocusRequester() }
-    val scope = rememberCoroutineScope()
-
     // 判断是否至少存在一个进度文本
     val hasAnyProgress = chapterProgressText != null ||
             videoProgressText != null ||
             collectionProgressText != null
 
-    LaunchedEffect(Unit) {
-        listFocusRequester.requestFocus(scope)
-    }
-
     LazyColumn(
         modifier = modifier
-            .focusRequester(listFocusRequester)
             .focusRestorer(navVideoItemFocusRequester),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(16.dp)
@@ -451,6 +449,15 @@ private fun UpPanelNavList(
             UpPanelNavItem(
                 modifier = Modifier
                     .ifElse(tab == UpPanelTab.Video, Modifier.focusRequester(navVideoItemFocusRequester))
+                    .ifElse(
+                        tab == UpPanelTab.Video,
+                        Modifier.wjzFocusNode(
+                            nodeId = UpPanelNavVideoNodeId,
+                            requester = navVideoItemFocusRequester,
+                            layer = WjzFocusLayer.Player,
+                            fallback = true
+                        )
+                    )
                     .focusProperties { canFocus = enabled },
                 title = tab.title,
                 fontColor = if (!enabled) C.disabled else Color.Unspecified,
@@ -517,7 +524,8 @@ private data class BuiltCollectionParents(
 )
 
 private fun buildCollectionParents(uiState: PlayerUiState): BuiltCollectionParents {
-    val sections = uiState.ugcSeason?.sections.orEmpty()
+    val sections: List<dev.aaa1115910.biliapi.entity.video.season.Section> =
+        uiState.ugcSeason?.sections.orEmpty()
     val currentCid = uiState.cid
     val targetCid = currentCid.takeIf { it != 0L }
 
@@ -549,10 +557,13 @@ private fun buildCollectionParents(uiState: PlayerUiState): BuiltCollectionParen
         }.takeIf { it >= 0 }
     }
 
-    val flatEpisodes = sections.flatMap { it.episodes }
+    val flatEpisodes: List<dev.aaa1115910.biliapi.entity.video.season.Episode> =
+        sections.map { it.episodes }.flatten()
+
     val selectedEpisodeIndex = targetCid?.let { cid ->
-        flatEpisodes.indexOfFirst { ep -> ep.cid == cid }
-            .takeIf { it >= 0 }
+        flatEpisodes.indexOfFirst { ep: dev.aaa1115910.biliapi.entity.video.season.Episode ->
+            ep.cid == cid
+        }.takeIf { it >= 0 }
     }
 
     val selectedChildKey = targetCid?.let { cid ->

@@ -4,12 +4,14 @@ import android.content.Context
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.TopNavItem
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
+import dev.aaa1115910.bv.screen.main.common.mainContentEntryAdapter
 
 private enum class LiveTopNavItem : TopNavItem {
     Live;
@@ -19,37 +21,46 @@ private enum class LiveTopNavItem : TopNavItem {
     }
 }
 
+private val LiveTopNavNodeId = WjzFocusNodeId("main/live/top-nav")
+
 @Composable
 fun LiveContent(
-    navFocusRequester: FocusRequester,
-    drawerFocusRequester: FocusRequester,
     topBarLeadingContent: @Composable () -> Unit,
-    pendingDrawerEntryRequest: MainContentEntryRequest? = null,
-    onDrawerEntryConsumed: (Long) -> Unit = {},
+    entryRequest: MainContentEntryRequest? = null,
+    onEntryRequestReady: (Long) -> Unit = {},
+    onEntryRequestConsumed: (Long) -> Unit = {},
+    onEntryRequestRejected: (Long) -> Unit = {},
     onDefaultFocusReady: (() -> Unit)? = null,
     active: Boolean = true
 ) {
-    LaunchedEffect(active) {
-        if (active) {
-            onDefaultFocusReady?.invoke()
-        }
-    }
-
-    LaunchedEffect(pendingDrawerEntryRequest?.id, active) {
-        if (!active) return@LaunchedEffect
-        val request = pendingDrawerEntryRequest ?: return@LaunchedEffect
-        navFocusRequester.requestFocus()
-        onDrawerEntryConsumed(request.id)
-    }
+    val entryAdapter = mainContentEntryAdapter(
+        entryRequest = entryRequest,
+        active = active,
+        onDefaultFocusReady = onDefaultFocusReady,
+        onEntryRequestReady = onEntryRequestReady,
+        onEntryRequestConsumed = onEntryRequestConsumed,
+        onEntryRequestRejected = onEntryRequestRejected
+    )
+    val entryFocusRequest = entryAdapter.topNavEntryFocusRequest
 
     Box(modifier = Modifier.fillMaxSize()) {
-        TopNav(
-            leadingContent = topBarLeadingContent,
-            items = LiveTopNavItem.entries,
-            selectedItem = LiveTopNavItem.Live,
-            defaultFocusRequester = navFocusRequester,
-            onDefaultFocusReady = { onDefaultFocusReady?.invoke() },
-            backFocusEnabled = active
-        )
+        key(entryFocusRequest?.id) {
+            TopNav(
+                leadingContent = topBarLeadingContent,
+                items = LiveTopNavItem.entries,
+                selectedItem = LiveTopNavItem.Live,
+                entryFocusTarget = entryAdapter.topNavEntryFocusTarget,
+                onDefaultFocusReady = { entryAdapter.onDefaultFocusReady(entryFocusRequest) },
+                onEntryFocusResolution = { resolution ->
+                    entryAdapter.onTopNavEntryFocusResolution(entryFocusRequest, resolution)
+                },
+                onEntryFocusConsumed = { consumed ->
+                    entryAdapter.onTopNavEntryFocusConsumed(entryFocusRequest, consumed)
+                },
+                focusNodeId = LiveTopNavNodeId,
+                focusLayer = WjzFocusLayer.Content,
+                backFocusEnabled = active
+            )
+        }
     }
 }

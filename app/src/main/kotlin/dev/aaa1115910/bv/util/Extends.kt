@@ -1,20 +1,18 @@
 package dev.aaa1115910.bv.util
 
 import android.content.Context
+import android.view.KeyEvent as AndroidKeyEvent
 import android.widget.Toast
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.snapshots.SnapshotStateMap
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.core.text.HtmlCompat
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -176,31 +174,56 @@ fun Long.formatHourMinSec(): String {
 
 fun Long.toMBString(): String = String.format("%.2f MB", this / 1024f / 1024f)
 
-/**
- * 改进的请求焦点的方法，失败后等待 100ms 后重试
- */
-fun FocusRequester.requestFocus(scope: CoroutineScope) {
-    // scope.launch(Dispatchers.Default) {
-    scope.launch( Dispatchers.Main.immediate) {
-        runCatching {
-            requestFocus()
-        }.onFailure {
-            delay(100)
-            runCatching { requestFocus() }
-        }
-    }
-}
-
 fun String.removeHtmlTags(): String = HtmlCompat.fromHtml(
     this, HtmlCompat.FROM_HTML_MODE_LEGACY
 ).toString()
 
 fun KeyEvent.isKeyDown(): Boolean = type == KeyEventType.KeyDown
 fun KeyEvent.isKeyUp(): Boolean = type == KeyEventType.KeyUp
-fun KeyEvent.isDpadUp(): Boolean = key == Key.DirectionUp
-fun KeyEvent.isDpadDown(): Boolean = key == Key.DirectionDown
-fun KeyEvent.isDpadLeft(): Boolean = key == Key.DirectionLeft
-fun KeyEvent.isDpadRight(): Boolean = key == Key.DirectionRight
+
+enum class BvKeyDirection {
+    Up,
+    Down,
+    Left,
+    Right
+}
+
+fun KeyEvent.bvKeyDirection(): BvKeyDirection? =
+    when {
+        key == Key.DirectionUp || nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_UP -> BvKeyDirection.Up
+        key == Key.DirectionDown || nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_DOWN -> BvKeyDirection.Down
+        key == Key.DirectionLeft || nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_LEFT -> BvKeyDirection.Left
+        key == Key.DirectionRight || nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> BvKeyDirection.Right
+        else -> null
+    }
+
+fun KeyEvent.isDpadUp(): Boolean = isBvDpadUp()
+fun KeyEvent.isDpadDown(): Boolean = isBvDpadDown()
+fun KeyEvent.isDpadLeft(): Boolean = isBvDpadLeft()
+fun KeyEvent.isDpadRight(): Boolean = isBvDpadRight()
+fun KeyEvent.isBvDpadUp(): Boolean =
+    key == Key.DirectionUp || nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_UP
+
+fun KeyEvent.isBvDpadDown(): Boolean =
+    key == Key.DirectionDown || nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_DOWN
+
+fun KeyEvent.isBvDpadLeft(): Boolean =
+    key == Key.DirectionLeft || nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_LEFT
+
+fun KeyEvent.isBvDpadRight(): Boolean =
+    key == Key.DirectionRight || nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_RIGHT
+
+fun KeyEvent.isBvConfirmKey(): Boolean =
+    key == Key.DirectionCenter ||
+            key == Key.Enter ||
+            key == Key.Spacebar ||
+            key == Key.NumPadEnter ||
+            nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_CENTER ||
+            nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_ENTER ||
+            nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_NUMPAD_ENTER ||
+            nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_SPACE
+
+fun KeyEvent.isNativeActionDown(): Boolean = nativeKeyEvent.action == AndroidKeyEvent.ACTION_DOWN
 
 fun Int.stringRes(context: Context): String = context.getString(this)
 

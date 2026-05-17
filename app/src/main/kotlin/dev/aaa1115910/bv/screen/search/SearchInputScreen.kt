@@ -7,7 +7,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,12 +39,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -56,7 +52,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.tv.material3.Button
-import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.IconButton
 import androidx.tv.material3.IconButtonDefaults
@@ -64,11 +59,18 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.search.Hotword
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusHost
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.component.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.component.search.SearchKeyword
 import dev.aaa1115910.bv.component.search.SoftKeyboard
 import dev.aaa1115910.bv.component.search.SoftKeyboardType
 import dev.aaa1115910.bv.entity.db.SearchHistoryDB
-import dev.aaa1115910.bv.tv.component.TvAlertDialog
+import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.viewmodel.search.SearchInputViewModel
@@ -77,6 +79,18 @@ import dev.aaa1115910.bv.screen.main.common.mainContentRightExit
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import org.koin.androidx.compose.koinViewModel
+
+private val SearchInputRootScopeId = WjzFocusScopeId("search/input/root")
+private val SearchInputDeleteAllDialogScopeId = WjzFocusScopeId("search/input/delete-all")
+private val SearchInputDeleteAllDialogContainerNodeId = WjzFocusNodeId("search/input/delete-all/container")
+private val SearchSubmitFocusNodeId = WjzFocusNodeId("main/content/current")
+private val SearchSubmitFocusScopeId = WjzFocusScopeId("main")
+
+private fun SearchRightEntryToken.toFocusNodeId(): WjzFocusNodeId {
+    val slot = slot.name.lowercase()
+    val key = firstItemIdentity.replace("/", "_")
+    return WjzFocusNodeId("search/input/right-entry/$slot/$key")
+}
 
 @Composable
 private fun searchActionIconButtonColors() = IconButtonDefaults.colors(
@@ -111,18 +125,6 @@ private fun resolveSearchRightEntryToken(
     suggests: List<String>,
     showHotword: Boolean
 ): SearchRightEntryToken? {
-    histories.firstOrNull()?.let { history ->
-        return SearchRightEntryToken(
-            slot = SearchRightEntryToken.Slot.History,
-            keyword = keyword,
-            historyCount = histories.size,
-            hotwordCount = hotwords.size,
-            suggestCount = suggests.size,
-            showHotword = showHotword,
-            firstItemIdentity = history.keyword
-        )
-    }
-
     if (keyword.isEmpty() && showHotword) {
         hotwords.firstOrNull()?.let { hotword ->
             return SearchRightEntryToken(
@@ -149,6 +151,18 @@ private fun resolveSearchRightEntryToken(
                 firstItemIdentity = suggest
             )
         }
+    }
+
+    histories.firstOrNull()?.let { history ->
+        return SearchRightEntryToken(
+            slot = SearchRightEntryToken.Slot.History,
+            keyword = keyword,
+            historyCount = histories.size,
+            hotwordCount = hotwords.size,
+            suggestCount = suggests.size,
+            showHotword = showHotword,
+            firstItemIdentity = history.keyword
+        )
     }
 
     return null
@@ -212,9 +226,18 @@ private fun SearchInputRoute(
     val hotwords by searchInputViewModel.hotwords.collectAsStateWithLifecycle()
     val searchHistories by searchInputViewModel.searchHistories.collectAsStateWithLifecycle()
     val suggests by searchInputViewModel.suggests.collectAsStateWithLifecycle()
+    val parentFocusCoordinator = LocalWjzFocusCoordinator.current
+    val ownFocusCoordinator = rememberWjzFocusCoordinator()
+    val focusCoordinator = parentFocusCoordinator ?: ownFocusCoordinator
 
     val onSearch: (String) -> Unit = onSearch@{ keyword ->
         if (keyword.isBlank()) return@onSearch
+        focusCoordinator.activateLayer(WjzFocusLayer.Content)
+        focusCoordinator.enqueueRequestFocus(
+            nodeId = SearchSubmitFocusNodeId,
+            layer = WjzFocusLayer.Content,
+            scopeId = SearchSubmitFocusScopeId
+        )
         onSearchSubmit?.invoke(keyword, searchInputViewModel.enableProxy)
         searchInputViewModel.keyword = keyword
         searchInputViewModel.addSearchHistory(keyword)
@@ -228,26 +251,33 @@ private fun SearchInputRoute(
         searchInputViewModel.updateSuggests()
     }
 
-    SearchInputScreenContent(
+    WjzFocusHost(
         modifier = modifier,
-        defaultFocusRequester = defaultFocusRequester,
-        drawerFocusRequester = drawerFocusRequester,
-        rightEntryFocusRequester = rightEntryFocusRequester,
-        onDefaultFocusReady = onDefaultFocusReady,
-        onCurrentRightEntryTokenChanged = onCurrentRightEntryTokenChanged,
-        onRightEntryFocusReady = onRightEntryFocusReady,
-        searchKeyword = searchKeyword,
-        onSearchKeywordChange = { searchInputViewModel.keyword = it },
-        onSearch = onSearch,
-        showProxyOptions = Prefs.enableProxy,
-        enableProxy = searchInputViewModel.enableProxy,
-        onEnableProxyChange = { searchInputViewModel.enableProxy = it },
-        hotwords = hotwords,
-        suggests = suggests,
-        histories = searchHistories,
-        onDeleteHistory = { searchInputViewModel.deleteSearchHistory(it) },
-        onDeleteAllHistories = { searchInputViewModel.deleteAllSearchHistories() }
-    )
+        coordinator = focusCoordinator,
+        layer = WjzFocusLayer.Content,
+        scopeId = SearchInputRootScopeId,
+        fallbackRequester = defaultFocusRequester
+    ) {
+        SearchInputScreenContent(
+            defaultFocusRequester = defaultFocusRequester,
+            drawerFocusRequester = drawerFocusRequester,
+            rightEntryFocusRequester = rightEntryFocusRequester,
+            onDefaultFocusReady = onDefaultFocusReady,
+            onCurrentRightEntryTokenChanged = onCurrentRightEntryTokenChanged,
+            onRightEntryFocusReady = onRightEntryFocusReady,
+            searchKeyword = searchKeyword,
+            onSearchKeywordChange = { searchInputViewModel.keyword = it },
+            onSearch = onSearch,
+            showProxyOptions = Prefs.enableProxy,
+            enableProxy = searchInputViewModel.enableProxy,
+            onEnableProxyChange = { searchInputViewModel.enableProxy = it },
+            hotwords = hotwords,
+            suggests = suggests,
+            histories = searchHistories,
+            onDeleteHistory = { searchInputViewModel.deleteSearchHistory(it) },
+            onDeleteAllHistories = { searchInputViewModel.deleteAllSearchHistories() }
+        )
+    }
 }
 
 @Composable
@@ -438,6 +468,10 @@ private fun SearchInput(
         )
     }
 
+    fun submitSearch() {
+        onSearch(fieldValue.text)
+    }
+
     Box(
         modifier = modifier
             .width(
@@ -447,8 +481,7 @@ private fun SearchInput(
                     SoftKeyboardType.Symbol -> 412.dp
                 }
             )
-            .fillMaxHeight()
-            .focusGroup(),
+            .fillMaxHeight(),
         contentAlignment = Alignment.TopCenter
     ) {
         Column(
@@ -478,7 +511,11 @@ private fun SearchInput(
                 maxLines = 1,
                 shape = MaterialTheme.shapes.large,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { onSearch(searchKeyword) }),
+                keyboardActions = KeyboardActions(
+                    onSearch = { submitSearch() },
+                    onNext = { submitSearch() },
+                    onDone = { submitSearch() }
+                ),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.inverseSurface,
                     cursorColor = MaterialTheme.colorScheme.inverseSurface
@@ -494,7 +531,7 @@ private fun SearchInput(
                 onDelete = { deleteBackward() },
                 onMoveCursorLeft = { moveCursor(-1) },
                 onMoveCursorRight = { moveCursor(1) },
-                onSearch = { onSearch(fieldValue.text) },
+                onSearch = { submitSearch() },
                 onOpenSymbolKeyboard = {
                     if (keyboardType != SoftKeyboardType.Symbol) {
                         symbolKeyboardSourceType = keyboardType
@@ -529,8 +566,7 @@ private fun SearchHotwords(
     Column(
         modifier = modifier
             .width(250.dp)
-            .fillMaxHeight()
-            .focusGroup(),
+            .fillMaxHeight(),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -584,7 +620,12 @@ private fun SearchHotwords(
                             firstItemFocusRequester != null
                         ) {
                             Modifier
-                                .focusRequester(firstItemFocusRequester)
+                                .wjzFocusable(
+                                    nodeId = firstItemReadyToken.toFocusNodeId(),
+                                    layer = WjzFocusLayer.Content,
+                                    requester = firstItemFocusRequester,
+                                    fallback = true
+                                )
                                 .onGloballyPositioned {
                                     onFirstItemPlaced?.invoke(firstItemReadyToken)
                                 }
@@ -617,8 +658,7 @@ private fun SearchSuggestion(
     Column(
         modifier = modifier
             .width(250.dp)
-            .fillMaxHeight()
-            .focusGroup(),
+            .fillMaxHeight(),
     ) {
         Text(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -639,7 +679,12 @@ private fun SearchSuggestion(
                         firstItemFocusRequester != null
                     ) {
                         Modifier
-                            .focusRequester(firstItemFocusRequester)
+                            .wjzFocusable(
+                                nodeId = firstItemReadyToken.toFocusNodeId(),
+                                layer = WjzFocusLayer.Content,
+                                requester = firstItemFocusRequester,
+                                fallback = true
+                            )
                             .onGloballyPositioned {
                                 onFirstItemPlaced?.invoke(firstItemReadyToken)
                             }
@@ -670,8 +715,6 @@ private fun SearchHistory(
     onDelete: (SearchHistoryDB) -> Unit,
     onDeleteAll: () -> Unit
 ) {
-    val focusManager = LocalFocusManager.current
-
     var deleteMode by remember { mutableStateOf(false) }
     var showDeleteAllConfirmDialog by remember { mutableStateOf(false) }
 
@@ -679,8 +722,7 @@ private fun SearchHistory(
         modifier = modifier
             .mainContentRightExit(drawerFocusRequester)
             .width(250.dp)
-            .fillMaxHeight()
-            .focusGroup(),
+            .fillMaxHeight(),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -728,7 +770,12 @@ private fun SearchHistory(
                         firstItemFocusRequester != null
                     ) {
                         Modifier
-                            .focusRequester(firstItemFocusRequester)
+                            .wjzFocusable(
+                                nodeId = firstItemReadyToken.toFocusNodeId(),
+                                layer = WjzFocusLayer.Content,
+                                requester = firstItemFocusRequester,
+                                fallback = true
+                            )
                             .onGloballyPositioned {
                                 onFirstItemPlaced?.invoke(firstItemReadyToken)
                             }
@@ -742,9 +789,6 @@ private fun SearchHistory(
                     leadingIcon = "",
                     onClick = {
                         if (deleteMode) {
-                            if (index == histories.lastIndex) {
-                                focusManager.moveFocus(FocusDirection.Up)
-                            }
                             onDelete(searchHistory)
                         } else {
                             onSearch(searchHistory.keyword)
@@ -765,6 +809,9 @@ private fun SearchHistory(
     if (showDeleteAllConfirmDialog) {
         TvAlertDialog(
             onDismissRequest = { showDeleteAllConfirmDialog = false },
+            sourceScopeId = SearchInputRootScopeId,
+            dialogScopeId = SearchInputDeleteAllDialogScopeId,
+            containerNodeId = SearchInputDeleteAllDialogContainerNodeId,
             title = {
                 Text(text = stringResource(R.string.search_input_history_delete_all_confirm_dialog_title))
             },

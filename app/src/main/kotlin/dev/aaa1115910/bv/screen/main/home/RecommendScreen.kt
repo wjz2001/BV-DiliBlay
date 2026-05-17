@@ -30,10 +30,11 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.ugc.UgcItem
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
-import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
+import dev.aaa1115910.bv.component.rememberTvGridFocusTarget
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.screen.main.runtime.ContentRuntimeState
 import dev.aaa1115910.bv.ui.effect.UiEffect
@@ -111,9 +112,11 @@ fun RecommendScreen(
         state = gridState,
         columns = GridCells.Fixed(4),
         contentPadding = PaddingValues(24.dp),
+        nodeIdPrefix = "recommend/videos",
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         focusItemCount = recommendVideoList.size,
+        focusItemKeys = recommendVideoList.map { WjzFocusItemKey("Long:${it.aid}") },
         entryFocusRequester = contentEntryFocusRequester,
         upFocusRequester = tabFocusRequester,
         onEntryFocusReady = onContentEntryReady
@@ -123,7 +126,7 @@ fun RecommendScreen(
             key = { _, item -> item.aid }
         ) { index, item ->
             SmallVideoCard(
-                frameModifier = rememberTvGridFocusModifier(index),
+                focusTarget = rememberTvGridFocusTarget(index),
                 uiState = cardUiStateFor(item.aid),
                 data = remember(item) {         // `VideoCardData` 只在 item 变动时重建
                     VideoCardData(

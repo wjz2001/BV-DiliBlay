@@ -11,13 +11,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Done
-import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -28,7 +23,7 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.season.FollowingSeasonStatus
 import dev.aaa1115910.biliapi.entity.season.FollowingSeasonType
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.component.ifElse
+import dev.aaa1115910.bv.tv.component.TvAlertDialog
 import dev.aaa1115910.bv.util.getDisplayName
 
 @Composable
@@ -42,13 +37,11 @@ fun FollowingSeasonFilter(
     onSelectedStatusChange: (FollowingSeasonStatus) -> Unit
 ) {
     val context = LocalContext.current
-    val row1FocusRestorer = remember { FocusRequester() }
-    val row2FocusRestorer = remember { FocusRequester() }
 
     val filterRowSpace = 8.dp
 
     if (show) {
-        AlertDialog(
+        TvAlertDialog(
             modifier = modifier,
             onDismissRequest = onHideFilter,
             title = { Text(text = stringResource(R.string.filter_dialog_title)) },
@@ -57,18 +50,11 @@ fun FollowingSeasonFilter(
                     verticalArrangement = Arrangement.spacedBy(filterRowSpace)
                 ) {
                     LazyRow(
-                        modifier = Modifier
-                            .focusRestorer(row1FocusRestorer),
                         horizontalArrangement = Arrangement.spacedBy(filterRowSpace),
                         contentPadding = PaddingValues(horizontal = filterRowSpace)
                     ) {
                         items(items = FollowingSeasonType.entries) { type ->
                             FilterDialogFilterChip(
-                                modifier = Modifier
-                                    .ifElse(
-                                        type == selectedType,
-                                        Modifier.focusRequester(row1FocusRestorer)
-                                    ),
                                 selected = type == selectedType,
                                 onClick = { onSelectedTypeChange(type) },
                                 label = { Text(text = type.getDisplayName(context)) },
@@ -76,18 +62,11 @@ fun FollowingSeasonFilter(
                         }
                     }
                     LazyRow(
-                        modifier = Modifier
-                            .focusRestorer(row2FocusRestorer),
                         horizontalArrangement = Arrangement.spacedBy(filterRowSpace),
                         contentPadding = PaddingValues(horizontal = filterRowSpace)
                     ) {
                         items(items = FollowingSeasonStatus.entries) { status ->
                             FilterDialogFilterChip(
-                                modifier = Modifier
-                                    .ifElse(
-                                        status == selectedStatus,
-                                        Modifier.focusRequester(row2FocusRestorer)
-                                    ),
                                 selected = status == selectedStatus,
                                 onClick = { onSelectedStatusChange(status) },
                                 label = { Text(text = status.getDisplayName(context)) }

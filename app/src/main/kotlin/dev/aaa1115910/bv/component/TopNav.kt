@@ -16,13 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.Alignment
@@ -30,6 +24,8 @@ import androidx.tv.material3.Icon
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
 import dev.aaa1115910.biliapi.entity.ugc.UgcType
 import dev.aaa1115910.bv.BVApp
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.util.getDisplayName
 
 @Composable
@@ -41,8 +37,12 @@ fun TopNav(
     activeItem: TopNavItem? = null,
     autoRefreshItems: Collection<TopNavItem> = emptySet<TopNavItem>(),
     entryFocusItem: TopNavItem? = null,
+    entryFocusTarget: TopNavEntryFocusTarget = TopNavEntryFocusTarget.DefaultEntry,
     defaultFocusRequester: FocusRequester? = null,
     onDefaultFocusReady: ((Any) -> Unit)? = null,
+    onEntryFocusReady: ((TopNavEntryFocusReady) -> Unit)? = null,
+    onEntryFocusResolution: ((TopNavEntryFocusResolution) -> Unit)? = null,
+    onEntryFocusConsumed: ((TopNavEntryFocusConsumed) -> Unit)? = null,
     isHistorySearching: Boolean = false,
     focusedLeadingIcon: ((TopNavItem) -> TopNavLeadingIcon?)? = null,
     onTabConfirmLongPress: ((TopNavItem) -> Boolean)? = null,
@@ -50,6 +50,8 @@ fun TopNav(
     contentFocusReadyKey: Any? = null,
     onLeftBoundaryExit: (() -> Unit)? = null,
     onRightBoundaryExit: (() -> Unit)? = null,
+    focusNodeId: WjzFocusNodeId? = null,
+    focusLayer: WjzFocusLayer = WjzFocusLayer.TopNav,
     backFocusEnabled: Boolean = true,
     onContentFocusRequested: (TopNavItem) -> Unit = {},
     onAutoRefreshRequested: (TopNavItem) -> Unit = {},
@@ -75,35 +77,7 @@ fun TopNav(
         ) {
             Box(
                 modifier = Modifier
-                    .size(MainChromeDefaults.Size)
-                    .focusProperties {
-                        up = FocusRequester.Cancel
-                        down = FocusRequester.Cancel
-                    }
-                    .onPreviewKeyEvent { event ->
-                        when (event.key) {
-                            Key.DirectionLeft -> {
-                                if (onRightBoundaryExit == null) return@onPreviewKeyEvent false
-                                if (event.type == KeyEventType.KeyDown) {
-                                    onRightBoundaryExit()
-                                }
-                                true
-                            }
-
-                            Key.DirectionRight -> {
-                                if (onLeftBoundaryExit == null) return@onPreviewKeyEvent false
-                                if (event.type == KeyEventType.KeyDown) {
-                                    onLeftBoundaryExit()
-                                }
-                                true
-                            }
-
-                            Key.DirectionUp,
-                            Key.DirectionDown -> true
-
-                            else -> false
-                        }
-                    },
+                    .size(MainChromeDefaults.Size),
                 contentAlignment = Alignment.Center
             ) {
                 leadingContent()
@@ -121,6 +95,7 @@ fun TopNav(
                         items = items,
                         selectedItem = selectedItem,
                         entryFocusItem = entryFocusItem,
+                        entryFocusTarget = entryFocusTarget.toBvTabEntryFocusTarget(),
                         itemKey = { it },
                         itemText = { it.getDisplayName(context) },
                         itemIcon = { item, iconSize ->
@@ -145,6 +120,29 @@ fun TopNav(
                         separator = { MainTopTabSeparator() },
                         defaultFocusRequester = defaultFocusRequester,
                         onDefaultFocusReady = onDefaultFocusReady,
+                        onEntryFocusReady = { ready ->
+                            onEntryFocusReady?.invoke(
+                                TopNavEntryFocusReady(
+                                    target = ready.target.toTopNavEntryFocusTarget(),
+                                    item = ready.item,
+                                    itemKey = ready.itemKey,
+                                    nodeId = ready.nodeId
+                                )
+                            )
+                        },
+                        onEntryFocusResolution = { resolution ->
+                            onEntryFocusResolution?.invoke(resolution.toTopNavEntryFocusResolution())
+                        },
+                        onEntryFocusConsumed = { consumed ->
+                            onEntryFocusConsumed?.invoke(
+                                TopNavEntryFocusConsumed(
+                                    target = consumed.target.toTopNavEntryFocusTarget(),
+                                    item = consumed.item,
+                                    itemKey = consumed.itemKey,
+                                    nodeId = consumed.nodeId
+                                )
+                            )
+                        },
                         onSelectedChanged = onSelectedChanged,
                         onClick = onClick,
                         onLongClick = onTabConfirmLongPress,
@@ -153,8 +151,10 @@ fun TopNav(
                         contentFocusRequester = contentFocusRequester,
                         contentFocusReadyKey = contentFocusReadyKey,
                         onContentFocusRequested = onContentFocusRequested,
-                        backFocusTarget = BvBackFocusTarget.TopNav,
+                        focusNodeId = focusNodeId,
+                        focusLayer = focusLayer,
                         backFocusEnabled = backFocusEnabled,
+                        autoRequestEntryFocus = backFocusEnabled,
                         blockUp = true
                     )
                 }
@@ -162,6 +162,111 @@ fun TopNav(
 
             Spacer(modifier = Modifier.size(MainChromeDefaults.Size))
         }
+    }
+}
+
+enum class TopNavEntryFocusTarget {
+    DefaultEntry,
+    LeftEntry,
+    RightEntry
+}
+
+data class TopNavEntryFocusReady(
+    val target: TopNavEntryFocusTarget,
+    val item: TopNavItem,
+    val itemKey: Any,
+    val nodeId: WjzFocusNodeId
+)
+
+data class TopNavEntryFocusConsumed(
+    val target: TopNavEntryFocusTarget,
+    val item: TopNavItem,
+    val itemKey: Any,
+    val nodeId: WjzFocusNodeId
+)
+
+sealed interface TopNavEntryFocusResolution {
+    data class Ready(
+        val ready: TopNavEntryFocusReady
+    ) : TopNavEntryFocusResolution
+
+    data class Pending(
+        val target: TopNavEntryFocusTarget
+    ) : TopNavEntryFocusResolution
+
+    data class Reject(
+        val target: TopNavEntryFocusTarget
+    ) : TopNavEntryFocusResolution
+}
+
+fun resolveTopNavEntryFocus(
+    items: List<TopNavItem>,
+    selectedItem: TopNavItem?,
+    entryFocusItem: TopNavItem?,
+    entryFocusTarget: TopNavEntryFocusTarget = TopNavEntryFocusTarget.DefaultEntry,
+    focusNodeId: WjzFocusNodeId? = null
+): TopNavEntryFocusResolution {
+    return when (val resolution = resolveBvTabEntryFocus(
+        items = items,
+        selectedItem = selectedItem,
+        entryFocusItem = entryFocusItem,
+        entryFocusTarget = entryFocusTarget.toBvTabEntryFocusTarget(),
+        itemKey = { it },
+        focusNodeId = focusNodeId
+    )) {
+        is BvTabEntryFocusResolution.Ready -> TopNavEntryFocusResolution.Ready(
+            TopNavEntryFocusReady(
+                target = resolution.target.toTopNavEntryFocusTarget(),
+                item = resolution.item,
+                itemKey = resolution.itemKey,
+                nodeId = resolution.nodeId
+            )
+        )
+
+        is BvTabEntryFocusResolution.Pending -> TopNavEntryFocusResolution.Pending(
+            resolution.target.toTopNavEntryFocusTarget()
+        )
+
+        is BvTabEntryFocusResolution.Reject -> TopNavEntryFocusResolution.Reject(
+            resolution.target.toTopNavEntryFocusTarget()
+        )
+    }
+}
+
+private fun BvTabEntryFocusResolution<TopNavItem>.toTopNavEntryFocusResolution(): TopNavEntryFocusResolution {
+    return when (this) {
+        is BvTabEntryFocusResolution.Ready -> TopNavEntryFocusResolution.Ready(
+            TopNavEntryFocusReady(
+                target = target.toTopNavEntryFocusTarget(),
+                item = item,
+                itemKey = itemKey,
+                nodeId = nodeId
+            )
+        )
+
+        is BvTabEntryFocusResolution.Pending -> TopNavEntryFocusResolution.Pending(
+            target.toTopNavEntryFocusTarget()
+        )
+
+        is BvTabEntryFocusResolution.Reject -> TopNavEntryFocusResolution.Reject(
+            target.toTopNavEntryFocusTarget()
+        )
+    }
+}
+
+private fun TopNavEntryFocusTarget.toBvTabEntryFocusTarget(): BvTabEntryFocusTarget {
+    return when (this) {
+        TopNavEntryFocusTarget.DefaultEntry -> BvTabEntryFocusTarget.DefaultEntry
+        TopNavEntryFocusTarget.LeftEntry -> BvTabEntryFocusTarget.LeftEntry
+        TopNavEntryFocusTarget.RightEntry -> BvTabEntryFocusTarget.RightEntry
+    }
+}
+
+private fun BvTabEntryFocusTarget.toTopNavEntryFocusTarget(): TopNavEntryFocusTarget {
+    return when (this) {
+        BvTabEntryFocusTarget.DefaultEntry -> TopNavEntryFocusTarget.DefaultEntry
+        BvTabEntryFocusTarget.LeftEntry -> TopNavEntryFocusTarget.LeftEntry
+        BvTabEntryFocusTarget.RightEntry -> TopNavEntryFocusTarget.RightEntry
     }
 }
 

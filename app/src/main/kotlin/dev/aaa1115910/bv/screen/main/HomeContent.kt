@@ -37,15 +37,18 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.zIndex
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.component.HomeTopNavItem
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.component.PersistLazyGridViewportEffect
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.TopNavLeadingIcon
 import dev.aaa1115910.bv.component.TopNavItem
+import dev.aaa1115910.bv.component.wjzfocus.rememberWjzFocusRequester
 import dev.aaa1115910.bv.component.rememberRestoredLazyGridState
 import dev.aaa1115910.bv.entity.state.GridViewportState
-import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
-import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
 import dev.aaa1115910.bv.screen.main.home.DynamicsScreen
 import dev.aaa1115910.bv.screen.main.home.PopularScreen
 import dev.aaa1115910.bv.screen.main.home.RecommendScreen
@@ -60,6 +63,8 @@ import dev.aaa1115910.bv.screen.main.home.HistoryScreen
 import dev.aaa1115910.bv.screen.main.home.MyClassroomScreen
 import dev.aaa1115910.bv.screen.main.home.SubscribedCollectionScreen
 import dev.aaa1115910.bv.screen.main.home.ToViewScreen
+import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
+import dev.aaa1115910.bv.screen.main.common.mainContentEntryAdapter
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.viewmodel.UserViewModel
 import dev.aaa1115910.bv.viewmodel.main.HomeContentViewModel
@@ -78,13 +83,15 @@ private enum class HomeSearchPage {
     Result
 }
 
+private val HomeTopNavNodeId = WjzFocusNodeId("main/home/top-nav")
+
 @Composable
 fun HomeContent(
-    navFocusRequester: FocusRequester,
-    drawerFocusRequester: FocusRequester,
     topBarLeadingContent: @Composable () -> Unit,
-    pendingDrawerEntryRequest: MainContentEntryRequest? = null,
-    onDrawerEntryConsumed: (Long) -> Unit = {},
+    entryRequest: MainContentEntryRequest? = null,
+    onEntryRequestReady: (Long) -> Unit = {},
+    onEntryRequestConsumed: (Long) -> Unit = {},
+    onEntryRequestRejected: (Long) -> Unit = {},
     onDefaultFocusReady: (() -> Unit)? = null,
     homeContentViewModel: HomeContentViewModel,
     userViewModel: UserViewModel,
@@ -93,16 +100,36 @@ fun HomeContent(
     val firstTab = remember { Prefs.firstHomeTopNavItem }
     val focusedTab = homeContentViewModel.focusedTab
     val activeTab = homeContentViewModel.activeTab
-    val contentEntryFocusRequester = remember { FocusRequester() }
+    val topNavContentFocusRequester = rememberWjzFocusRequester()
     var contentReadyTab by remember { mutableStateOf<HomeTopNavItem?>(null) }
     var searchPage by rememberSaveable { mutableStateOf(HomeSearchPage.Input) }
     var searchKeyword by rememberSaveable { mutableStateOf("") }
     var searchEnableProxy by rememberSaveable { mutableStateOf(false) }
     var previousActiveTab by remember { mutableStateOf<HomeTopNavItem?>(null) }
+    val focusCoordinator = LocalWjzFocusCoordinator.current
+    val focusScopeId = LocalWjzFocusScopeId.current
+    val entryAdapter = mainContentEntryAdapter(
+        entryRequest = entryRequest,
+        active = active,
+        onDefaultFocusReady = onDefaultFocusReady,
+        onEntryRequestReady = onEntryRequestReady,
+        onEntryRequestConsumed = onEntryRequestConsumed,
+        onEntryRequestRejected = onEntryRequestRejected
+    )
+    val entryFocusRequest = entryAdapter.topNavEntryFocusRequest
 
-    val backToTopNav: () -> Unit = {
-        navFocusRequester.requestFocus()
+    fun requestTopNavFocus(): Boolean {
+        val coordinator = focusCoordinator
+        if (coordinator != null) {
+            return coordinator.enqueueRequestFocus(
+                nodeId = HomeTopNavNodeId,
+                layer = WjzFocusLayer.Content,
+                scopeId = focusScopeId
+            )
+        }
+        return false
     }
+    val backToTopNav: () -> Unit = { requestTopNavFocus() }
 
     val reorderedItems = remember {
         Prefs.homeTopNavItems.ensureVisibleHomeTabs(firstTab)
@@ -123,16 +150,6 @@ fun HomeContent(
                 HomeTopNavItem.SubscribedCollection -> TopNavLeadingIcon.Vector(Icons.Rounded.Subscriptions)
                 null -> null
             }
-        }
-    }
-
-    var topNavReadyTab by remember { mutableStateOf<HomeTopNavItem?>(null) }
-
-    val desiredDrawerEntryTab = remember(pendingDrawerEntryRequest?.id, reorderedItems) {
-        when (pendingDrawerEntryRequest?.target) {
-            MainContentFocusTarget.LeftEntry -> reorderedItems.firstOrNull()
-            MainContentFocusTarget.RightEntry -> reorderedItems.lastOrNull()
-            null -> null
         }
     }
 
@@ -164,49 +181,6 @@ fun HomeContent(
         homeContentViewModel.markContentReady(activeTab)
     }
 
-    LaunchedEffect(pendingDrawerEntryRequest?.id, desiredDrawerEntryTab, active) {
-        if (!active) return@LaunchedEffect
-        val desired = desiredDrawerEntryTab ?: return@LaunchedEffect
-        if (topNavReadyTab != desired) {
-            topNavReadyTab = null
-        }
-    }
-
-    LaunchedEffect(
-        pendingDrawerEntryRequest?.id,
-        desiredDrawerEntryTab,
-        activeTab,
-        focusedTab,
-        active
-    ) {
-        if (!active) return@LaunchedEffect
-        val desired = desiredDrawerEntryTab ?: return@LaunchedEffect
-        if (activeTab != desired || focusedTab != desired) {
-            homeContentViewModel.onTabClicked(desired)
-        }
-    }
-
-    LaunchedEffect(
-        pendingDrawerEntryRequest?.id,
-        desiredDrawerEntryTab,
-        activeTab,
-        focusedTab,
-        topNavReadyTab,
-        active
-    ) {
-        if (!active) return@LaunchedEffect
-        val request = pendingDrawerEntryRequest ?: return@LaunchedEffect
-        val desired = desiredDrawerEntryTab ?: return@LaunchedEffect
-
-        if (activeTab == desired &&
-            focusedTab == desired &&
-            topNavReadyTab == desired
-        ) {
-            navFocusRequester.requestFocus()
-            onDrawerEntryConsumed(request.id)
-        }
-    }
-
     LaunchedEffect(userViewModel.isLogin, active) {
         if (!active) return@LaunchedEffect
         if (userViewModel.isLogin) {
@@ -218,8 +192,7 @@ fun HomeContent(
 
     val handleDefaultFocusReady: (Any) -> Unit = handleDefaultFocusReady@{ readyKey ->
         if (!active) return@handleDefaultFocusReady
-        topNavReadyTab = readyKey as? HomeTopNavItem
-        onDefaultFocusReady?.invoke()
+        entryAdapter.onDefaultFocusReady(entryFocusRequest)
     }
 
     fun handleTopNavConfirmLongPress(tab: HomeTopNavItem): Boolean {
@@ -239,41 +212,50 @@ fun HomeContent(
     Scaffold(
         modifier = Modifier,
         topBar = {
-            TopNav(
-                modifier = Modifier,
-                leadingContent = topBarLeadingContent,
-                items = reorderedItems,
-                selectedItem = focusedTab,
-                activeItem = activeTab,
-                autoRefreshItems = Prefs.homeAutoRefreshTopNavItems,
-                entryFocusItem = desiredDrawerEntryTab,
-                defaultFocusRequester = navFocusRequester,
-                onDefaultFocusReady = handleDefaultFocusReady,
-                isHistorySearching = homeContentViewModel.isHistorySearching,
-                focusedLeadingIcon = homeFocusedLeadingIcon,
-                onTabConfirmLongPress = { nav -> handleTopNavConfirmLongPress(nav as HomeTopNavItem) },
-                contentFocusRequester = contentEntryFocusRequester,
-                contentFocusReadyKey = contentReadyTab,
-                onContentFocusRequested = { nav ->
-                    val target = nav as HomeTopNavItem
-                    if (target != activeTab) {
+            key(entryFocusRequest?.id) {
+                TopNav(
+                    modifier = Modifier,
+                    leadingContent = topBarLeadingContent,
+                    items = reorderedItems,
+                    selectedItem = focusedTab,
+                    activeItem = activeTab,
+                    autoRefreshItems = Prefs.homeAutoRefreshTopNavItems,
+                    entryFocusTarget = entryAdapter.topNavEntryFocusTarget,
+                    onDefaultFocusReady = handleDefaultFocusReady,
+                    onEntryFocusResolution = { resolution ->
+                        entryAdapter.onTopNavEntryFocusResolution(entryFocusRequest, resolution)
+                    },
+                    onEntryFocusConsumed = { consumed ->
+                        entryAdapter.onTopNavEntryFocusConsumed(entryFocusRequest, consumed)
+                    },
+                    isHistorySearching = homeContentViewModel.isHistorySearching,
+                    focusedLeadingIcon = homeFocusedLeadingIcon,
+                    onTabConfirmLongPress = { nav -> handleTopNavConfirmLongPress(nav as HomeTopNavItem) },
+                    contentFocusRequester = topNavContentFocusRequester,
+                    contentFocusReadyKey = contentReadyTab,
+                    focusNodeId = HomeTopNavNodeId,
+                    onContentFocusRequested = { nav ->
+                        val target = nav as HomeTopNavItem
+                        if (target != activeTab) {
+                            homeContentViewModel.onTabClicked(target)
+                        }
+                    },
+                    onAutoRefreshRequested = { nav ->
+                        homeContentViewModel.requestUserRefresh(nav as HomeTopNavItem)
+                    },
+                    onSelectedChanged = { nav -> homeContentViewModel.onTabFocused(nav as HomeTopNavItem) },
+                    onClick = { nav ->
+                        val target = nav as HomeTopNavItem
+                        val shouldRefresh = target == activeTab
                         homeContentViewModel.onTabClicked(target)
-                    }
-                },
-                onAutoRefreshRequested = { nav ->
-                    homeContentViewModel.requestUserRefresh(nav as HomeTopNavItem)
-                },
-                onSelectedChanged = { nav -> homeContentViewModel.onTabFocused(nav as HomeTopNavItem) },
-                onClick = { nav ->
-                    val target = nav as HomeTopNavItem
-                    val shouldRefresh = target == activeTab
-                    homeContentViewModel.onTabClicked(target)
-                    if (shouldRefresh && target != HomeTopNavItem.Search) {
-                        homeContentViewModel.requestUserRefresh(target)
-                    }
-                },
-                backFocusEnabled = active
-            )
+                        if (shouldRefresh && target != HomeTopNavItem.Search) {
+                            homeContentViewModel.requestUserRefresh(target)
+                        }
+                    },
+                    focusLayer = WjzFocusLayer.Content,
+                    backFocusEnabled = active
+                )
+            }
         }
     ) { innerPadding ->
         Box(
@@ -284,7 +266,7 @@ fun HomeContent(
                         if (activeTab == HomeTopNavItem.Search) return@onPreviewKeyEvent false
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
                         homeContentViewModel.requestUserRefresh(activeTab)
-                        navFocusRequester.requestFocus()
+                        requestTopNavFocus()
                         return@onPreviewKeyEvent true
                     }
                     false
@@ -327,7 +309,7 @@ fun HomeContent(
                                         val searchInputViewModel: SearchInputViewModel =
                                             koinViewModel<SearchInputViewModel>()
                                         SearchInputScreen(
-                                            defaultFocusRequester = contentEntryFocusRequester,
+                                            defaultFocusRequester = topNavContentFocusRequester,
                                             onDefaultFocusReady = {
                                                 handleDefaultFocusReady(tab)
                                                 if (tabActive) contentReadyTab = tab
@@ -347,7 +329,7 @@ fun HomeContent(
                                         SearchResultScreen(
                                             keyword = searchKeyword,
                                             enableProxy = searchEnableProxy,
-                                            contentEntryFocusRequester = contentEntryFocusRequester,
+                                            contentEntryFocusRequester = topNavContentFocusRequester.takeIf { tabActive },
                                             onContentEntryReady = {
                                                 if (tabActive) contentReadyTab = tab
                                             },
@@ -363,8 +345,8 @@ fun HomeContent(
                                         tab = tab,
                                         homeContentViewModel = homeContentViewModel,
                                         backToTopNav = backToTopNav,
-                                    contentEntryFocusRequester = contentEntryFocusRequester,
-                                    tabFocusRequester = navFocusRequester,
+                                    contentEntryFocusRequester = topNavContentFocusRequester,
+                                    tabFocusRequester = null,
                                     onContentEntryReady = {
                                         if (tabActive) contentReadyTab = tab
                                     },
@@ -402,8 +384,8 @@ private fun HomeActiveTabContent(
     tab: HomeTopNavItem,
     homeContentViewModel: HomeContentViewModel,
     backToTopNav: () -> Unit,
-    contentEntryFocusRequester: FocusRequester,
-    tabFocusRequester: FocusRequester,
+    contentEntryFocusRequester: FocusRequester?,
+    tabFocusRequester: FocusRequester?,
     onContentEntryReady: () -> Unit,
     active: Boolean
 ) {
@@ -411,8 +393,8 @@ private fun HomeActiveTabContent(
     val activationSerial = homeContentViewModel.activationSerialOf(tab)
     val refreshSerial = homeContentViewModel.refreshSerialOf(tab)
     val longPressSerial = homeContentViewModel.longPressSerialOf(tab)
-    val activeContentEntryFocusRequester = contentEntryFocusRequester.takeIf { active }
-    val activeTabFocusRequester = tabFocusRequester.takeIf { active }
+    val activeContentEntryFocusRequester = contentEntryFocusRequester?.takeIf { active }
+    val activeTabFocusRequester = tabFocusRequester?.takeIf { active }
     var consumedRefreshSerial by remember(tab) { mutableStateOf(0L) }
     var consumedLongPressSerial by remember(tab) { mutableStateOf(0L) }
 

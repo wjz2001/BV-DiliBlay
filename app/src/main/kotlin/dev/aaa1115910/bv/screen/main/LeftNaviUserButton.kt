@@ -5,7 +5,6 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -28,16 +27,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
@@ -50,6 +45,7 @@ import coil.compose.AsyncImage
 import dev.aaa1115910.bv.component.MainChromeDefaults
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.C
+import dev.aaa1115910.bv.util.isBvConfirmKey
 import dev.aaa1115910.bv.util.rememberTvImageRequest
 
 @Composable
@@ -60,12 +56,12 @@ fun LeftNaviUserButton(
     isLogin: Boolean,
     avatar: String,
     username: String,
-    focusRequester: FocusRequester,
     collapsedSize: Dp = MainChromeDefaults.Size,
     isFocused: Boolean,
     onFocusChanged: (Boolean) -> Unit,
-    onPreviewKeyEvent: (androidx.compose.ui.input.key.KeyEvent) -> Boolean = { false },
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onConfirmLongPress: () -> Boolean = { false },
+    onConfirm: () -> Unit = onClick
 ) {
     val animatedUserIconColor by animateColorAsState(
         targetValue = if (colorAnimationEnabled && isFocused) AppWhite else C.onSurface,
@@ -75,6 +71,7 @@ fun LeftNaviUserButton(
     val backgroundColor = Color.Transparent
     val interactionSource = remember { MutableInteractionSource() }
     var isPressed by remember { mutableStateOf(false) }
+    var confirmLongPressTriggered by remember { mutableStateOf(false) }
     val focusProgress = animateFloatAsState(
         targetValue = if (!expanded && isFocused) 1f else 0f,
         animationSpec = spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessLow),
@@ -95,7 +92,6 @@ fun LeftNaviUserButton(
         widthDp = avatarSize,
         heightDp = avatarSize
     )
-
     Surface(
         modifier = modifier
             .width(buttonWidth)
@@ -111,24 +107,44 @@ fun LeftNaviUserButton(
                 scaleX = scale
                 scaleY = scale
             }
-            .focusRequester(focusRequester)
-            .onFocusChanged {
-                if (!it.hasFocus) isPressed = false
-                onFocusChanged(it.hasFocus)
+            .onFocusChanged { state ->
+                if (!state.hasFocus) isPressed = false
+                if (!state.hasFocus) confirmLongPressTriggered = false
+                onFocusChanged(state.hasFocus)
             }
             .onPreviewKeyEvent { keyEvent ->
-                val isConfirmKey = keyEvent.key == Key.DirectionCenter ||
-                        keyEvent.key == Key.Enter ||
-                        keyEvent.key == Key.Spacebar
+                val isConfirmKey = keyEvent.isBvConfirmKey()
                 if (isConfirmKey && !expanded) {
                     when (keyEvent.type) {
                         KeyEventType.KeyDown -> isPressed = true
                         KeyEventType.KeyUp -> isPressed = false
                     }
                 }
-                onPreviewKeyEvent(keyEvent)
+                if (!isConfirmKey) return@onPreviewKeyEvent false
+                when (keyEvent.type) {
+                    KeyEventType.KeyDown -> {
+                        if (keyEvent.nativeKeyEvent.isLongPress) {
+                            if (!confirmLongPressTriggered) {
+                                confirmLongPressTriggered = onConfirmLongPress()
+                            }
+                            confirmLongPressTriggered
+                        } else {
+                            false
+                        }
+                    }
+
+                    KeyEventType.KeyUp -> {
+                        if (confirmLongPressTriggered) {
+                            confirmLongPressTriggered = false
+                        } else {
+                            onConfirm()
+                        }
+                        true
+                    }
+
+                    else -> false
+                }
             }
-            .focusable()
             .background(backgroundColor)
             .clickable(
                 interactionSource = interactionSource,

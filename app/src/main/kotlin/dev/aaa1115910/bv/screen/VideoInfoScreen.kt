@@ -8,8 +8,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
@@ -46,13 +44,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Done
 import androidx.compose.material.icons.rounded.Group
-import androidx.compose.material.icons.rounded.PlayCircleOutline
 import androidx.compose.material.icons.rounded.ViewModule
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material.icons.rounded.ZoomOutMap
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -71,11 +66,8 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester as ComposeFocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -116,7 +108,6 @@ import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Icon
-import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.LocalTextStyle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.SuggestionChip
@@ -139,6 +130,18 @@ import dev.aaa1115910.bv.activities.video.TagActivity
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.BlockTagItem
+import dev.aaa1115910.bv.component.wjzfocus.WjzDialogFocusHost
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusEntryId
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusEntryResolution
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusHost
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusHostExit
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusItemKey
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.BvLazyFocusItemTarget
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusNode
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
 import dev.aaa1115910.bv.component.BvUnderlineTabRow
 import dev.aaa1115910.bv.component.CoAuthorsDialogHost
 import dev.aaa1115910.bv.component.FollowGroupSelectDialog
@@ -151,6 +154,7 @@ import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.VideoPartButton
 import dev.aaa1115910.bv.component.videocard.VideosRow
 import dev.aaa1115910.bv.component.videocard.VideosRowCore
+import dev.aaa1115910.bv.component.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.component.buttons.CoinButton
 import dev.aaa1115910.bv.component.buttons.CommentButton
 import dev.aaa1115910.bv.component.buttons.FavoriteButton
@@ -164,6 +168,7 @@ import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.effect.VideoDetailUiEffect
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.C
+import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.util.buildRichTextTokens
 import dev.aaa1115910.bv.util.countRichTextInteractiveTokens
 import dev.aaa1115910.bv.util.loadRichContentDocument
@@ -196,28 +201,93 @@ import kotlin.math.min
 
 private enum class VideoDescriptionNavDir { None, Up, Down }
 
-private fun Modifier.sectionFocusNav(
-    up: FocusRequester? = null,
-    down: FocusRequester? = null,
-): Modifier = this.focusProperties {
-    onExit = {
-        when (requestedFocusDirection) {
-            FocusDirection.Up -> {
-                if (up != null) {
-                    up.requestFocus()
-                    cancelFocusChange()
-                }
-            }
+private val InfoNavUpKey = Key.DirectionUp
+private val InfoNavDownKey = Key.DirectionDown
+private val InfoNavLeftKey = Key.DirectionLeft
+private val InfoNavRightKey = Key.DirectionRight
+private val VideoInfoCoverDownEntryId = WjzFocusEntryId("video-info/cover/down")
+private val VideoInfoDescriptionDialogScrollEntryId =
+    WjzFocusEntryId("video-info/description-dialog/scroll")
 
-            FocusDirection.Down -> {
-                if (down != null) {
-                    down.requestFocus()
-                    cancelFocusChange()
-                }
-            }
+private data class InfoFocusTarget(
+    val nodeId: WjzFocusNodeId,
+    val requester: ComposeFocusRequester
+)
 
-            else -> Unit
-        }
+@Composable
+private fun rememberInfoFocusTarget(nodeKey: String): InfoFocusTarget {
+    val nodeId = remember(nodeKey) { WjzFocusNodeId(nodeKey) }
+    val requester = remember(nodeKey) { ComposeFocusRequester() }
+    return remember(nodeId, requester) {
+        InfoFocusTarget(
+            nodeId = nodeId,
+            requester = requester
+        )
+    }
+}
+
+@Composable
+private fun rememberInfoFocusTargets(
+    nodeKeyPrefix: String,
+    count: Int
+): List<InfoFocusTarget> = remember(nodeKeyPrefix, count) {
+    List(count) { index ->
+        InfoFocusTarget(
+            nodeId = WjzFocusNodeId("$nodeKeyPrefix/$index"),
+            requester = ComposeFocusRequester()
+        )
+    }
+}
+
+@Composable
+private fun Modifier.infoFocusNode(
+    requester: ComposeFocusRequester,
+    nodeKey: String? = null,
+    fallback: Boolean = false,
+    layer: WjzFocusLayer = WjzFocusLayer.Content
+): Modifier {
+    val focusNodeId = remember(nodeKey, requester) {
+        nodeKey?.let(::WjzFocusNodeId)
+            ?: WjzFocusNodeId("video-info/focus/${System.identityHashCode(requester)}")
+    }
+    return wjzFocusable(
+        nodeId = focusNodeId,
+        layer = layer,
+        fallback = fallback,
+        requester = requester
+    )
+}
+
+@Composable
+private fun Modifier.infoFocusNode(
+    target: InfoFocusTarget,
+    nodeKey: String? = null,
+    fallback: Boolean = false,
+    layer: WjzFocusLayer = WjzFocusLayer.Content
+): Modifier {
+    return infoFocusNode(
+        requester = target.requester,
+        nodeKey = nodeKey ?: target.nodeId.value,
+        fallback = fallback,
+        layer = layer
+    )
+}
+
+@Composable
+private fun InfoFocusRegistrations(
+    targets: List<InfoFocusTarget>,
+    layer: WjzFocusLayer = WjzFocusLayer.Content
+) {
+    targets.forEach { target ->
+        Box(
+            modifier = Modifier
+                .size(0.dp)
+                .wjzFocusNode(
+                    nodeId = target.nodeId,
+                    requester = target.requester,
+                    layer = layer
+                )
+        )
     }
 }
 
@@ -232,7 +302,10 @@ fun VideoInfoScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val logger = KotlinLogging.logger { }
 
-    val defaultFocusRequester = remember { FocusRequester() }
+    val defaultFocusTarget = rememberInfoFocusTarget("video-info/default")
+    val parentFocusCoordinator = LocalWjzFocusCoordinator.current
+    val ownedFocusCoordinator = rememberWjzFocusCoordinator()
+    val focusCoordinator = parentFocusCoordinator ?: ownedFocusCoordinator
     val uiState by videoDetailViewModel.uiState.collectAsStateWithLifecycle()
 
     val scope = rememberCoroutineScope()
@@ -419,10 +492,20 @@ fun VideoInfoScreen(
 
     LaunchedEffect(uiState.loadingState) {
         if (uiState.loadingState == VideoInfoState.Success && !uiState.shouldShowLoading) {
-            defaultFocusRequester.requestFocus()
+            with(focusCoordinator) {
+                requestFocus(
+                    nodeId = defaultFocusTarget.nodeId,
+                    layer = WjzFocusLayer.Content
+                )
+            }
         }
     }
 
+    WjzFocusHost(
+        modifier = modifier.fillMaxSize(),
+        coordinator = focusCoordinator,
+        layer = WjzFocusLayer.Content
+    ) {
     when {
         uiState.shouldShowLoading -> {
             FullScreenMessage(message = "加载中……")
@@ -436,7 +519,7 @@ fun VideoInfoScreen(
             val videoDetailState = uiState.videoDetailState
             if (videoDetailState == null) {
                 FullScreenMessage(message = "加载中……")
-                return
+                return@WjzFocusHost
             }
             val snapshot = videoDetailState.metrics?.snapshot
             val isVipVideo = Prefs.showVipVideoArgueTip && snapshot?.isVipVideo == true
@@ -468,8 +551,8 @@ fun VideoInfoScreen(
                 }
             }
 
-            val partEntry = remember { FocusRequester() }
-            val relatedEntry = remember { FocusRequester() }
+            val partEntry = rememberInfoFocusTarget("video-info/part/entry")
+            val relatedEntry = rememberInfoFocusTarget("video-info/related/entry")
 
             val displayedUgcSections = remember(videoDetailState.ugcSeason) {
                 videoDetailState.ugcSeason?.sections.orEmpty()
@@ -477,17 +560,18 @@ fun VideoInfoScreen(
             }
             var sharedUgcDialogData by remember { mutableStateOf<UgcSeasonDialogData?>(null) }
 
-            val ugcEntries = remember(displayedUgcSections.size) {
-                List(displayedUgcSections.size) { FocusRequester() }
-            }
+            val ugcEntries = rememberInfoFocusTargets(
+                nodeKeyPrefix = "video-info/ugc/entry",
+                count = displayedUgcSections.size
+            )
 
             val relatedVideos = videoDetailState.relatedVideos
 
-            fun firstBelowPart(): FocusRequester? =
+    fun firstBelowPart(): InfoFocusTarget? =
                 ugcEntries.firstOrNull() ?: relatedEntry.takeIf { relatedVideos.isNotEmpty() }
 
-            fun lastAboveRelated(): FocusRequester =
-                ugcEntries.lastOrNull() ?: partEntry
+            fun lastAboveRelated(): ComposeFocusRequester =
+                (ugcEntries.lastOrNull() ?: partEntry).requester
 
             CompositionLocalProvider(
                 LocalBringIntoViewSpec provides bringIntoViewSpec
@@ -496,7 +580,7 @@ fun VideoInfoScreen(
                     containerColor = C.background
                 ) { innerPadding ->
                     BoxWithConstraints(
-                        modifier = modifier
+                        modifier = Modifier
                             .padding(innerPadding)
                             .fillMaxSize()
                     ) {
@@ -576,10 +660,9 @@ fun VideoInfoScreen(
                             item(key = "video_info_data") {
                                 VideoInfoData(
                                     modifier = Modifier
-                                        .focusGroup()
                                         .onSizeChanged { videoInfoHeightPx = it.height },
-                                    defaultFocusRequester = defaultFocusRequester,
-                                    coverDownRequester = partEntry,
+                                    defaultFocusTarget = defaultFocusTarget,
+                                    coverDownTarget = partEntry,
                                     videoDetail = videoDetailState,
                                     isFollowing = uiState.isFollowingUp,
                                     tags = videoDetailState.tags,
@@ -630,14 +713,10 @@ fun VideoInfoScreen(
                             item(key = "video_part_row") {
                                 VideoPartRow(
                                     modifier = Modifier
-                                        .sectionFocusNav(
-                                            up = defaultFocusRequester,
-                                            down = firstBelowPart()
-                                        )
                                         .onSizeChanged { partRowHeightPx = it.height },
-                                    entryFocusRequester = partEntry,
-                                    upFocusRequester = defaultFocusRequester,
-                                    downFocusRequester = firstBelowPart(),
+                                entryFocusRequester = partEntry.requester,
+                                upFocusRequester = defaultFocusTarget.requester,
+                                downFocusRequester = firstBelowPart()?.requester,
                                     pages = videoDetailState.pages,
                                     lastPlayedCid = videoDetailState.lastPlayedCid,
                                     lastPlayedTime = videoDetailState.lastPlayedTime,
@@ -660,14 +739,10 @@ fun VideoInfoScreen(
 
                                     VideoUgcSeasonRow(
                                         modifier = Modifier
-                                            .sectionFocusNav(
-                                                up = upRequester,
-                                                down = downRequester
-                                            )
                                             .onSizeChanged { ugcRowHeightsPx[index] = it.height },
-                                        entryFocusRequester = ugcEntries[index],
-                                        upFocusRequester = upRequester,
-                                        downFocusRequester = downRequester,
+                                        entryFocusRequester = ugcEntries[index].requester,
+                                        upFocusRequester = upRequester.requester,
+                                        downFocusRequester = downRequester?.requester,
                                         title = if (displayedUgcSections.size == 1) {
                                             season.title
                                         } else {
@@ -726,7 +801,7 @@ fun VideoInfoScreen(
                                                 .onSizeChanged { relatedRowHeightPx = it.height },
                                             header = stringResource(R.string.video_info_related_video_title),
                                             videos = relatedVideos,
-                                            entryFocusRequester = relatedEntry,
+                                            entryFocusRequester = relatedEntry.requester,
                                             upFocusRequester = lastAboveRelated(),
                                             downFocusRequester = null,
                                             onVideoClicked = { videoData ->
@@ -836,6 +911,7 @@ fun VideoInfoScreen(
             }
         }
     }
+    }
 }
 
 @Composable
@@ -940,10 +1016,10 @@ fun ArgueTip(
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-fun VideoInfoData(
+private fun VideoInfoData(
     modifier: Modifier = Modifier,
-    defaultFocusRequester: FocusRequester,
-    coverDownRequester: FocusRequester? = null,
+    defaultFocusTarget: InfoFocusTarget,
+    coverDownTarget: InfoFocusTarget? = null,
     videoDetail: VideoDetailState,
     isFollowing: Boolean,
     tags: ImmutableList<Tag>,
@@ -970,32 +1046,52 @@ fun VideoInfoData(
 
     var showCommentsDialog by remember { mutableStateOf(false) }
 
-    val upButtonFocusRequester = remember { FocusRequester() }
-    val actionFavoriteFocusRequester = remember { FocusRequester() }
-    val actionCommentFocusRequester = remember { FocusRequester() }
-    val actionLikeFocusRequester = remember { FocusRequester() }
-    val actionCoinFocusRequester = remember { FocusRequester() }
-    val descriptionFocusRequester = remember { FocusRequester() }
+    val upButtonFocusTarget = rememberInfoFocusTarget("video-info/up")
+    val actionFavoriteFocusTarget = rememberInfoFocusTarget("video-info/action/favorite")
+    val actionCommentFocusTarget = rememberInfoFocusTarget("video-info/action/comment")
+    val actionLikeFocusTarget = rememberInfoFocusTarget("video-info/action/like")
+    val actionCoinFocusTarget = rememberInfoFocusTarget("video-info/action/coin")
+    val descriptionFocusTarget = rememberInfoFocusTarget("video-info/description")
 
     val hasDescription = remember(videoDetail.description) {
         val normalized = videoDetail.description.trim()
         normalized.isNotEmpty() && normalized != "-"
     }
-    val actionDownRequester = if (hasDescription) descriptionFocusRequester else coverDownRequester
+    val actionDownTarget = if (hasDescription) descriptionFocusTarget else coverDownTarget
+    val focusCoordinator = LocalWjzFocusCoordinator.current
 
+    WjzFocusHost(
+        modifier = modifier,
+        layer = WjzFocusLayer.Content,
+        exits = listOf(
+            WjzFocusHostExit(FocusDirection.Down, VideoInfoCoverDownEntryId)
+        ),
+        onHostExit = { request ->
+            when (request.direction) {
+                FocusDirection.Down -> {
+                    val target = coverDownTarget
+                    if (target == null) {
+                        WjzFocusEntryResolution.Reject
+                    } else {
+                        WjzFocusEntryResolution.Ready(
+                            nodeId = target.nodeId,
+                            layer = WjzFocusLayer.Content,
+                            scopeId = null
+                        )
+                    }
+                }
+
+                else -> WjzFocusEntryResolution.Reject
+            }
+        }
+    ) {
     Row(
-        modifier = modifier
+        modifier = Modifier
             .padding(horizontal = 58.dp, vertical = 8.dp),
     ) {
         Surface(
             modifier = Modifier
-                .focusRequester(defaultFocusRequester)
-                .focusProperties {
-                    right = actionFavoriteFocusRequester
-                    if (coverDownRequester != null) {
-                        down = coverDownRequester
-                    }
-                }
+                .infoFocusNode(defaultFocusTarget)
                 .weight(2.7f)
                 .aspectRatio(1.6f)
                 .onGloballyPositioned { coordinates ->
@@ -1109,14 +1205,7 @@ fun VideoInfoData(
                             onClickUp = onClickUp,
                             onAddFollow = onAddFollow,
                             onDelFollow = onDelFollow,
-                            upInfoModifier = Modifier
-                                .focusRequester(upButtonFocusRequester)
-                                .focusProperties {
-                                    down = actionFavoriteFocusRequester
-                                },
-                            followModifier = Modifier.focusProperties {
-                                down = actionFavoriteFocusRequester
-                            }
+                            upInfoModifier = Modifier.infoFocusNode(upButtonFocusTarget)
                         )
                     }
                 }
@@ -1164,13 +1253,7 @@ fun VideoInfoData(
             ) {
                 FavoriteButton(
                     modifier = Modifier
-                        .focusRequester(actionFavoriteFocusRequester)
-                        .focusProperties {
-                            left = defaultFocusRequester
-                            right = actionCommentFocusRequester
-                            up = upButtonFocusRequester
-                            if (actionDownRequester != null) down = actionDownRequester
-                        },
+                        .infoFocusNode(actionFavoriteFocusTarget),
                     isFavorite = isFavorite,
                     countText = (videoDetail.metrics?.snapshot?.favorite
                         ?: videoDetail.stat.favorite.toLong()).toWanString(),
@@ -1184,13 +1267,7 @@ fun VideoInfoData(
 
                 CommentButton(
                     modifier = Modifier
-                        .focusRequester(actionCommentFocusRequester)
-                        .focusProperties {
-                            left = actionFavoriteFocusRequester
-                            right = actionLikeFocusRequester
-                            up = upButtonFocusRequester
-                            if (actionDownRequester != null) down = actionDownRequester
-                        },
+                        .infoFocusNode(actionCommentFocusTarget),
                     countText = (videoDetail.metrics?.snapshot?.reply
                         ?: videoDetail.stat.reply.toLong()).toWanString(),
                     onClick = { showCommentsDialog = true }
@@ -1200,13 +1277,7 @@ fun VideoInfoData(
 
                 LikeButton(
                     modifier = Modifier
-                        .focusRequester(actionLikeFocusRequester)
-                        .focusProperties {
-                            left = actionCommentFocusRequester
-                            right = actionCoinFocusRequester
-                            up = upButtonFocusRequester
-                            if (actionDownRequester != null) down = actionDownRequester
-                        },
+                        .infoFocusNode(actionLikeFocusTarget),
                     isLiked = isLiked,
                     countText = (videoDetail.metrics?.snapshot?.like
                         ?: videoDetail.stat.like.toLong()).toWanString(),
@@ -1218,12 +1289,7 @@ fun VideoInfoData(
 
                 CoinButton(
                     modifier = Modifier
-                        .focusRequester(actionCoinFocusRequester)
-                        .focusProperties {
-                            left = actionLikeFocusRequester
-                            up = upButtonFocusRequester
-                            if (actionDownRequester != null) down = actionDownRequester
-                        },
+                        .infoFocusNode(actionCoinFocusTarget),
                     isCoined = isCoined,
                     countText = (videoDetail.metrics?.snapshot?.coin
                         ?: videoDetail.stat.coin.toLong()).toWanString(),
@@ -1260,12 +1326,7 @@ fun VideoInfoData(
                     .weight(1f)
                     .then(
                         if (hasDescription) {
-                            Modifier
-                                .focusRequester(descriptionFocusRequester)
-                                .focusProperties {
-                                    up = actionFavoriteFocusRequester
-                                    if (coverDownRequester != null) down = coverDownRequester
-                                }
+                            Modifier.infoFocusNode(descriptionFocusTarget)
                         } else {
                             Modifier
                         }
@@ -1287,6 +1348,7 @@ fun VideoInfoData(
                 }
             )
         }
+    }
     }
 }
 
@@ -1411,15 +1473,17 @@ fun VideoDescriptionDialog(
     if (show) {
         val scrollState = rememberScrollState()
         val scope = rememberCoroutineScope()
-        val bodyFocusRequester = remember { FocusRequester() }
+        val bodyFocusTarget = rememberInfoFocusTarget("video-info/description-dialog/body")
+        val focusCoordinator = LocalWjzFocusCoordinator.current
         val context = LocalContext.current
         val tokens = remember(descriptionContent) { buildRichTextTokens(descriptionContent) }
         val interactiveCount = remember(tokens) {
             countRichTextInteractiveTokens(tokens)
         }
-        val interactiveFocusRequesters = remember(description, interactiveCount) {
-            List(interactiveCount) { FocusRequester() }
-        }
+        val interactiveFocusTargets = rememberInfoFocusTargets(
+            nodeKeyPrefix = "video-info/description-dialog/inline",
+            count = interactiveCount
+        )
         var bodyIsFocused by remember(description) { mutableStateOf(false) }
         var bodyHasFocus by remember(description) { mutableStateOf(false) }
         var showRichContentDialog by remember(description) { mutableStateOf(false) }
@@ -1485,7 +1549,6 @@ fun VideoDescriptionDialog(
                 val y = contentYOf(nextIdx)
                 if (rect != null && y != null && rect.isVisibleIn(view, marginPx = 8f)) {
                     cursorY = y + 1f
-                    interactiveFocusRequesters.getOrNull(nextIdx)?.requestFocus()
                     return
                 }
             }
@@ -1501,7 +1564,7 @@ fun VideoDescriptionDialog(
                     val y2 = contentYOf(nextIdx2)
                     if (rect2 != null && y2 != null && rect2.isVisibleIn(view2, marginPx = 8f)) {
                         cursorY = y2 + 1f
-                        interactiveFocusRequesters.getOrNull(nextIdx2)?.requestFocus()
+                        cursorY = y2 + 1f
                     }
                 }
             }
@@ -1521,7 +1584,6 @@ fun VideoDescriptionDialog(
                 val y = contentYOf(prevIdx)
                 if (rect != null && y != null && rect.isVisibleIn(view, marginPx = 8f)) {
                     cursorY = y - 1f
-                    interactiveFocusRequesters.getOrNull(prevIdx)?.requestFocus()
                     return
                 }
             }
@@ -1537,19 +1599,13 @@ fun VideoDescriptionDialog(
                     val y2 = contentYOf(prevIdx2)
                     if (rect2 != null && y2 != null && rect2.isVisibleIn(view2, marginPx = 8f)) {
                         cursorY = y2 - 1f
-                        interactiveFocusRequesters.getOrNull(prevIdx2)?.requestFocus()
+                        cursorY = y2 - 1f
                     }
                 }
             }
         }
 
-        LaunchedEffect(scrollState.maxValue, interactiveFocusRequesters.size) {
-            if (show && (scrollState.maxValue > 0 || interactiveFocusRequesters.isNotEmpty())) {
-                bodyFocusRequester.requestFocus()
-            }
-        }
-
-        AlertDialog(
+        TvAlertDialog(
             modifier = modifier,
             shape = RectangleShape,
             onDismissRequest = { onHideDialog() },
@@ -1565,10 +1621,33 @@ fun VideoDescriptionDialog(
                         .fillMaxWidth()
                         .height(420.dp)
                 ) {
+                    WjzFocusHost(
+                        modifier = Modifier.fillMaxSize(),
+                        layer = WjzFocusLayer.Dialog,
+                        exits = listOf(
+                            WjzFocusHostExit(FocusDirection.Down, VideoInfoDescriptionDialogScrollEntryId),
+                            WjzFocusHostExit(FocusDirection.Up, VideoInfoDescriptionDialogScrollEntryId)
+                        ),
+                        onHostExit = { request ->
+                            when (request.direction) {
+                                FocusDirection.Down -> {
+                                    scope.launch { handleDown() }
+                                    WjzFocusEntryResolution.Cancel
+                                }
+
+                                FocusDirection.Up -> {
+                                    scope.launch { handleUp() }
+                                    WjzFocusEntryResolution.Cancel
+                                }
+
+                                else -> WjzFocusEntryResolution.Reject
+                            }
+                        }
+                    ) {
                     Surface(
                         modifier = Modifier
                             .fillMaxSize()
-                            .focusRequester(bodyFocusRequester)
+                            .infoFocusNode(bodyFocusTarget, layer = WjzFocusLayer.Dialog)
                             .onFocusChanged {
                                 bodyIsFocused = it.isFocused
                                 bodyHasFocus = it.hasFocus
@@ -1578,21 +1657,6 @@ fun VideoDescriptionDialog(
                                     } else {
                                         cursorY = scrollState.value.toFloat()
                                     }
-                                }
-                            }
-                            .onPreviewKeyEvent { event ->
-                                if (!bodyIsFocused) return@onPreviewKeyEvent false
-                                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                                when (event.key) {
-                                    Key.DirectionDown -> {
-                                        scope.launch { handleDown() }
-                                        true
-                                    }
-                                    Key.DirectionUp -> {
-                                        scope.launch { handleUp() }
-                                        true
-                                    }
-                                    else -> false
                                 }
                             }
                             .border(
@@ -1628,7 +1692,7 @@ fun VideoDescriptionDialog(
                             ),
                             maxLines = Int.MAX_VALUE,
                             enableInteractiveFocus = true,
-                            interactiveFocusRequesters = interactiveFocusRequesters,
+                            interactiveFocusRequesters = interactiveFocusTargets.map { it.requester },
                             onVideoLinkClick = { link ->
                                 if (Prefs.showVideoInfo) {
                                     VideoInfoActivity.actionStart(context, link.aid)
@@ -1670,20 +1734,36 @@ fun VideoDescriptionDialog(
                             onInteractiveNavDown = {
                                 scope.launch {
                                     keepCursorOnBodyFocus = true
-                                    runCatching { bodyFocusRequester.requestFocus() }
-                                        .onFailure { keepCursorOnBodyFocus = false }
+                                    val focused = focusCoordinator?.let {
+                                        with(it) {
+                                            requestFocus(
+                                                nodeId = bodyFocusTarget.nodeId,
+                                                layer = WjzFocusLayer.Dialog
+                                            )
+                                        }
+                                    } == true
+                                    if (!focused) keepCursorOnBodyFocus = false
                                     handleDown(fromInteractive = true)
                                 }
                             },
                             onInteractiveNavUp = {
                                 scope.launch {
                                     keepCursorOnBodyFocus = true
-                                    runCatching { bodyFocusRequester.requestFocus() }
-                                        .onFailure { keepCursorOnBodyFocus = false }
+                                    val focused = focusCoordinator?.let {
+                                        with(it) {
+                                            requestFocus(
+                                                nodeId = bodyFocusTarget.nodeId,
+                                                layer = WjzFocusLayer.Dialog
+                                            )
+                                        }
+                                    } == true
+                                    if (!focused) keepCursorOnBodyFocus = false
                                     handleUp(fromInteractive = true)
                                 }
                             }
                         )
+                        InfoFocusRegistrations(interactiveFocusTargets, layer = WjzFocusLayer.Dialog)
+                    }
                     }
                 }
             },
@@ -1744,7 +1824,7 @@ private fun VideoDescriptionRichContentDialog(
     var previewPictures by remember(document?.title) { mutableStateOf<List<Comment.Picture>>(emptyList()) }
     var previewIndex by remember(document?.title) { mutableIntStateOf(0) }
 
-    AlertDialog(
+    TvAlertDialog(
         onDismissRequest = onDismissRequest,
         title = {
             Text(
@@ -1825,13 +1905,18 @@ private fun VideoDescriptionRichContentContent(
                     includeMentions = false
                 )
             }
-            val bodyFocusRequester = remember(document.title) { FocusRequester() }
-            val interactiveFocusRequesters = remember(document.title, interactiveCount) {
-                List(interactiveCount) { FocusRequester() }
-            }
-            val pictureFocusRequesters = remember(document.title, document.pictures.size) {
-                List(document.pictures.size) { FocusRequester() }
-            }
+            val bodyFocusTarget = rememberInfoFocusTarget(
+                "video-info/rich-content/${document.title}/body"
+            )
+            val interactiveFocusTargets = rememberInfoFocusTargets(
+                "video-info/rich-content/${document.title}/interactive",
+                interactiveCount
+            )
+            val pictureFocusTargets = rememberInfoFocusTargets(
+                "video-info/rich-content/${document.title}/picture",
+                document.pictures.size
+            )
+            val focusCoordinator = LocalWjzFocusCoordinator.current
             val inlineRects = remember(document.title) { mutableStateMapOf<Int, Rect>() }
             var viewportRect by remember(document.title) { mutableStateOf<Rect?>(null) }
             var navDir by remember(document.title) { mutableStateOf(VideoDescriptionNavDir.None) }
@@ -1895,7 +1980,16 @@ private fun VideoDescriptionRichContentContent(
                     val y = contentYOf(nextIdx)
                     if (rect != null && y != null && rect.isVisibleIn(view, marginPx = 8f)) {
                         cursorY = y + 1f
-                        interactiveFocusRequesters.getOrNull(nextIdx)?.requestFocus()
+                        interactiveFocusTargets.getOrNull(nextIdx)?.let { target ->
+                            focusCoordinator?.let {
+                                with(it) {
+                                    requestFocus(
+                                        nodeId = target.nodeId,
+                                        layer = WjzFocusLayer.Dialog
+                                    )
+                                }
+                            }
+                        }
                         return
                     }
                 }
@@ -1911,12 +2005,30 @@ private fun VideoDescriptionRichContentContent(
                         val y2 = contentYOf(nextIdx2)
                         if (rect2 != null && y2 != null && rect2.isVisibleIn(view2, marginPx = 8f)) {
                             cursorY = y2 + 1f
-                            interactiveFocusRequesters.getOrNull(nextIdx2)?.requestFocus()
+                            interactiveFocusTargets.getOrNull(nextIdx2)?.let { target ->
+                                focusCoordinator?.let {
+                                    with(it) {
+                                        requestFocus(
+                                            nodeId = target.nodeId,
+                                            layer = WjzFocusLayer.Dialog
+                                        )
+                                    }
+                                }
+                            }
                             return
                         }
                     }
                 }
-                pictureFocusRequesters.firstOrNull()?.requestFocus()
+                pictureFocusTargets.firstOrNull()?.let { target ->
+                    focusCoordinator?.let {
+                        with(it) {
+                            requestFocus(
+                                nodeId = target.nodeId,
+                                layer = WjzFocusLayer.Dialog
+                            )
+                        }
+                    }
+                }
             }
 
             suspend fun handleUp(fromInteractive: Boolean = false) {
@@ -1933,7 +2045,16 @@ private fun VideoDescriptionRichContentContent(
                     val y = contentYOf(prevIdx)
                     if (rect != null && y != null && rect.isVisibleIn(view, marginPx = 8f)) {
                         cursorY = y - 1f
-                        interactiveFocusRequesters.getOrNull(prevIdx)?.requestFocus()
+                        interactiveFocusTargets.getOrNull(prevIdx)?.let { target ->
+                            focusCoordinator?.let {
+                                with(it) {
+                                    requestFocus(
+                                        nodeId = target.nodeId,
+                                        layer = WjzFocusLayer.Dialog
+                                    )
+                                }
+                            }
+                        }
                         return
                     }
                 }
@@ -1949,16 +2070,20 @@ private fun VideoDescriptionRichContentContent(
                         val y2 = contentYOf(prevIdx2)
                         if (rect2 != null && y2 != null && rect2.isVisibleIn(view2, marginPx = 8f)) {
                             cursorY = y2 - 1f
-                            interactiveFocusRequesters.getOrNull(prevIdx2)?.requestFocus()
+                            interactiveFocusTargets.getOrNull(prevIdx2)?.let { target ->
+                                focusCoordinator?.let {
+                                    with(it) {
+                                        requestFocus(
+                                            nodeId = target.nodeId,
+                                            layer = WjzFocusLayer.Dialog
+                                        )
+                                    }
+                                }
+                            }
                             return
                         }
                     }
                 }
-            }
-
-            LaunchedEffect(document.title) {
-                delay(40)
-                runCatching { bodyFocusRequester.requestFocus() }
             }
 
             Column(
@@ -1968,7 +2093,7 @@ private fun VideoDescriptionRichContentContent(
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .focusRequester(bodyFocusRequester)
+                        .infoFocusNode(bodyFocusTarget, layer = WjzFocusLayer.Dialog)
                         .onFocusChanged {
                             bodyIsFocused = it.isFocused
                             bodyHasFocus = it.hasFocus
@@ -1983,11 +2108,11 @@ private fun VideoDescriptionRichContentContent(
                         .onPreviewKeyEvent { event ->
                             if (bodyIsFocused && event.type == KeyEventType.KeyDown) {
                                 when (event.key) {
-                                    Key.DirectionDown -> {
+                                    InfoNavDownKey -> {
                                         coroutineScope.launch { handleDown() }
                                         return@onPreviewKeyEvent true
                                     }
-                                    Key.DirectionUp -> {
+                                    InfoNavUpKey -> {
                                         coroutineScope.launch { handleUp() }
                                         return@onPreviewKeyEvent true
                                     }
@@ -2034,7 +2159,7 @@ private fun VideoDescriptionRichContentContent(
                             ),
                             maxLines = Int.MAX_VALUE,
                             enableInteractiveFocus = true,
-                            interactiveFocusRequesters = interactiveFocusRequesters,
+                            interactiveFocusRequesters = interactiveFocusTargets.map { it.requester },
                             onVideoLinkClick = onVideoLinkClick,
                             onReferenceClick = onReferenceClick,
                             onMentionClick = null,
@@ -2046,16 +2171,30 @@ private fun VideoDescriptionRichContentContent(
                             onInteractiveNavDown = {
                                 coroutineScope.launch {
                                     keepCursorOnBodyFocus = true
-                                    runCatching { bodyFocusRequester.requestFocus() }
-                                        .onFailure { keepCursorOnBodyFocus = false }
+                                    val focused = focusCoordinator?.let {
+                                        with(it) {
+                                            requestFocus(
+                                                nodeId = bodyFocusTarget.nodeId,
+                                                layer = WjzFocusLayer.Dialog
+                                            )
+                                        }
+                                    } == true
+                                    if (!focused) keepCursorOnBodyFocus = false
                                     handleDown(fromInteractive = true)
                                 }
                             },
                             onInteractiveNavUp = {
                                 coroutineScope.launch {
                                     keepCursorOnBodyFocus = true
-                                    runCatching { bodyFocusRequester.requestFocus() }
-                                        .onFailure { keepCursorOnBodyFocus = false }
+                                    val focused = focusCoordinator?.let {
+                                        with(it) {
+                                            requestFocus(
+                                                nodeId = bodyFocusTarget.nodeId,
+                                                layer = WjzFocusLayer.Dialog
+                                            )
+                                        }
+                                    } == true
+                                    if (!focused) keepCursorOnBodyFocus = false
                                     handleUp(fromInteractive = true)
                                 }
                             }
@@ -2066,20 +2205,27 @@ private fun VideoDescriptionRichContentContent(
                 VideoDescriptionRichContentPictures(
                     pictures = document.pictures,
                     keyPrefix = "video-description-rich-${document.title}",
-                    pictureFocusRequesters = pictureFocusRequesters,
-                    fallbackUpRequester = bodyFocusRequester,
+                    pictureFocusTargets = pictureFocusTargets,
                     onImageClick = { index ->
                         onImageClick(document.pictures, index)
                     },
                     onRequestScrollUpFromFirstPicture = {
                         coroutineScope.launch {
                             keepCursorOnBodyFocus = true
-                            runCatching { bodyFocusRequester.requestFocus() }
-                                .onFailure { keepCursorOnBodyFocus = false }
+                            val focused = focusCoordinator?.let {
+                                with(it) {
+                                    requestFocus(
+                                        nodeId = bodyFocusTarget.nodeId,
+                                        layer = WjzFocusLayer.Dialog
+                                    )
+                                }
+                            } == true
+                            if (!focused) keepCursorOnBodyFocus = false
                             handleUp(fromInteractive = true)
                         }
                     }
                 )
+                InfoFocusRegistrations(interactiveFocusTargets, layer = WjzFocusLayer.Dialog)
             }
         }
     }
@@ -2089,8 +2235,7 @@ private fun VideoDescriptionRichContentContent(
 private fun VideoDescriptionRichContentPictures(
     pictures: List<Comment.Picture>,
     keyPrefix: String,
-    pictureFocusRequesters: List<FocusRequester>,
-    fallbackUpRequester: FocusRequester,
+    pictureFocusTargets: List<InfoFocusTarget>,
     onImageClick: (Int) -> Unit,
     onRequestScrollUpFromFirstPicture: (() -> Unit)? = null
 ) {
@@ -2104,31 +2249,17 @@ private fun VideoDescriptionRichContentPictures(
             items = pictures,
             key = { _, picture -> "$keyPrefix-${picture.imgSrc}" }
         ) { index, picture ->
-            val fr = pictureFocusRequesters[index]
-            val upRequester = if (index == 0) {
-                fallbackUpRequester
-            } else {
-                pictureFocusRequesters[index - 1]
-            }
-            val downRequester = if (index == pictures.lastIndex) {
-                fr
-            } else {
-                pictureFocusRequesters[index + 1]
-            }
+            val target = pictureFocusTargets[index]
             var pictureHasFocus by remember(keyPrefix, index) { mutableStateOf(false) }
 
             Surface(
                 modifier = Modifier
                     .width(184.dp)
                     .height(112.dp)
-                    .focusRequester(fr)
-                    .focusProperties {
-                        up = upRequester
-                        down = downRequester
-                    }
+                    .infoFocusNode(target, layer = WjzFocusLayer.Dialog)
                     .onPreviewKeyEvent { e ->
                         if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                        if (index == 0 && e.key == Key.DirectionUp && onRequestScrollUpFromFirstPicture != null) {
+                        if (index == 0 && e.key == InfoNavUpKey && onRequestScrollUpFromFirstPicture != null) {
                             onRequestScrollUpFromFirstPicture()
                             true
                         } else {
@@ -2178,13 +2309,7 @@ private fun VideoDescriptionRichContentImagePreviewDialog(
     if (pictures.isEmpty()) return
 
     val safeIndex = currentIndex.coerceIn(0, pictures.lastIndex)
-    val focusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(pictures, safeIndex) {
-        delay(20)
-        runCatching { focusRequester.requestFocus() }
-    }
-
+    val focusTarget = rememberInfoFocusTarget("video-info/rich-content/image-preview")
     Dialog(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(
@@ -2193,50 +2318,51 @@ private fun VideoDescriptionRichContentImagePreviewDialog(
             usePlatformDefaultWidth = false
         )
     ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .focusRequester(focusRequester)
-                .focusable()
-                .onPreviewKeyEvent {
-                    if (it.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                    when (it.key) {
-                        Key.Back -> {
-                            onDismissRequest()
-                            true
-                        }
-
-                        Key.DirectionLeft -> {
-                            onSwitch(-1)
-                            true
-                        }
-
-                        Key.DirectionRight -> {
-                            onSwitch(1)
-                            true
-                        }
-
-                        else -> false
-                    }
-                },
-            shape = RoundedCornerShape(0.dp),
-            colors = SurfaceDefaults.colors(
-                containerColor = C.commentsBackground,
-                contentColor = C.onSurface
-            )
-        ) {
-            Box(
+        WjzDialogFocusHost {
+            Surface(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(C.commentsBackground)
-            ) {
-                AsyncImage(
-                    modifier = Modifier.fillMaxSize(),
-                    model = pictures[safeIndex].imgSrc,
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    alignment = Alignment.Center
+                    .infoFocusNode(focusTarget, layer = WjzFocusLayer.Dialog)
+                    .onPreviewKeyEvent {
+                        if (it.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                        when (it.key) {
+                            Key.Back -> {
+                                onDismissRequest()
+                                true
+                            }
+
+                            InfoNavLeftKey -> {
+                                onSwitch(-1)
+                                true
+                            }
+
+                            InfoNavRightKey -> {
+                                onSwitch(1)
+                                true
+                            }
+
+                            else -> false
+                        }
+                    },
+                shape = RoundedCornerShape(0.dp),
+                colors = SurfaceDefaults.colors(
+                    containerColor = C.commentsBackground,
+                    contentColor = C.onSurface
                 )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(C.commentsBackground)
+                ) {
+                    AsyncImage(
+                        modifier = Modifier.fillMaxSize(),
+                        model = pictures[safeIndex].imgSrc,
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        alignment = Alignment.Center
+                    )
+                }
             }
         }
     }
@@ -2269,38 +2395,29 @@ fun VideoPartRowButton(
 @Composable
 fun VideoPartRow(
     modifier: Modifier = Modifier,
-    entryFocusRequester: FocusRequester? = null,
-    upFocusRequester: FocusRequester? = null,
-    downFocusRequester: FocusRequester? = null,
+    entryFocusRequester: ComposeFocusRequester? = null,
+    upFocusRequester: ComposeFocusRequester? = null,
+    downFocusRequester: ComposeFocusRequester? = null,
     pages: ImmutableList<VideoPage>,
     lastPlayedCid: Long = 0,
     lastPlayedTime: Int = 0,
     enablePartListDialog: Boolean = false,
     onClick: (cid: Long) -> Unit
 ) {
-    val firstPageFocusRequester = entryFocusRequester ?: remember { FocusRequester() }
-    val leadingFocusRequester = remember { FocusRequester() }
-    val fallbackFocusRequester = remember { FocusRequester() }
-    val pageFocusRequesters = remember { mutableMapOf<Int, FocusRequester>() }
+    val firstPageFocusRequester = entryFocusRequester ?: remember { ComposeFocusRequester() }
+    val leadingFocusRequester = remember { ComposeFocusRequester() }
+    val pageFocusRequesters = remember { mutableMapOf<Int, ComposeFocusRequester>() }
 
-    fun pageRequesterFor(index: Int): FocusRequester {
+    fun pageRequesterFor(index: Int): ComposeFocusRequester {
         if (index == 0) return firstPageFocusRequester
-        return pageFocusRequesters.getOrPut(index) { FocusRequester() }
-    }
-
-    val restoreFallback = when {
-        pages.isNotEmpty() -> firstPageFocusRequester
-        enablePartListDialog -> leadingFocusRequester
-        else -> fallbackFocusRequester
+        return pageFocusRequesters.getOrPut(index) { ComposeFocusRequester() }
     }
 
     var showPartListDialog by remember { mutableStateOf(false) }
 
     LazyRow(
         modifier = modifier
-            .padding(top = 8.dp)
-            .focusRestorer(restoreFallback)
-            .focusGroup(),
+            .padding(top = 8.dp),
         contentPadding = PaddingValues(horizontal = 58.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp)
     ) {
@@ -2338,14 +2455,7 @@ fun VideoPartRow(
             item {
                 VideoPartRowButton(
                     modifier = Modifier
-                        .focusRequester(leadingFocusRequester)
-                        .focusProperties {
-                            if (pages.isNotEmpty()) {
-                                right = firstPageFocusRequester
-                            }
-                            if (upFocusRequester != null) up = upFocusRequester
-                            if (downFocusRequester != null) down = downFocusRequester
-                        },
+                        .infoFocusNode(leadingFocusRequester),
                     onClick = { showPartListDialog = true }
                 ) {
                     Icon(
@@ -2360,25 +2470,7 @@ fun VideoPartRow(
         itemsIndexed(items = pages, key = { _, page -> page.cid }) { index, page ->
             VideoPartButton(
                 modifier = Modifier
-                    .focusRequester(pageRequesterFor(index))
-                    .focusProperties {
-                        when {
-                            index == 0 && enablePartListDialog -> {
-                                left = leadingFocusRequester
-                            }
-
-                            index > 0 -> {
-                                left = pageRequesterFor(index - 1)
-                            }
-                        }
-
-                        if (index < pages.lastIndex) {
-                            right = pageRequesterFor(index + 1)
-                        }
-
-                        if (upFocusRequester != null) up = upFocusRequester
-                        if (downFocusRequester != null) down = downFocusRequester
-                    }
+                    .infoFocusNode(pageRequesterFor(index))
                     .width(300.dp),
                 index = index + 1,
                 title = page.title,
@@ -2395,7 +2487,7 @@ fun VideoPartRow(
         items = pages,
         title = "分 P 列表",
         itemKey = { it.cid }
-    ) { itemModifier, absoluteIndex, page, _ ->
+    ) { itemModifier, _, absoluteIndex, page, _ ->
         VideoPartButton(
             modifier = itemModifier,
             index = absoluteIndex + 1,
@@ -2500,9 +2592,9 @@ fun VideoUgcSeasonRow(
     onAddWatchLater: ((Long) -> Unit)? = null,
     onGoToUpPage: ((Long, String) -> Unit)? = null,
     rowStateKey: String? = null,
-    entryFocusRequester: FocusRequester? = null,
-    upFocusRequester: FocusRequester? = null,
-    downFocusRequester: FocusRequester? = null,
+    entryFocusRequester: ComposeFocusRequester? = null,
+    upFocusRequester: ComposeFocusRequester? = null,
+    downFocusRequester: ComposeFocusRequester? = null,
 ) {
     if (episodes.isEmpty()) return
 
@@ -2578,10 +2670,10 @@ private fun UgcSeasonListDialog(
         items = data.videos,
         title = data.title,
         itemKey = { Triple(it.avid, it.cid ?: -1L, it.epId ?: -1) }
-    ) { itemModifier, _, videoData, cardUiStateFor ->
+    ) { itemModifier, focusTarget, _, videoData, cardUiStateFor ->
         SmallVideoCard(
             modifier = Modifier,
-            frameModifier = itemModifier,
+            focusTarget = focusTarget,
             uiState = cardUiStateFor(videoData.avid),
             data = videoData,
             titleMaxLines = 3,
@@ -2608,6 +2700,12 @@ private data class PendingFocusTarget(
     val tabIndex: Int,
     val itemIndex: Int
 )
+
+private fun pagedVideoDialogTabNodeId(title: String) =
+    WjzFocusNodeId("video-info/paged-video-dialog/$title/tab")
+
+private fun pagedVideoDialogItemNodeId(title: String, absoluteIndex: Int) =
+    WjzFocusNodeId("video-info/paged-video-dialog/$title/item/$absoluteIndex")
 
 private enum class DialogFocusArea {
     Tabs,
@@ -2638,6 +2736,7 @@ fun <T> PagedVideoInfinityListDialog(
     },
     itemContent: @Composable (
         modifier: Modifier,
+        focusTarget: BvLazyFocusItemTarget?,
         absoluteIndex: Int,
         item: T,
         cardUiStateFor: (Long) -> SmallVideoCardItemUiState?
@@ -2646,9 +2745,11 @@ fun <T> PagedVideoInfinityListDialog(
     // 这些状态必须放在 if (!show) return 前面，这样关闭 Dialog 后还能保留焦点恢复信息
     val listState = rememberLazyGridState()
 
-    val tabFocusRequester = remember { FocusRequester() }
-    // 这里改成“绝对索引 -> FocusRequester”，避免不同页的同位置 item 共用 requester
-    val itemFocusRequesters = remember { mutableMapOf<Int, FocusRequester>() }
+    val tabFocusRequester = remember { ComposeFocusRequester() }
+    val tabFocusNodeId = remember(title) { pagedVideoDialogTabNodeId(title) }
+    // 这里改成“绝对索引 -> ComposeFocusRequester”，避免不同页的同位置 item 共用 requester
+    val itemFocusRequesters = remember { mutableMapOf<Int, ComposeFocusRequester>() }
+    val dialogFocusCoordinator = rememberWjzFocusCoordinator()
 
     // 每页记住上次聚焦到哪个 item（页内索引）
     val lastFocusedItemIndexByPage = remember { mutableMapOf<Int, Int>() }
@@ -2674,8 +2775,32 @@ fun <T> PagedVideoInfinityListDialog(
         }
     }
 
-    fun itemRequesterFor(absoluteIndex: Int): FocusRequester {
-        return itemFocusRequesters.getOrPut(absoluteIndex) { FocusRequester() }
+    fun itemRequesterFor(absoluteIndex: Int): ComposeFocusRequester {
+        return itemFocusRequesters.getOrPut(absoluteIndex) { ComposeFocusRequester() }
+    }
+
+    fun itemNodeIdFor(absoluteIndex: Int): WjzFocusNodeId {
+        return pagedVideoDialogItemNodeId(title, absoluteIndex)
+    }
+
+    fun requestTabFocus() {
+        with(dialogFocusCoordinator) {
+            switchLayer(WjzFocusLayer.Dialog)
+            requestFocus(
+                nodeId = tabFocusNodeId,
+                layer = WjzFocusLayer.Dialog
+            )
+        }
+    }
+
+    fun requestItemFocus(absoluteIndex: Int) {
+        with(dialogFocusCoordinator) {
+            switchLayer(WjzFocusLayer.Dialog)
+            requestFocus(
+                nodeId = itemNodeIdFor(absoluteIndex),
+                layer = WjzFocusLayer.Dialog
+            )
+        }
     }
 
     fun pageItemCount(tabIndex: Int): Int {
@@ -2801,7 +2926,7 @@ fun <T> PagedVideoInfinityListDialog(
             // 否则恢复到 Tab
             else -> {
                 lastFocusedArea = DialogFocusArea.Tabs
-                tabFocusRequester.requestFocus()
+                requestTabFocus()
             }
         }
     }
@@ -2829,7 +2954,7 @@ fun <T> PagedVideoInfinityListDialog(
                 listState.layoutInfo.visibleItemsInfo.any { it.index == localIndex }
             }.first { it }
 
-            itemRequesterFor(absoluteIndex).requestFocus()
+            requestItemFocus(absoluteIndex)
             pendingFocus = null
             return@LaunchedEffect
         }
@@ -2845,7 +2970,7 @@ fun <T> PagedVideoInfinityListDialog(
                 listState.layoutInfo.visibleItemsInfo.any { it.index == restoreIndex }
             }.first { it }
 
-            itemRequesterFor(absoluteIndex).requestFocus()
+            requestItemFocus(absoluteIndex)
         }
     }
 
@@ -2859,7 +2984,8 @@ fun <T> PagedVideoInfinityListDialog(
             dismissOnClickOutside = false
         )
     ) {
-        CompositionLocalProvider(LocalDensity provides currentDensity) {
+        WjzDialogFocusHost(dialogCoordinator = dialogFocusCoordinator) {
+            CompositionLocalProvider(LocalDensity provides currentDensity) {
             Surface(
                 modifier = modifier
                     .fillMaxSize()
@@ -2890,6 +3016,12 @@ fun <T> PagedVideoInfinityListDialog(
 
                     if (tabCount > 1) {
                         BvUnderlineTabRow(
+                            modifier = Modifier.wjzFocusNode(
+                                nodeId = tabFocusNodeId,
+                                requester = tabFocusRequester,
+                                layer = WjzFocusLayer.Dialog,
+                                fallback = true
+                            ),
                             items = tabItems,
                             selectedItem = selectedTabIndex,
                             entryFocusItem = selectedTabIndex,
@@ -2940,6 +3072,8 @@ fun <T> PagedVideoInfinityListDialog(
                         )
                     }
 
+                    val gridNodeIdPrefix =
+                        "video-info/$title/page/${selectedItems.firstOrNull()?.let(itemKey) ?: "empty"}"
                     SmallVideoCardGridHost(
                         state = listState,
                         modifier = Modifier
@@ -2947,9 +3081,12 @@ fun <T> PagedVideoInfinityListDialog(
                             .fillMaxWidth(),
                         columns = GridCells.Fixed(columnCount),
                         contentPadding = PaddingValues(58.dp),
+                        nodeIdPrefix = gridNodeIdPrefix,
                         verticalArrangement = Arrangement.spacedBy(verticalSpacing.dp),
                         horizontalArrangement = Arrangement.spacedBy(horizontalSpacing.dp),
-                        focusColumnCount = columnCount
+                        focusColumnCount = columnCount,
+                        focusItemCount = selectedItems.size,
+                        focusItemKeys = selectedItems.map { WjzFocusItemKey(itemKey(it).toString()) }
                     ) { cardUiStateFor ->
                         itemsIndexed(
                             items = selectedItems,
@@ -2965,10 +3102,15 @@ fun <T> PagedVideoInfinityListDialog(
                             val topTarget = topIndexForColumn(itemCount, column)
                             val bottomTarget = bottomIndexForColumn(itemCount, column)
 
-                            itemContent(
-                                Modifier
+                            val itemNodeId = itemNodeIdFor(absoluteIndex)
+                            val itemRequester = itemRequesterFor(absoluteIndex)
+                            val itemModifier = Modifier
                                     .fillMaxWidth()
-                                    .focusRequester(itemRequesterFor(absoluteIndex))
+                                    .infoFocusNode(
+                                        requester = itemRequester,
+                                        nodeKey = itemNodeId.value,
+                                        layer = WjzFocusLayer.Dialog
+                                    )
                                     .onFocusChanged {
                                         if (it.hasFocus) {
                                             lastFocusedArea = DialogFocusArea.Grid
@@ -2981,7 +3123,7 @@ fun <T> PagedVideoInfinityListDialog(
                                         }
 
                                         when (event.key) {
-                                            Key.DirectionRight -> {
+                                            InfoNavRightKey -> {
                                                 if (index != rowEnd) {
                                                     false
                                                 } else {
@@ -2992,7 +3134,7 @@ fun <T> PagedVideoInfinityListDialog(
                                                 }
                                             }
 
-                                            Key.DirectionLeft -> {
+                                            InfoNavLeftKey -> {
                                                 if (index != rowStart) {
                                                     false
                                                 } else {
@@ -3003,13 +3145,13 @@ fun <T> PagedVideoInfinityListDialog(
                                                 }
                                             }
 
-                                            Key.DirectionUp -> {
+                                            InfoNavUpKey -> {
                                                 if (index >= columnCount) {
                                                     false
                                                 } else {
                                                     if (tabCount > 1) {
                                                         lastFocusedArea = DialogFocusArea.Tabs
-                                                        tabFocusRequester.requestFocus()
+                                                        requestTabFocus()
                                                         true
                                                     } else {
                                                         lastFocusedArea = DialogFocusArea.Grid
@@ -3019,13 +3161,13 @@ fun <T> PagedVideoInfinityListDialog(
                                                 }
                                             }
 
-                                            Key.DirectionDown -> {
+                                            InfoNavDownKey -> {
                                                 if (index < lastRowStart) {
                                                     false
                                                 } else {
                                                     if (tabCount > 1) {
                                                         lastFocusedArea = DialogFocusArea.Tabs
-                                                        tabFocusRequester.requestFocus()
+                                                        requestTabFocus()
                                                         true
                                                     } else {
                                                         lastFocusedArea = DialogFocusArea.Grid
@@ -3037,7 +3179,21 @@ fun <T> PagedVideoInfinityListDialog(
 
                                             else -> false
                                         }
-                                    },
+                                    }
+                            val focusTarget = BvLazyFocusItemTarget(
+                                modifier = itemModifier,
+                                nodeId = itemNodeId,
+                                requester = itemRequester,
+                                layer = WjzFocusLayer.Dialog,
+                                scopeId = null,
+                                itemKey = WjzFocusItemKey(itemKey(item).toString()),
+                                restorerId = "$gridNodeIdPrefix/lazy-restorer",
+                                listId = "$gridNodeIdPrefix/lazy-restorer"
+                            )
+
+                            itemContent(
+                                itemModifier,
+                                focusTarget,
                                 absoluteIndex,
                                 item,
                                 cardUiStateFor
@@ -3046,6 +3202,7 @@ fun <T> PagedVideoInfinityListDialog(
                     }
                 }
             }
+        }
         }
     }
 }

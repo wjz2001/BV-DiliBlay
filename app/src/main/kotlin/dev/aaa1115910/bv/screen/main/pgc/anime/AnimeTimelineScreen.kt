@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -24,10 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -37,12 +33,15 @@ import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.entity.season.Timeline
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusHost
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
 import dev.aaa1115910.bv.component.videocard.SeasonCard
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
-import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.resizedImageUrl
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.ui.theme.C
@@ -51,6 +50,8 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
+
+private val AnimeTimelineRootNodeId = WjzFocusNodeId("pgc/anime/timeline/root")
 
 @Composable
 fun AnimeTimelineScreen(
@@ -65,7 +66,6 @@ fun AnimeTimelineScreen(
     var currentTimelineIndex by remember { mutableIntStateOf(0) }
     var currentEpisodeIndex by remember { mutableIntStateOf(0) }
 
-    val defaultFocusRequester = remember { FocusRequester() }
     val timelines = animeTimelineViewModel.timelines
 
     LaunchedEffect(Unit) {
@@ -81,7 +81,6 @@ fun AnimeTimelineScreen(
                             ApiType.App -> 6
                         }
                         listState.animateScrollToItem(targetIndex, 0)
-                        defaultFocusRequester.requestFocus(scope)
                     }
                 }.onFailure {
                     logger.fInfo { "Get timeline failed: ${it.stackTraceToString()}" }
@@ -95,47 +94,51 @@ fun AnimeTimelineScreen(
         )
     }
 
-    Scaffold(
+    WjzFocusHost(
         modifier = modifier,
-        topBar = {
-            Box(
-                modifier = Modifier.padding(start = 48.dp, top = 24.dp, bottom = 8.dp, end = 48.dp)
-            ) {
-                Text(
-                    text = stringResource(id = R.string.title_activity_anime_timeline),
-                    fontSize = 24.sp,
-                )
-            }
-        }
-    ) { innerPadding ->
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(bottom = 48.dp, start = 48.dp, end = 48.dp)
-        ) {
-            itemsIndexed(
-                items = timelines,
-                key = { _, timeline -> timeline.dateString }
-            ) { index, timeline ->
-                val defaultModifier = if (timeline.isToday) {
-                    Modifier.focusRequester(defaultFocusRequester)
-                } else {
-                    Modifier
+        layer = WjzFocusLayer.Content
+    ) {
+        Scaffold(
+            topBar = {
+                Box(
+                    modifier = Modifier.padding(start = 48.dp, top = 24.dp, bottom = 8.dp, end = 48.dp)
+                ) {
+                    Text(
+                        text = stringResource(id = R.string.title_activity_anime_timeline),
+                        fontSize = 24.sp,
+                    )
                 }
-                TimelinePerDay(
-                    modifier = defaultModifier,
-                    timeline = timeline,
-                    onFocusChange = { episodeIndex ->
-                        currentTimelineIndex = index
-                        currentEpisodeIndex = episodeIndex
-                    },
-                    onClick = { seasonId ->
-                        SeasonInfoActivity.actionStart(
-                            context = context,
-                            seasonId = seasonId
-                        )
-                    }
-                )
+            }
+        ) { innerPadding ->
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .wjzFocusable(
+                        nodeId = AnimeTimelineRootNodeId,
+                        layer = WjzFocusLayer.Content,
+                        fallback = true
+                    ),
+                contentPadding = PaddingValues(bottom = 48.dp, start = 48.dp, end = 48.dp)
+            ) {
+                itemsIndexed(
+                    items = timelines,
+                    key = { _, timeline -> timeline.dateString }
+                ) { index, timeline ->
+                    TimelinePerDay(
+                        timeline = timeline,
+                        onFocusChange = { episodeIndex ->
+                            currentTimelineIndex = index
+                            currentEpisodeIndex = episodeIndex
+                        },
+                        onClick = { seasonId ->
+                            SeasonInfoActivity.actionStart(
+                                context = context,
+                                seasonId = seasonId
+                            )
+                        }
+                    )
+                }
             }
         }
     }
@@ -192,11 +195,16 @@ fun TimelinePerDay(
                     .padding(horizontal = 6.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                episodes.forEach { episode ->
+                episodes.forEachIndexed { episodeIndex, episode ->
                     SeasonCard(
                         modifier = Modifier
                             .weight(1f)
-                            .padding(horizontal = 8.dp),
+                            .padding(horizontal = 8.dp)
+                            .wjzFocusable(
+                                nodeId = WjzFocusNodeId("pgc/anime/timeline/${timeline.dateString}/${episode.seasonId}"),
+                                layer = WjzFocusLayer.Content,
+                                fallback = index == 0 && episodeIndex == 0
+                            ),
                         data = SeasonCardData(
                             title = episode.title,
                             cover = episode.cover.resizedImageUrl(ImageSize.SeasonCoverThumbnail),

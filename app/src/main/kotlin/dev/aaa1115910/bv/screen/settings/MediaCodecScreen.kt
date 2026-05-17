@@ -1,7 +1,6 @@
 package dev.aaa1115910.bv.screen.settings
 
 import android.os.Build
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,21 +19,15 @@ import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.nativeKeyCode
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -46,6 +39,10 @@ import androidx.tv.material3.ListItem
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusHost
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.CodecInfoData
@@ -53,9 +50,12 @@ import dev.aaa1115910.bv.util.CodecMedia
 import dev.aaa1115910.bv.util.CodecMode
 import dev.aaa1115910.bv.util.CodecType
 import dev.aaa1115910.bv.util.CodecUtil
-import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.util.BvKeyDirection
+import dev.aaa1115910.bv.util.bvKeyDirection
 import dev.aaa1115910.bv.util.swapList
 import java.util.Locale
+
+private val MediaCodecEmptyNodeId = WjzFocusNodeId("settings/media-codec/empty")
 
 @Composable
 fun MediaCodecScreen(
@@ -77,54 +77,58 @@ fun MediaCodecScreen(
         currentCodecInfoData = list[0]
     }
 
-    Scaffold(
+    WjzFocusHost(
         modifier = modifier,
-        topBar = {
-            Box(
-                modifier = Modifier.padding(
-                    start = 48.dp,
-                    top = 24.dp,
-                    bottom = 8.dp,
-                    end = 48.dp
-                )
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.SpaceBetween
+        layer = WjzFocusLayer.Content
+    ) {
+        Scaffold(
+            topBar = {
+                Box(
+                    modifier = Modifier.padding(
+                        start = 48.dp,
+                        top = 24.dp,
+                        bottom = 8.dp,
+                        end = 48.dp
+                    )
                 ) {
-                    Text(
-                        text = stringResource(R.string.title_activity_media_codec),
-                        fontSize = 24.sp
-                    )
-                    Text(
-                        text = "",
-                        color = C.onSurfaceVariant
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(R.string.title_activity_media_codec),
+                            fontSize = 24.sp
+                        )
+                        Text(
+                            text = "",
+                            color = C.onSurfaceVariant
+                        )
+                    }
                 }
             }
-        }
-    ) { innerPadding ->
-        Row(
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            MediaCodecListItems(
-                modifier = Modifier
-                    .onFocusChanged { focusInNav = it.hasFocus }
-                    .weight(3f)
-                    .fillMaxHeight(),
-                codecInfoDataList = decoderList,
-                currentCodecInfoData = currentCodecInfoData,
-                onCodecInfoDataChanged = { currentCodecInfoData = it },
-                isFocusing = focusInNav
-            )
-            MediaCodecDetails(
-                modifier = Modifier
-                    .weight(5f)
-                    .fillMaxSize(),
-                onBackNav = { focusInNav = true },
-                currentCodecInfoData = currentCodecInfoData
-            )
+        ) { innerPadding ->
+            Row(
+                modifier = Modifier.padding(innerPadding)
+            ) {
+                MediaCodecListItems(
+                    modifier = Modifier
+                        .onFocusChanged { focusInNav = it.hasFocus }
+                        .weight(3f)
+                        .fillMaxHeight(),
+                    codecInfoDataList = decoderList,
+                    currentCodecInfoData = currentCodecInfoData,
+                    onCodecInfoDataChanged = { currentCodecInfoData = it },
+                    isFocusing = focusInNav
+                )
+                MediaCodecDetails(
+                    modifier = Modifier
+                        .weight(5f)
+                        .fillMaxSize(),
+                    onBackNav = { focusInNav = true },
+                    currentCodecInfoData = currentCodecInfoData
+                )
+            }
         }
     }
 }
@@ -137,29 +141,21 @@ fun MediaCodecListItems(
     onCodecInfoDataChanged: (CodecInfoData) -> Unit,
     isFocusing: Boolean
 ) {
-    val scope = rememberCoroutineScope()
-    val focusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(isFocusing) {
-        if (isFocusing) focusRequester.requestFocus(scope)
-    }
-
-    LaunchedEffect(codecInfoDataList) {
-        focusRequester.requestFocus(scope)
-    }
-
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(24.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(items = codecInfoDataList) { codecInfoData ->
-            val buttonModifier = if (currentCodecInfoData == codecInfoData) Modifier
-                .focusRequester(focusRequester)
-                .fillMaxWidth()
-            else Modifier.fillMaxWidth()
             MediaCodecListItem(
-                modifier = buttonModifier,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wjzFocusable(
+                        nodeId = WjzFocusNodeId("settings/media-codec/list/${codecInfoData.name}/${codecInfoData.mimeType}"),
+                        layer = WjzFocusLayer.Content,
+                        fallback = currentCodecInfoData == codecInfoData ||
+                            (currentCodecInfoData == null && codecInfoDataList.firstOrNull() == codecInfoData)
+                    ),
                 codecInfoData = codecInfoData,
                 onFocus = { onCodecInfoDataChanged(codecInfoData) },
                 selected = currentCodecInfoData == codecInfoData
@@ -228,7 +224,7 @@ fun MediaCodecDetails(
             modifier = modifier
                 .fillMaxSize()
                 .onPreviewKeyEvent {
-                    val result = it.key.nativeKeyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT
+                    val result = it.bvKeyDirection() == BvKeyDirection.Left
                     if (result) onBackNav()
                     result
                 },
@@ -344,7 +340,13 @@ fun MediaCodecDetails(
         }
     } else {
         Box(
-            modifier = modifier.fillMaxSize(),
+            modifier = modifier
+                .fillMaxSize()
+                .wjzFocusable(
+                    nodeId = MediaCodecEmptyNodeId,
+                    layer = WjzFocusLayer.Content,
+                    fallback = true
+                ),
             contentAlignment = Alignment.Center
         ) {
             Text("Empty")

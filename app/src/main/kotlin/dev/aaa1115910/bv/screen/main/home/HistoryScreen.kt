@@ -49,12 +49,13 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
-import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
+import dev.aaa1115910.bv.component.rememberTvGridFocusTarget
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
-import dev.aaa1115910.bv.tv.component.TvAlertDialog
+import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.toast
@@ -189,9 +190,11 @@ fun HistoryScreen(
         state = gridState,
         columns = GridCells.Fixed(4),
         contentPadding = PaddingValues(24.dp),
+        nodeIdPrefix = "history/videos",
         verticalArrangement = Arrangement.spacedBy(24.dp),
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         focusItemCount = visibleHistories.size,
+        focusItemKeys = visibleHistories.map { WjzFocusItemKey("String:${it.avid}_${it.epId ?: 0}") },
         entryFocusRequester = contentEntryFocusRequester,
         upFocusRequester = tabFocusRequester,
         onEntryFocusReady = onContentEntryReady
@@ -205,7 +208,7 @@ fun HistoryScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     SmallVideoCard(
-                        frameModifier = rememberTvGridFocusModifier(index),
+                        focusTarget = rememberTvGridFocusTarget(index),
                         uiState = cardUiStateFor(history.avid),
                         data = history,
                         onClick = {

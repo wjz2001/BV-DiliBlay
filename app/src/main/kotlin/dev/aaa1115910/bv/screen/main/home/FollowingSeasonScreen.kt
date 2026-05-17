@@ -40,6 +40,7 @@ import dev.aaa1115910.biliapi.entity.season.FollowingSeasonStatus
 import dev.aaa1115910.biliapi.entity.season.FollowingSeasonType
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SeasonCard
 import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
@@ -144,9 +145,11 @@ fun FollowingSeasonScreen(
             state = lazyGridState,
             columns = GridCells.Fixed(6),
             contentPadding = PaddingValues(24.dp),
+            nodeIdPrefix = "following-season/seasons",
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             focusItemCount = followingSeasons.size,
+            focusItemKeys = followingSeasons.map { WjzFocusItemKey("Long:${it.seasonId}") },
             focusColumnCount = 6,
             entryFocusRequester = contentEntryFocusRequester,
             upFocusRequester = tabFocusRequester,

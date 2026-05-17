@@ -22,6 +22,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.component.CoAuthorsDialogHost
 import dev.aaa1115910.bv.component.FavoriteDialog
 import dev.aaa1115910.bv.component.TvGridFocusHost
@@ -92,6 +93,7 @@ fun SmallVideoCardGridHost(
     contentPadding: PaddingValues = PaddingValues(0.dp),
     verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(0.dp),
     horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(0.dp),
+    nodeIdPrefix: String,
 
     /**
      * 页面级统一 UP 跳转。
@@ -109,6 +111,7 @@ fun SmallVideoCardGridHost(
     upFocusRequester: FocusRequester? = null,
     onEntryFocusReady: (() -> Unit)? = null,
     focusItemCount: Int = 0,
+    focusItemKeys: List<WjzFocusItemKey>,
     focusColumnCount: Int = 4,
     content: LazyGridScope.((Long) -> SmallVideoCardItemUiState?) -> Unit
 ) {
@@ -220,11 +223,13 @@ fun SmallVideoCardGridHost(
             contentPadding = contentPadding,
             verticalArrangement = verticalArrangement,
             horizontalArrangement = horizontalArrangement,
+            nodeIdPrefix = nodeIdPrefix,
             enableRowHorizontalWrap = enableRowHorizontalWrap,
             entryFocusRequester = entryFocusRequester,
             upFocusRequester = upFocusRequester,
             onEntryFocusReady = onEntryFocusReady,
             focusItemCount = focusItemCount,
+            itemKeys = focusItemKeys,
             focusColumnCount = focusColumnCount
         ) {
             content(cardUiStateFor)

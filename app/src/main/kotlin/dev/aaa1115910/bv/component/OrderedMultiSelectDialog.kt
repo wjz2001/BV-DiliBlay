@@ -23,7 +23,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text as M3Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,7 +34,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -49,10 +47,17 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusNode
 import androidx.tv.material3.Text as TvText
+import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.toast
 import kotlinx.coroutines.delay
+
+private val OrderedMultiSelectTargetNodeId = WjzFocusNodeId("dialog/ordered-multi-select/target")
 
 /**
  * 带顺序的多选列表 Dialog（TV 焦点友好）：
@@ -110,7 +115,7 @@ internal fun <T, ID> OrderedMultiSelectDialog(
         null
     }
 
-    AlertDialog(
+    TvAlertDialog(
         onDismissRequest = {
             when {
                 selectedOrders.isEmpty() -> emptySelectionToastText.toast(context)
@@ -178,6 +183,7 @@ internal fun <T, ID> OrderedMultiSelectListContent(
     verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(8.dp),
 ) {
     val context = LocalContext.current
+    val focusCoordinator = LocalWjzFocusCoordinator.current
     val focusRequester = remember { FocusRequester() }
     val listState = rememberLazyListState()
 
@@ -209,7 +215,10 @@ internal fun <T, ID> OrderedMultiSelectListContent(
         }
 
         repeat(5) {
-            runCatching { focusRequester.requestFocus() }
+            focusCoordinator?.requestFocus(
+                nodeId = OrderedMultiSelectTargetNodeId,
+                layer = WjzFocusLayer.Dialog
+            )
             delay(50L)
         }
     }
@@ -224,7 +233,10 @@ internal fun <T, ID> OrderedMultiSelectListContent(
                 if (requiredId in selectedOrders) return@onFocusChanged
 
                 "初始页面不能隐藏".toast(context)
-                runCatching { focusRequester.requestFocus() }
+                focusCoordinator?.requestFocus(
+                    nodeId = OrderedMultiSelectTargetNodeId,
+                    layer = WjzFocusLayer.Dialog
+                )
             }
             .focusGroup(),
         horizontalAlignment = horizontalAlignment,
@@ -235,7 +247,17 @@ internal fun <T, ID> OrderedMultiSelectListContent(
             key = itemKey?.let { k -> { _: Int, item: T -> k(item) } }
         ) { index, item ->
             val itemModifier =
-                if (index == targetIndex) Modifier.focusRequester(focusRequester) else Modifier
+                if (index == targetIndex) {
+                    Modifier
+                        .wjzFocusNode(
+                            nodeId = OrderedMultiSelectTargetNodeId,
+                            requester = focusRequester,
+                            layer = WjzFocusLayer.Dialog,
+                            fallback = true
+                        )
+                } else {
+                    Modifier
+                }
             val id = itemId(item)
             val order = selectedOrders[id]
 

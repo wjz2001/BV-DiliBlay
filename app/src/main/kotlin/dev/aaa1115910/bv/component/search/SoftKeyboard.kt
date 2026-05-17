@@ -13,14 +13,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -38,6 +41,14 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusHost
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusSourceToken
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusTransitionGuard
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusNode
+import dev.aaa1115910.bv.component.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.ui.theme.BVTheme
 
@@ -46,6 +57,8 @@ enum class SoftKeyboardType {
     Japanese,
     Symbol
 }
+
+private val SoftKeyboardFirstKeyNodeId = WjzFocusNodeId("search/keyboard/key/first")
 
 private data class JapaneseKey(
     val label: String,
@@ -71,46 +84,84 @@ fun SoftKeyboard(
     onEnableSearchWithProxyChange: (Boolean) -> Unit,
     onFirstButtonPlaced: (() -> Unit)? = null
 ) {
-    when (keyboardType) {
-        SoftKeyboardType.English -> EnglishKeyboardLayout(
-            modifier = modifier,
-            firstButtonFocusRequester = firstButtonFocusRequester,
-            showSearchWithProxy = showSearchWithProxy,
-            enableSearchWithProxy = enableSearchWithProxy,
-            onClick = onClick,
-            onClear = onClear,
-            onDelete = onDelete,
-            onMoveCursorLeft = onMoveCursorLeft,
-            onMoveCursorRight = onMoveCursorRight,
-            onSearch = onSearch,
-            onOpenSymbolKeyboard = onOpenSymbolKeyboard,
-            onKeyboardTypeChange = onKeyboardTypeChange,
-            onEnableSearchWithProxyChange = onEnableSearchWithProxyChange,
-            onFirstButtonPlaced = onFirstButtonPlaced
-        )
+    val parentCoordinator = LocalWjzFocusCoordinator.current
+    val ownCoordinator = rememberWjzFocusCoordinator()
+    val coordinator = parentCoordinator ?: ownCoordinator
+    var keyboardSourceToken by remember { mutableStateOf<WjzFocusSourceToken?>(null) }
+    val currentKeyboardSourceToken = rememberUpdatedState(keyboardSourceToken)
+    var keyboardTransitionLocked by remember { mutableStateOf(false) }
 
-        SoftKeyboardType.Japanese -> JapaneseKeyboardLayout(
-            modifier = modifier,
-            onClick = onClick,
-            onClear = onClear,
-            onDelete = onDelete,
-            onMoveCursorLeft = onMoveCursorLeft,
-            onMoveCursorRight = onMoveCursorRight,
-            onSearch = onSearch,
-            onOpenSymbolKeyboard = onOpenSymbolKeyboard,
-            onKeyboardTypeChange = onKeyboardTypeChange
+    LaunchedEffect(coordinator) {
+        keyboardSourceToken = coordinator.activateLayer(
+            layer = WjzFocusLayer.Keyboard,
+            recordSource = true
         )
+        coordinator.requestFocus(
+            nodeId = SoftKeyboardFirstKeyNodeId,
+            layer = WjzFocusLayer.Keyboard
+        )
+    }
 
-        SoftKeyboardType.Symbol -> SymbolKeyboardLayout(
-            modifier = modifier,
-            onClick = onClick,
-            onClear = onClear,
-            onDelete = onDelete,
-            onMoveCursorLeft = onMoveCursorLeft,
-            onMoveCursorRight = onMoveCursorRight,
-            onSearch = onSearch,
-            onKeyboardTypeChange = onKeyboardTypeChange
-        )
+    DisposableEffect(coordinator) {
+        onDispose {
+            coordinator.restoreSourceLayer(
+                expectedActiveLayer = WjzFocusLayer.Keyboard,
+                token = currentKeyboardSourceToken.value
+            )
+        }
+    }
+
+    LaunchedEffect(keyboardType) {
+        keyboardTransitionLocked = true
+        withFrameNanos { }
+        keyboardTransitionLocked = false
+    }
+
+    WjzFocusHost(
+        modifier = modifier,
+        coordinator = coordinator,
+        layer = WjzFocusLayer.Keyboard,
+        fallbackRequester = firstButtonFocusRequester
+    ) {
+        WjzFocusTransitionGuard(locked = keyboardTransitionLocked)
+        when (keyboardType) {
+            SoftKeyboardType.English -> EnglishKeyboardLayout(
+                firstButtonFocusRequester = firstButtonFocusRequester,
+                showSearchWithProxy = showSearchWithProxy,
+                enableSearchWithProxy = enableSearchWithProxy,
+                onClick = onClick,
+                onClear = onClear,
+                onDelete = onDelete,
+                onMoveCursorLeft = onMoveCursorLeft,
+                onMoveCursorRight = onMoveCursorRight,
+                onSearch = onSearch,
+                onOpenSymbolKeyboard = onOpenSymbolKeyboard,
+                onKeyboardTypeChange = onKeyboardTypeChange,
+                onEnableSearchWithProxyChange = onEnableSearchWithProxyChange,
+                onFirstButtonPlaced = onFirstButtonPlaced
+            )
+
+            SoftKeyboardType.Japanese -> JapaneseKeyboardLayout(
+                onClick = onClick,
+                onClear = onClear,
+                onDelete = onDelete,
+                onMoveCursorLeft = onMoveCursorLeft,
+                onMoveCursorRight = onMoveCursorRight,
+                onSearch = onSearch,
+                onOpenSymbolKeyboard = onOpenSymbolKeyboard,
+                onKeyboardTypeChange = onKeyboardTypeChange
+            )
+
+            SoftKeyboardType.Symbol -> SymbolKeyboardLayout(
+                onClick = onClick,
+                onClear = onClear,
+                onDelete = onDelete,
+                onMoveCursorLeft = onMoveCursorLeft,
+                onMoveCursorRight = onMoveCursorRight,
+                onSearch = onSearch,
+                onKeyboardTypeChange = onKeyboardTypeChange
+            )
+        }
     }
 }
 
@@ -181,7 +232,12 @@ private fun EnglishKeyboardLayout(
                 rowKeys.forEachIndexed { index, key ->
                     val keyModifier = if (rowIndex == 0 && index == 0) {
                         Modifier
-                            .focusRequester(firstButtonFocusRequester)
+                            .wjzFocusNode(
+                                nodeId = SoftKeyboardFirstKeyNodeId,
+                                requester = firstButtonFocusRequester,
+                                layer = WjzFocusLayer.Keyboard,
+                                fallback = true
+                            )
                             .onGloballyPositioned {
                                 if (!firstButtonPlacedNotified) {
                                     firstButtonPlacedNotified = true

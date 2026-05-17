@@ -21,8 +21,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -33,9 +31,17 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusHost
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
 import dev.aaa1115910.bv.entity.db.UserDB
 import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.screen.main.home.UserItem
+import dev.aaa1115910.bv.util.BvKeyDirection
+import dev.aaa1115910.bv.util.bvKeyDirection
+import dev.aaa1115910.bv.util.isBvConfirmKey
+import dev.aaa1115910.bv.util.isNativeActionDown
 import dev.aaa1115910.bv.util.toast
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.launch
@@ -98,7 +104,6 @@ private fun UserLockSettingsContent(
 ) {
     val context = LocalContext.current
 
-    val focusRequester = remember { FocusRequester() }
     var inputState by remember { mutableStateOf(InputState.InputOldPassword) }
     var inputPassword by remember { mutableStateOf("") }
     var lastInput by remember { mutableStateOf("") }
@@ -112,10 +117,6 @@ private fun UserLockSettingsContent(
         }
     }
 
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-
-    }
     LaunchedEffect(user) {
         inputState = if (user.lock.isNotBlank()) InputState.InputOldPassword
         else InputState.InputNewPassword
@@ -124,118 +125,126 @@ private fun UserLockSettingsContent(
     BackHandler(inputPassword.isNotEmpty()) {
     }
 
-    Surface(
-        modifier = modifier
-            .clickable {}
-            .focusRequester(focusRequester)
-            .onPreviewKeyEvent { keyEvent ->
-                if (keyEvent.nativeKeyEvent.action == android.view.KeyEvent.ACTION_DOWN) {
-                    return@onPreviewKeyEvent true
-                }
-
-                when (keyEvent.key) {
-                    Key.DirectionUp -> inputPassword += "u"
-                    Key.DirectionDown -> inputPassword += "d"
-                    Key.DirectionLeft -> inputPassword += "l"
-                    Key.DirectionRight -> inputPassword += "r"
-
-                    Key.DirectionCenter -> {
-                        when (inputState) {
-                            InputState.InputOldPassword -> {
-                                if (inputPassword == user.lock) {
-                                    inputState = InputState.InputNewPassword
-                                    inputPassword = ""
-                                } else {
-                                    R.string.user_lock_toast_password_error.toast(context)
-                                    inputPassword = ""
-                                }
-                            }
-
-                            InputState.InputNewPassword -> {
-                                if (inputPassword.isBlank()) {
-                                    R.string.user_lock_toast_password_removed.toast(context)
-                                    user.lock = ""
-                                    onUpdateUser(user)
-                                } else {
-                                    lastInput = inputPassword
-                                    inputPassword = ""
-                                    inputState = InputState.ConfirmNewPassword
-                                }
-                            }
-
-                            InputState.ConfirmNewPassword -> {
-                                if (inputPassword == lastInput) {
-                                    user.lock = inputPassword
-                                    onUpdateUser(user)
-                                } else {
-                                    R.string.user_lock_toast_password_different.toast(context)
-                                    inputPassword = ""
-                                    inputState = InputState.InputNewPassword
-                                }
-                            }
-                        }
-                    }
-
-                    Key.Back -> {
-                        if (inputPassword.isNotEmpty()) {
-                            inputPassword = inputPassword.dropLast(1)
-                        } else {
-                            onExit()
-                        }
-                    }
-                }
-                true
-            },
-        shape = RoundedCornerShape(0.dp)
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 64.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = when (inputState) {
-                        InputState.InputOldPassword -> stringResource(R.string.user_lock_title_input_old_password)
-                        InputState.InputNewPassword -> stringResource(R.string.user_lock_title_input_new_password)
-                        InputState.ConfirmNewPassword -> stringResource(R.string.user_lock_title_input_new_password_again)
-                    },
-                    style = MaterialTheme.typography.displaySmall
+    WjzFocusHost {
+        Surface(
+            modifier = modifier
+                .clickable {}
+                .wjzFocusable(
+                    nodeId = WjzFocusNodeId("user-lock-settings/input"),
+                    layer = WjzFocusLayer.Content,
+                    fallback = true
                 )
-            }
+                .onPreviewKeyEvent { keyEvent ->
+                    if (keyEvent.isNativeActionDown()) {
+                        return@onPreviewKeyEvent true
+                    }
 
-            LazyRow(
-                modifier = Modifier.focusRequester(focusRequester),
-                horizontalArrangement = Arrangement.spacedBy(24.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp)
+                    when (keyEvent.bvKeyDirection()) {
+                        BvKeyDirection.Up -> inputPassword += "u"
+                        BvKeyDirection.Down -> inputPassword += "d"
+                        BvKeyDirection.Left -> inputPassword += "l"
+                        BvKeyDirection.Right -> inputPassword += "r"
+                        null -> Unit
+                    }
+
+                    when {
+                        keyEvent.isBvConfirmKey() -> {
+                            when (inputState) {
+                                InputState.InputOldPassword -> {
+                                    if (inputPassword == user.lock) {
+                                        inputState = InputState.InputNewPassword
+                                        inputPassword = ""
+                                    } else {
+                                        R.string.user_lock_toast_password_error.toast(context)
+                                        inputPassword = ""
+                                    }
+                                }
+
+                                InputState.InputNewPassword -> {
+                                    if (inputPassword.isBlank()) {
+                                        R.string.user_lock_toast_password_removed.toast(context)
+                                        user.lock = ""
+                                        onUpdateUser(user)
+                                    } else {
+                                        lastInput = inputPassword
+                                        inputPassword = ""
+                                        inputState = InputState.ConfirmNewPassword
+                                    }
+                                }
+
+                                InputState.ConfirmNewPassword -> {
+                                    if (inputPassword == lastInput) {
+                                        user.lock = inputPassword
+                                        onUpdateUser(user)
+                                    } else {
+                                        R.string.user_lock_toast_password_different.toast(context)
+                                        inputPassword = ""
+                                        inputState = InputState.InputNewPassword
+                                    }
+                                }
+                            }
+                        }
+
+                        keyEvent.key == Key.Back -> {
+                            if (inputPassword.isNotEmpty()) {
+                                inputPassword = inputPassword.dropLast(1)
+                            } else {
+                                onExit()
+                            }
+                        }
+                    }
+                    true
+                },
+            shape = RoundedCornerShape(0.dp)
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
             ) {
-                item {
-                    _root_ide_package_.dev.aaa1115910.bv.screen.main.home.UserItem(
-                        avatar = user.avatar,
-                        username = user.username
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 64.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = when (inputState) {
+                            InputState.InputOldPassword -> stringResource(R.string.user_lock_title_input_old_password)
+                            InputState.InputNewPassword -> stringResource(R.string.user_lock_title_input_new_password)
+                            InputState.ConfirmNewPassword -> stringResource(R.string.user_lock_title_input_new_password_again)
+                        },
+                        style = MaterialTheme.typography.displaySmall
                     )
                 }
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp)
+                ) {
+                    item {
+                        UserItem(
+                            avatar = user.avatar,
+                            username = user.username
+                        )
+                    }
+                }
+
+                Text(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 96.dp),
+                    text = inputShow,
+                    style = MaterialTheme.typography.displayLarge
+                )
+
+                Text(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 48.dp),
+                    text = stringResource(R.string.user_lock_input_tip),
+                    color = MaterialTheme.colorScheme.onSurface.copy(0.6f)
+                )
             }
-
-            Text(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 96.dp),
-                text = inputShow,
-                style = MaterialTheme.typography.displayLarge
-            )
-
-            Text(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 48.dp),
-                text = stringResource(R.string.user_lock_input_tip),
-                color = MaterialTheme.colorScheme.onSurface.copy(0.6f)
-            )
         }
     }
 }

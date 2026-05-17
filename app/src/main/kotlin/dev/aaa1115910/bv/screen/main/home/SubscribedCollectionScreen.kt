@@ -63,6 +63,7 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.SubscribedCollectionMetadata
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.component.BvTabLabel
 import dev.aaa1115910.bv.component.BvUnderlineTabRow
 import dev.aaa1115910.bv.component.MainTopBarContainer
@@ -70,13 +71,12 @@ import dev.aaa1115910.bv.component.MainTopTabDefaults
 import dev.aaa1115910.bv.component.MainTopTabSeparator
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
-import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
+import dev.aaa1115910.bv.component.rememberTvGridFocusTarget
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.state.GridViewportState
-import dev.aaa1115910.bv.tv.component.TvAlertDialog
+import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.theme.C
-import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.SubscribedCollectionViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
@@ -113,10 +113,8 @@ fun SubscribedCollectionScreen(
     val scope = rememberCoroutineScope()
     val folderList by favoriteViewModel.favoriteFolderMetadataList.collectAsStateWithLifecycle()
     val folderStates by favoriteViewModel.folderStates.collectAsStateWithLifecycle()
-    val defaultFocusRequester = remember { FocusRequester() }
-    val internalContentEntryFocusRequester = remember { FocusRequester() }
-    val favoriteTabFocusRequester = contentEntryFocusRequester ?: defaultFocusRequester
-    val favoriteContentEntryFocusRequester = internalContentEntryFocusRequester
+    val favoriteTabFocusRequester = tabFocusRequester
+    val favoriteContentEntryFocusRequester = contentEntryFocusRequester
     var focusOnTabs by remember { mutableStateOf(true) }
     var readyFocusTargetFolderId by remember { mutableStateOf<Long?>(null) }
     var contentReadyFolderId by remember { mutableStateOf<Long?>(null) }
@@ -627,9 +625,11 @@ fun SubscribedCollectionScreen(
             state = lazyGridState,
             columns = GridCells.Fixed(4),
             contentPadding = PaddingValues(24.dp),
+            nodeIdPrefix = "subscribed-collection/${currentFolderId ?: "all"}/videos",
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             focusItemCount = visibleFavorites.size,
+            focusItemKeys = visibleFavorites.map { WjzFocusItemKey("Long:${it.avid}") },
             focusColumnCount = 4,
             entryFocusRequester = favoriteContentEntryFocusRequester,
             upFocusRequester = favoriteTabFocusRequester,
@@ -645,7 +645,7 @@ fun SubscribedCollectionScreen(
                 ) { index, favorite ->
                     Box(contentAlignment = Alignment.Center) {
                         SmallVideoCard(
-                            frameModifier = rememberTvGridFocusModifier(index),
+                            focusTarget = rememberTvGridFocusTarget(index),
                             uiState = cardUiStateFor(favorite.avid),
                             data = favorite,
                             onClick = {

@@ -12,6 +12,7 @@ plugins {
     alias(gradleLibs.plugins.kotlin.android)
     alias(gradleLibs.plugins.kotlin.serialization)
     alias(libs.plugins.stability.analyzer)
+//    alias(libs.plugins.hotswan.compiler)
 }
 
 koinCompiler {

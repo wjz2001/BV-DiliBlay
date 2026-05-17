@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
@@ -15,13 +16,12 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -37,10 +37,14 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.video.Subtitle
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.activities.video.CheeseSeasonActivity
-import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusHost
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusSourceToken
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
 import dev.aaa1115910.bv.component.comments.VideoCommentsDialog
+import dev.aaa1115910.bv.component.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoFlip
 import dev.aaa1115910.bv.entity.VideoListItem
@@ -142,11 +146,55 @@ fun VideoPlayerController(
     var showCommentsDialog by remember { mutableStateOf(false) }
     var focusInfoButtonsOnShow by remember { mutableStateOf(false) }
     val rootFocusRequester = remember { FocusRequester() }
+    val focusCoordinator = rememberWjzFocusCoordinator()
+    var playerSourceToken by remember { mutableStateOf<WjzFocusSourceToken?>(null) }
+    val currentPlayerSourceToken by rememberUpdatedState(playerSourceToken)
 
-    LaunchedEffect(Unit) {
-        runCatching { rootFocusRequester.requestFocus() }
-        delay(100)
-        runCatching { rootFocusRequester.requestFocus() }
+    LaunchedEffect(showClickableControllers) {
+        if (showClickableControllers) {
+            if (playerSourceToken == null) {
+                playerSourceToken = focusCoordinator.activateLayer(
+                    layer = WjzFocusLayer.Player,
+                    recordSource = true
+                )
+            }
+            repeat(2) {
+                focusCoordinator.requestFocus(
+                    nodeId = WjzFocusNodeId("player/controller/root"),
+                    layer = WjzFocusLayer.Player
+                )
+                delay(100)
+            }
+        } else if (playerSourceToken != null) {
+            val restored = focusCoordinator.restoreSourceLayer(
+                expectedActiveLayer = WjzFocusLayer.Player,
+                token = playerSourceToken
+            )
+            if (restored) {
+                playerSourceToken = null
+            }
+        }
+    }
+
+    DisposableEffect(focusCoordinator) {
+        onDispose {
+            currentPlayerSourceToken?.let {
+                focusCoordinator.restoreSourceLayer(
+                    expectedActiveLayer = WjzFocusLayer.Player,
+                    token = it
+                )
+            }
+            playerSourceToken = null
+        }
+    }
+
+    LaunchedEffect(focusCoordinator.activeLayer) {
+        if (focusCoordinator.activeLayer == WjzFocusLayer.Player) {
+            focusCoordinator.requestFocus(
+                nodeId = WjzFocusNodeId("player/controller/root"),
+                layer = WjzFocusLayer.Player
+            )
+        }
     }
 
     fun calCoefficient(): Int {
@@ -379,12 +427,21 @@ fun VideoPlayerController(
         return false
     }
 
-    Box(
-        modifier = modifier
-            .background(AppBlack)
-            .focusRequester(rootFocusRequester)
-            .focusable()
-            .onPreviewKeyEvent { event ->
+    WjzFocusHost(
+        modifier = modifier.background(AppBlack),
+        coordinator = focusCoordinator,
+        layer = WjzFocusLayer.Player,
+        fallbackRequester = rootFocusRequester
+    ) {
+        Box(
+            modifier = Modifier
+                .wjzFocusable(
+                    nodeId = WjzFocusNodeId("player/controller/root"),
+                    layer = WjzFocusLayer.Player,
+                    requester = rootFocusRequester,
+                    fallback = true
+                )
+                .onPreviewKeyEvent { event ->
                 // 重置 info 控制器的隐藏倒计时 (只要有按键活动就重置)
                 if (showInfoSeekController) {
                     hideInfoSeekControllerCountdown?.cancel()
@@ -396,7 +453,7 @@ fun VideoPlayerController(
                 // 调用分离出去的处理函数
                 handleKeyEvent(event)
             }
-    ) {
+        ) {
         content()
         if (BuildConfig.DEBUG) {
             Box(
@@ -613,13 +670,14 @@ fun VideoPlayerController(
             )
         }
 
-        VideoCommentsDialog(
-            show = showCommentsDialog,
-            aid = aid,
-            onDismissRequest = {
-                showCommentsDialog = false
-                onPlay()
-            }
-        )
+            VideoCommentsDialog(
+                show = showCommentsDialog,
+                aid = aid,
+                onDismissRequest = {
+                    showCommentsDialog = false
+                    onPlay()
+                }
+            )
+        }
     }
 }

@@ -16,6 +16,12 @@ import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.component.controllers.VideoPlayerMenuNavItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.MenuListItem
 import dev.aaa1115910.bv.component.ifElse
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusNode
+
+private val PlayerMenuNavColumnNodeId = WjzFocusNodeId("player/menu/nav")
 
 @Composable
 fun MenuNavList(
@@ -25,17 +31,25 @@ fun MenuNavList(
     isFocusing: Boolean
 ) {
     val context = LocalContext.current
+    val focusCoordinator = LocalWjzFocusCoordinator.current
     val restorerFocusRequester = remember { FocusRequester() }
     val focusRequester = remember { FocusRequester() }
 
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
+    LaunchedEffect(focusCoordinator) {
+        focusCoordinator?.requestFocus(
+            nodeId = PlayerMenuNavColumnNodeId,
+            layer = WjzFocusLayer.Overlay
+        )
     }
 
     LazyColumn(
         modifier = modifier
             .focusRestorer(restorerFocusRequester)
-            .focusRequester(focusRequester),
+            .wjzFocusNode(
+                nodeId = PlayerMenuNavColumnNodeId,
+                requester = focusRequester,
+                layer = WjzFocusLayer.Overlay
+            ),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(16.dp)
     ) {

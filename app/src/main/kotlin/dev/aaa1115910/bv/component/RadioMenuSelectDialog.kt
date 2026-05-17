@@ -10,18 +10,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text as M3Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -34,14 +30,16 @@ import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.RadioButton
 import androidx.tv.material3.RadioButtonDefaults
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusScopeId
 import androidx.tv.material3.Text as TvText
+import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.theme.C
-import kotlinx.coroutines.delay
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
 
 /**
- * 单选列表 Dialog（TV 焦点友好）：
- * - defaultFocusKey 优先
- * - defaultFocusIndex 兜底（1-based + 负数倒数；0 非法）
+ * 单选列表 Dialog（TV 焦点友好）。
  */
 @Composable
 internal fun <T> RadioMenuSelectDialog(
@@ -65,6 +63,10 @@ internal fun <T> RadioMenuSelectDialog(
     widthFraction: Float = 0.6f,
     /** 列表最大高度占窗口高度比例 */
     maxHeightFraction: Float = 0.5f,
+    sourceScopeId: WjzFocusScopeId? = null,
+    dialogScopeId: WjzFocusScopeId? = null,
+    containerNodeId: WjzFocusNodeId? = null,
+    itemNodeId: ((T) -> WjzFocusNodeId)? = null
 ) {
     if (!visible) return
 
@@ -77,7 +79,7 @@ internal fun <T> RadioMenuSelectDialog(
     val titleSlot: (@Composable () -> Unit)? =
         title.takeIf { it.isNotBlank() }?.let { t -> { M3Text(t) } }
 
-    AlertDialog(
+    TvAlertDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = {},
         modifier = Modifier.fillMaxWidth(widthFraction),
@@ -94,7 +96,8 @@ internal fun <T> RadioMenuSelectDialog(
                 itemKey = itemKey,
                 defaultFocusKey = defaultFocusKey,
                 defaultFocusIndex = defaultFocusIndex,
-                requestDefaultFocus = true,
+                dialogScopeId = dialogScopeId,
+                itemNodeId = itemNodeId,
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(itemSpacing),
             )
@@ -104,7 +107,10 @@ internal fun <T> RadioMenuSelectDialog(
         titleContentColor = contentColor,
         textContentColor = contentColor,
         tonalElevation = tonalElevation,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        sourceScopeId = sourceScopeId,
+        dialogScopeId = dialogScopeId,
+        containerNodeId = containerNodeId
     )
 }
 
@@ -120,44 +126,14 @@ internal fun <T> RadioMenuSelectListContent(
     itemKey: ((T) -> Any)? = null,
     defaultFocusKey: Any? = null,
     defaultFocusIndex: Int? = null,
-    requestDefaultFocus: Boolean = true,
+    dialogScopeId: WjzFocusScopeId? = null,
+    itemNodeId: ((T) -> WjzFocusNodeId)? = null,
 
     // layout
     horizontalAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
     verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(8.dp),
 ) {
-    val focusRequester = remember { FocusRequester() }
     val listState = rememberLazyListState()
-
-    // 计算“最终要聚焦的 item 下标（0-based）”
-    val targetIndex = remember(items, itemKey, defaultFocusKey, defaultFocusIndex) {
-        items.resolveTargetFocusIndex(
-            itemKey = itemKey,
-            defaultFocusKey = defaultFocusKey,
-            defaultFocusIndex = defaultFocusIndex
-        )
-    }
-
-    /**
-     * 请求默认焦点的策略：
-     * 1) 目标 item 不可见时先滚动到目标 item，保证它能被组合出来
-     * 2) 目标 item 已可见时不主动滚动，避免焦点请求把上方内容顶出视口
-     * 3) TV 场景下节点可能还没“挂稳”，做短暂重试更可靠
-     */
-    LaunchedEffect(targetIndex, requestDefaultFocus) {
-        if (!requestDefaultFocus) return@LaunchedEffect
-        if (targetIndex == null) return@LaunchedEffect
-
-        val targetVisible = listState.layoutInfo.visibleItemsInfo.any { it.index == targetIndex }
-        if (!targetVisible) {
-            runCatching { listState.scrollToItem(targetIndex) }
-        }
-
-        repeat(5) {
-            runCatching { focusRequester.requestFocus() }
-            delay(50L)
-        }
-    }
 
     LazyColumn(
         state = listState,
@@ -170,8 +146,13 @@ internal fun <T> RadioMenuSelectListContent(
             items = items,
             key = itemKey?.let { k -> { _: Int, item: T -> k(item) } }
         ) { index, item ->
-            val itemModifier =
-                if (index == targetIndex) Modifier.focusRequester(focusRequester) else Modifier
+            val itemNode = itemNodeId?.invoke(item)
+                ?: WjzFocusNodeId("dialog/radio-menu/item/${itemKey?.invoke(item) ?: index}")
+            val itemModifier = Modifier.wjzFocusable(
+                    nodeId = itemNode,
+                    layer = WjzFocusLayer.Dialog,
+                    scopeId = dialogScopeId
+                )
 
             RadioMenuSelectItem(
                 modifier = itemModifier,
@@ -181,61 +162,6 @@ internal fun <T> RadioMenuSelectListContent(
             )
         }
     }
-}
-
-/**
- * 计算要默认聚焦的目标下标（0-based）。
- *
- * 规则：
- * 1) 如果 defaultFocusKey != null：按 key 优先查找（找到就返回）
- * 2) 否则/找不到：回退到 defaultFocusIndex 规则（1-based + 负数倒数，不允许 0）
- * 3) 最终找不到合法目标：返回 null（不自动聚焦）
- */
-private fun <T> List<T>.resolveTargetFocusIndex(
-    itemKey: ((T) -> Any)?,
-    defaultFocusKey: Any?,
-    defaultFocusIndex: Int?
-): Int? {
-    if (isEmpty()) return null
-
-    // 1) 按 key 优先
-    if (defaultFocusKey != null) {
-        val idxByKey = if (itemKey != null) {
-            indexOfFirst { item -> itemKey(item) == defaultFocusKey }
-        } else {
-            // 没有 itemKey 时，退化为 item == defaultFocusKey（只有你把 item 自己当 key 才有意义）
-            indexOfFirst { item -> item == defaultFocusKey }
-        }
-        if (idxByKey >= 0) return idxByKey
-    }
-
-    // 2) 回退到 index 规则
-    return resolveFocusIndex(defaultFocusIndex)
-}
-
-/**
- * 把 index 规则转换为 0-based 下标。
- *
- * request 语义：
- * - null：不自动聚焦
- * - >0：1-based（1=第1个）
- * - <0：倒数（-1=最后一个）
- * - 0：非法（按你要求 -> 不聚焦）
- *
- * 越界：返回 null（不聚焦）
- */
-private fun <T> List<T>.resolveFocusIndex(request: Int?): Int? {
-    if (request == null) return null
-    if (isEmpty()) return null
-    if (request == 0) return null
-
-    val index0 = if (request > 0) {
-        request - 1          // 1 -> 0, 2 -> 1 ...
-    } else {
-        size + request       // -1 -> size-1, -2 -> size-2 ...
-    }
-
-    return index0.takeIf { it in indices }
 }
 
 @Composable

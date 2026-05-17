@@ -23,7 +23,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -35,12 +34,18 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusNode
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.DarkSurface
-import dev.aaa1115910.bv.tv.component.TvAlertDialog
+import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.util.toast
 import kotlinx.coroutines.delay
+
+private val TimeJumpFirstKeyNodeId = WjzFocusNodeId("player/time-jump/key/first")
 
 @Composable
 fun TimeJumpDialog(
@@ -173,11 +178,6 @@ fun TimeJumpDialog(
     }
 
     val firstKeyFocusRequester = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
-        // Dialog 刚弹出时直接 requestFocus 有概率失败，小延迟更稳
-        delay(50)
-        runCatching { firstKeyFocusRequester.requestFocus() }
-    }
 
     // 尺寸：跟 SoftKeyboard 的观感接近；你也可以只改这里统一调大小
     val keySize = 38.dp
@@ -205,6 +205,17 @@ fun TimeJumpDialog(
         textContentColor = AppWhite,
         title = { Text(text = "时间轴跳转，退出对话框立刻跳转", color = AppWhite) },
         text = {
+            val focusCoordinator = LocalWjzFocusCoordinator.current
+
+            LaunchedEffect(focusCoordinator) {
+                // Dialog 刚弹出时子 Host 内注册节点需要等一帧，小延迟更稳
+                delay(50)
+                focusCoordinator?.requestFocus(
+                    nodeId = TimeJumpFirstKeyNodeId,
+                    layer = WjzFocusLayer.Dialog
+                )
+            }
+
             Column(
                 modifier = Modifier.padding(top = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -296,7 +307,13 @@ fun TimeJumpDialog(
                                     } else {
                                         val keyModifier =
                                             if (rowIndex == 0 && colIndex == 0) {
-                                                Modifier.focusRequester(firstKeyFocusRequester)
+                                                Modifier
+                                                    .wjzFocusNode(
+                                                        nodeId = TimeJumpFirstKeyNodeId,
+                                                        requester = firstKeyFocusRequester,
+                                                        layer = WjzFocusLayer.Dialog,
+                                                        fallback = true
+                                                    )
                                             } else {
                                                 Modifier
                                             }

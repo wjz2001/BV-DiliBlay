@@ -14,12 +14,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -30,14 +27,40 @@ import dev.aaa1115910.bv.block.BlockManager
 import dev.aaa1115910.bv.component.BlockGroupSelectDialog
 import dev.aaa1115910.bv.component.BlockPageSelectDialog
 import dev.aaa1115910.bv.component.BlockTagItem
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
 import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.relation.RelationGroupSnapshot
 import dev.aaa1115910.bv.relation.RelationGroupsDataSource
 import dev.aaa1115910.bv.util.Prefs
-import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.settings.BlockSettingViewModel
 import org.koin.androidx.compose.koinViewModel
+
+private val BlockSettingDetailScopeId = WjzFocusScopeId("settings/detail")
+private val BlockSettingGroupsNodeId =
+    WjzFocusNodeId("settings/detail/block_settings/action/groups")
+private val BlockSettingPagesNodeId =
+    WjzFocusNodeId("settings/detail/block_settings/action/pages")
+private val BlockSettingUpdateNowNodeId =
+    WjzFocusNodeId("settings/detail/block_settings/action/update_now")
+private val BlockSettingGroupsDialogScopeId =
+    WjzFocusScopeId("settings/dialog/block_settings/groups")
+private val BlockSettingGroupsDialogContainerNodeId =
+    WjzFocusNodeId("settings/dialog/block_settings/groups/container")
+private val BlockSettingPagesDialogScopeId =
+    WjzFocusScopeId("settings/dialog/block_settings/pages")
+private val BlockSettingPagesDialogContainerNodeId =
+    WjzFocusNodeId("settings/dialog/block_settings/pages/container")
+
+private fun blockSettingGroupDialogItemNodeId(tag: BlockTagItem) =
+    WjzFocusNodeId("settings/dialog/block_settings/groups/${tag.tagid}")
+
+private fun blockSettingPageDialogItemNodeId(page: dev.aaa1115910.bv.block.BlockPage) =
+    WjzFocusNodeId("settings/dialog/block_settings/pages/${page.name}")
 
 @Composable
 fun BlockSetting(
@@ -47,13 +70,18 @@ fun BlockSetting(
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
-    val scope = rememberCoroutineScope()
+    val focusCoordinator = LocalWjzFocusCoordinator.current
 
     var updating by remember { mutableStateOf(false) }
     var showGroupDialog by remember { mutableStateOf(false) }
     var showPageDialog by remember { mutableStateOf(false) }
+    val dismissGroupDialog = rememberBlockSettingDialogDismiss(
+        onDismiss = { showGroupDialog = false }
+    )
+    val dismissPageDialog = rememberBlockSettingDialogDismiss(
+        onDismiss = { showPageDialog = false }
+    )
 
-    val updateFocusRequester = remember { FocusRequester() }
     val snapshot = rememberRelationGroupSnapshot()
     val hasSnapshot = RelationGroupsDataSource.hasUsableSnapshot(snapshot)
     val tags = snapshot?.groups.orEmpty().map { group ->
@@ -75,9 +103,12 @@ fun BlockSetting(
         }
     }
 
-    LaunchedEffect(contentActive) {
+    LaunchedEffect(contentActive, focusCoordinator) {
         if (contentActive) {
-            updateFocusRequester.requestFocus(scope)
+            focusCoordinator?.enqueueRestoreLayer(
+                layer = WjzFocusLayer.Content,
+                scopeId = BlockSettingDetailScopeId
+            )
         }
     }
 
@@ -95,7 +126,8 @@ fun BlockSetting(
         )
         Spacer(modifier = Modifier.height(12.dp))
 
-        SettingListItem(
+        BlockSettingActionListItem(
+            nodeId = BlockSettingGroupsNodeId,
             enabled = !updating && hasSnapshot,
             title = stringResource(R.string.block_setting_groups_title),
             supportText = when {
@@ -105,7 +137,8 @@ fun BlockSetting(
             onClick = { showGroupDialog = true }
         )
 
-        SettingListItem(
+        BlockSettingActionListItem(
+            nodeId = BlockSettingPagesNodeId,
             enabled = !updating && hasSnapshot,
             title = stringResource(R.string.block_setting_pages_title),
             supportText = when {
@@ -120,8 +153,9 @@ fun BlockSetting(
         )
 
         val needLoginToastText = stringResource(R.string.block_setting_update_now_need_login)
-        SettingListItem(
-            modifier = Modifier.focusRequester(updateFocusRequester),
+        BlockSettingActionListItem(
+            nodeId = BlockSettingUpdateNowNodeId,
+            fallback = true,
             enabled = true, // 更新中也保持可聚焦，避免焦点跳走
             title = stringResource(R.string.block_setting_update_now_title),
             supportText = when {
@@ -130,13 +164,13 @@ fun BlockSetting(
                 else -> "当前快照 ${tags.size} 个分组 / ${snapshot?.users?.size ?: 0} 个用户"
             },
             onClick = {
-                if (updating) return@SettingListItem // 防止更新中重复点击
+                if (updating) return@BlockSettingActionListItem // 防止更新中重复点击
 
                 val hasAuth = Prefs.uid != 0L &&
                         (Prefs.sessData.isNotBlank() || Prefs.accessToken.isNotBlank())
                 if (!hasAuth) {
                     needLoginToastText.toast(context)
-                    return@SettingListItem
+                    return@BlockSettingActionListItem
                 }
 
                 blockSettingViewModel.updateByUser(
@@ -176,7 +210,11 @@ fun BlockSetting(
         title = stringResource(R.string.block_setting_groups_dialog_title),
         tags = tags,
         initialSelectedTagIds = effectiveSelectedTagIds,
-        onHideDialog = { showGroupDialog = false },
+        onHideDialog = dismissGroupDialog,
+        sourceScopeId = BlockSettingDetailScopeId,
+        dialogScopeId = BlockSettingGroupsDialogScopeId,
+        containerNodeId = BlockSettingGroupsDialogContainerNodeId,
+        itemNodeId = { blockSettingGroupDialogItemNodeId(it) },
         onSubmit = { finalSelectedTagIds ->
             val sanitizedTagIds = finalSelectedTagIds
                 .filter { it in presentTagIds }
@@ -193,13 +231,49 @@ fun BlockSetting(
         show = showPageDialog,
         title = stringResource(R.string.block_setting_pages_dialog_title),
         initialSelectedPages = Prefs.blockEnabledPages,
-        onHideDialog = { showPageDialog = false },
+        onHideDialog = dismissPageDialog,
+        sourceScopeId = BlockSettingDetailScopeId,
+        dialogScopeId = BlockSettingPagesDialogScopeId,
+        containerNodeId = BlockSettingPagesDialogContainerNodeId,
+        itemNodeId = { blockSettingPageDialogItemNodeId(it) },
         onSubmit = { pages ->
             if (Prefs.blockEnabledPages == pages) return@BlockPageSelectDialog
             Prefs.blockEnabledPages = pages
             BlockManager.reloadFromPrefs()
             "已保存，仅对之后加载的内容生效".toast(context)
         }
+    )
+}
+
+@Composable
+private fun rememberBlockSettingDialogDismiss(
+    onDismiss: () -> Unit
+): () -> Unit {
+    return remember(onDismiss) { onDismiss }
+}
+
+@Composable
+private fun BlockSettingActionListItem(
+    nodeId: WjzFocusNodeId,
+    title: String,
+    supportText: String,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    fallback: Boolean = false,
+    onClick: () -> Unit
+) {
+    SettingListItem(
+        modifier = modifier
+            .wjzFocusable(
+                nodeId = nodeId,
+                layer = WjzFocusLayer.Content,
+                scopeId = BlockSettingDetailScopeId,
+                fallback = fallback
+            ),
+        enabled = enabled,
+        title = title,
+        supportText = supportText,
+        onClick = onClick
     )
 }
 

@@ -19,7 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -27,7 +27,6 @@ import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BadgedBox
 
 import androidx.compose.runtime.Composable
@@ -43,8 +42,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.ImageBitmapConfig
@@ -71,15 +68,20 @@ import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusHost
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
 import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.activities.user.UserLockSettingsActivity
-import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.db.UserDB
 import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.screen.main.home.lock.UnlockSwitchUserContent
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.C
-import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.tv.component.TvAlertDialog
 import dev.aaa1115910.bv.util.rememberTvImageRequest
 import dev.aaa1115910.bv.viewmodel.UserViewModel
 import dev.aaa1115910.bv.viewmodel.user.UserSwitchViewModel
@@ -88,6 +90,21 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
+
+private val UserSwitchManageButtonNodeId = WjzFocusNodeId("main/user-switch/manage")
+private val UserSwitchAddUserNodeId = WjzFocusNodeId("main/user-switch/add")
+private val UserSwitchMenuShowTokenNodeId = WjzFocusNodeId("main/user-switch/menu/show-token")
+private val UserSwitchMenuLockNodeId = WjzFocusNodeId("main/user-switch/menu/lock")
+private val UserSwitchMenuDeleteNodeId = WjzFocusNodeId("main/user-switch/menu/delete")
+private val UserSwitchDeleteConfirmNodeId = WjzFocusNodeId("main/user-switch/delete/confirm")
+private val UserSwitchDeleteDismissNodeId = WjzFocusNodeId("main/user-switch/delete/dismiss")
+private val UserSwitchRootScopeId = WjzFocusScopeId("main/user-switch/root")
+private val UserSwitchMenuDialogScopeId = WjzFocusScopeId("main/user-switch/menu")
+private val UserSwitchMenuContainerNodeId = WjzFocusNodeId("main/user-switch/menu/container")
+private val UserSwitchAuthDialogScopeId = WjzFocusScopeId("main/user-switch/auth")
+private val UserSwitchAuthContainerNodeId = WjzFocusNodeId("main/user-switch/auth/container")
+private val UserSwitchDeleteDialogScopeId = WjzFocusScopeId("main/user-switch/delete")
+private val UserSwitchDeleteContainerNodeId = WjzFocusNodeId("main/user-switch/delete/container")
 
 @Composable
 fun UserSwitchScreen(
@@ -126,65 +143,63 @@ fun UserSwitchScreen(
         }
     }
 
-    val unlockFocusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(showUnlock) {
-        if (showUnlock) unlockFocusRequester.requestFocus()
-    }
-
-
     CompositionLocalProvider(
         LocalDensity provides Density(
             density = LocalDensity.current.density * 1.25f,
             fontScale = LocalDensity.current.fontScale * 1.25f
         )
     ) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(0.dp)
-    ) {
-        Box {
-            UserSwitchContent(
-                userList = userList,
-                currentUid = userRepository.uid,
-                currentUserLevel = userViewModel.responseData?.level,
-                loadingUserList = userSwitchViewModel.loading,
-                onAddUser = {
-                    context.startActivity(Intent(context, LoginActivity::class.java))
-                },
-                onDeleteUser = { user ->
-                    userSwitchViewModel.deleteUser(user) {
-                        if (userList.isEmpty()) (context as Activity).finish()
-                    }
-                },
-                onSwitchUser = { user ->
-                    if (user.uid != userRepository.uid && user.lock.isNotBlank()) {
-                        unlockUser = user
-                        showUnlock = true
-                    } else {
-                        userSwitchViewModel.switchUser(user) {
-                            (context as Activity).finish()
-                        }
-                    }
-                },
-                onShowUserLockSettings = { uid ->
-                    UserLockSettingsActivity.actionStart(context, uid)
-                }
-            )
-                if (showUnlock) {
-                    _root_ide_package_.dev.aaa1115910.bv.screen.main.home.lock.UnlockSwitchUserContent(
-                        modifier = Modifier.focusRequester(unlockFocusRequester),
+        WjzFocusHost(
+            modifier = modifier,
+            layer = WjzFocusLayer.Content,
+            scopeId = UserSwitchRootScopeId
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                shape = RoundedCornerShape(0.dp)
+            ) {
+                Box {
+                    UserSwitchContent(
                         userList = userList,
-                        unlockUser = unlockUser!!,
-                        onUnlockSuccess = { user ->
-                            userSwitchViewModel.switchUser(user) {
-                                (context as Activity).finish()
+                        currentUid = userRepository.uid,
+                        currentUserLevel = userViewModel.responseData?.level,
+                        loadingUserList = userSwitchViewModel.loading,
+                        onAddUser = {
+                            context.startActivity(Intent(context, LoginActivity::class.java))
+                        },
+                        onDeleteUser = { user ->
+                            userSwitchViewModel.deleteUser(user) {
+                                if (userList.isEmpty()) (context as Activity).finish()
                             }
                         },
-                        onCancel = {
-                            showUnlock = false
+                        onSwitchUser = { user ->
+                            if (user.uid != userRepository.uid && user.lock.isNotBlank()) {
+                                unlockUser = user
+                                showUnlock = true
+                            } else {
+                                userSwitchViewModel.switchUser(user) {
+                                    (context as Activity).finish()
+                                }
+                            }
+                        },
+                        onShowUserLockSettings = { uid ->
+                            UserLockSettingsActivity.actionStart(context, uid)
                         }
                     )
+                    if (showUnlock) {
+                        UnlockSwitchUserContent(
+                            userList = userList,
+                            unlockUser = unlockUser!!,
+                            onUnlockSuccess = { user ->
+                                userSwitchViewModel.switchUser(user) {
+                                    (context as Activity).finish()
+                                }
+                            },
+                            onCancel = {
+                                showUnlock = false
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -203,7 +218,6 @@ private fun UserSwitchContent(
     onAddUser: () -> Unit,
     onShowUserLockSettings: (Long) -> Unit
 ) {
-    val focusRequester = remember { FocusRequester() }
     var choosedUser by remember {
         mutableStateOf(
             UserDB(
@@ -219,13 +233,32 @@ private fun UserSwitchContent(
     var showUserMenuDialog by remember { mutableStateOf(false) }
     var showAuthDataDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    val focusCoordinator = LocalWjzFocusCoordinator.current
+    var focusedUserUid by remember { mutableStateOf<Long?>(null) }
+    var previousUserUids by remember { mutableStateOf<List<Long>>(emptyList()) }
 
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
-
-    LaunchedEffect(loadingUserList) {
-        if (!loadingUserList) focusRequester.requestFocus()
+    LaunchedEffect(userList, isInManagerMode) {
+        val currentUserUids = userList.map { it.uid }
+        val removedFocusedUid = focusedUserUid?.takeIf { uid ->
+            uid in previousUserUids && uid !in currentUserUids
+        }
+        if (removedFocusedUid != null) {
+            val removedIndex = previousUserUids.indexOf(removedFocusedUid)
+            val targetUid = currentUserUids.getOrNull(
+                removedIndex.coerceAtMost(currentUserUids.lastIndex)
+            )
+            val targetNodeId = when {
+                targetUid != null -> WjzFocusNodeId("main/user-switch/item/$targetUid")
+                isInManagerMode -> UserSwitchManageButtonNodeId
+                else -> UserSwitchAddUserNodeId
+            }
+            focusCoordinator?.enqueueRequestFocus(
+                nodeId = targetNodeId,
+                layer = WjzFocusLayer.Content,
+                scopeId = UserSwitchRootScopeId
+            )
+        }
+        previousUserUids = currentUserUids
     }
 
     Surface(
@@ -249,12 +282,22 @@ private fun UserSwitchContent(
             }
 
             LazyRow(
-                modifier = Modifier.focusRequester(focusRequester),
                 horizontalArrangement = Arrangement.spacedBy(24.dp),
                 contentPadding = PaddingValues(horizontal = 12.dp)
             ) {
-                items(items = userList) { user ->
+                itemsIndexed(
+                    items = userList,
+                    key = { _, user -> user.uid }
+                ) { index, user ->
                     UserItem(
+                        modifier = Modifier.wjzFocusable(
+                            nodeId = WjzFocusNodeId("main/user-switch/item/${user.uid}"),
+                            layer = WjzFocusLayer.Content,
+                            fallback = !isInManagerMode && index == 0,
+                            onFocusChanged = { hasFocus ->
+                                if (hasFocus) focusedUserUid = user.uid
+                            }
+                        ),
                         avatar = user.avatar,
                         username = user.username,
                         level = if (user.uid == currentUid) currentUserLevel else null,
@@ -272,6 +315,11 @@ private fun UserSwitchContent(
                 if (!isInManagerMode) {
                     item {
                         AddUserItem(
+                            modifier = Modifier.wjzFocusable(
+                                nodeId = UserSwitchAddUserNodeId,
+                                layer = WjzFocusLayer.Content,
+                                fallback = userList.isEmpty()
+                            ),
                             onClick = onAddUser
                         )
                     }
@@ -281,7 +329,12 @@ private fun UserSwitchContent(
             Button(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 64.dp),
+                    .padding(bottom = 64.dp)
+                    .wjzFocusable(
+                        nodeId = UserSwitchManageButtonNodeId,
+                        layer = WjzFocusLayer.Content,
+                        fallback = isInManagerMode && userList.isEmpty()
+                    ),
                 onClick = { isInManagerMode = !isInManagerMode }
             ) {
                 if (isInManagerMode) {
@@ -354,18 +407,13 @@ fun UserMenuDialog(
     onDeleteUser: () -> Unit,
     onShowUserLockSettings: (Long) -> Unit
 ) {
-    val menuFocusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(show) {
-        if (show) {
-            menuFocusRequester.requestFocus()
-        }
-    }
-
     if (show) {
-        AlertDialog(
+        TvAlertDialog(
             modifier = modifier,
             onDismissRequest = onHideDialog,
+            sourceScopeId = UserSwitchRootScopeId,
+            dialogScopeId = UserSwitchMenuDialogScopeId,
+            containerNodeId = UserSwitchMenuContainerNodeId,
             title = { Text(text = username) },
             text = {
                 LazyColumn(
@@ -376,7 +424,11 @@ fun UserMenuDialog(
                     if (showTokenButton) {
                         item {
                             UserMenuButton(
-                                modifier = Modifier.focusRequester(menuFocusRequester),
+                                modifier = Modifier.wjzFocusable(
+                                    nodeId = UserSwitchMenuShowTokenNodeId,
+                                    layer = WjzFocusLayer.Dialog,
+                                    fallback = true
+                                ),
                                 text = stringResource(R.string.user_switch_menu_show_token),
                                 onClick = {
                                     onHideDialog()
@@ -388,11 +440,11 @@ fun UserMenuDialog(
 
                     item {
                         UserMenuButton(
-                            modifier = Modifier
-                                .ifElse(
-                                    !showTokenButton,
-                                    Modifier.focusRequester(menuFocusRequester)
-                                ),
+                            modifier = Modifier.wjzFocusable(
+                                nodeId = UserSwitchMenuLockNodeId,
+                                layer = WjzFocusLayer.Dialog,
+                                fallback = !showTokenButton
+                            ),
                             text = stringResource(R.string.user_switch_menu_user_lock),
                             onClick = {
                                 onHideDialog()
@@ -403,6 +455,10 @@ fun UserMenuDialog(
 
                     item {
                         UserMenuButton(
+                            modifier = Modifier.wjzFocusable(
+                                nodeId = UserSwitchMenuDeleteNodeId,
+                                layer = WjzFocusLayer.Dialog
+                            ),
                             text = stringResource(R.string.user_switch_menu_delete_account),
                             onClick = {
                                 onHideDialog()
@@ -446,9 +502,12 @@ fun UserAuthDataDialog(
     }
 
     if (show) {
-        AlertDialog(
+        TvAlertDialog(
             modifier = modifier,
             onDismissRequest = onHideDialog,
+            sourceScopeId = UserSwitchRootScopeId,
+            dialogScopeId = UserSwitchAuthDialogScopeId,
+            containerNodeId = UserSwitchAuthContainerNodeId,
             title = { Text(text = userDB.username) },
             text = {
                 Row(
@@ -486,17 +545,13 @@ private fun DeleteConfirmDialog(
     userDB: UserDB,
     onConfirm: () -> Unit
 ) {
-    val scope = rememberCoroutineScope()
-    val focusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(show) {
-        if (show) focusRequester.requestFocus(scope)
-    }
-
     if (show) {
-        AlertDialog(
+        TvAlertDialog(
             modifier = modifier,
             onDismissRequest = { onHideDialog() },
+            sourceScopeId = UserSwitchRootScopeId,
+            dialogScopeId = UserSwitchDeleteDialogScopeId,
+            containerNodeId = UserSwitchDeleteContainerNodeId,
             title = { Text(text = stringResource(R.string.delete_account_confirm_dialog_title)) },
             text = {
                 Text(
@@ -508,13 +563,23 @@ private fun DeleteConfirmDialog(
                 )
             },
             confirmButton = {
-                Button(onClick = { onConfirm() }) {
+                Button(
+                    modifier = Modifier.wjzFocusable(
+                        nodeId = UserSwitchDeleteConfirmNodeId,
+                        layer = WjzFocusLayer.Dialog,
+                        fallback = true
+                    ),
+                    onClick = { onConfirm() }
+                ) {
                     Text(text = stringResource(R.string.delete_account_confirm_dialog_confirm))
                 }
             },
             dismissButton = {
                 OutlinedButton(
-                    modifier = Modifier.focusRequester(focusRequester),
+                    modifier = Modifier.wjzFocusable(
+                        nodeId = UserSwitchDeleteDismissNodeId,
+                        layer = WjzFocusLayer.Dialog
+                    ),
                     onClick = { onHideDialog() }
                 ) {
                     Text(text = stringResource(R.string.delete_account_confirm_dialog_dismiss))

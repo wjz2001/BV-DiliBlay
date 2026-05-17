@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,7 +38,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
-import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
@@ -170,6 +169,9 @@ private fun SeasonCardPreview() {
     BVTheme(themeMode = ThemeMode.DARK) {
         SmallVideoCardGridHost(
             columns = GridCells.Fixed(6),
+            nodeIdPrefix = "season-card-preview/dark",
+            focusItemCount = 6,
+            focusItemKeys = List(6) { WjzFocusItemKey("season-card-preview/dark/$it") },
             focusColumnCount = 6
         ) { cardUiStateFor ->
             repeat(6) {
@@ -194,6 +196,9 @@ private fun SeasonCardLightPreview() {
     BVTheme(themeMode = ThemeMode.LIGHT) {
         SmallVideoCardGridHost(
             columns = GridCells.Fixed(6),
+            nodeIdPrefix = "season-card-preview/light",
+            focusItemCount = 6,
+            focusItemKeys = List(6) { WjzFocusItemKey("season-card-preview/light/$it") },
             focusColumnCount = 6
         ) { cardUiStateFor ->
             repeat(6) {

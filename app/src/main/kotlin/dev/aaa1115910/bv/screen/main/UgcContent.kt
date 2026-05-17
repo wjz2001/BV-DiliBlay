@@ -29,16 +29,20 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
-import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.UgcTopNavItem
 import dev.aaa1115910.bv.component.PersistLazyGridViewportEffect
+import dev.aaa1115910.bv.component.wjzfocus.rememberWjzFocusRequester
 import dev.aaa1115910.bv.component.rememberRestoredLazyGridState
 import dev.aaa1115910.bv.entity.state.GridViewportState
 import dev.aaa1115910.bv.screen.main.ugc.UgcRegionScaffold
 import dev.aaa1115910.bv.screen.main.ugc.UgcScaffoldState
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
-import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
+import dev.aaa1115910.bv.screen.main.common.mainContentEntryAdapter
 import dev.aaa1115910.bv.screen.main.runtime.ContentRuntimeState
 import dev.aaa1115910.bv.screen.main.runtime.runtimeContainerInputEnabled
 import dev.aaa1115910.bv.ui.effect.UiEffect
@@ -47,13 +51,15 @@ import dev.aaa1115910.bv.viewmodel.ugc.UgcViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import org.koin.androidx.compose.koinViewModel
 
+private val UgcTopNavNodeId = WjzFocusNodeId("main/ugc/top-nav")
+
 @Composable
 fun UgcContent(
-    navFocusRequester: FocusRequester,
-    drawerFocusRequester: FocusRequester,
     topBarLeadingContent: @Composable () -> Unit,
-    pendingDrawerEntryRequest: MainContentEntryRequest? = null,
-    onDrawerEntryConsumed: (Long) -> Unit = {},
+    entryRequest: MainContentEntryRequest? = null,
+    onEntryRequestReady: (Long) -> Unit = {},
+    onEntryRequestConsumed: (Long) -> Unit = {},
+    onEntryRequestRejected: (Long) -> Unit = {},
     onDefaultFocusReady: (() -> Unit)? = null,
     ugcViewModel: UgcViewModel = koinViewModel(),
     toViewViewModel: ToViewViewModel = koinViewModel(),
@@ -65,67 +71,37 @@ fun UgcContent(
     val focusedTab = ugcViewModel.focusedTab
     val activeTab = ugcViewModel.activeTab
     val ugcScaffoldStateMap by ugcViewModel.ugcScaffoldStateMap.collectAsStateWithLifecycle()
-    val contentEntryFocusRequester = remember { FocusRequester() }
+    val topNavContentFocusRequester = rememberWjzFocusRequester()
     val ugcTopNavItems = UgcTopNavItem.entries
-    var topNavReadyTab by remember { mutableStateOf<UgcTopNavItem?>(null) }
     var contentReadyTab by remember { mutableStateOf<UgcTopNavItem?>(null) }
     var previousActiveTab by remember { mutableStateOf<UgcTopNavItem?>(null) }
+    val focusCoordinator = LocalWjzFocusCoordinator.current
+    val focusScopeId = LocalWjzFocusScopeId.current
+    val entryAdapter = mainContentEntryAdapter(
+        entryRequest = entryRequest,
+        active = active,
+        onDefaultFocusReady = onDefaultFocusReady,
+        onEntryRequestReady = onEntryRequestReady,
+        onEntryRequestConsumed = onEntryRequestConsumed,
+        onEntryRequestRejected = onEntryRequestRejected
+    )
+    val entryFocusRequest = entryAdapter.topNavEntryFocusRequest
 
-    val desiredDrawerEntryTab = remember(pendingDrawerEntryRequest?.id) {
-        when (pendingDrawerEntryRequest?.target) {
-            MainContentFocusTarget.LeftEntry -> ugcTopNavItems.firstOrNull()
-            MainContentFocusTarget.RightEntry -> ugcTopNavItems.lastOrNull()
-            null -> null
+    fun requestTopNavFocus(): Boolean {
+        val coordinator = focusCoordinator
+        if (coordinator != null) {
+            return coordinator.enqueueRequestFocus(
+                nodeId = UgcTopNavNodeId,
+                layer = WjzFocusLayer.Content,
+                scopeId = focusScopeId
+            )
         }
-    }
-
-    LaunchedEffect(pendingDrawerEntryRequest?.id, desiredDrawerEntryTab, active) {
-        if (!active) return@LaunchedEffect
-        val desired = desiredDrawerEntryTab ?: return@LaunchedEffect
-        if (topNavReadyTab != desired) {
-            topNavReadyTab = null
-        }
-    }
-
-    LaunchedEffect(
-        pendingDrawerEntryRequest?.id,
-        desiredDrawerEntryTab,
-        activeTab,
-        focusedTab,
-        active
-    ) {
-        if (!active) return@LaunchedEffect
-        val desired = desiredDrawerEntryTab ?: return@LaunchedEffect
-        if (activeTab != desired || focusedTab != desired) {
-            ugcViewModel.onTabClicked(desired)
-        }
-    }
-
-    LaunchedEffect(
-        pendingDrawerEntryRequest?.id,
-        desiredDrawerEntryTab,
-        activeTab,
-        focusedTab,
-        topNavReadyTab,
-        active
-    ) {
-        if (!active) return@LaunchedEffect
-        val request = pendingDrawerEntryRequest ?: return@LaunchedEffect
-        val desired = desiredDrawerEntryTab ?: return@LaunchedEffect
-
-        if (activeTab == desired &&
-            focusedTab == desired &&
-            topNavReadyTab == desired
-        ) {
-            navFocusRequester.requestFocus()
-            onDrawerEntryConsumed(request.id)
-        }
+        return false
     }
 
     val handleDefaultFocusReady: (Any) -> Unit = handleDefaultFocusReady@{ readyKey ->
         if (!active) return@handleDefaultFocusReady
-        topNavReadyTab = readyKey as? UgcTopNavItem
-        onDefaultFocusReady?.invoke()
+        entryAdapter.onDefaultFocusReady(entryFocusRequest)
     }
 
     LaunchedEffect(active, activeTab) {
@@ -177,35 +153,44 @@ fun UgcContent(
     Scaffold(
         modifier = Modifier,
         topBar = {
-            TopNav(
-                modifier = Modifier.padding(horizontal = 10.dp),
-                leadingContent = topBarLeadingContent,
-                items = ugcTopNavItems,
-                selectedItem = focusedTab,
-                entryFocusItem = desiredDrawerEntryTab,
-                defaultFocusRequester = navFocusRequester,
-                onDefaultFocusReady = handleDefaultFocusReady,
-                contentFocusRequester = contentEntryFocusRequester,
-                contentFocusReadyKey = contentReadyTab,
-                onContentFocusRequested = { nav ->
-                    val target = nav as UgcTopNavItem
-                    if (target != activeTab) {
+            key(entryFocusRequest?.id) {
+                TopNav(
+                    modifier = Modifier.padding(horizontal = 10.dp),
+                    leadingContent = topBarLeadingContent,
+                    items = ugcTopNavItems,
+                    selectedItem = focusedTab,
+                    entryFocusTarget = entryAdapter.topNavEntryFocusTarget,
+                    onDefaultFocusReady = handleDefaultFocusReady,
+                    onEntryFocusResolution = { resolution ->
+                        entryAdapter.onTopNavEntryFocusResolution(entryFocusRequest, resolution)
+                    },
+                    onEntryFocusConsumed = { consumed ->
+                        entryAdapter.onTopNavEntryFocusConsumed(entryFocusRequest, consumed)
+                    },
+                    contentFocusRequester = topNavContentFocusRequester,
+                    contentFocusReadyKey = contentReadyTab,
+                    focusNodeId = UgcTopNavNodeId,
+                    onContentFocusRequested = { nav ->
+                        val target = nav as UgcTopNavItem
+                        if (target != activeTab) {
+                            ugcViewModel.onTabClicked(target)
+                        }
+                    },
+                    onSelectedChanged = { nav ->
+                        ugcViewModel.onTabFocused(nav as UgcTopNavItem)
+                    },
+                    onClick = { nav ->
+                        val target = nav as UgcTopNavItem
+                        val shouldRefresh = target == activeTab
                         ugcViewModel.onTabClicked(target)
-                    }
-                },
-                onSelectedChanged = { nav ->
-                    ugcViewModel.onTabFocused(nav as UgcTopNavItem)
-                },
-                onClick = { nav ->
-                    val target = nav as UgcTopNavItem
-                    val shouldRefresh = target == activeTab
-                    ugcViewModel.onTabClicked(target)
-                    if (shouldRefresh) {
-                        ugcViewModel.requestUserRefresh(target)
-                    }
-                },
-                backFocusEnabled = active
-            )
+                        if (shouldRefresh) {
+                            ugcViewModel.requestUserRefresh(target)
+                        }
+                    },
+                    focusLayer = WjzFocusLayer.Content,
+                    backFocusEnabled = active
+                )
+            }
         }
     ) { innerPadding ->
         Box(
@@ -215,7 +200,7 @@ fun UgcContent(
                     if (it.key == Key.Menu) {
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
                         ugcViewModel.requestUserRefresh(activeTab)
-                        navFocusRequester.requestFocus()
+                        requestTopNavFocus()
                         return@onPreviewKeyEvent true
                     }
                     false
@@ -257,8 +242,8 @@ fun UgcContent(
                                 ugcScaffoldStateMap = ugcScaffoldStateMap,
                                 ugcViewModel = ugcViewModel,
                                 toViewViewModel = toViewViewModel,
-                                contentEntryFocusRequester = contentEntryFocusRequester,
-                                tabFocusRequester = navFocusRequester,
+                                contentEntryFocusRequester = topNavContentFocusRequester,
+                                tabFocusRequester = null,
                                 onContentEntryReady = {
                                     if (tabActive) contentReadyTab = tab
                                 },
@@ -282,8 +267,8 @@ private fun UgcActiveTabContent(
     ugcScaffoldStateMap: Map<UgcTopNavItem, UgcScaffoldState>,
     ugcViewModel: UgcViewModel,
     toViewViewModel: ToViewViewModel,
-    contentEntryFocusRequester: FocusRequester,
-    tabFocusRequester: FocusRequester,
+    contentEntryFocusRequester: FocusRequester?,
+    tabFocusRequester: FocusRequester?,
     onContentEntryReady: () -> Unit,
     active: Boolean
 ) {
@@ -292,8 +277,8 @@ private fun UgcActiveTabContent(
     val refreshSerial = ugcViewModel.refreshSerialOf(screen)
 
     if (screenState != null) {
-        val activeContentEntryFocusRequester = contentEntryFocusRequester.takeIf { active }
-        val activeTabFocusRequester = tabFocusRequester.takeIf { active }
+        val activeContentEntryFocusRequester = contentEntryFocusRequester?.takeIf { active }
+        val activeTabFocusRequester = tabFocusRequester?.takeIf { active }
         val gridState = rememberRestoredLazyGridState(
             GridViewportState(
                 index = screenState.firstVisibleItemIndex,

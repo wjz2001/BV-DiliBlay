@@ -3,14 +3,12 @@ package dev.aaa1115910.bv.screen.login
 import android.Manifest
 import android.app.Activity
 import android.content.pm.PackageManager
-import android.view.KeyEvent
 import android.widget.Toast.LENGTH_LONG
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,8 +27,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.nativeKeyCode
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -46,15 +42,22 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.login.QrLoginState
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusHost
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppRed
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.util.ApiTestLoginExportUtil
 import dev.aaa1115910.bv.util.ApiTestLoginExportPayload
+import dev.aaa1115910.bv.util.isBvConfirmKey
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.login.AppQrLoginViewModel
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
+
+private val AppQrLoginRootNodeId = WjzFocusNodeId("login/qr/root")
 
 @Composable
 fun AppQRLoginContent(
@@ -170,98 +173,107 @@ fun AppQRLoginContent(
         }
     }
 
-    Surface(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AppBlack),
+    WjzFocusHost(
+        modifier = modifier.fillMaxSize(),
+        layer = WjzFocusLayer.Content
     ) {
-        Box(
-            modifier = modifier
-                .focusable()
+        Surface(
+            modifier = Modifier
                 .fillMaxSize()
-                .onKeyEvent {
-                    if (it.key.nativeKeyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
-                        if (listOf(QrLoginState.Expired, QrLoginState.Error)
-                                .contains(appQrLoginViewModel.state)
-                        ) {
-                            requestQRCode()
-                        }
-                        return@onKeyEvent true
-                    }
-                    false
-                },
-            contentAlignment = Alignment.Center
+                .background(AppBlack),
         ) {
-            val qrStateReady = appQrLoginViewModel.state in listOf(
-                QrLoginState.WaitingForScan,
-                QrLoginState.WaitingForConfirm
-            )
-            val qrBitmapReady = appQrLoginViewModel.qrImage.width > 1 && appQrLoginViewModel.qrImage.height > 1
-            val showLoginGroup = qrStateReady && qrBitmapReady
-            AnimatedVisibility(visible = showLoginGroup) {
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    SideTwoCells(
-                        topText = "登",
-                        topColor = Color.Cyan,
-                        bottomText = "录",
-                        bottomColor = Color.Yellow,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                    )
-
-                        Box(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .aspectRatio(1f)
-                                .background(Color.White),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Image(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(Color.White)
-                                    .then(Modifier)
-                                    .padding(56.dp),
-                                bitmap = appQrLoginViewModel.qrImage,
-                                contentDescription = null
-                            )
-                        }
-
-                    SideTwoCells(
-                        topText = "扫",
-                        topColor = AppRed,
-                        bottomText = "码",
-                        bottomColor = Color.Green,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                    )
-                }
-            }
-            AnimatedVisibility(
-                visible = BuildConfig.ENABLE_API_TEST_LOGIN_DUMP &&
-                    appQrLoginViewModel.state == QrLoginState.Success,
+            Box(
                 modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(32.dp)
+                    .fillMaxSize()
+                    .wjzFocusable(
+                        nodeId = AppQrLoginRootNodeId,
+                        layer = WjzFocusLayer.Content,
+                        fallback = true
+                    )
+                    .onKeyEvent {
+                        if (it.isBvConfirmKey()) {
+                            if (listOf(QrLoginState.Expired, QrLoginState.Error)
+                                    .contains(appQrLoginViewModel.state)
+                            ) {
+                                requestQRCode()
+                            }
+                            return@onKeyEvent true
+                        }
+                        false
+                    },
+                contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = loginSuccessText,
-                        style = MaterialTheme.typography.displaySmall,
-                        color = AppWhite
-                    )
-                    Text(
-                        modifier = Modifier.padding(top = 16.dp),
-                        text = exportResultText.orEmpty(),
-                        style = MaterialTheme.typography.displaySmall,
-                        color = AppWhite,
-                        fontSize = 26.sp
-                    )
+                val qrStateReady = appQrLoginViewModel.state in listOf(
+                    QrLoginState.WaitingForScan,
+                    QrLoginState.WaitingForConfirm
+                )
+                val qrBitmapReady = appQrLoginViewModel.qrImage.width > 1 && appQrLoginViewModel.qrImage.height > 1
+                val showLoginGroup = qrStateReady && qrBitmapReady
+                AnimatedVisibility(visible = showLoginGroup) {
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SideTwoCells(
+                            topText = "登",
+                            topColor = Color.Cyan,
+                            bottomText = "录",
+                            bottomColor = Color.Yellow,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                        )
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .aspectRatio(1f)
+                                    .background(Color.White),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Image(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color.White)
+                                        .then(Modifier)
+                                        .padding(56.dp),
+                                    bitmap = appQrLoginViewModel.qrImage,
+                                    contentDescription = null
+                                )
+                            }
+
+                        SideTwoCells(
+                            topText = "扫",
+                            topColor = AppRed,
+                            bottomText = "码",
+                            bottomColor = Color.Green,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                        )
+                    }
+                }
+                AnimatedVisibility(
+                    visible = BuildConfig.ENABLE_API_TEST_LOGIN_DUMP &&
+                        appQrLoginViewModel.state == QrLoginState.Success,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(32.dp)
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = loginSuccessText,
+                            style = MaterialTheme.typography.displaySmall,
+                            color = AppWhite
+                        )
+                        Text(
+                            modifier = Modifier.padding(top = 16.dp),
+                            text = exportResultText.orEmpty(),
+                            style = MaterialTheme.typography.displaySmall,
+                            color = AppWhite,
+                            fontSize = 26.sp
+                        )
+                    }
                 }
             }
         }

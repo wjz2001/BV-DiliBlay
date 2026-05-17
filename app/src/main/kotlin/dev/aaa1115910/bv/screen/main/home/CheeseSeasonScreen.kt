@@ -2,8 +2,6 @@ package dev.aaa1115910.bv.screen.main.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
@@ -37,9 +35,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
@@ -60,12 +55,19 @@ import coil.compose.AsyncImage
 import dev.aaa1115910.biliapi.entity.cheese.CheeseEpisode
 import dev.aaa1115910.biliapi.entity.cheese.CheeseSeasonDetail
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
-import dev.aaa1115910.bv.component.TvLazyVerticalGrid
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusItemKey
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.component.UpIcon
+import dev.aaa1115910.bv.component.TvGridFocusHost
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.component.videocard.VideoPartButton
 import dev.aaa1115910.bv.ui.theme.C
+import dev.aaa1115910.bv.util.BvKeyDirection
 import dev.aaa1115910.bv.util.ImageSize
+import dev.aaa1115910.bv.util.bvKeyDirection
 import dev.aaa1115910.bv.util.focusedBorder
 import dev.aaa1115910.bv.util.launchPlayerActivity
 import dev.aaa1115910.bv.util.resizedImageUrl
@@ -142,13 +144,7 @@ private fun CheeseSeasonContent(
     detail: CheeseSeasonDetail,
     onEpisodeClick: (CheeseEpisode) -> Unit
 ) {
-    val introFocusRequester = remember { FocusRequester() }
-    val fallbackEpisodeFocusRequester = remember { FocusRequester() }
     var episodeListExpanded by remember { mutableStateOf(false) }
-    var hasAutoFocusedEpisode by remember(detail.seasonId) { mutableStateOf(false) }
-    val episodeFocusRequesters = remember(detail.episodes) {
-        List(detail.episodes.size) { FocusRequester() }
-    }
     val targetEpisodeIndex = remember(detail.episodes, detail.lastEpId) {
         detail.episodes.indexOfFirst { it.epId == detail.lastEpId }
             .takeIf { it >= 0 }
@@ -164,13 +160,16 @@ private fun CheeseSeasonContent(
                     return@onPreviewKeyEvent false
                 }
 
-                when (event.key) {
-                    Key.DirectionLeft, Key.MediaRewind -> {
+                val keyDirection = event.bvKeyDirection()
+                when {
+                    keyDirection == BvKeyDirection.Left ||
+                        event.key == Key.MediaRewind -> {
                         episodeListExpanded = true
                         true
                     }
 
-                    Key.DirectionRight, Key.MediaFastForward -> {
+                    keyDirection == BvKeyDirection.Right ||
+                        event.key == Key.MediaFastForward -> {
                         episodeListExpanded = false
                         true
                     }
@@ -205,8 +204,6 @@ private fun CheeseSeasonContent(
                 .width(introWidth)
                 .fillMaxHeight(),
             detail = detail,
-            focusRequester = introFocusRequester,
-            rightFocusRequester = episodeFocusRequesters.getOrNull(targetEpisodeIndex) ?: fallbackEpisodeFocusRequester,
             alpha = introAlpha,
             focusEnabled = !episodeListExpanded
         )
@@ -217,14 +214,10 @@ private fun CheeseSeasonContent(
                 .width(episodeListWidth)
                 .fillMaxHeight(),
             episodes = detail.episodes,
+            seasonId = detail.seasonId,
             columnCount = episodeColumnCount,
-            leftFocusRequester = introFocusRequester,
-            episodeFocusRequesters = episodeFocusRequesters,
             targetEpisodeIndex = targetEpisodeIndex,
-            hasAutoFocusedEpisode = hasAutoFocusedEpisode,
-            onAutoFocusHandled = { hasAutoFocusedEpisode = true },
             horizontalSpacing = horizontalSpacing,
-            introFocusEnabled = !episodeListExpanded,
             expanded = episodeListExpanded,
             onEpisodeClick = onEpisodeClick
         )
@@ -235,8 +228,6 @@ private fun CheeseSeasonContent(
 private fun CheeseSeasonIntro(
     modifier: Modifier = Modifier,
     detail: CheeseSeasonDetail,
-    focusRequester: FocusRequester,
-    rightFocusRequester: FocusRequester,
     alpha: Float,
     focusEnabled: Boolean
 ) {
@@ -255,25 +246,26 @@ private fun CheeseSeasonIntro(
     LazyColumn(
         modifier = modifier
             .graphicsLayer { this.alpha = alpha }
-            .focusGroup()
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                when (event.key) {
-                    Key.DirectionDown -> {
+                when (event.bvKeyDirection()) {
+                    BvKeyDirection.Down -> {
                         scope.launch {
                             listState.animateScrollBy(scrollOffsetPx)
                         }
                         true
                     }
 
-                    Key.DirectionUp -> {
+                    BvKeyDirection.Up -> {
                         scope.launch {
                             listState.animateScrollBy(-scrollOffsetPx)
                         }
                         true
                     }
 
-                    else -> false
+                    BvKeyDirection.Left,
+                    BvKeyDirection.Right,
+                    null -> false
                 }
             },
         state = listState,
@@ -303,8 +295,12 @@ private fun CheeseSeasonIntro(
                 if (upMid != null && detail.upName.isNotBlank()) {
                     CheeseUpButton(
                         modifier = Modifier
-                            .focusRequester(focusRequester)
-                            .focusProperties { right = rightFocusRequester },
+                            .wjzFocusable(
+                                nodeId = WjzFocusNodeId("cheese/${detail.seasonId}/up"),
+                                layer = WjzFocusLayer.Content,
+                                fallback = focusEnabled,
+                                enabled = focusEnabled
+                            ),
                         name = detail.upName,
                         onClick = {
                             UpInfoActivity.actionStart(
@@ -316,12 +312,7 @@ private fun CheeseSeasonIntro(
                     )
                 }
                 if (upMid == null || detail.upName.isBlank()) {
-                    Spacer(
-                        modifier = Modifier
-                            .focusRequester(focusRequester)
-                            .focusProperties { right = rightFocusRequester }
-                            .focusable(focusEnabled)
-                    )
+                    Spacer(modifier = Modifier)
                 }
                 detail.releaseInfo?.let {
                     Text(
@@ -378,40 +369,33 @@ private fun CheeseSeasonIntro(
 private fun CheeseEpisodeList(
     modifier: Modifier = Modifier,
     episodes: List<CheeseEpisode>,
+    seasonId: Long,
     columnCount: Int,
-    leftFocusRequester: FocusRequester,
-    episodeFocusRequesters: List<FocusRequester>,
     targetEpisodeIndex: Int,
-    hasAutoFocusedEpisode: Boolean,
-    onAutoFocusHandled: () -> Unit,
     horizontalSpacing: Dp,
-    introFocusEnabled: Boolean,
     expanded: Boolean,
     onEpisodeClick: (CheeseEpisode) -> Unit
 ) {
     val gridState = rememberLazyGridState()
 
-    LaunchedEffect(episodes, targetEpisodeIndex, expanded, hasAutoFocusedEpisode) {
+    LaunchedEffect(episodes, targetEpisodeIndex, expanded) {
         if (episodes.isNotEmpty()) {
             gridState.scrollToItem(targetEpisodeIndex + 1)
-            val targetFocusRequester = episodeFocusRequesters.getOrNull(targetEpisodeIndex)
-            if (!hasAutoFocusedEpisode && targetFocusRequester != null) {
-                targetFocusRequester.requestFocus()
-                onAutoFocusHandled()
-            } else if (expanded) {
-                targetFocusRequester?.requestFocus()
-            }
         }
     }
 
-    TvLazyVerticalGrid(
-        modifier = modifier
-            .focusGroup(),
+    TvGridFocusHost(
+        modifier = modifier,
         state = gridState,
         columns = GridCells.Fixed(columnCount),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalArrangement = Arrangement.spacedBy(horizontalSpacing),
-        contentPadding = PaddingValues(bottom = 32.dp)
+        nodeIdPrefix = "cheese/$seasonId/episodes",
+        contentPadding = PaddingValues(bottom = 32.dp),
+        focusItemCount = episodes.size,
+        itemKeys = episodes.map { WjzFocusItemKey("Long:${it.epId}") },
+        focusColumnCount = columnCount,
+        enableRowHorizontalWrap = expanded
     ) {
         item(span = { GridItemSpan(columnCount) }) {
             Text(
@@ -426,10 +410,7 @@ private fun CheeseEpisodeList(
             VideoPartButton(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .focusRequester(episodeFocusRequesters[index])
-                    .focusProperties {
-                        left = if (introFocusEnabled) leftFocusRequester else FocusRequester.Cancel
-                    },
+                    .then(rememberTvGridFocusModifier(index)),
                 index = episode.index.takeIf { it > 0 } ?: (index + 1),
                 title = episode.title,
                 duration = duration,
@@ -451,7 +432,6 @@ private fun CheeseUpButton(
             .clip(RectangleShape)
             .background(Color.Transparent)
             .focusedBorder(RectangleShape)
-            .focusable()
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),

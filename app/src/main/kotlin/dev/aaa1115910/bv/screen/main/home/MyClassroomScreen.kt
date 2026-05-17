@@ -19,9 +19,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.biliapi.entity.cheese.PurchasedCourse
 import dev.aaa1115910.bv.activities.video.CheeseSeasonActivity
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
-import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
+import dev.aaa1115910.bv.component.rememberTvGridFocusTarget
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.viewmodel.user.MyClassroomViewModel
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -66,9 +67,11 @@ fun MyClassroomScreen(
         state = gridState,
         columns = GridCells.Fixed(4),
         contentPadding = PaddingValues(24.dp),
+        nodeIdPrefix = "my-classroom/courses",
         verticalArrangement = Arrangement.spacedBy(24.dp),
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         focusItemCount = courses.size,
+        focusItemKeys = courses.map { WjzFocusItemKey("Long:${it.seasonId}") },
         focusColumnCount = 4,
         entryFocusRequester = contentEntryFocusRequester,
         upFocusRequester = tabFocusRequester,
@@ -77,7 +80,7 @@ fun MyClassroomScreen(
         if (courses.isNotEmpty()) {
             itemsIndexed(courses, key = { _, course -> course.seasonId }) { index, course ->
                 SmallVideoCard(
-                    frameModifier = rememberTvGridFocusModifier(index),
+                    focusTarget = rememberTvGridFocusTarget(index),
                     uiState = cardUiStateFor(-course.seasonId),
                     data = course.toVideoCardData(),
                     titleMaxLines = 3,

@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -59,6 +58,7 @@ import dev.aaa1115910.biliapi.entity.pgc.index.Style
 import dev.aaa1115910.biliapi.entity.pgc.index.Year
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.ifElse
+import dev.aaa1115910.bv.tv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.getDisplayName
 
@@ -199,7 +199,7 @@ private fun IndexFilterContent(
     content: @Composable ColumnScope.() -> Unit
 ) {
     if (show) {
-        AlertDialog(
+        TvAlertDialog(
             modifier = modifier
                 .fillMaxWidth(0.8f),
             onDismissRequest = onDismissRequest,

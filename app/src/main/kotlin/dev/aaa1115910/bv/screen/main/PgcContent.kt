@@ -23,9 +23,14 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.component.PgcTopNavItem
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.PersistLazyListViewportEffect
+import dev.aaa1115910.bv.component.wjzfocus.rememberWjzFocusRequester
 import dev.aaa1115910.bv.component.rememberRestoredLazyListState
 import dev.aaa1115910.bv.screen.main.pgc.AnimeContent
 import dev.aaa1115910.bv.screen.main.pgc.DocumentaryContent
@@ -34,7 +39,7 @@ import dev.aaa1115910.bv.screen.main.pgc.MovieContent
 import dev.aaa1115910.bv.screen.main.pgc.TvContent
 import dev.aaa1115910.bv.screen.main.pgc.VarietyContent
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
-import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
+import dev.aaa1115910.bv.screen.main.common.mainContentEntryAdapter
 import dev.aaa1115910.bv.screen.main.runtime.ContentRuntimeState
 import dev.aaa1115910.bv.screen.main.runtime.runtimeContainerInputEnabled
 import dev.aaa1115910.bv.viewmodel.main.PgcContentViewModel
@@ -47,79 +52,51 @@ import dev.aaa1115910.bv.viewmodel.pgc.PgcVarietyViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcViewModel
 import org.koin.androidx.compose.koinViewModel
 
+private val PgcTopNavNodeId = WjzFocusNodeId("main/pgc/top-nav")
+
 @Composable
 fun PgcContent(
-    navFocusRequester: FocusRequester,
-    drawerFocusRequester: FocusRequester,
     topBarLeadingContent: @Composable () -> Unit,
-    pendingDrawerEntryRequest: MainContentEntryRequest? = null,
-    onDrawerEntryConsumed: (Long) -> Unit = {},
+    entryRequest: MainContentEntryRequest? = null,
+    onEntryRequestReady: (Long) -> Unit = {},
+    onEntryRequestConsumed: (Long) -> Unit = {},
+    onEntryRequestRejected: (Long) -> Unit = {},
     onDefaultFocusReady: (() -> Unit)? = null,
-    active: Boolean = true,
-    pgcContentViewModel: PgcContentViewModel = koinViewModel()
+    pgcContentViewModel: PgcContentViewModel = koinViewModel(),
+    active: Boolean = true
 ) {
     val focusedTab = pgcContentViewModel.focusedTab
     val activeTab = pgcContentViewModel.activeTab
-    val contentEntryFocusRequester = remember { FocusRequester() }
-    var topNavReadyTab by remember { mutableStateOf<PgcTopNavItem?>(null) }
+    val topNavContentFocusRequester = rememberWjzFocusRequester()
     var contentReadyTab by remember { mutableStateOf<PgcTopNavItem?>(null) }
     var previousActiveTab by remember { mutableStateOf<PgcTopNavItem?>(null) }
+    val focusCoordinator = LocalWjzFocusCoordinator.current
+    val focusScopeId = LocalWjzFocusScopeId.current
+    val entryAdapter = mainContentEntryAdapter(
+        entryRequest = entryRequest,
+        active = active,
+        onDefaultFocusReady = onDefaultFocusReady,
+        onEntryRequestReady = onEntryRequestReady,
+        onEntryRequestConsumed = onEntryRequestConsumed,
+        onEntryRequestRejected = onEntryRequestRejected
+    )
+    val entryFocusRequest = entryAdapter.topNavEntryFocusRequest
 
-    val desiredDrawerEntryTab = remember(pendingDrawerEntryRequest?.id) {
-        when (pendingDrawerEntryRequest?.target) {
-            MainContentFocusTarget.LeftEntry -> PgcTopNavItem.entries.firstOrNull()
-            MainContentFocusTarget.RightEntry -> PgcTopNavItem.entries.lastOrNull()
-            null -> null
+    fun requestTopNavFocus(): Boolean {
+        val coordinator = focusCoordinator
+        if (coordinator != null) {
+            return coordinator.enqueueRequestFocus(
+                nodeId = PgcTopNavNodeId,
+                layer = WjzFocusLayer.Content,
+                scopeId = focusScopeId
+            )
         }
-    }
-
-    LaunchedEffect(pendingDrawerEntryRequest?.id, desiredDrawerEntryTab, active) {
-        if (!active) return@LaunchedEffect
-        val desired = desiredDrawerEntryTab ?: return@LaunchedEffect
-        if (topNavReadyTab != desired) {
-            topNavReadyTab = null
-        }
-    }
-
-    LaunchedEffect(
-        pendingDrawerEntryRequest?.id,
-        desiredDrawerEntryTab,
-        activeTab,
-        focusedTab,
-        active
-    ) {
-        if (!active) return@LaunchedEffect
-        val desired = desiredDrawerEntryTab ?: return@LaunchedEffect
-        if (activeTab != desired || focusedTab != desired) {
-            pgcContentViewModel.onTabClicked(desired)
-        }
-    }
-
-    LaunchedEffect(
-        pendingDrawerEntryRequest?.id,
-        desiredDrawerEntryTab,
-        activeTab,
-        focusedTab,
-        topNavReadyTab,
-        active
-    ) {
-        if (!active) return@LaunchedEffect
-        val request = pendingDrawerEntryRequest ?: return@LaunchedEffect
-        val desired = desiredDrawerEntryTab ?: return@LaunchedEffect
-
-        if (activeTab == desired &&
-            focusedTab == desired &&
-            topNavReadyTab == desired
-        ) {
-            navFocusRequester.requestFocus()
-            onDrawerEntryConsumed(request.id)
-        }
+        return false
     }
 
     val handleDefaultFocusReady: (Any) -> Unit = handleDefaultFocusReady@{ readyKey ->
         if (!active) return@handleDefaultFocusReady
-        topNavReadyTab = readyKey as? PgcTopNavItem
-        onDefaultFocusReady?.invoke()
+        entryAdapter.onDefaultFocusReady(entryFocusRequest)
     }
 
     LaunchedEffect(active, activeTab) {
@@ -151,45 +128,54 @@ fun PgcContent(
     Scaffold(
         modifier = Modifier,
         topBar = {
-            TopNav(
-                modifier = Modifier.padding(end = 80.dp),
-                leadingContent = topBarLeadingContent,
-                items = PgcTopNavItem.entries,
-                selectedItem = focusedTab,
-                entryFocusItem = desiredDrawerEntryTab,
-                defaultFocusRequester = navFocusRequester,
-                onDefaultFocusReady = handleDefaultFocusReady,
-                contentFocusRequester = contentEntryFocusRequester,
-                contentFocusReadyKey = contentReadyTab,
-                onContentFocusRequested = { nav ->
-                    val target = nav as PgcTopNavItem
-                    if (target != activeTab) {
+            key(entryFocusRequest?.id) {
+                TopNav(
+                    modifier = Modifier.padding(end = 80.dp),
+                    leadingContent = topBarLeadingContent,
+                    items = PgcTopNavItem.entries,
+                    selectedItem = focusedTab,
+                    entryFocusTarget = entryAdapter.topNavEntryFocusTarget,
+                    onDefaultFocusReady = handleDefaultFocusReady,
+                    onEntryFocusResolution = { resolution ->
+                        entryAdapter.onTopNavEntryFocusResolution(entryFocusRequest, resolution)
+                    },
+                    onEntryFocusConsumed = { consumed ->
+                        entryAdapter.onTopNavEntryFocusConsumed(entryFocusRequest, consumed)
+                    },
+                    contentFocusRequester = topNavContentFocusRequester,
+                    contentFocusReadyKey = contentReadyTab,
+                    focusNodeId = PgcTopNavNodeId,
+                    onContentFocusRequested = { nav ->
+                        val target = nav as PgcTopNavItem
+                        if (target != activeTab) {
+                            pgcContentViewModel.onTabClicked(target)
+                        }
+                    },
+                    onSelectedChanged = { nav ->
+                        pgcContentViewModel.onTabFocused(nav as PgcTopNavItem)
+                    },
+                    onClick = { nav ->
+                        val target = nav as PgcTopNavItem
+                        val shouldReload = target == activeTab
                         pgcContentViewModel.onTabClicked(target)
-                    }
-                },
-                onSelectedChanged = { nav ->
-                    pgcContentViewModel.onTabFocused(nav as PgcTopNavItem)
-                },
-                onClick = { nav ->
-                    val target = nav as PgcTopNavItem
-                    val shouldReload = target == activeTab
-                    pgcContentViewModel.onTabClicked(target)
-                    if (shouldReload) {
-                        pgcContentViewModel.requestUserRefresh(target)
-                    }
-                },
-                backFocusEnabled = active
-            )
+                        if (shouldReload) {
+                            pgcContentViewModel.requestUserRefresh(target)
+                        }
+                    },
+                    focusLayer = WjzFocusLayer.Content,
+                    backFocusEnabled = active
+                )
+            }
         }
     ) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .padding(innerPadding)
+        Box(
+            modifier = Modifier
+                .padding(innerPadding)
                 .onPreviewKeyEvent {
                     if (it.key == Key.Menu) {
                         if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
                         pgcContentViewModel.requestUserRefresh(activeTab)
-                        navFocusRequester.requestFocus()
+                        requestTopNavFocus()
                         return@onPreviewKeyEvent true
                     }
                     false
@@ -229,8 +215,8 @@ fun PgcContent(
                             PgcActiveTabContent(
                                 tab = tab,
                                 pgcContentViewModel = pgcContentViewModel,
-                                contentEntryFocusRequester = contentEntryFocusRequester,
-                                tabFocusRequester = navFocusRequester,
+                                contentEntryFocusRequester = topNavContentFocusRequester,
+                                tabFocusRequester = null,
                                 onContentEntryReady = {
                                     if (tabActive) contentReadyTab = tab
                                 },
@@ -253,13 +239,13 @@ private fun PgcTabShell() {
 private fun PgcActiveTabContent(
     tab: PgcTopNavItem,
     pgcContentViewModel: PgcContentViewModel,
-    contentEntryFocusRequester: FocusRequester,
-    tabFocusRequester: FocusRequester,
+    contentEntryFocusRequester: FocusRequester?,
+    tabFocusRequester: FocusRequester?,
     onContentEntryReady: () -> Unit,
     active: Boolean
 ) {
-    val activeContentEntryFocusRequester = contentEntryFocusRequester.takeIf { active }
-    val activeTabFocusRequester = tabFocusRequester.takeIf { active }
+    val activeContentEntryFocusRequester = contentEntryFocusRequester?.takeIf { active }
+    val activeTabFocusRequester = tabFocusRequester?.takeIf { active }
 
     when (tab) {
         PgcTopNavItem.Anime -> {

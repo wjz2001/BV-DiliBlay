@@ -33,12 +33,18 @@ import dev.aaa1115910.bv.component.controllers.playermenu.component.MenuListItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.RadioMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.component.VideoTransformMenuList
 import dev.aaa1115910.bv.component.ifElse
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusNode
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.entity.VideoFlip
 import dev.aaa1115910.bv.entity.VideoRotation
+
+private val PlayerPictureMenuColumnNodeId = WjzFocusNodeId("player/menu/picture")
 
 @Composable
 fun PictureMenuList(
@@ -62,10 +68,17 @@ fun PictureMenuList(
     onFocusStateChange: (MenuFocusState) -> Unit
 ) {
     val context = LocalContext.current
+    val focusCoordinator = LocalWjzFocusCoordinator.current
     val focusState = LocalMenuFocusStateData.current
     val restorerFocusRequester = remember { FocusRequester() }
 
     val focusRequester = remember { FocusRequester() }
+    fun requestMenuColumnFocus() {
+        focusCoordinator?.requestFocus(
+            nodeId = PlayerPictureMenuColumnNodeId,
+            layer = WjzFocusLayer.Overlay
+        )
+    }
     var selectedPictureMenuItem by remember { mutableStateOf(VideoPlayerPictureMenuItem.Resolution) }
     val qualityIdList = remember(availableQualityIds) {
         availableQualityIds
@@ -96,7 +109,7 @@ fun PictureMenuList(
                     onSelectedChanged = { onResolutionChange(qualityIdList[it]) },
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)
-                        focusRequester.requestFocus()
+                        requestMenuColumnFocus()
                     }
                 )
 
@@ -109,7 +122,7 @@ fun PictureMenuList(
                     onVideoFlipChange = onVideoFlipChange,
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)
-                        focusRequester.requestFocus()
+                        requestMenuColumnFocus()
                     }
                 )
 
@@ -120,7 +133,7 @@ fun PictureMenuList(
                     onSelectedChanged = { onCodecChange(availableVideoCodec[it]) },
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)
-                        focusRequester.requestFocus()
+                        requestMenuColumnFocus()
                     }
                 )
 
@@ -131,7 +144,7 @@ fun PictureMenuList(
                     onSelectedChanged = { onAspectRatioChange(VideoAspectRatio.entries[it]) },
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)
-                        focusRequester.requestFocus()
+                        requestMenuColumnFocus()
                     }
                 )
 
@@ -142,7 +155,7 @@ fun PictureMenuList(
                     onSelectedChanged = { onAudioChange(audioList[it]) },
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)
-                        focusRequester.requestFocus()
+                        requestMenuColumnFocus()
                     }
                 )
             }
@@ -150,7 +163,11 @@ fun PictureMenuList(
 
         LazyColumn(
             modifier = Modifier
-                .focusRequester(focusRequester)
+                .wjzFocusNode(
+                    nodeId = PlayerPictureMenuColumnNodeId,
+                    requester = focusRequester,
+                    layer = WjzFocusLayer.Overlay
+                )
                 .padding(horizontal = 8.dp)
                 .onPreviewKeyEvent {
                     if (it.type == KeyEventType.KeyUp) {

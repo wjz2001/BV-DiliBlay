@@ -27,13 +27,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
@@ -41,11 +38,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -91,20 +83,12 @@ fun PgcScaffold(
     featureButtons: (@Composable () -> Unit)? = null
 ) {
     val context = LocalContext.current
-    val internalCarouselFocusRequester = remember { FocusRequester() }
-    val carouselFocusRequester = contentEntryFocusRequester ?: internalCarouselFocusRequester
 
     val carouselItems by pgcViewModel.carouselItems.collectAsStateWithLifecycle()
     val pgcFeeds by pgcViewModel.feedItems.collectAsStateWithLifecycle()
 
     LazyColumn(
-        modifier = modifier.onPreviewKeyEvent {
-            if (it.key == Key.DirectionUp && it.type == KeyEventType.KeyUp) {
-                tabFocusRequester?.requestFocus()
-                return@onPreviewKeyEvent tabFocusRequester != null
-            }
-            false
-        },
+        modifier = modifier,
         state = lazyListState
     ) {
         item {
@@ -118,12 +102,8 @@ fun PgcScaffold(
                     modifier = Modifier
                         .width(880.dp)
                         .padding(32.dp, 0.dp)
-                        .focusRequester(carouselFocusRequester)
                         .onGloballyPositioned {
                             onContentEntryReady()
-                        }
-                        .focusProperties {
-                            up = tabFocusRequester ?: FocusRequester.Default
                         },
                     data = carouselItems,
                     onClick = { item ->

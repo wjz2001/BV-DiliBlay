@@ -13,7 +13,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Box
@@ -25,11 +24,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.VerticalDivider
@@ -48,10 +46,6 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusDirection
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -63,7 +57,6 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -94,9 +87,20 @@ import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.settings.LogsActivity
 import dev.aaa1115910.bv.activities.settings.SpeedTestActivity
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusHost
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusEntryId
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusEntryResolution
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusExitRequest
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusHostExit
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusItemKey
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.component.wjzfocus.WjzLazyFocusRestorerHost
 import dev.aaa1115910.bv.component.BvTabOrderListContent
 import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.component.HomeTopNavRefreshSelectDialog
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.component.RadioMenuSelectDialog
 import dev.aaa1115910.bv.component.RadioMenuSelectListContent
 import dev.aaa1115910.bv.component.SettingsBottomIndicator
@@ -105,12 +109,14 @@ import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
 import dev.aaa1115910.bv.component.settings.SettingsNavigationListItem
 import dev.aaa1115910.bv.component.settings.actionEntry
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoCodec
 import dev.aaa1115910.bv.network.HttpServer
 import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
 import dev.aaa1115910.bv.screen.settings.content.BlockSetting
+import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.ui.theme.ThemeMode
@@ -119,11 +125,9 @@ import dev.aaa1115910.bv.util.CodecMode
 import dev.aaa1115910.bv.util.CodecType
 import dev.aaa1115910.bv.util.CodecUtil
 import dev.aaa1115910.bv.util.Prefs
-import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.viewmodel.settings.LogsViewModel
 import dev.aaa1115910.bv.viewmodel.settings.SettingsStorageViewModel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import java.net.Inet4Address
@@ -152,6 +156,43 @@ private enum class SettingsMenuNavItem(private val strRes: Int) {
 }
 
 private const val AppVersionEntryId = "app_version"
+private val SettingsFocusScopeId = WjzFocusScopeId("settings/screen")
+private val SettingsCategoryScopeId = WjzFocusScopeId("settings/category")
+private val SettingsItemScopeId = WjzFocusScopeId("settings/item")
+private val SettingsDetailScopeId = WjzFocusScopeId("settings/detail")
+private val SettingsItemColumnNodeId = WjzFocusNodeId("settings/item/current")
+private val SettingsDetailColumnNodeId = WjzFocusNodeId("settings/detail/current")
+private val SettingsCategoryEntryId = WjzFocusEntryId("settings/category")
+private val SettingsItemEntryId = WjzFocusEntryId("settings/item")
+private val SettingsDetailEntryId = WjzFocusEntryId("settings/detail")
+private const val SettingsItemEmptyKey = "settings/item/empty"
+private val SettingsStorageImageCacheNodeId =
+    WjzFocusNodeId("settings/detail/storage_management/action/image_cache")
+private val SettingsStorageOthersCacheNodeId =
+    WjzFocusNodeId("settings/detail/storage_management/action/others_cache")
+private val SettingsStorageCrashLogsNodeId =
+    WjzFocusNodeId("settings/detail/storage_management/action/crash_logs")
+private val SettingsCreateLogsOpenNodeId =
+    WjzFocusNodeId("settings/detail/create_logs/action/open")
+private val SettingsProxyDialogScopeId = WjzFocusScopeId("settings/dialog/proxy_server")
+private val SettingsProxyDialogContainerNodeId =
+    WjzFocusNodeId("settings/dialog/proxy_server/container")
+private val SettingsProxyDialogInputNodeId =
+    WjzFocusNodeId("settings/dialog/proxy_server/input")
+private val SettingsProxyDialogConfirmNodeId =
+    WjzFocusNodeId("settings/dialog/proxy_server/confirm")
+private val SettingsProxyDialogCancelNodeId =
+    WjzFocusNodeId("settings/dialog/proxy_server/cancel")
+private val SettingsRadioDialogScopeId = WjzFocusScopeId("settings/dialog/radio_menu")
+private val SettingsRadioDialogContainerNodeId =
+    WjzFocusNodeId("settings/dialog/radio_menu/container")
+private val SettingsHomeTopNavRefreshDialogScopeId =
+    WjzFocusScopeId("settings/dialog/home_top_nav_refresh")
+private val SettingsHomeTopNavRefreshDialogContainerNodeId =
+    WjzFocusNodeId("settings/dialog/home_top_nav_refresh/container")
+
+private val SettingsCategoryItems = SettingsMenuNavItem.entries
+    .filterNot { it == SettingsMenuNavItem.Info }
 
 internal data class SettingsEntry(
     val id: String,
@@ -160,20 +201,18 @@ internal data class SettingsEntry(
     val canFocusDetail: Boolean = true,
     val autoScrollableDetail: Boolean = true,
     val showSupportTextInItem: Boolean = true,
-    val detailKeyEvent: ((KeyEvent) -> Boolean)? = null,
     val itemContent: @Composable (
         modifier: Modifier,
         colors: ListItemColors,
-        contentColor: Color?,
-        onFocus: () -> Unit
-    ) -> Unit = { modifier, colors, contentColor, onFocus ->
+        contentColor: Color?
+    ) -> Unit = { modifier, colors, contentColor ->
         SettingsNavigationListItem(
             modifier = modifier,
             title = title,
             description = if (showSupportTextInItem) supportText else "",
             colors = colors,
             contentColor = contentColor,
-            onFocus = onFocus
+            onFocus = {}
         )
     },
     val detailContent: @Composable (focused: Boolean) -> Unit
@@ -193,11 +232,17 @@ fun SettingsScreen(
             modifier = modifier,
             containerColor = Color.Transparent,
         ) { innerPadding ->
-            SettingsMotionHost(
+            WjzFocusHost(
                 modifier = Modifier
                     .padding(innerPadding)
-                    .fillMaxSize()
-            )
+                    .fillMaxSize(),
+                layer = WjzFocusLayer.Content,
+                scopeId = SettingsFocusScopeId
+            ) {
+                SettingsMotionHost(
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
     }
 }
@@ -407,13 +452,47 @@ private fun SettingsColumns(
     motion: SettingsMotionController,
     contentColor: Color
 ) {
-    val categoryFocusRequester = remember { FocusRequester() }
-    val itemFocusRequester = remember { FocusRequester() }
-    val detailFocusRequester = remember { FocusRequester() }
-    val scope = rememberCoroutineScope()
+    val focusCoordinator = LocalWjzFocusCoordinator.current
+    fun restoreColumnFocus(
+        scopeId: WjzFocusScopeId
+    ) {
+        focusCoordinator?.enqueueRestoreLayer(
+            layer = WjzFocusLayer.Content,
+            scopeId = scopeId
+        )
+    }
+    fun restoreCategoryFocus(category: SettingsMenuNavItem) {
+        onCategoryFocused(category)
+        restoreColumnFocus(SettingsCategoryScopeId)
+    }
+    val requestCategoryFocus: () -> Unit = {
+        restoreColumnFocus(SettingsCategoryScopeId)
+    }
+    val requestItemFocus: () -> Unit = {
+        val targetItemId = currentItem?.id ?: currentItems.firstOrNull()?.id
+        if (targetItemId == null) {
+            restoreColumnFocus(SettingsItemScopeId)
+        } else {
+            focusCoordinator?.enqueueLazyRestore(
+                nodeId = settingsItemNodeId(targetItemId),
+                itemKey = WjzFocusItemKey(targetItemId),
+                layer = WjzFocusLayer.Content,
+                scopeId = SettingsItemScopeId,
+                restorerId = "settings/item-column/lazy-restorer",
+                listId = "settings/item-column/lazy-restorer"
+            )
+        }
+        Unit
+    }
+    val requestDetailFocus: () -> Unit = {
+        restoreColumnFocus(SettingsDetailScopeId)
+    }
 
-    LaunchedEffect(Unit) {
-        categoryFocusRequester.requestFocus(scope)
+    LaunchedEffect(focusCoordinator) {
+        focusCoordinator?.enqueueRestoreLayer(
+            layer = WjzFocusLayer.Content,
+            scopeId = SettingsCategoryScopeId
+        )
     }
 
     SettingsMotionColumnsLayout(
@@ -423,42 +502,69 @@ private fun SettingsColumns(
         contentActivated = contentActivated,
         onContentActivated = onContentActivated,
         categoryColumn = { columnModifier ->
-            SettingsCategoryColumn(
+            SettingsCategoryBlock(
                 modifier = columnModifier,
-                focusRequester = categoryFocusRequester,
                 selectedCategory = currentCategory,
                 focused = focusColumn == SettingsColumn.Category,
                 onCategoryFocused = onCategoryFocused,
-                onRight = { itemFocusRequester.requestFocus(scope) }
+                onRight = requestItemFocus,
+                onUp = {
+                    restoreCategoryFocus(SettingsCategoryItems.last())
+                },
+                onDown = {
+                    restoreCategoryFocus(SettingsCategoryItems.first())
+                }
             )
         },
         itemColumn = { columnModifier ->
-            SettingsItemColumn(
+            SettingsItemBlock(
                 modifier = columnModifier,
-                focusRequester = itemFocusRequester,
                 items = currentItems,
                 selectedItem = currentItem,
                 focused = focusColumn == SettingsColumn.Item,
                 activePathEnabled = focusColumn == SettingsColumn.Detail,
                 onItemFocused = onItemFocused,
-                onLeft = { categoryFocusRequester.requestFocus(scope) },
+                onLeft = requestCategoryFocus,
                 onRight = {
                     if (currentItem?.canRequestDetailFocus() == true) {
                         onDetailFocused()
-                        detailFocusRequester.requestFocus(scope)
+                        requestDetailFocus()
+                    }
+                },
+                onUp = {
+                    currentItems.lastOrNull()?.let { item ->
+                        focusCoordinator?.enqueueLazyRestore(
+                            nodeId = settingsItemNodeId(item.id),
+                            itemKey = WjzFocusItemKey(item.id),
+                            layer = WjzFocusLayer.Content,
+                            scopeId = SettingsItemScopeId,
+                            restorerId = "settings/item-column/lazy-restorer",
+                            listId = "settings/item-column/lazy-restorer"
+                        )
+                    }
+                },
+                onDown = {
+                    currentItems.firstOrNull()?.let { item ->
+                        focusCoordinator?.enqueueLazyRestore(
+                            nodeId = settingsItemNodeId(item.id),
+                            itemKey = WjzFocusItemKey(item.id),
+                            layer = WjzFocusLayer.Content,
+                            scopeId = SettingsItemScopeId,
+                            restorerId = "settings/item-column/lazy-restorer",
+                            listId = "settings/item-column/lazy-restorer"
+                        )
                     }
                 }
             )
         },
         detailColumn = { columnModifier ->
             if (currentDetailItem != null) {
-                SettingsDetailColumn(
+                SettingsDetailBlock(
                     modifier = columnModifier,
-                    focusRequester = detailFocusRequester,
                     item = currentDetailItem,
                     focused = focusColumn == SettingsColumn.Detail,
                     onFocused = onDetailFocused,
-                    onLeft = { itemFocusRequester.requestFocus(scope) }
+                    onLeft = requestItemFocus
                 )
             }
         }
@@ -466,90 +572,207 @@ private fun SettingsColumns(
 }
 
 @Composable
-private fun SettingsCategoryColumn(
+private fun SettingsCategoryBlock(
     modifier: Modifier = Modifier,
-    focusRequester: FocusRequester,
     selectedCategory: SettingsMenuNavItem,
     focused: Boolean,
     onCategoryFocused: (SettingsMenuNavItem) -> Unit,
-    onRight: () -> Unit
+    onRight: () -> Unit,
+    onUp: () -> Unit,
+    onDown: () -> Unit
+) {
+    val coordinator = LocalWjzFocusCoordinator.current
+        ?: error("SettingsCategoryBlock requires WjzFocusCoordinator")
+    val content: @Composable () -> Unit = {
+        SettingsCategoryColumn(
+            modifier = Modifier,
+            focusScopeId = SettingsCategoryScopeId,
+            selectedCategory = selectedCategory,
+            focused = focused,
+            onCategoryFocused = onCategoryFocused
+        )
+    }
+    WjzFocusHost(
+        modifier = modifier,
+        coordinator = coordinator,
+        layer = WjzFocusLayer.Content,
+        scopeId = SettingsCategoryScopeId,
+        exits = listOf(
+            WjzFocusHostExit.cancel(FocusDirection.Left),
+            WjzFocusHostExit(FocusDirection.Right, SettingsItemEntryId),
+            WjzFocusHostExit(FocusDirection.Up, SettingsCategoryEntryId),
+            WjzFocusHostExit(FocusDirection.Down, SettingsCategoryEntryId)
+        ),
+        onHostExit = { request ->
+            when (request.direction) {
+                FocusDirection.Right -> {
+                    onRight()
+                    settingsPending(request)
+                }
+
+                FocusDirection.Up -> {
+                    onUp()
+                    WjzFocusEntryResolution.Cancel
+                }
+
+                FocusDirection.Down -> {
+                    onDown()
+                    WjzFocusEntryResolution.Cancel
+                }
+
+                else -> WjzFocusEntryResolution.Reject
+            }
+        }
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun SettingsItemBlock(
+    modifier: Modifier = Modifier,
+    items: List<SettingsEntry>,
+    selectedItem: SettingsEntry?,
+    focused: Boolean,
+    activePathEnabled: Boolean,
+    onItemFocused: (SettingsEntry) -> Unit,
+    onLeft: () -> Unit,
+    onRight: () -> Unit,
+    onUp: () -> Unit,
+    onDown: () -> Unit
+) {
+    val coordinator = LocalWjzFocusCoordinator.current
+        ?: error("SettingsItemBlock requires WjzFocusCoordinator")
+    val content: @Composable () -> Unit = {
+        SettingsItemColumn(
+            modifier = Modifier,
+            focusNodeId = SettingsItemColumnNodeId,
+            focusScopeId = SettingsItemScopeId,
+            items = items,
+            selectedItem = selectedItem,
+            focused = focused,
+            activePathEnabled = activePathEnabled,
+            onItemFocused = onItemFocused
+        )
+    }
+    WjzFocusHost(
+        modifier = modifier,
+        coordinator = coordinator,
+        layer = WjzFocusLayer.Content,
+        scopeId = SettingsItemScopeId,
+        exits = listOf(
+            WjzFocusHostExit(FocusDirection.Left, SettingsCategoryEntryId),
+            WjzFocusHostExit(FocusDirection.Right, SettingsDetailEntryId),
+            WjzFocusHostExit(FocusDirection.Up, SettingsItemEntryId),
+            WjzFocusHostExit(FocusDirection.Down, SettingsItemEntryId)
+        ),
+        onHostExit = { request ->
+            when (request.direction) {
+                FocusDirection.Left -> {
+                    onLeft()
+                    settingsPending(request)
+                }
+
+                FocusDirection.Right -> {
+                    if (selectedItem?.canRequestDetailFocus() == true) {
+                        onRight()
+                        settingsPending(request)
+                    } else {
+                        WjzFocusEntryResolution.Cancel
+                    }
+                }
+
+                FocusDirection.Up -> {
+                    onUp()
+                    WjzFocusEntryResolution.Cancel
+                }
+
+                FocusDirection.Down -> {
+                    onDown()
+                    WjzFocusEntryResolution.Cancel
+                }
+
+                else -> WjzFocusEntryResolution.Reject
+            }
+        }
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun SettingsDetailBlock(
+    modifier: Modifier = Modifier,
+    item: SettingsEntry,
+    focused: Boolean,
+    onFocused: () -> Unit,
+    onLeft: () -> Unit
+) {
+    val coordinator = LocalWjzFocusCoordinator.current
+        ?: error("SettingsDetailBlock requires WjzFocusCoordinator")
+    val content: @Composable () -> Unit = {
+        SettingsDetailColumn(
+            modifier = Modifier,
+            focusNodeId = SettingsDetailColumnNodeId,
+            focusScopeId = SettingsDetailScopeId,
+            item = item,
+            focused = focused,
+            onFocused = onFocused
+        )
+    }
+    WjzFocusHost(
+        modifier = modifier,
+        coordinator = coordinator,
+        layer = WjzFocusLayer.Content,
+        scopeId = SettingsDetailScopeId,
+        exits = listOf(
+            WjzFocusHostExit(FocusDirection.Left, SettingsItemEntryId),
+            WjzFocusHostExit.cancel(FocusDirection.Up),
+            WjzFocusHostExit.cancel(FocusDirection.Down),
+            WjzFocusHostExit.cancel(FocusDirection.Right)
+        ),
+        onHostExit = { request ->
+            when (request.direction) {
+                FocusDirection.Left -> {
+                    onLeft()
+                    settingsPending(request)
+                }
+
+                else -> WjzFocusEntryResolution.Reject
+            }
+        }
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun SettingsCategoryColumn(
+    modifier: Modifier = Modifier,
+    focusScopeId: WjzFocusScopeId,
+    selectedCategory: SettingsMenuNavItem,
+    focused: Boolean,
+    onCategoryFocused: (SettingsMenuNavItem) -> Unit
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val categories = remember {
-        SettingsMenuNavItem.entries.filterNot { it == SettingsMenuNavItem.Info }
-    }
-    val itemFocusRequesters = remember(categories) {
-        categories.associateWith { FocusRequester() }
-    }
+    val categories = SettingsCategoryItems
 
     Column(
         modifier = modifier
-            .padding(start = 32.dp, top = 32.dp, end = 24.dp, bottom = 32.dp)
-            .onPreviewKeyEvent {
-                when (it.key) {
-                    Key.DirectionLeft -> true
-
-                    Key.DirectionRight -> {
-                        if (it.type == KeyEventType.KeyDown) onRight()
-                        true
-                    }
-
-                    else -> false
-                }
-            },
+            .padding(start = 32.dp, top = 32.dp, end = 24.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.SpaceEvenly
     ) {
         categories
-            .forEachIndexed { index, category ->
+            .forEach { category ->
                 val selected = category == selectedCategory
                 val activePath = selected && !focused
-                val previousFocusRequester =
-                    if (categories.size == 1) {
-                        focusRequester
-                    } else {
-                        itemFocusRequesters[categories[(index - 1 + categories.size) % categories.size]]
-                    }
-                val nextFocusRequester =
-                    if (categories.size == 1) {
-                        focusRequester
-                    } else {
-                        itemFocusRequesters[categories[(index + 1) % categories.size]]
-                    }
                 val itemModifier = Modifier
-                    .then(
-                        if (selected) {
-                            Modifier.focusRequester(focusRequester)
-                        } else {
-                            Modifier.focusRequester(itemFocusRequesters.getValue(category))
-                        }
+                    .wjzFocusable(
+                        nodeId = settingsCategoryNodeId(category),
+                        layer = WjzFocusLayer.Content,
+                        scopeId = focusScopeId,
+                        fallback = selected
                     )
-                    .onPreviewKeyEvent {
-                        when (it.key) {
-                            Key.DirectionLeft -> true
-
-                            Key.DirectionRight -> {
-                                if (it.type == KeyEventType.KeyDown) onRight()
-                                true
-                            }
-
-                            Key.DirectionUp -> {
-                                if (it.type == KeyEventType.KeyDown) {
-                                    previousFocusRequester?.requestFocus(scope)
-                                }
-                                true
-                            }
-
-                            Key.DirectionDown -> {
-                                if (it.type == KeyEventType.KeyDown) {
-                                    nextFocusRequester?.requestFocus(scope)
-                                }
-                                true
-                            }
-
-                            else -> false
-                        }
-                    }
                     .settingsActivePathAnchor(
                         active = activePath,
                         anchorColor = C.primary
@@ -569,132 +792,125 @@ private fun SettingsCategoryColumn(
 @Composable
 private fun SettingsItemColumn(
     modifier: Modifier = Modifier,
-    focusRequester: FocusRequester,
+    focusNodeId: WjzFocusNodeId,
+    focusScopeId: WjzFocusScopeId,
     items: List<SettingsEntry>,
     selectedItem: SettingsEntry?,
     focused: Boolean,
     activePathEnabled: Boolean,
-    onItemFocused: (SettingsEntry) -> Unit,
-    onLeft: () -> Unit,
-    onRight: () -> Unit
+    onItemFocused: (SettingsEntry) -> Unit
 ) {
     val activePathAnchorColor = C.secondary
     val activePathContentColor = C.onSurfaceVariant
     val itemColors = settingsTransparentListItemColors()
-    val scope = rememberCoroutineScope()
-    val itemIds = items.map { it.id }
-    val itemFocusRequesters = remember(itemIds) {
-        itemIds.associateWith { FocusRequester() }
-    }
+    val lazyListState = rememberLazyListState()
+
+    WjzLazyFocusRestorerHost(
+        layer = WjzFocusLayer.Content,
+        scopeId = focusScopeId,
+        restorerId = "settings/item-column/lazy-restorer",
+        listId = "settings/item-column/lazy-restorer",
+        scrollToItem = { itemKey ->
+            val index = items.indexOfFirst { it.id == itemKey.value }
+            if (index >= 0) {
+                lazyListState.scrollToItem(index)
+            }
+        },
+        isItemVisible = { itemKey ->
+            lazyListState.layoutInfo.visibleItemsInfo.any { it.key == itemKey.value }
+        }
+    )
 
     LazyColumn(
         modifier = modifier
-            .padding(24.dp)
-            .onPreviewKeyEvent {
-                when (it.key) {
-                    Key.DirectionLeft -> {
-                        if (it.type == KeyEventType.KeyDown) onLeft()
-                        true
-                    }
-
-                    Key.DirectionRight -> {
-                        if (it.type == KeyEventType.KeyDown && selectedItem?.canRequestDetailFocus() == true) {
-                            onRight()
-                        }
-                        selectedItem != null
-                    }
-
-                    else -> false
-                }
-            },
+            .padding(24.dp),
+        state = lazyListState,
         contentPadding = PaddingValues(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items.forEachIndexed { index, item ->
+        if (items.isEmpty()) {
+            item(key = SettingsItemEmptyKey) {
+                Box(
+                    modifier = Modifier
+                        .size(1.dp)
+                        .wjzFocusable(
+                            nodeId = focusNodeId,
+                            layer = WjzFocusLayer.Content,
+                            scopeId = focusScopeId,
+                            fallback = true
+                        )
+                )
+            }
+        }
+        items.forEach { item ->
             val selected = item.id == selectedItem?.id
-            val useMainFocusRequester = selected || (selectedItem == null && index == 0)
             val activePath = selected && activePathEnabled
-            val previousFocusRequester =
-                if (items.size == 1) {
-                    focusRequester
-                } else {
-                    itemFocusRequesters[items[(index - 1 + items.size) % items.size].id]
-                }
-            val nextFocusRequester =
-                if (items.size == 1) {
-                    focusRequester
-                } else {
-                    itemFocusRequesters[items[(index + 1) % items.size].id]
-                }
-            val itemModifier = Modifier
-                .fillMaxWidth()
-                .then(
-                    if (useMainFocusRequester) {
-                        Modifier.focusRequester(focusRequester)
-                    } else {
-                        Modifier.focusRequester(itemFocusRequesters.getValue(item.id))
-                    }
-                )
-                .onPreviewKeyEvent {
-                    when (it.key) {
-                        Key.DirectionLeft -> {
-                            if (it.type == KeyEventType.KeyDown) onLeft()
-                            true
-                        }
-
-                        Key.DirectionRight -> {
-                            if (it.type == KeyEventType.KeyDown && item.canRequestDetailFocus()) {
-                                onRight()
-                            }
-                            true
-                        }
-
-                        Key.DirectionUp -> {
-                            if (it.type == KeyEventType.KeyDown) {
-                                previousFocusRequester?.requestFocus(scope)
-                            }
-                            true
-                        }
-
-                        Key.DirectionDown -> {
-                            if (it.type == KeyEventType.KeyDown) {
-                                nextFocusRequester?.requestFocus(scope)
-                            }
-                            true
-                        }
-
-                        else -> false
-                    }
-                }
-                .settingsActivePathAnchor(
-                    active = activePath,
-                    anchorColor = activePathAnchorColor
-                )
-
             item(key = item.id) {
+                val itemModifier = Modifier
+                    .fillMaxWidth()
+                    .wjzFocusable(
+                        nodeId = settingsItemNodeId(item.id),
+                        layer = WjzFocusLayer.Content,
+                        scopeId = focusScopeId,
+                        fallback = selected,
+                        onFocusChanged = { hasFocus ->
+                            if (hasFocus) onItemFocused(item)
+                        }
+                    )
+                    .settingsActivePathAnchor(
+                        active = activePath,
+                        anchorColor = activePathAnchorColor
+                    )
+
                 item.itemContent(
                     itemModifier,
                     itemColors,
                     if (activePath) activePathContentColor else null
-                ) { onItemFocused(item) }
+                )
             }
         }
     }
 }
 
+private fun settingsCategoryNodeId(category: SettingsMenuNavItem) =
+    WjzFocusNodeId("settings/category/${category.name}")
+
+private fun settingsItemNodeId(itemId: String) = WjzFocusNodeId("settings/item/$itemId")
+
+private fun settingsPending(
+    request: WjzFocusExitRequest
+): WjzFocusEntryResolution {
+    return WjzFocusEntryResolution.Pending(
+        entryId = request.targetEntryId,
+        layer = WjzFocusLayer.Content,
+        scopeId = null
+    )
+}
+
+private fun settingsRadioDialogItemNodeId(itemKey: Any) =
+    WjzFocusNodeId("settings/dialog/radio_menu/$itemKey")
+
+private fun settingsHomeTopNavRefreshDialogItemNodeId(item: HomeTopNavItem) =
+    WjzFocusNodeId("settings/dialog/home_top_nav_refresh/${item.name}")
+
+@Composable
+private fun rememberSettingsDialogDismiss(
+    onDismiss: () -> Unit
+): () -> Unit {
+    return remember(onDismiss) { onDismiss }
+}
+
 @Composable
 private fun SettingsDetailColumn(
     modifier: Modifier = Modifier,
-    focusRequester: FocusRequester,
+    focusNodeId: WjzFocusNodeId,
+    focusScopeId: WjzFocusScopeId,
     item: SettingsEntry,
     focused: Boolean,
-    onFocused: () -> Unit,
-    onLeft: () -> Unit
+    onFocused: () -> Unit
 ) {
     val scrollState = rememberScrollState()
-    val coroutineScope = rememberCoroutineScope()
-    val scrollStep = with(LocalDensity.current) { 72.dp.toPx() }
-    val useAutoScroll = item.autoScrollableDetail && item.detailKeyEvent == null
+    val useAutoScroll = item.autoScrollableDetail
     val hasAutoScrollOverflow by remember(useAutoScroll) {
         derivedStateOf { useAutoScroll && scrollState.maxValue > 0 }
     }
@@ -707,49 +923,14 @@ private fun SettingsDetailColumn(
             .then(
                 if (canFocusDetail) {
                     Modifier
-                        .focusProperties {
-                            onExit = {
-                                when (requestedFocusDirection) {
-                                    FocusDirection.Left -> {
-                                        onLeft()
-                                        cancelFocusChange()
-                                    }
-
-                                    FocusDirection.Up,
-                                    FocusDirection.Down,
-                                    FocusDirection.Right -> cancelFocusChange()
-
-                                    else -> Unit
-                                }
+                        .wjzFocusable(
+                            nodeId = focusNodeId,
+                            layer = WjzFocusLayer.Content,
+                            scopeId = focusScopeId,
+                            onFocusChanged = { hasFocus ->
+                                if (hasFocus) onFocused()
                             }
-                        }
-                        .focusRequester(focusRequester)
-                        .focusable()
-                        .onFocusChanged {
-                            if (it.hasFocus) onFocused()
-                        }
-                        .onPreviewKeyEvent {
-                            when {
-                                item.detailKeyEvent?.invoke(it) == true -> true
-                                useAutoScroll && hasAutoScrollOverflow && it.type == KeyEventType.KeyDown -> {
-                                    when (it.key) {
-                                        Key.DirectionUp -> {
-                                            coroutineScope.launch { scrollState.animateScrollBy(-scrollStep) }
-                                            true
-                                        }
-
-                                        Key.DirectionDown -> {
-                                            coroutineScope.launch { scrollState.animateScrollBy(scrollStep) }
-                                            true
-                                        }
-
-                                        else -> false
-                                    }
-                                }
-
-                                else -> false
-                            }
-                        }
+                        )
                 } else {
                     Modifier
                 }
@@ -768,7 +949,7 @@ private fun SettingsDetailColumn(
 }
 
 private fun SettingsEntry.canRequestDetailFocus() =
-    canFocusDetail || (autoScrollableDetail && detailKeyEvent == null)
+    canFocusDetail || autoScrollableDetail
 
 @Composable
 internal fun settingsTransparentListItemColors() = ListItemDefaults.colors(
@@ -1041,12 +1222,19 @@ private fun uiSettingsEntries(): List<SettingsEntry> {
     var showVipVideoArgueTip by remember { mutableStateOf(Prefs.showVipVideoArgueTip) }
     var showPersistentSeek by remember { mutableStateOf(Prefs.showPersistentSeek) }
     var focusAlwaysCenter by remember { mutableStateOf(Prefs.focusAlwaysCenter) }
+    val dismissHomeAutoRefreshTopNavDialog = rememberSettingsDialogDismiss(
+        onDismiss = { showHomeAutoRefreshTopNavDialog = false }
+    )
 
     HomeTopNavRefreshSelectDialog(
         show = showHomeAutoRefreshTopNavDialog,
         title = "主页页面切入自动刷新",
         initialSelectedItems = selectedHomeAutoRefreshTopNavItems,
-        onHideDialog = { showHomeAutoRefreshTopNavDialog = false },
+        onHideDialog = dismissHomeAutoRefreshTopNavDialog,
+        sourceScopeId = SettingsItemScopeId,
+        dialogScopeId = SettingsHomeTopNavRefreshDialogScopeId,
+        containerNodeId = SettingsHomeTopNavRefreshDialogContainerNodeId,
+        itemNodeId = { settingsHomeTopNavRefreshDialogItemNodeId(it) },
         onSubmit = {
             selectedHomeAutoRefreshTopNavItems = it
             Prefs.homeAutoRefreshTopNavItems = it
@@ -1235,6 +1423,7 @@ private fun otherSettingsEntries(): List<SettingsEntry> {
             supportText = logServerSupportText,
             actionText = "打开日志",
             serverQrImage = logsViewModel.serverQrImage,
+            actionNodeId = SettingsCreateLogsOpenNodeId,
             onClick = {
                 context.startActivity(Intent(context, LogsActivity::class.java))
             }
@@ -1262,10 +1451,6 @@ private fun deviceInfoEntry(): SettingsEntry {
     val screenInfo = rememberDeviceScreenInfo(context)
     val codecInfosResult = remember { runCatching { CodecUtil.parseCodecs() } }
     val codecInfos = codecInfosResult.getOrDefault(emptyList())
-    val scrollState = rememberScrollState()
-    val coroutineScope = rememberCoroutineScope()
-    val scrollStep = with(LocalDensity.current) { 72.dp.toPx() }
-    var canFocusDetail by remember { mutableStateOf(false) }
     val codecStats = remember(codecInfos) {
         val totalCount = codecInfos.size
         val decoderCount = codecInfos.count { it.type == CodecType.Decoder }
@@ -1285,43 +1470,15 @@ private fun deviceInfoEntry(): SettingsEntry {
             "软件" to softwareCount.toString()
         )
     }
-    val hasOverflow by remember {
-        derivedStateOf { scrollState.maxValue > 0 }
-    }
-
-    LaunchedEffect(hasOverflow) {
-        canFocusDetail = hasOverflow
-    }
 
     return SettingsEntry(
         id = "device_info",
         title = "设备信息",
         supportText = "设备与解码器摘要",
-        canFocusDetail = canFocusDetail,
-        detailKeyEvent = { event ->
-            if (!canFocusDetail || event.type != KeyEventType.KeyDown) {
-                false
-            } else {
-                when (event.key) {
-                    Key.DirectionUp -> {
-                        coroutineScope.launch { scrollState.animateScrollBy(-scrollStep) }
-                        true
-                    }
-
-                    Key.DirectionDown -> {
-                        coroutineScope.launch { scrollState.animateScrollBy(scrollStep) }
-                        true
-                    }
-
-                    else -> false
-                }
-            }
-        },
         detailContent = {
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(scrollState),
+                    .fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 SettingsDeviceInfoLine("制造商", Build.MANUFACTURER)
@@ -1379,10 +1536,16 @@ private fun networkSettingsEntries(
     var selectedApi by remember { mutableStateOf(Prefs.apiType) }
     var showProxyHttpServerEditDialog by remember { mutableStateOf(false) }
     var showProxyGRPCServerEditDialog by remember { mutableStateOf(false) }
+    val dismissProxyHttpServerEditDialog = rememberSettingsDialogDismiss(
+        onDismiss = { showProxyHttpServerEditDialog = false }
+    )
+    val dismissProxyGRPCServerEditDialog = rememberSettingsDialogDismiss(
+        onDismiss = { showProxyGRPCServerEditDialog = false }
+    )
 
     ProxyServerEditDialog(
         show = showProxyHttpServerEditDialog,
-        onHideDialog = { showProxyHttpServerEditDialog = false },
+        onHideDialog = dismissProxyHttpServerEditDialog,
         title = stringResource(R.string.settings_network_proxy_http_server_title),
         proxyServer = proxyHttpServer,
         onProxyServerChange = {
@@ -1393,7 +1556,7 @@ private fun networkSettingsEntries(
     )
     ProxyServerEditDialog(
         show = showProxyGRPCServerEditDialog,
-        onHideDialog = { showProxyGRPCServerEditDialog = false },
+        onHideDialog = dismissProxyGRPCServerEditDialog,
         title = stringResource(R.string.settings_network_proxy_grpc_server_title),
         proxyServer = proxyGRPCServer,
         onProxyServerChange = {
@@ -1477,8 +1640,7 @@ private fun networkSettingsEntries(
 private fun StorageManagementDetail(focused: Boolean) {
     val context = LocalContext.current
     val storageViewModel: SettingsStorageViewModel = koinViewModel()
-    val scope = rememberCoroutineScope()
-    val itemFocusRequester = remember { FocusRequester() }
+    val focusCoordinator = LocalWjzFocusCoordinator.current
     val confirmItems = remember { listOf("是", "否") }
     var showConfirmDialog by remember { mutableStateOf(false) }
     var clearFun: (() -> Unit)? by remember { mutableStateOf(null) }
@@ -1488,11 +1650,14 @@ private fun StorageManagementDetail(focused: Boolean) {
     val titleOthersCache = stringResource(R.string.settings_storage_others_cache)
     val titleCrashLogs = stringResource(R.string.settings_storage_crash_logs)
 
-    val showClearDialog: (String, () -> Unit) -> Unit = { title, clear ->
+    val showClearDialog: (WjzFocusNodeId, String, () -> Unit) -> Unit = { _, title, clear ->
         clearFun = clear
         content = title
         showConfirmDialog = true
     }
+    val dismissConfirmDialog = rememberSettingsDialogDismiss(
+        onDismiss = { showConfirmDialog = false }
+    )
 
     LaunchedEffect(Unit) {
         storageViewModel.refresh(context.cacheDir, context.filesDir)
@@ -1500,58 +1665,89 @@ private fun StorageManagementDetail(focused: Boolean) {
 
     LaunchedEffect(focused) {
         if (focused) {
-            delay(50L)
-            itemFocusRequester.requestFocus(scope)
+            focusCoordinator?.enqueueRestoreLayer(
+                layer = WjzFocusLayer.Content,
+                scopeId = SettingsDetailScopeId
+            )
         }
     }
 
     RadioMenuSelectDialog(
         visible = showConfirmDialog,
-        onDismissRequest = { showConfirmDialog = false },
+        onDismissRequest = dismissConfirmDialog,
         title = "是否删除$content",
         items = confirmItems,
         selected = { it == "否" },
         onSelect = {
             if (it == "是") clearFun?.invoke()
-            showConfirmDialog = false
+            dismissConfirmDialog()
         },
         text = { it },
         itemKey = { it },
-        defaultFocusKey = "否"
+        defaultFocusKey = "否",
+        sourceScopeId = SettingsDetailScopeId,
+        dialogScopeId = SettingsRadioDialogScopeId,
+        containerNodeId = SettingsRadioDialogContainerNodeId,
+        itemNodeId = { settingsRadioDialogItemNodeId(it) }
     )
 
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        SettingListItem(
-            modifier = Modifier.focusRequester(itemFocusRequester),
+        SettingsDetailActionListItem(
+            nodeId = SettingsStorageImageCacheNodeId,
             title = titleImageCache,
             supportText = cacheSizeText(storageViewModel.loading, storageViewModel.imageCacheSize),
+            fallback = true,
             onClick = {
-                showClearDialog(titleImageCache) {
+                showClearDialog(SettingsStorageImageCacheNodeId, titleImageCache) {
                     storageViewModel.clearImageCaches(context.cacheDir, context.filesDir)
                 }
             }
         )
-        SettingListItem(
+        SettingsDetailActionListItem(
+            nodeId = SettingsStorageOthersCacheNodeId,
             title = titleOthersCache,
             supportText = cacheSizeText(storageViewModel.loading, storageViewModel.updateCacheSize),
             onClick = {
-                showClearDialog(titleOthersCache) {
+                showClearDialog(SettingsStorageOthersCacheNodeId, titleOthersCache) {
                     storageViewModel.clearOthersCaches(context.cacheDir, context.filesDir)
                 }
             }
         )
-        SettingListItem(
+        SettingsDetailActionListItem(
+            nodeId = SettingsStorageCrashLogsNodeId,
             title = titleCrashLogs,
             supportText = cacheSizeText(storageViewModel.loading, storageViewModel.crashLogsSize),
             onClick = {
-                showClearDialog(titleCrashLogs) {
+                showClearDialog(SettingsStorageCrashLogsNodeId, titleCrashLogs) {
                     storageViewModel.clearCrashLogs(context.cacheDir, context.filesDir)
                 }
             }
         )
     }
+}
+
+@Composable
+private fun SettingsDetailActionListItem(
+    nodeId: WjzFocusNodeId,
+    title: String,
+    supportText: String,
+    fallback: Boolean = false,
+    onClick: () -> Unit
+) {
+    SettingListItem(
+        modifier = Modifier
+            .wjzFocusable(
+                nodeId = nodeId,
+                layer = WjzFocusLayer.Content,
+                scopeId = SettingsDetailScopeId,
+                fallback = fallback
+            ),
+        title = title,
+        supportText = supportText,
+        onClick = onClick
+    )
 }
 
 @Composable
@@ -1639,6 +1835,7 @@ private fun logEntry(
     supportText: String,
     actionText: String,
     serverQrImage: ImageBitmap?,
+    actionNodeId: WjzFocusNodeId? = null,
     onClick: () -> Unit
 ) = SettingsEntry(
     id = id,
@@ -1646,12 +1843,25 @@ private fun logEntry(
     supportText = supportText,
     autoScrollableDetail = false,
     detailContent = { focused ->
+        val actionModifier = if (actionNodeId == null) {
+            Modifier.fillMaxWidth()
+        } else {
+            Modifier
+                .fillMaxWidth()
+                .wjzFocusable(
+                    nodeId = actionNodeId,
+                    layer = WjzFocusLayer.Content,
+                    scopeId = SettingsDetailScopeId,
+                    fallback = true
+                )
+        }
+
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
             ListItem(
                 modifier = SettingsBottomIndicator(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = actionModifier,
                     animatedSelected = focused,
                     fixedSelected = false,
                     color = C.primary
@@ -1726,7 +1936,6 @@ private fun <T> radioEntry(
                 text = text,
                 itemKey = itemKey,
                 defaultFocusKey = itemKey(selected),
-                requestDefaultFocus = focused,
             )
         }
     }
@@ -1744,11 +1953,9 @@ private fun switchEntry(
     supportText = supportText,
     canFocusDetail = false,
     showSupportTextInItem = false,
-    itemContent = { modifier, colors, contentColor, onFocus ->
+    itemContent = { modifier, colors, contentColor ->
         SettingSwitchListItem(
-            modifier = modifier.onFocusChanged {
-                if (it.hasFocus) onFocus()
-            },
+            modifier = modifier,
             title = title,
             supportText = "",
             checked = checked,
@@ -1776,11 +1983,9 @@ private fun <T> cycleEntry(
     supportText = supportText,
     canFocusDetail = false,
     showSupportTextInItem = false,
-    itemContent = { modifier, colors, contentColor, onFocus ->
+    itemContent = { modifier, colors, contentColor ->
         SettingCycleListItem(
-            modifier = modifier.onFocusChanged {
-                if (it.hasFocus) onFocus()
-            },
+            modifier = modifier,
             title = title,
             options = items,
             checked = selected,
@@ -1872,11 +2077,18 @@ private fun ProxyServerEditDialog(
     var proxyServerString by remember(show) { mutableStateOf(proxyServer) }
 
     if (show) {
-        AlertDialog(
+        TvAlertDialog(
             modifier = modifier,
             title = { Text(text = title) },
             text = {
                 OutlinedTextField(
+                    modifier = Modifier
+                        .wjzFocusable(
+                            nodeId = SettingsProxyDialogInputNodeId,
+                            layer = WjzFocusLayer.Dialog,
+                            scopeId = SettingsProxyDialogScopeId,
+                            fallback = true
+                        ),
                     value = proxyServerString,
                     onValueChange = { proxyServerString = it },
                     singleLine = true,
@@ -1889,23 +2101,42 @@ private fun ProxyServerEditDialog(
             },
             onDismissRequest = onHideDialog,
             confirmButton = {
-                Button(onClick = {
-                    onProxyServerChange(
-                        proxyServerString
-                            .replace("\n", "")
-                            .replace("https://", "")
-                            .replace("http://", "")
-                    )
-                    onHideDialog()
-                }) {
+                Button(
+                    modifier = Modifier
+                        .wjzFocusable(
+                            nodeId = SettingsProxyDialogConfirmNodeId,
+                            layer = WjzFocusLayer.Dialog,
+                            scopeId = SettingsProxyDialogScopeId
+                        ),
+                    onClick = {
+                        onProxyServerChange(
+                            proxyServerString
+                                .replace("\n", "")
+                                .replace("https://", "")
+                                .replace("http://", "")
+                        )
+                        onHideDialog()
+                    }
+                ) {
                     Text(text = stringResource(id = R.string.common_confirm))
                 }
             },
             dismissButton = {
-                OutlinedButton(onClick = onHideDialog) {
+                OutlinedButton(
+                    modifier = Modifier
+                        .wjzFocusable(
+                            nodeId = SettingsProxyDialogCancelNodeId,
+                            layer = WjzFocusLayer.Dialog,
+                            scopeId = SettingsProxyDialogScopeId
+                        ),
+                    onClick = onHideDialog
+                ) {
                     Text(text = stringResource(id = R.string.common_cancel))
                 }
-            }
+            },
+            sourceScopeId = SettingsItemScopeId,
+            dialogScopeId = SettingsProxyDialogScopeId,
+            containerNodeId = SettingsProxyDialogContainerNodeId
         )
     }
 }

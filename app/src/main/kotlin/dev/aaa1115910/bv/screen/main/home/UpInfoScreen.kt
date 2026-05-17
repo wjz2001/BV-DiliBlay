@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -30,9 +29,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
@@ -51,22 +47,21 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.tv.material3.Text
 import androidx.compose.runtime.snapshotFlow
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
-import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
+import dev.aaa1115910.bv.component.rememberTvGridFocusTarget
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import dev.aaa1115910.bv.viewmodel.user.UpInfoViewModel
-import kotlinx.coroutines.yield
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import org.koin.androidx.compose.koinViewModel
@@ -83,13 +78,10 @@ fun UpSpaceScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val spaceVideos by upInfoViewModel.spaceVideos.collectAsStateWithLifecycle()
 
-    // 保证进入页面焦点在网格第一张卡片
-    val firstItemFocusRequester = remember { FocusRequester() }
     var requestedInitialFocus by remember { mutableStateOf(false) }
 
     var searchCanFocus by remember { mutableStateOf(false) }
     var searchFieldHasFocus by remember { mutableStateOf(false) }
-    val searchFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
         val intent = (context as Activity).intent
@@ -144,9 +136,6 @@ fun UpSpaceScreen(
     LaunchedEffect(spaceVideos.size) {
         if (!requestedInitialFocus && spaceVideos.isNotEmpty()) {
             requestedInitialFocus = true
-            // 等待一帧，保证 item 已经 compose 出来
-            yield()
-            firstItemFocusRequester.requestFocus()
         }
     }
 
@@ -210,7 +199,7 @@ fun UpSpaceScreen(
             // 确保是按键抬起事件，防止重复触发
             // 同时检查焦点是否确实在内容区域
             if (it.type == KeyEventType.KeyUp) {
-                searchFocusRequester.requestFocus()
+                searchCanFocus = true
                 // 返回 true 表示我们已经处理了这个事件，
                 return@onKeyEvent true
             }
@@ -235,11 +224,6 @@ fun UpSpaceScreen(
                     TextField(
                         modifier = Modifier
                             .weight(1f)
-                            .focusProperties {
-                                // 初期禁止输入框获得焦点，避免它先拿焦点弹 IME
-                                canFocus = searchCanFocus
-                            }
-                            .focusRequester(searchFocusRequester)
                             .onFocusChanged { searchFieldHasFocus = it.hasFocus }
                             .drawWithContent {
                                 // 先让 TextField 自己画完（背景/文本/内部装饰）
@@ -301,11 +285,11 @@ fun UpSpaceScreen(
             columns = GridCells.Fixed(4),
             state = gridState,
             contentPadding = PaddingValues(24.dp),
+            nodeIdPrefix = "up-info/${upInfoViewModel.upMid}/videos",
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             focusItemCount = visibleVideos.size,
-            entryFocusRequester = firstItemFocusRequester,
-            upFocusRequester = searchFocusRequester,
+            focusItemKeys = visibleVideos.map { WjzFocusItemKey("Long:${it.avid}") },
             onNavigateUp = { mid, name ->
                 if (mid != upInfoViewModel.upMid) {
                     UpInfoActivity.actionStart(context, mid, name)
@@ -332,7 +316,7 @@ fun UpSpaceScreen(
                         },
                     ) {
                         SmallVideoCard(
-                            frameModifier = rememberTvGridFocusModifier(index),
+                            focusTarget = rememberTvGridFocusTarget(index),
                             uiState = cardUiStateFor(video.avid),
                             data = video,
                             onClick = {

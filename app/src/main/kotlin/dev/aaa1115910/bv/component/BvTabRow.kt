@@ -15,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -23,7 +24,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -36,7 +36,6 @@ import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isUnspecified
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Density
 import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Tab
@@ -44,6 +43,12 @@ import androidx.tv.material3.TabDefaults
 import androidx.tv.material3.TabRow
 import androidx.tv.material3.TabRowDefaults
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusRestoreStrategy
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusScopeId
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
 import dev.aaa1115910.bv.util.fInfo
 import io.github.oshai.kotlinlogging.KotlinLogging
 
@@ -78,6 +83,84 @@ enum class BvTabIconMode {
     TextOnly
 }
 
+enum class BvTabEntryFocusTarget {
+    DefaultEntry,
+    LeftEntry,
+    RightEntry
+}
+
+data class BvTabEntryFocusReady<T>(
+    val target: BvTabEntryFocusTarget,
+    val item: T,
+    val itemKey: Any,
+    val nodeId: WjzFocusNodeId
+)
+
+data class BvTabEntryFocusConsumed<T>(
+    val target: BvTabEntryFocusTarget,
+    val item: T,
+    val itemKey: Any,
+    val nodeId: WjzFocusNodeId
+)
+
+sealed interface BvTabEntryFocusResolution<out T> {
+    data class Ready<T>(
+        val target: BvTabEntryFocusTarget,
+        val item: T,
+        val itemKey: Any,
+        val nodeId: WjzFocusNodeId
+    ) : BvTabEntryFocusResolution<T>
+
+    data class Pending(
+        val target: BvTabEntryFocusTarget
+    ) : BvTabEntryFocusResolution<Nothing>
+
+    data class Reject(
+        val target: BvTabEntryFocusTarget
+    ) : BvTabEntryFocusResolution<Nothing>
+}
+
+fun <T> resolveBvTabEntryFocus(
+    items: List<T>,
+    selectedItem: T?,
+    entryFocusItem: T?,
+    entryFocusTarget: BvTabEntryFocusTarget = BvTabEntryFocusTarget.DefaultEntry,
+    itemKey: (T) -> Any,
+    focusNodeId: WjzFocusNodeId? = null
+): BvTabEntryFocusResolution<T> {
+    if (items.isEmpty()) {
+        return BvTabEntryFocusResolution.Pending(entryFocusTarget)
+    }
+
+    val itemKeys = items.map(itemKey)
+    val targetTabIndex = when (entryFocusTarget) {
+        BvTabEntryFocusTarget.DefaultEntry -> {
+            if (entryFocusItem == null) {
+                val selectedItemKey = selectedItem?.let(itemKey)
+                itemKeys.indexOf(selectedItemKey).takeIf { it >= 0 } ?: 0
+            } else {
+                val entryFocusItemKey = itemKey(entryFocusItem)
+                itemKeys.indexOf(entryFocusItemKey)
+                    .takeIf { it >= 0 }
+                    ?: return BvTabEntryFocusResolution.Reject(entryFocusTarget)
+            }
+        }
+
+        BvTabEntryFocusTarget.LeftEntry -> 0
+        BvTabEntryFocusTarget.RightEntry -> items.lastIndex
+    }
+    val resolvedItem = items[targetTabIndex]
+    val resolvedKey = itemKeys[targetTabIndex]
+    val resolvedNodeId = focusNodeId?.let { WjzFocusNodeId("${it.value}/tab/$resolvedKey") }
+        ?: return BvTabEntryFocusResolution.Pending(entryFocusTarget)
+    return BvTabEntryFocusResolution.Ready(
+        target = entryFocusTarget,
+        item = resolvedItem,
+        itemKey = resolvedKey,
+        nodeId = resolvedNodeId
+    )
+}
+
 private val bvTabRowFocusLogger = KotlinLogging.logger("BvTabRowFocus")
 
 /**
@@ -99,8 +182,13 @@ private val bvTabRowFocusLogger = KotlinLogging.logger("BvTabRowFocus")
  * @param selectedItem 当前业务选中的 item。组件会用 [itemKey] 把它映射成 `selectedTabIndex`
  * 如果 [selectedItem] 不在 [items] 中，会回退到第一个可见 tab
  * @param entryFocusItem 焦点进入该 TabRow 时希望落到的 item。组件会用 [itemKey] 把它映射成默认焦点目标
- * 如果 [entryFocusItem] 不在 [items] 中，会回退到 [selectedItem] 对应 tab；如果仍找不到，再回退到第一个可见 tab
+ * 未指定 [entryFocusItem] 时会回退到 [selectedItem] 对应 tab；如果仍找不到，再回退到第一个可见 tab。
+ * 如果 [BvTabEntryFocusTarget.DefaultEntry] 指定的 [entryFocusItem] 不在 [items] 中，新入口 ready 协议会
+ * 返回 Reject，不会把回退目标当成真实 ready。
  * 该参数用于“从侧栏/上层区域进入 tab 时落到指定项”，不等同于当前选中的内容
+ * @param entryFocusTarget 语义入口目标。[BvTabEntryFocusTarget.LeftEntry] 和 [BvTabEntryFocusTarget.RightEntry]
+ * 由组件内部解析成首尾 tab，调用方不需要知道首尾 item；[BvTabEntryFocusTarget.DefaultEntry] 只有在未指定
+ * [entryFocusItem] 时才按 [selectedItem] -> first 兜底。
  * @param itemKey item 的稳定身份。设置页重排/隐藏 tab 时必须使用业务 ID、code、enum name 等稳定值，
  * 不要使用列表下标。该 key 同时用于 selected/entry 映射、默认焦点通知去重、Compose key 稳定身份
  * @param itemText 默认 tab 内容使用的文字。仅当 [tabContent] 为 null 时生效
@@ -112,9 +200,12 @@ private val bvTabRowFocusLogger = KotlinLogging.logger("BvTabRowFocus")
  * @param separatorWidth 默认 tab 间距宽度。仅当 [separator] 为 null 时生效，默认 12.dp。
  * @param separator 自定义 tab 间 separator，优先级高于 [separatorWidth]
  * @param defaultFocusRequester 默认焦点入口。组件会把它挂到 [entryFocusItem] 解析出的目标 tab 上，
- * 如果不传，组件内部创建一个 [FocusRequester] 供 [focusRestorer] fallback 使用。
+ * 如果不传，组件内部创建一个 [FocusRequester] 供 [focusRestorer] 使用。
  * @param onDefaultFocusReady 默认焦点目标完成布局后回调。适合外部在收到该回调后调用 [defaultFocusRequester] 的
  * `requestFocus()`，避免目标节点尚未挂载时请求焦点失败。每个目标 key 只通知一次。
+ * @param onEntryFocusReady legacy ready 回调，只在入口可请求且目标完成布局后触发。
+ * @param onEntryFocusResolution 语义入口解析状态回调，会通知 Ready/Pending/Reject；Ready 只在入口可请求且目标完成布局后触发。
+ * @param onEntryFocusConsumed 语义入口消费回调，只在目标 tab 实际获得焦点后触发。
  * @param onSelectedChanged tab 获得焦点时触发。本组件由调用方 ViewModel 中的
  * `DebouncedActivationController` 负责默认 900ms debounce。
  * @param onClick tab 被点击、确认键激活时触发，立即回调，不经过 debounce。
@@ -140,6 +231,7 @@ fun <T> BvTabRow(
     items: List<T>,
     selectedItem: T?,
     entryFocusItem: T? = selectedItem,
+    entryFocusTarget: BvTabEntryFocusTarget = BvTabEntryFocusTarget.DefaultEntry,
     itemKey: (T) -> Any,
     itemText: (T) -> String = { it.toString() },
     itemIcon: (@Composable (T, Dp) -> Unit)? = null,
@@ -151,6 +243,9 @@ fun <T> BvTabRow(
     separator: (@Composable () -> Unit)? = null,
     defaultFocusRequester: FocusRequester? = null,
     onDefaultFocusReady: ((Any) -> Unit)? = null,
+    onEntryFocusReady: ((BvTabEntryFocusReady<T>) -> Unit)? = null,
+    onEntryFocusResolution: ((BvTabEntryFocusResolution<T>) -> Unit)? = null,
+    onEntryFocusConsumed: ((BvTabEntryFocusConsumed<T>) -> Unit)? = null,
     onSelectedChanged: (T) -> Unit = {},
     onClick: (T) -> Unit = {},
     onConfirm: (T) -> Unit = onClick,
@@ -165,45 +260,95 @@ fun <T> BvTabRow(
     blockUp: Boolean = false,
     blockDown: Boolean = false,
     autoRequestEntryFocus: Boolean = true,
-    backFocusTarget: BvBackFocusTarget? = BvBackFocusTarget.TabRow,
+    focusNodeId: WjzFocusNodeId? = null,
+    focusLayer: WjzFocusLayer = WjzFocusLayer.TopNav,
     backFocusEnabled: Boolean = true,
     tabContent: (@Composable RowScope.(item: T, selected: Boolean, focused: Boolean) -> Unit)? = null
 ) {
-    if (items.isEmpty()) return
+    val currentOnEntryFocusResolution by rememberUpdatedState(onEntryFocusResolution)
+    val currentOnEntryFocusConsumed by rememberUpdatedState(onEntryFocusConsumed)
+    if (items.isEmpty()) {
+        LaunchedEffect(entryFocusTarget) {
+            currentOnEntryFocusResolution?.invoke(BvTabEntryFocusResolution.Pending(entryFocusTarget))
+        }
+        return
+    }
 
     val internalFocusRequester = remember { FocusRequester() }
     val entryFocusRequester = defaultFocusRequester ?: internalFocusRequester
+    val targetEntryFocusItem = when (entryFocusTarget) {
+        BvTabEntryFocusTarget.DefaultEntry -> entryFocusItem
+        BvTabEntryFocusTarget.LeftEntry -> items.firstOrNull()
+        BvTabEntryFocusTarget.RightEntry -> items.lastOrNull()
+    }
     val itemKeys = remember(items) { items.map(itemKey) }
     val selectedItemKey = selectedItem?.let(itemKey)
-    val entryFocusItemKey = entryFocusItem?.let(itemKey)
+    val entryFocusItemKey = targetEntryFocusItem?.let(itemKey)
+    val entryFocusResolution = resolveBvTabEntryFocus(
+        items = items,
+        selectedItem = selectedItem,
+        entryFocusItem = entryFocusItem,
+        entryFocusTarget = entryFocusTarget,
+        itemKey = itemKey,
+        focusNodeId = focusNodeId
+    )
 
     val selectedTabIndex = itemKeys.indexOf(selectedItemKey).takeIf { it >= 0 } ?: 0
     val focusTargetIndex = itemKeys.indexOf(entryFocusItemKey).takeIf { it >= 0 } ?: selectedTabIndex
+    val focusTargetNodeId = remember(focusNodeId, itemKeys, focusTargetIndex) {
+        focusNodeId?.let { WjzFocusNodeId("${it.value}/tab/${itemKeys[focusTargetIndex]}") }
+    }
 
     var focusedTabIndex by remember(itemKeys) { mutableIntStateOf(focusTargetIndex) }
     var isFocusBelowTabRow by remember(itemKeys) { mutableStateOf(false) }
     var pendingContentFocusKey by remember(itemKeys) { mutableStateOf<Any?>(null) }
     var lastDefaultFocusPositionedState by remember(itemKeys) { mutableStateOf<String?>(null) }
-    val backFocusRegistry = LocalBvBackFocusRegistry.current
+    val focusCoordinator = LocalWjzFocusCoordinator.current
+    val focusScopeId = LocalWjzFocusScopeId.current
+    fun legacyRequestEntryFocus(): Boolean {
+        if (!backFocusEnabled) return false
+        val nodeId = focusTargetNodeId ?: focusNodeId ?: return false
+        val coordinator = focusCoordinator ?: return false
+        coordinator.switchLayer(focusLayer)
+        return coordinator.requestFocus(
+            nodeId = nodeId,
+            layer = focusLayer,
+            scopeId = focusScopeId,
+            enqueueIfMissing = true
+        )
+    }
 
-    RegisterBvBackFocusTarget(
-        target = backFocusTarget,
-        requester = entryFocusRequester,
-        enabled = backFocusEnabled
-    )
+    fun requestContentFocus(): Boolean {
+        if (!backFocusEnabled) return false
+        val coordinator = focusCoordinator ?: return false
+        coordinator.switchLayer(WjzFocusLayer.Content)
+        return coordinator.restoreActiveLayer(focusScopeId)
+    }
 
-    LaunchedEffect(autoRequestEntryFocus, entryFocusItemKey, focusTargetIndex) {
-        if (!autoRequestEntryFocus) return@LaunchedEffect
-        if (entryFocusItem == null) return@LaunchedEffect
+    val canAutoRequestEntryFocus = autoRequestEntryFocus && backFocusEnabled
+    LaunchedEffect(canAutoRequestEntryFocus, entryFocusItemKey, focusTargetIndex) {
+        if (!canAutoRequestEntryFocus) return@LaunchedEffect
+        if (targetEntryFocusItem == null) return@LaunchedEffect
         repeat(3) {
             withFrameNanos { }
-            runCatching { entryFocusRequester.requestFocus() }
+            if (legacyRequestEntryFocus()) return@LaunchedEffect
         }
     }
 
-    LaunchedEffect(pendingContentFocusKey, contentFocusReadyKey, contentFocusRequester) {
+    LaunchedEffect(entryFocusResolution) {
+        if (entryFocusResolution !is BvTabEntryFocusResolution.Ready) {
+            currentOnEntryFocusResolution?.invoke(entryFocusResolution)
+        }
+    }
+
+    LaunchedEffect(
+        pendingContentFocusKey,
+        contentFocusReadyKey,
+        contentFocusRequester,
+        focusCoordinator
+    ) {
         val pendingKey = pendingContentFocusKey ?: return@LaunchedEffect
-        val requester = contentFocusRequester ?: run {
+        if (contentFocusRequester == null || focusCoordinator == null) {
             pendingContentFocusKey = null
             return@LaunchedEffect
         }
@@ -213,8 +358,7 @@ fun <T> BvTabRow(
 
         repeat(3) {
             withFrameNanos { }
-            val focused = runCatching { requester.requestFocus() }.getOrDefault(false)
-            if (focused) {
+            if (requestContentFocus()) {
                 pendingContentFocusKey = null
                 return@LaunchedEffect
             }
@@ -224,13 +368,32 @@ fun <T> BvTabRow(
         }
     }
 
-        TabRow(
-            modifier = modifier
-                .onFocusChanged { state ->
-                    if (backFocusEnabled && backFocusTarget != null) {
-                        backFocusRegistry?.updateFocus(backFocusTarget, state.hasFocus)
+        val tabRowModifier = if (focusNodeId == null) {
+            modifier
+        } else {
+            modifier
+                .wjzFocusable(
+                    nodeId = focusNodeId,
+                    layer = focusLayer,
+                    scopeId = focusScopeId,
+                    strategy = WjzFocusRestoreStrategy.Container,
+                    fallback = true,
+                    enabled = backFocusEnabled,
+                    onFocusChanged = { focused ->
+                        if (focused && backFocusEnabled) {
+                            focusCoordinator?.switchLayer(focusLayer)
+                        }
+                    }
+                )
+                .focusProperties {
+                    onEnter = {
+                        legacyRequestEntryFocus()
                     }
                 }
+        }
+
+        TabRow(
+            modifier = tabRowModifier
                 .focusRestorer(entryFocusRequester)
                 .focusGroup(),
             selectedTabIndex = selectedTabIndex,
@@ -248,9 +411,6 @@ fun <T> BvTabRow(
                 val focused = focusedTabIndex == index
                 val selected = selectedTabIndex == index
                 var tabModifier = Modifier
-                    .focusProperties {
-                        if (blockUp) up = FocusRequester.Cancel
-                    }
                     .onPreviewKeyEvent { event ->
                         if (event.type == KeyEventType.KeyDown) {
                             when (event.key) {
@@ -278,9 +438,10 @@ fun <T> BvTabRow(
                                     isFocusBelowTabRow = true
                                     return@onPreviewKeyEvent true
                                 }
-                                if (contentFocusRequester != null) {
+                                if (contentFocusRequester != null && focusCoordinator != null) {
                                     isFocusBelowTabRow = true
                                     pendingContentFocusKey = key
+                                    focusCoordinator.switchLayer(WjzFocusLayer.Content)
                                     onContentFocusRequested(item)
                                     return@onPreviewKeyEvent true
                                 }
@@ -326,9 +487,23 @@ fun <T> BvTabRow(
                 }
 
             if (index == focusTargetIndex) {
-                tabModifier = tabModifier
-                    .focusRequester(entryFocusRequester)
-                    .onGloballyPositioned {
+                tabModifier = if (focusTargetNodeId == null) {
+                    tabModifier.focusRequester(entryFocusRequester)
+                } else {
+                    tabModifier.wjzFocusable(
+                        nodeId = focusTargetNodeId,
+                        layer = focusLayer,
+                        scopeId = focusScopeId,
+                        fallback = true,
+                        enabled = backFocusEnabled,
+                        requester = entryFocusRequester,
+                        onFocusChanged = { focused ->
+                            if (focused && backFocusEnabled) {
+                                focusCoordinator?.switchLayer(focusLayer)
+                            }
+                        }
+                    )
+                }.onGloballyPositioned {
                         val state = buildString {
                             append("key=").append(key)
                             append(", index=").append(index)
@@ -343,6 +518,17 @@ fun <T> BvTabRow(
                             }
                         }
                         onDefaultFocusReady?.invoke(key)
+                        val ready = entryFocusResolution as? BvTabEntryFocusResolution.Ready
+                        if (ready != null && ready.itemKey == key) {
+                            val readyState = BvTabEntryFocusReady(
+                                target = ready.target,
+                                item = ready.item,
+                                itemKey = ready.itemKey,
+                                nodeId = ready.nodeId
+                            )
+                            onEntryFocusReady?.invoke(readyState)
+                            currentOnEntryFocusResolution?.invoke(ready)
+                        }
                     }
             }
 
@@ -357,6 +543,17 @@ fun <T> BvTabRow(
                     isFocusBelowTabRow = false
                     confirmLongPressTriggered = false
                     focusedTabIndex = index
+                    val ready = entryFocusResolution as? BvTabEntryFocusResolution.Ready
+                    if (ready != null && ready.itemKey == key) {
+                        currentOnEntryFocusConsumed?.invoke(
+                            BvTabEntryFocusConsumed(
+                                target = ready.target,
+                                item = ready.item,
+                                itemKey = ready.itemKey,
+                                nodeId = ready.nodeId
+                            )
+                        )
+                    }
                     onSelectedChanged(item)
                 },
                 onClick = { onConfirm(item) }
@@ -390,6 +587,7 @@ fun <T> BvPillTabRow(
     items: List<T>,
     selectedItem: T?,
     entryFocusItem: T? = selectedItem,
+    entryFocusTarget: BvTabEntryFocusTarget = BvTabEntryFocusTarget.DefaultEntry,
     itemKey: (T) -> Any,
     itemText: (T) -> String = { it.toString() },
     itemIcon: (@Composable (T, Dp) -> Unit)? = null,
@@ -400,6 +598,9 @@ fun <T> BvPillTabRow(
     separator: (@Composable () -> Unit)? = null,
     defaultFocusRequester: FocusRequester? = null,
     onDefaultFocusReady: ((Any) -> Unit)? = null,
+    onEntryFocusReady: ((BvTabEntryFocusReady<T>) -> Unit)? = null,
+    onEntryFocusResolution: ((BvTabEntryFocusResolution<T>) -> Unit)? = null,
+    onEntryFocusConsumed: ((BvTabEntryFocusConsumed<T>) -> Unit)? = null,
     onSelectedChanged: (T) -> Unit = {},
     onClick: (T) -> Unit = {},
     onConfirm: (T) -> Unit = onClick,
@@ -414,7 +615,8 @@ fun <T> BvPillTabRow(
     blockUp: Boolean = false,
     blockDown: Boolean = false,
     autoRequestEntryFocus: Boolean = true,
-    backFocusTarget: BvBackFocusTarget? = BvBackFocusTarget.TabRow,
+    focusNodeId: WjzFocusNodeId? = null,
+    focusLayer: WjzFocusLayer = WjzFocusLayer.TopNav,
     backFocusEnabled: Boolean = true,
     tabContent: (@Composable RowScope.(item: T, selected: Boolean, focused: Boolean) -> Unit)? = null
 ) {
@@ -423,6 +625,7 @@ fun <T> BvPillTabRow(
         items = items,
         selectedItem = selectedItem,
         entryFocusItem = entryFocusItem,
+        entryFocusTarget = entryFocusTarget,
         itemKey = itemKey,
         itemText = itemText,
         itemIcon = itemIcon,
@@ -434,6 +637,9 @@ fun <T> BvPillTabRow(
         separator = separator,
         defaultFocusRequester = defaultFocusRequester,
         onDefaultFocusReady = onDefaultFocusReady,
+        onEntryFocusReady = onEntryFocusReady,
+        onEntryFocusResolution = onEntryFocusResolution,
+        onEntryFocusConsumed = onEntryFocusConsumed,
         onSelectedChanged = onSelectedChanged,
         onClick = onClick,
         onConfirm = onConfirm,
@@ -448,7 +654,8 @@ fun <T> BvPillTabRow(
         blockUp = blockUp,
         blockDown = blockDown,
         autoRequestEntryFocus = autoRequestEntryFocus,
-        backFocusTarget = backFocusTarget,
+        focusNodeId = focusNodeId,
+        focusLayer = focusLayer,
         backFocusEnabled = backFocusEnabled,
         tabContent = tabContent
     )
@@ -466,6 +673,7 @@ fun <T> BvUnderlineTabRow(
     items: List<T>,
     selectedItem: T?,
     entryFocusItem: T? = selectedItem,
+    entryFocusTarget: BvTabEntryFocusTarget = BvTabEntryFocusTarget.DefaultEntry,
     itemKey: (T) -> Any,
     itemText: (T) -> String = { it.toString() },
     itemIcon: (@Composable (T, Dp) -> Unit)? = null,
@@ -476,6 +684,9 @@ fun <T> BvUnderlineTabRow(
     separator: (@Composable () -> Unit)? = null,
     defaultFocusRequester: FocusRequester? = null,
     onDefaultFocusReady: ((Any) -> Unit)? = null,
+    onEntryFocusReady: ((BvTabEntryFocusReady<T>) -> Unit)? = null,
+    onEntryFocusResolution: ((BvTabEntryFocusResolution<T>) -> Unit)? = null,
+    onEntryFocusConsumed: ((BvTabEntryFocusConsumed<T>) -> Unit)? = null,
     onSelectedChanged: (T) -> Unit = {},
     onClick: (T) -> Unit = {},
     onConfirm: (T) -> Unit = onClick,
@@ -490,7 +701,8 @@ fun <T> BvUnderlineTabRow(
     blockUp: Boolean = false,
     blockDown: Boolean = false,
     autoRequestEntryFocus: Boolean = true,
-    backFocusTarget: BvBackFocusTarget? = BvBackFocusTarget.TabRow,
+    focusNodeId: WjzFocusNodeId? = null,
+    focusLayer: WjzFocusLayer = WjzFocusLayer.TopNav,
     backFocusEnabled: Boolean = true,
     tabContent: (@Composable RowScope.(item: T, selected: Boolean, focused: Boolean) -> Unit)? = null
 ) {
@@ -499,6 +711,7 @@ fun <T> BvUnderlineTabRow(
         items = items,
         selectedItem = selectedItem,
         entryFocusItem = entryFocusItem,
+        entryFocusTarget = entryFocusTarget,
         itemKey = itemKey,
         itemText = itemText,
         itemIcon = itemIcon,
@@ -510,6 +723,9 @@ fun <T> BvUnderlineTabRow(
         separator = separator,
         defaultFocusRequester = defaultFocusRequester,
         onDefaultFocusReady = onDefaultFocusReady,
+        onEntryFocusReady = onEntryFocusReady,
+        onEntryFocusResolution = onEntryFocusResolution,
+        onEntryFocusConsumed = onEntryFocusConsumed,
         onSelectedChanged = onSelectedChanged,
         onClick = onClick,
         onConfirm = onConfirm,
@@ -524,7 +740,8 @@ fun <T> BvUnderlineTabRow(
         blockUp = blockUp,
         blockDown = blockDown,
         autoRequestEntryFocus = autoRequestEntryFocus,
-        backFocusTarget = backFocusTarget,
+        focusNodeId = focusNodeId,
+        focusLayer = focusLayer,
         backFocusEnabled = backFocusEnabled,
         tabContent = tabContent
     )

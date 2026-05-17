@@ -10,7 +10,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -19,23 +18,17 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
@@ -48,39 +41,70 @@ import dev.aaa1115910.bv.activities.settings.SettingsActivity
 import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.activities.user.UserSwitchActivity
 import dev.aaa1115910.bv.component.BlackoutSwitch
-import dev.aaa1115910.bv.component.LocalBvBackFocusRegistry
-import dev.aaa1115910.bv.component.rememberBvBackFocusRegistry
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusEntryResolution
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusExitRequest
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusHost
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusRestoreStrategy
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusSourceToken
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusTransitionGuard
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.component.rememberBlackoutSwitchTransitionState
+import dev.aaa1115910.bv.component.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.screen.main.HomeContent
-import dev.aaa1115910.bv.screen.main.LeftNaviContent
 import dev.aaa1115910.bv.screen.main.LeftNaviItem
-import dev.aaa1115910.bv.screen.main.LeftNaviUserButton
 import dev.aaa1115910.bv.screen.main.LiveContent
+import dev.aaa1115910.bv.screen.main.MainDrawerBlock
+import dev.aaa1115910.bv.screen.main.MainDrawerContentEntryTarget
+import dev.aaa1115910.bv.screen.main.MainDrawerEntryRequest
+import dev.aaa1115910.bv.screen.main.MainDrawerEntryTarget
+import dev.aaa1115910.bv.screen.main.MainTopNavBlock
+import dev.aaa1115910.bv.screen.main.MainTopNavEntryRequest
+import dev.aaa1115910.bv.screen.main.MainTopNavEntryTarget
+import dev.aaa1115910.bv.screen.main.MainTopNavContentEntryTarget
 import dev.aaa1115910.bv.screen.main.PgcContent
 import dev.aaa1115910.bv.screen.main.UgcContent
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
-import dev.aaa1115910.bv.screen.main.common.MainContentFocusTarget
+import dev.aaa1115910.bv.screen.main.common.MainContentEntryState
+import dev.aaa1115910.bv.screen.main.common.MainContentEntryTarget
+import dev.aaa1115910.bv.screen.main.common.MainContentEntryTransition
+import dev.aaa1115910.bv.screen.main.common.MainContentNavigationExitEntry
+import dev.aaa1115910.bv.screen.main.common.mainContentNavigationExits
 import dev.aaa1115910.bv.screen.main.runtime.runtimeContainerInputEnabled
+import dev.aaa1115910.bv.screen.main.toMainContentEntryTarget
+import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.ui.theme.ThemeMode
 import dev.aaa1115910.bv.util.Prefs
-import dev.aaa1115910.bv.util.fException
 import dev.aaa1115910.bv.util.fInfo
-import dev.aaa1115910.bv.util.requestFocus
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.UserViewModel
 import dev.aaa1115910.bv.viewmodel.main.HomeContentViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 
+private val MainContentNodeId = WjzFocusNodeId("main/content/current")
+private val MainFirstLaunchDialogScopeId = WjzFocusScopeId("main/first-launch-dialog")
+private val MainFirstLaunchDialogContainerNodeId = WjzFocusNodeId("main/first-launch-dialog/container")
+private val MainDrawerScopeId = WjzFocusScopeId("main/drawer")
+private val MainFocusScopeId = WjzFocusScopeId("main")
+private val MainRootNodeId = WjzFocusNodeId("main/root")
+private val MainTopNavScopeId = WjzFocusScopeId("main/top-nav")
+
 private data class PendingContentFocus(
-    val id: Long,
     val item: LeftNaviItem,
-    val entryTarget: MainContentFocusTarget? = null
-)
+    val transition: MainContentEntryTransition
+) {
+    val request: MainContentEntryRequest
+        get() = MainContentEntryRequest(
+            id = transition.requestId,
+            target = transition.target
+        )
+}
 
 @Composable
 fun rememberIsDarkFromPrefs(): Boolean {
@@ -99,7 +123,7 @@ fun MainScreen(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val logger = KotlinLogging.logger("MainScreen")
-    val backFocusRegistry = rememberBvBackFocusRegistry()
+    val focusCoordinator = rememberWjzFocusCoordinator()
     var lastPressBack: Long by remember { mutableLongStateOf(0L) }
 
     val initialDrawerItem = LeftNaviItem.Home
@@ -107,50 +131,52 @@ fun MainScreen(
     var activeDrawerItem by remember { mutableStateOf(initialDrawerItem) }
     var lastActiveDrawerItem by remember { mutableStateOf<LeftNaviItem?>(null) }
 
-    val scope = rememberCoroutineScope()
-
-    val liveFocusRequester = remember { FocusRequester() }
-    val mainFocusRequester = remember { FocusRequester() }
-    val ugcFocusRequester = remember { FocusRequester() }
-    val pgcFocusRequester = remember { FocusRequester() }
-
-    val homeDrawerFocusRequester = remember { FocusRequester() }
-    val liveDrawerFocusRequester = remember { FocusRequester() }
-    val ugcDrawerFocusRequester = remember { FocusRequester() }
-    val pgcDrawerFocusRequester = remember { FocusRequester() }
-    val topBarUserFocusRequester = remember { FocusRequester() }
-    val userFocusRequester = remember { FocusRequester() }
-    val settingsFocusRequester = remember { FocusRequester() }
-
-    var contentFocusRequestSerial by remember { mutableLongStateOf(0L) }
-    var pendingContentFocus by remember {
-        mutableStateOf<PendingContentFocus?>(
-            PendingContentFocus(
-                id = 0L,
-                item = initialDrawerItem
-            )
-        )
-    }
-    var currentReadyItem by remember { mutableStateOf<LeftNaviItem?>(null) }
+    var drawerEntryRequestSerial by remember { mutableLongStateOf(0L) }
+    var pendingDrawerEntryRequest by remember { mutableStateOf<MainDrawerEntryRequest?>(null) }
+    var topNavEntryRequestSerial by remember { mutableLongStateOf(0L) }
+    var pendingTopNavEntryRequest by remember { mutableStateOf<MainTopNavEntryRequest?>(null) }
+    var contentEntryRequestSerial by remember { mutableLongStateOf(0L) }
+    var pendingContentFocus by remember { mutableStateOf<PendingContentFocus?>(null) }
+    val pendingContentItem = pendingContentFocus
+        ?.takeIf {
+            it.transition.state == MainContentEntryState.Pending ||
+                    it.transition.state == MainContentEntryState.Ready
+        }
+        ?.item
+    val currentContentItem = pendingContentItem ?: activeDrawerItem
 
     // 状态控制
     var leftNaviExpanded by remember { mutableStateOf(false) }
+    var drawerSourceToken by remember { mutableStateOf<WjzFocusSourceToken?>(null) }
     var showFirstLaunchMainDialog by remember { mutableStateOf(Prefs.showFirstLaunchMainDialog) }
     var userIsFocused by remember { mutableStateOf(false) }
-    var userLongPressTriggered by remember { mutableStateOf(false) }
     var userButtonColorAnimationEnabled by remember { mutableStateOf(true) }
+    var leftNaviExpandedObserved by remember { mutableStateOf(false) }
+    var drawerSlideRunning by remember { mutableStateOf(false) }
+    var mainContentPushRunning by remember { mutableStateOf(false) }
+    val contentSwitchTransitionState = rememberBlackoutSwitchTransitionState()
 
     // 记录抽屉动态宽度（精确用于撞击计算）
     var drawerWidthPx by remember { mutableFloatStateOf(0f) }
 
     // 抽屉动画：迅捷、干脆
+    LaunchedEffect(leftNaviExpanded) {
+        if (leftNaviExpandedObserved) {
+            drawerSlideRunning = true
+            mainContentPushRunning = true
+        } else {
+            leftNaviExpandedObserved = true
+        }
+    }
+
     val drawerSlideProgress by animateFloatAsState(
         targetValue = if (leftNaviExpanded) 1f else 0f,
         animationSpec = spring(
             dampingRatio = 0.75f,
             stiffness = Spring.StiffnessMedium
         ),
-        label = "drawer_slide"
+        label = "drawer_slide",
+        finishedListener = { drawerSlideRunning = false }
     )
 
     // 主内容区被撞飞动画：带有Q弹缓冲效果（阻尼较低，刚度较低，会被抽屉短暂覆盖后弹开）
@@ -160,18 +186,49 @@ fun MainScreen(
             dampingRatio = 0.25f, // 更弹
             stiffness = 30f
         ),
-        label = "main_content_push"
+        label = "main_content_push",
+        finishedListener = { mainContentPushRunning = false }
     )
+    val focusTransitionLocked = drawerSlideRunning ||
+            mainContentPushRunning ||
+            contentSwitchTransitionState.running
+
+    fun newDrawerEntryRequest(target: MainDrawerEntryTarget): MainDrawerEntryRequest {
+        drawerEntryRequestSerial += 1
+        return MainDrawerEntryRequest(
+            id = drawerEntryRequestSerial,
+            target = target
+        )
+    }
+
+    fun newContentEntryRequest(target: MainContentEntryTarget): MainContentEntryRequest {
+        contentEntryRequestSerial += 1
+        return MainContentEntryRequest(
+            id = contentEntryRequestSerial,
+            target = target
+        )
+    }
+
+    fun newTopNavEntryRequest(target: MainTopNavEntryTarget): MainTopNavEntryRequest {
+        topNavEntryRequestSerial += 1
+        return MainTopNavEntryRequest(
+            id = topNavEntryRequestSerial,
+            target = target
+        )
+    }
 
     fun newPendingContentFocus(
         item: LeftNaviItem,
-        entryTarget: MainContentFocusTarget?
+        target: MainContentEntryTarget
     ): PendingContentFocus {
-        contentFocusRequestSerial += 1
+        val request = newContentEntryRequest(target)
         return PendingContentFocus(
-            id = contentFocusRequestSerial,
             item = item,
-            entryTarget = entryTarget
+            transition = MainContentEntryTransition(
+                requestId = request.id,
+                target = request.target,
+                state = MainContentEntryState.Pending
+            )
         )
     }
 
@@ -188,37 +245,6 @@ fun MainScreen(
         }
     }
 
-    val requestFocusForContent: (LeftNaviItem, MainContentFocusTarget?) -> Unit =
-        { item, entryTarget ->
-            runCatching {
-                when (item) {
-                    LeftNaviItem.Home -> mainFocusRequester.requestFocus(scope)
-                    LeftNaviItem.UGC -> ugcFocusRequester.requestFocus(scope)
-                    LeftNaviItem.PGC -> pgcFocusRequester.requestFocus(scope)
-                    LeftNaviItem.Live -> liveFocusRequester.requestFocus(scope)
-                    else -> Unit
-                }
-            }.onFailure {
-                logger.fException(it) { "request focus to content failed: $item / $entryTarget" }
-            }
-        }
-
-    val onContentDefaultFocusReady: (LeftNaviItem) -> Unit = { item ->
-        if (activeDrawerItem == item) {
-            currentReadyItem = item
-
-            val pending = pendingContentFocus
-            if (pending != null && pending.item == item) {
-                when {
-                    pending.entryTarget == null -> {
-                        requestFocusForContent(item, null)
-                        pendingContentFocus = null
-                    }
-                }
-            }
-        }
-    }
-
     fun isContentItem(item: LeftNaviItem): Boolean {
         return item == LeftNaviItem.Home ||
                 item == LeftNaviItem.Live ||
@@ -226,41 +252,29 @@ fun MainScreen(
                 item == LeftNaviItem.PGC
     }
 
-    fun requestDefaultFocusForActiveContent() {
-        val item = activeDrawerItem
-        if (!isContentItem(item)) {
-            userFocusRequester.requestFocus()
-            return
+    fun collapseLeftNavi(
+        requestFallback: Boolean = true,
+        restoreSource: Boolean = true
+    ) {
+        if (!leftNaviExpanded) return
+        leftNaviExpanded = false
+        userButtonColorAnimationEnabled = true
+        val restored = if (restoreSource) {
+            focusCoordinator.restoreSourceLayer(
+                expectedActiveLayer = WjzFocusLayer.Drawer,
+                token = drawerSourceToken
+            )
+        } else {
+            false
         }
-
-        pendingContentFocus = newPendingContentFocus(
-            item = item,
-            entryTarget = null
-        )
-        requestFocusForContent(item, null)
-        if (currentReadyItem == item) {
-            pendingContentFocus = null
-        }
-    }
-
-    val onFocusToContent: (MainContentFocusTarget) -> Unit = { entryTarget ->
-        val resolvedItem = if (leftNaviExpanded) focusedDrawerItem else activeDrawerItem
-        logger.fInfo {
-            "onFocusToContent: active=$activeDrawerItem, focused=$focusedDrawerItem, resolved=$resolvedItem, target=$entryTarget"
-        }
-        if (isContentItem(resolvedItem)) {
-                if (activeDrawerItem != resolvedItem) {
-                    lastActiveDrawerItem = activeDrawerItem
-                }
-                focusedDrawerItem = resolvedItem
-                activeDrawerItem = resolvedItem
-                pendingContentFocus = newPendingContentFocus(
-                    item = resolvedItem,
-                    entryTarget = entryTarget
-                )
-                logger.fInfo {
-                    "new pending content focus: item=$resolvedItem, target=$entryTarget, pendingId=${pendingContentFocus?.id}"
-                }
+        drawerSourceToken = null
+        if (!restored && requestFallback) {
+            focusCoordinator.switchLayer(WjzFocusLayer.Content)
+            focusCoordinator.enqueueRequestFocus(
+                nodeId = MainContentNodeId,
+                layer = WjzFocusLayer.Content,
+                scopeId = MainFocusScopeId
+            )
         }
     }
 
@@ -276,37 +290,128 @@ fun MainScreen(
         activeDrawerItem = item
     }
 
-    LaunchedEffect(activeDrawerItem) {
-        currentReadyItem = null
-        pendingContentFocus = pendingContentFocus?.takeIf { it.item == activeDrawerItem }
+    fun requestContentEntry(
+        item: LeftNaviItem,
+        target: MainDrawerContentEntryTarget
+    ): Boolean {
+        if (!isContentItem(item)) return false
+        val entryTarget =
+            when (target) {
+                MainDrawerContentEntryTarget.LeftEntry -> MainContentEntryTarget.LeftEntry
+                MainDrawerContentEntryTarget.RightEntry -> MainContentEntryTarget.RightEntry
+            }
+        pendingContentFocus = newPendingContentFocus(item, entryTarget)
+        if (leftNaviExpanded) {
+            collapseLeftNavi(requestFallback = false, restoreSource = true)
+        }
+        focusCoordinator.switchLayer(WjzFocusLayer.Content)
+        return true
     }
 
-    fun currentDrawerFocusRequester(): FocusRequester {
-        return when (focusedDrawerItem) {
-            LeftNaviItem.Home -> homeDrawerFocusRequester
-            LeftNaviItem.Live -> liveDrawerFocusRequester
-            LeftNaviItem.UGC -> ugcDrawerFocusRequester
-            LeftNaviItem.PGC -> pgcDrawerFocusRequester
-            else -> homeDrawerFocusRequester
+    fun requestTopNavContentEntry(target: MainTopNavContentEntryTarget): Boolean {
+        if (!isContentItem(activeDrawerItem)) return false
+        pendingContentFocus = newPendingContentFocus(
+            item = activeDrawerItem,
+            target = target.toMainContentEntryTarget()
+        )
+        focusCoordinator.switchLayer(WjzFocusLayer.Content)
+        return true
+    }
+
+    fun contentEntryRequestFor(item: LeftNaviItem, active: Boolean): MainContentEntryRequest? {
+        if (!active) return null
+        return pendingContentFocus
+            ?.takeIf { pending ->
+                pending.item == item &&
+                        (
+                                pending.transition.state == MainContentEntryState.Pending ||
+                                        pending.transition.state == MainContentEntryState.Ready
+                                )
+            }
+            ?.request
+    }
+
+    fun markContentEntryRequestReady(item: LeftNaviItem, requestId: Long) {
+        val pending = pendingContentFocus ?: return
+        if (
+            pending.item == item &&
+            pending.transition.requestId == requestId &&
+            pending.transition.state == MainContentEntryState.Pending
+        ) {
+            pendingContentFocus = pending.copy(
+                transition = pending.transition.copy(state = MainContentEntryState.Ready)
+            )
         }
+    }
+
+    fun consumeContentEntryRequest(item: LeftNaviItem, requestId: Long) {
+        val pending = pendingContentFocus ?: return
+        if (
+            pending.item == item &&
+            pending.transition.requestId == requestId &&
+            pending.transition.state == MainContentEntryState.Ready
+        ) {
+            pendingContentFocus = pending.copy(
+                transition = pending.transition.copy(state = MainContentEntryState.Consumed)
+            )
+            activateDrawerItem(item)
+            pendingContentFocus = null
+        }
+    }
+
+    fun rejectContentEntryRequest(item: LeftNaviItem, requestId: Long) {
+        val pending = pendingContentFocus ?: return
+        if (pending.item == item && pending.transition.requestId == requestId) {
+            pendingContentFocus = pending.copy(
+                transition = pending.transition.copy(state = MainContentEntryState.Rejected)
+            )
+            pendingContentFocus = null
+        }
+    }
+
+    fun resolveContentNavigationExit(
+        request: WjzFocusExitRequest
+    ): WjzFocusEntryResolution {
+        return when (request.targetEntryId) {
+            MainContentNavigationExitEntry.TopNavUser.entryId -> {
+                focusCoordinator.switchLayer(WjzFocusLayer.TopNav)
+                pendingTopNavEntryRequest = newTopNavEntryRequest(MainTopNavEntryTarget.User)
+                WjzFocusEntryResolution.Pending(
+                    entryId = request.targetEntryId,
+                    layer = WjzFocusLayer.TopNav,
+                    scopeId = MainTopNavScopeId
+                )
+            }
+
+            MainContentNavigationExitEntry.DrawerCurrentItem.entryId -> {
+                focusCoordinator.switchLayer(WjzFocusLayer.Drawer)
+                pendingDrawerEntryRequest = newDrawerEntryRequest(MainDrawerEntryTarget.CurrentItem)
+                WjzFocusEntryResolution.Pending(
+                    entryId = request.targetEntryId,
+                    layer = WjzFocusLayer.Drawer,
+                    scopeId = MainDrawerScopeId
+                )
+            }
+
+            else -> WjzFocusEntryResolution.Reject
+        }
+    }
+
+    val contentNavigationExitEntry = if (leftNaviExpanded) {
+        MainContentNavigationExitEntry.DrawerCurrentItem
+    } else {
+        MainContentNavigationExitEntry.TopNavUser
     }
 
     fun expandLeftNavi() {
         if (leftNaviExpanded) return
         userButtonColorAnimationEnabled = false
+        drawerSourceToken = focusCoordinator.activateLayer(
+            layer = WjzFocusLayer.Drawer,
+            recordSource = true
+        )
         leftNaviExpanded = true
-    }
-
-    fun collapseLeftNavi() {
-        if (!leftNaviExpanded) return
-        leftNaviExpanded = false
-        userButtonColorAnimationEnabled = true
-        scope.launch {
-            delay(360) // 等待动画完成再恢复焦点
-            if (!leftNaviExpanded) {
-                requestDefaultFocusForActiveContent()
-            }
-        }
+        pendingDrawerEntryRequest = newDrawerEntryRequest(MainDrawerEntryTarget.User)
     }
 
     fun openUserPage() {
@@ -317,80 +422,10 @@ fun MainScreen(
         }
     }
 
-    val onUserButtonPreviewKeyEvent: (androidx.compose.ui.input.key.KeyEvent) -> Boolean =
-        { keyEvent ->
-            val isConfirmKey = keyEvent.key == Key.DirectionCenter ||
-                    keyEvent.key == Key.Enter ||
-                    keyEvent.key == Key.Spacebar
-
-            when {
-                isConfirmKey &&
-                        keyEvent.type == KeyEventType.KeyDown &&
-                        keyEvent.nativeKeyEvent.isLongPress -> {
-                    if (!userLongPressTriggered) {
-                        userLongPressTriggered = true
-                        openUserPage()
-                    }
-                    true
-                }
-
-                isConfirmKey && keyEvent.type == KeyEventType.KeyUp -> {
-                    if (userLongPressTriggered) {
-                        userLongPressTriggered = false
-                    } else {
-                        if (leftNaviExpanded) collapseLeftNavi() else expandLeftNavi()
-                    }
-                    true
-                }
-
-                leftNaviExpanded && keyEvent.type == KeyEventType.KeyDown &&
-                        keyEvent.key == Key.DirectionDown -> {
-                    currentDrawerFocusRequester().requestFocus(scope)
-                    true
-                }
-
-                leftNaviExpanded && keyEvent.type == KeyEventType.KeyDown &&
-                        keyEvent.key == Key.DirectionUp -> {
-                    settingsFocusRequester.requestFocus(scope)
-                    true
-                }
-
-                leftNaviExpanded &&
-                        (keyEvent.key == Key.DirectionLeft || keyEvent.key == Key.DirectionRight) -> true
-
-                !leftNaviExpanded && keyEvent.type == KeyEventType.KeyDown &&
-                        keyEvent.key == Key.DirectionRight -> {
-                    onFocusToContent(MainContentFocusTarget.LeftEntry)
-                    true
-                }
-
-                !leftNaviExpanded && keyEvent.type == KeyEventType.KeyDown &&
-                        keyEvent.key == Key.DirectionLeft -> {
-                    onFocusToContent(MainContentFocusTarget.RightEntry)
-                    true
-                }
-
-                !leftNaviExpanded &&
-                        (keyEvent.key == Key.DirectionUp || keyEvent.key == Key.DirectionDown) -> true
-
-                else -> false
-            }
-        }
-
-    LaunchedEffect(leftNaviExpanded, focusedDrawerItem) {
-        if (leftNaviExpanded) {
-            // 给抽屉一点时间上屏，然后请求焦点
-            delay(16)
-            currentDrawerFocusRequester().requestFocus()
-            delay(16)
-            currentDrawerFocusRequester().requestFocus()
-        }
-    }
-
     BackHandler {
         if (leftNaviExpanded) {
             collapseLeftNavi()
-        } else if (backFocusRegistry.handleBack()) {
+        } else if (focusCoordinator.restoreSourceLayer()) {
             return@BackHandler
         } else {
             handleBack()
@@ -398,7 +433,7 @@ fun MainScreen(
     }
 
     val topBarLeadingContent: @Composable () -> Unit = {
-        LeftNaviUserButton(
+        WjzFocusHost(
             modifier = Modifier
                 .zIndex(1f)
                 .graphicsLayer {
@@ -406,63 +441,87 @@ fun MainScreen(
                             size.width * drawerSlideProgress
                     alpha = 1f - drawerSlideProgress
                 },
-            expanded = false,
-            colorAnimationEnabled = userButtonColorAnimationEnabled,
-            isLogin = userViewModel.isLogin,
-            avatar = userViewModel.face,
-            username = userViewModel.username,
-            focusRequester = topBarUserFocusRequester,
-            isFocused = userIsFocused,
-            onFocusChanged = {
-                userIsFocused = it
-                if (!it) userLongPressTriggered = false
-            },
-            onPreviewKeyEvent = onUserButtonPreviewKeyEvent,
-            onClick = { expandLeftNavi() }
-        )
+            coordinator = focusCoordinator,
+            layer = WjzFocusLayer.TopNav,
+            scopeId = MainTopNavScopeId
+        ) {
+            MainTopNavBlock(
+                modifier = Modifier,
+                userColorAnimationEnabled = userButtonColorAnimationEnabled,
+                userIsLogin = userViewModel.isLogin,
+                userAvatar = userViewModel.face,
+                username = userViewModel.username,
+                entryRequest = pendingTopNavEntryRequest,
+                onEntryRequestConsumed = { requestId ->
+                    if (pendingTopNavEntryRequest?.id == requestId) {
+                        pendingTopNavEntryRequest = null
+                    }
+                },
+                focusEnabled = !leftNaviExpanded,
+                userIsFocused = userIsFocused,
+                onUserFocusChanged = { userIsFocused = it },
+                onExpandDrawer = { expandLeftNavi() },
+                onOpenUser = { openUserPage() },
+                onContentEntryRequested = ::requestTopNavContentEntry
+            )
+        }
     }
 
-    CompositionLocalProvider(LocalBvBackFocusRegistry provides backFocusRegistry) {
+    WjzFocusHost(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+        coordinator = focusCoordinator,
+        layer = WjzFocusLayer.Content,
+        scopeId = MainFocusScopeId,
+        exits = mainContentNavigationExits(contentNavigationExitEntry),
+        onHostExit = ::resolveContentNavigationExit
+    ) {
+        WjzFocusTransitionGuard(locked = focusTransitionLocked)
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
+                .wjzFocusable(
+                    nodeId = MainRootNodeId,
+                    layer = WjzFocusLayer.Content,
+                    scopeId = MainFocusScopeId
+                )
         ) {
         // ========== 主页内容区域 ==========
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .zIndex(0f)
+                .wjzFocusable(
+                    nodeId = MainContentNodeId,
+                    layer = WjzFocusLayer.Content,
+                    scopeId = MainFocusScopeId,
+                    strategy = WjzFocusRestoreStrategy.Container,
+                    fallback = true,
+                    globalFallback = true,
+                    enabled = !leftNaviExpanded
+                )
                 .graphicsLayer {
                     // 仅在 Draw 阶段读取 mainContentPushProgress，计算方式：将主页面向右侧"撞飞"，最大距离等于抽屉的确切像素宽度
                     translationX = drawerWidthPx * mainContentPushProgress
                 }
         ) {
             BlackoutSwitch(
-                targetState = activeDrawerItem,
+                targetState = currentContentItem,
                 fadeInMillis = fade,
-                fadeOutMillis = fade
+                fadeOutMillis = fade,
+                transitionState = contentSwitchTransitionState
             ) { currentItem ->
-                val consumeDrawerEntryRequest: (Long) -> Unit = { requestId ->
-                    if (pendingContentFocus?.id == requestId) {
-                        pendingContentFocus = null
-                    }
-                }
-
                 Box(modifier = Modifier.fillMaxSize()) {
-                    val mountedDrawerItems = listOfNotNull(lastActiveDrawerItem, currentItem).distinct()
+                    val mountedDrawerItems = listOfNotNull(
+                        lastActiveDrawerItem,
+                        activeDrawerItem,
+                        pendingContentItem,
+                        currentItem
+                    ).distinct()
                     mountedDrawerItems.forEach { item ->
                         val activeContent = item == currentItem
-                        val drawerEntryRequest = pendingContentFocus
-                            ?.takeIf {
-                                activeContent && it.item == item && it.entryTarget != null
-                            }
-                            ?.let { request ->
-                                MainContentEntryRequest(
-                                    id = request.id,
-                                    target = request.entryTarget!!
-                                )
-                            }
 
                         Box(
                             modifier = Modifier
@@ -471,15 +530,19 @@ fun MainScreen(
                                 .graphicsLayer { alpha = if (activeContent) 1f else 0f }
                                 .runtimeContainerInputEnabled(activeContent)
                         ) {
+                            val contentEntryRequest = contentEntryRequestFor(item, activeContent)
                             when (item) {
                                 LeftNaviItem.Live -> LiveContent(
-                                    navFocusRequester = liveFocusRequester,
-                                    drawerFocusRequester = if (leftNaviExpanded) liveDrawerFocusRequester else topBarUserFocusRequester,
                                     topBarLeadingContent = topBarLeadingContent,
-                                    pendingDrawerEntryRequest = drawerEntryRequest,
-                                    onDrawerEntryConsumed = consumeDrawerEntryRequest,
-                                    onDefaultFocusReady = {
-                                        onContentDefaultFocusReady(LeftNaviItem.Live)
+                                    entryRequest = contentEntryRequest,
+                                    onEntryRequestReady = { requestId ->
+                                        markContentEntryRequestReady(item, requestId)
+                                    },
+                                    onEntryRequestConsumed = { requestId ->
+                                        consumeContentEntryRequest(item, requestId)
+                                    },
+                                    onEntryRequestRejected = { requestId ->
+                                        rejectContentEntryRequest(item, requestId)
                                     },
                                     active = activeContent
                                 )
@@ -488,13 +551,16 @@ fun MainScreen(
                                     val homeContentViewModel: HomeContentViewModel =
                                         koinViewModel<HomeContentViewModel>()
                                     HomeContent(
-                                        navFocusRequester = mainFocusRequester,
-                                        drawerFocusRequester = if (leftNaviExpanded) homeDrawerFocusRequester else topBarUserFocusRequester,
                                         topBarLeadingContent = topBarLeadingContent,
-                                        pendingDrawerEntryRequest = drawerEntryRequest,
-                                        onDrawerEntryConsumed = consumeDrawerEntryRequest,
-                                        onDefaultFocusReady = {
-                                            onContentDefaultFocusReady(LeftNaviItem.Home)
+                                        entryRequest = contentEntryRequest,
+                                        onEntryRequestReady = { requestId ->
+                                            markContentEntryRequestReady(item, requestId)
+                                        },
+                                        onEntryRequestConsumed = { requestId ->
+                                            consumeContentEntryRequest(item, requestId)
+                                        },
+                                        onEntryRequestRejected = { requestId ->
+                                            rejectContentEntryRequest(item, requestId)
                                         },
                                         homeContentViewModel = homeContentViewModel,
                                         userViewModel = userViewModel,
@@ -503,25 +569,31 @@ fun MainScreen(
                                 }
 
                                 LeftNaviItem.UGC -> UgcContent(
-                                    navFocusRequester = ugcFocusRequester,
-                                    drawerFocusRequester = if (leftNaviExpanded) ugcDrawerFocusRequester else topBarUserFocusRequester,
                                     topBarLeadingContent = topBarLeadingContent,
-                                    pendingDrawerEntryRequest = drawerEntryRequest,
-                                    onDrawerEntryConsumed = consumeDrawerEntryRequest,
-                                    onDefaultFocusReady = {
-                                        onContentDefaultFocusReady(LeftNaviItem.UGC)
+                                    entryRequest = contentEntryRequest,
+                                    onEntryRequestReady = { requestId ->
+                                        markContentEntryRequestReady(item, requestId)
+                                    },
+                                    onEntryRequestConsumed = { requestId ->
+                                        consumeContentEntryRequest(item, requestId)
+                                    },
+                                    onEntryRequestRejected = { requestId ->
+                                        rejectContentEntryRequest(item, requestId)
                                     },
                                     active = activeContent
                                 )
 
                                 LeftNaviItem.PGC -> PgcContent(
-                                    navFocusRequester = pgcFocusRequester,
-                                    drawerFocusRequester = if (leftNaviExpanded) pgcDrawerFocusRequester else topBarUserFocusRequester,
                                     topBarLeadingContent = topBarLeadingContent,
-                                    pendingDrawerEntryRequest = drawerEntryRequest,
-                                    onDrawerEntryConsumed = consumeDrawerEntryRequest,
-                                    onDefaultFocusReady = {
-                                        onContentDefaultFocusReady(LeftNaviItem.PGC)
+                                    entryRequest = contentEntryRequest,
+                                    onEntryRequestReady = { requestId ->
+                                        markContentEntryRequestReady(item, requestId)
+                                    },
+                                    onEntryRequestConsumed = { requestId ->
+                                        consumeContentEntryRequest(item, requestId)
+                                    },
+                                    onEntryRequestRejected = { requestId ->
+                                        rejectContentEntryRequest(item, requestId)
                                     },
                                     active = activeContent
                                 )
@@ -536,7 +608,7 @@ fun MainScreen(
 
         // ========== 抽屉区域 ==========
         val isDarkTheme = rememberIsDarkFromPrefs()
-        LeftNaviContent(
+        WjzFocusHost(
             modifier = Modifier
                 .fillMaxHeight()
                 .zIndex(2f)
@@ -582,72 +654,34 @@ fun MainScreen(
                         strokeWidth = 1.dp.toPx()
                     )
                 },
-            selectedItem = activeDrawerItem,
-            homeFocusRequester = homeDrawerFocusRequester,
-            liveFocusRequester = liveDrawerFocusRequester,
-            ugcFocusRequester = ugcDrawerFocusRequester,
-            pgcFocusRequester = pgcDrawerFocusRequester,
-            onLeftNaviItemChanged = { activateDrawerItem(it) },
-            onLeftNaviItemFocused = { focusDrawerItem(it) },
-            onOpenSettings = { context.startActivity(Intent(context, SettingsActivity::class.java)) },
-            onFocusToContent = onFocusToContent,
-            userFocusRequester = userFocusRequester,
-            settingsFocusRequester = settingsFocusRequester,
-            userContent = {
-                LeftNaviUserButton(
-                    expanded = true,
-                    colorAnimationEnabled = userButtonColorAnimationEnabled,
-                    isLogin = userViewModel.isLogin,
-                    avatar = userViewModel.face,
-                    username = userViewModel.username,
-                    focusRequester = userFocusRequester,
-                    isFocused = userIsFocused,
-                    onFocusChanged = {
-                        userIsFocused = it
-                        if (!it) userLongPressTriggered = false
-                    },
-                    onPreviewKeyEvent = { keyEvent ->
-                        val isConfirmKey = keyEvent.key == Key.DirectionCenter ||
-                                keyEvent.key == Key.Enter ||
-                                keyEvent.key == Key.Spacebar
-
-                        when {
-                            isConfirmKey && keyEvent.type == KeyEventType.KeyDown &&
-                                    keyEvent.nativeKeyEvent.isLongPress -> {
-                                if (!userLongPressTriggered) {
-                                    userLongPressTriggered = true
-                                    openUserPage()
-                                }
-                                true
-                            }
-
-                            isConfirmKey && keyEvent.type == KeyEventType.KeyUp -> {
-                                if (!userLongPressTriggered) {
-                                    collapseLeftNavi()
-                                }
-                                userLongPressTriggered = false
-                                true
-                            }
-
-                            keyEvent.key == Key.DirectionDown && keyEvent.type == KeyEventType.KeyDown -> {
-                                currentDrawerFocusRequester().requestFocus(scope)
-                                true
-                            }
-
-                            keyEvent.key == Key.DirectionUp && keyEvent.type == KeyEventType.KeyDown -> {
-                                settingsFocusRequester.requestFocus(scope)
-                                true
-                            }
-
-                            keyEvent.key == Key.DirectionLeft || keyEvent.key == Key.DirectionRight -> true
-
-                            else -> false
-                        }
-                    },
-                    onClick = { collapseLeftNavi() }
-                )
-            }
-        )
+            coordinator = focusCoordinator,
+            layer = WjzFocusLayer.Drawer,
+            scopeId = MainDrawerScopeId
+        ) {
+            MainDrawerBlock(
+                modifier = Modifier,
+                selectedItem = activeDrawerItem,
+                currentItem = focusedDrawerItem,
+                entryRequest = pendingDrawerEntryRequest,
+                onEntryRequestConsumed = { requestId ->
+                    if (pendingDrawerEntryRequest?.id == requestId) {
+                        pendingDrawerEntryRequest = null
+                    }
+                },
+                onItemActivated = { activateDrawerItem(it) },
+                onItemFocused = { focusDrawerItem(it) },
+                onOpenSettings = { context.startActivity(Intent(context, SettingsActivity::class.java)) },
+                onContentEntryRequested = ::requestContentEntry,
+                userColorAnimationEnabled = userButtonColorAnimationEnabled,
+                userIsLogin = userViewModel.isLogin,
+                userAvatar = userViewModel.face,
+                username = userViewModel.username,
+                userIsFocused = userIsFocused,
+                onUserFocusChanged = { userIsFocused = it },
+                onCollapse = { collapseLeftNavi() },
+                onOpenUser = { openUserPage() }
+            )
+        }
 
         if (showFirstLaunchMainDialog) {
             val closeFirstLaunchMainDialog = {
@@ -661,8 +695,11 @@ fun MainScreen(
                     fontScale = LocalDensity.current.fontScale * 1.5f
                 )
             ) {
-                AlertDialog(
+                TvAlertDialog(
                     onDismissRequest = closeFirstLaunchMainDialog,
+                    sourceScopeId = MainFocusScopeId,
+                    dialogScopeId = MainFirstLaunchDialogScopeId,
+                    containerNodeId = MainFirstLaunchDialogContainerNodeId,
                     title = {
                         Text(text = "温馨提示")
                     },

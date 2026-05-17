@@ -35,8 +35,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -48,6 +46,10 @@ import androidx.tv.material3.ListItem
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusHost
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
 import dev.aaa1115910.bv.network.HttpServer
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.C
@@ -63,6 +65,8 @@ import org.koin.androidx.compose.koinViewModel
 import java.io.File
 import java.net.Inet4Address
 import java.net.NetworkInterface
+
+private val LogsCreateNodeId = WjzFocusNodeId("settings/logs/create")
 
 @Composable
 fun LogsScreen(
@@ -221,107 +225,113 @@ fun LogsScreenContent(
     onFocusLogFile: (File) -> Unit,
     onClickCreateLog: () -> Unit
 ) {
-    val focusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
-
-    Scaffold(
+    WjzFocusHost(
         modifier = modifier,
-        topBar = {
-            Box(
-                modifier = Modifier.padding(start = 48.dp, top = 24.dp, bottom = 8.dp, end = 48.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.SpaceBetween
+        layer = WjzFocusLayer.Content
+    ) {
+        Scaffold(
+            topBar = {
+                Box(
+                    modifier = Modifier.padding(start = 48.dp, top = 24.dp, bottom = 8.dp, end = 48.dp)
                 ) {
-                    Text(
-                        text = stringResource(id = R.string.title_activity_logs),
-                        fontSize = 48.sp
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(id = R.string.title_activity_logs),
+                            fontSize = 48.sp
+                        )
+                    }
                 }
             }
-        }
-    ) { innerPadding ->
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            Box(
-                modifier = Modifier.weight(1f)
+        ) { innerPadding ->
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
             ) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        horizontal = 36.dp,
-                        vertical = 12.dp
-                    )
+                Box(
+                    modifier = Modifier.weight(1f)
                 ) {
-                    item {
-                        CreateLogItem(
-                            modifier = Modifier.focusRequester(focusRequester),
-                            onFocus = onFocusCreate,
-                            onClick = onClickCreateLog
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            horizontal = 36.dp,
+                            vertical = 12.dp
                         )
-                    }
-                    items(items = logs) { logFile ->
-                        LogItem(
-                            filename = logFile.name,
-                            size = logFile.length(),
-                            onFocus = { onFocusLogFile(logFile) }
-                        )
-                    }
-                    if (logs.isEmpty()) {
+                    ) {
                         item {
-                            Box(
+                            CreateLogItem(
+                                modifier = Modifier.wjzFocusable(
+                                    nodeId = LogsCreateNodeId,
+                                    layer = WjzFocusLayer.Content,
+                                    fallback = true
+                                ),
+                                onFocus = onFocusCreate,
+                                onClick = onClickCreateLog
+                            )
+                        }
+                        items(items = logs) { logFile ->
+                            LogItem(
+                                modifier = Modifier.wjzFocusable(
+                                    nodeId = WjzFocusNodeId("settings/logs/file/${logFile.name}"),
+                                    layer = WjzFocusLayer.Content
+                                ),
+                                filename = logFile.name,
+                                size = logFile.length(),
+                                onFocus = { onFocusLogFile(logFile) }
+                            )
+                        }
+                        if (logs.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(200.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(text = stringResource(R.string.log_list_empty))
+                                }
+                            }
+                        }
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxSize(),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    if (!isCreateFocused) {
+                        if (fileQrImage != null) {
+                            BoxWithConstraints(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(200.dp),
+                                    .fillMaxSize()
+                                    .padding(32.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(text = stringResource(R.string.log_list_empty))
-                            }
-                        }
-                    }
-                }
-            }
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxSize(),
-                contentAlignment = Alignment.TopCenter
-            ) {
-                if (!isCreateFocused) {
-                    if (fileQrImage != null) {
-                        BoxWithConstraints(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            val qrSize = if (maxWidth < maxHeight) maxWidth else maxHeight
-                            Box(
-                                modifier = Modifier
-                                    .size(qrSize)
-                                    .clip(MaterialTheme.shapes.large)
-                                    .background(C.surface),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Image(
+                                val qrSize = if (maxWidth < maxHeight) maxWidth else maxHeight
+                                Box(
                                     modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(20.dp),
-                                    bitmap = fileQrImage,
-                                    contentDescription = null
-                                )
+                                        .size(qrSize)
+                                        .clip(MaterialTheme.shapes.large)
+                                        .background(C.surface),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Image(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(20.dp),
+                                        bitmap = fileQrImage,
+                                        contentDescription = null
+                                    )
+                                }
                             }
+                        } else {
+                            CircularProgressIndicator()
                         }
-                    } else {
-                        CircularProgressIndicator()
                     }
                 }
             }

@@ -38,6 +38,7 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.pgc.IndexFilter
 import dev.aaa1115910.bv.component.videocard.SeasonCard
@@ -132,9 +133,11 @@ fun PgcIndexScreen(
             modifier = Modifier.padding(innerPadding),
             columns = GridCells.Fixed(6),
             contentPadding = PaddingValues(24.dp),
+            nodeIdPrefix = "pgc-index/${pgcIndexViewModel.pgcType.name}",
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             focusItemCount = pgcItems.size,
+            focusItemKeys = pgcItems.map { WjzFocusItemKey("Long:${it.seasonId}") },
             focusColumnCount = 6
         ) { cardUiStateFor ->
             itemsIndexed(

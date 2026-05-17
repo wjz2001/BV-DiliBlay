@@ -15,7 +15,6 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,7 +27,6 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.PaddingValues
@@ -41,8 +39,11 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import coil.compose.AsyncImage
 import dev.aaa1115910.biliapi.entity.user.CoAuthor
-import dev.aaa1115910.bv.tv.component.TvAlertDialog
-import dev.aaa1115910.bv.util.requestFocus
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusNode
+import dev.aaa1115910.bv.component.TvAlertDialog
 
 @Stable
 class CoAuthorsDialogState internal constructor() {
@@ -70,6 +71,8 @@ private data class CoAuthorGroup(
     val title: String,
     val members: List<CoAuthor>
 )
+
+private val CoAuthorsFirstMemberNodeId = WjzFocusNodeId("dialog/coauthors/first-member")
 
 private fun buildGroups(authors: List<CoAuthor>): List<CoAuthorGroup> {
     // 稳定去重
@@ -105,12 +108,6 @@ fun CoAuthorsDialogHost(
     // 找到弹窗里第一个可聚焦成员（UP主组已在 buildGroups 里置顶）
     val firstMemberMid = remember(groups) { groups.firstOrNull()?.members?.firstOrNull()?.mid }
     val firstMemberFocusRequester = remember { FocusRequester() }
-    val scope = rememberCoroutineScope()
-
-    LaunchedEffect(firstMemberMid) {
-        if (firstMemberMid == null) return@LaunchedEffect
-        firstMemberFocusRequester.requestFocus(scope)
-    }
 
     TvAlertDialog(
         onDismissRequest = { state.dismiss() },
@@ -121,6 +118,16 @@ fun CoAuthorsDialogHost(
         ),
         title = { Text(text = title) },
         text = {
+            val focusCoordinator = LocalWjzFocusCoordinator.current
+
+            LaunchedEffect(firstMemberMid, focusCoordinator) {
+                if (firstMemberMid == null) return@LaunchedEffect
+                focusCoordinator?.requestFocus(
+                    nodeId = CoAuthorsFirstMemberNodeId,
+                    layer = WjzFocusLayer.Dialog
+                )
+            }
+
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -143,7 +150,13 @@ fun CoAuthorsDialogHost(
                             items(items = group.members, key = { it.mid }) { member ->
                                 val itemModifier =
                                     if (member.mid == firstMemberMid) {
-                                        Modifier.focusRequester(firstMemberFocusRequester)
+                                        Modifier
+                                            .wjzFocusNode(
+                                                nodeId = CoAuthorsFirstMemberNodeId,
+                                                requester = firstMemberFocusRequester,
+                                                layer = WjzFocusLayer.Dialog,
+                                                fallback = true
+                                            )
                                     } else {
                                         Modifier
                                     }

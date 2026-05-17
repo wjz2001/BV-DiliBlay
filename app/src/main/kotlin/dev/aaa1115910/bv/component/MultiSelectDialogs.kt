@@ -12,19 +12,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Done
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text as M3Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -38,14 +33,15 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.block.BlockPage
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.theme.C
-import kotlinx.coroutines.delay
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.tv.material3.Border
-
-private const val DialogAutoFocusRetryCount = 20
-private const val DialogAutoFocusRetryDelayMillis = 50L
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusScopeId
 
 /**
  * 简单多选弹框的“提交时机”：
@@ -147,15 +143,21 @@ private fun BaseMultiSelectDialog(
     show: Boolean,
     title: String,
     onDismissRequest: () -> Unit,
+    sourceScopeId: WjzFocusScopeId? = null,
+    dialogScopeId: WjzFocusScopeId? = null,
+    containerNodeId: WjzFocusNodeId? = null,
     content: @Composable () -> Unit
 ) {
     if (!show) return
 
-    AlertDialog(
+    TvAlertDialog(
         modifier = modifier,
         onDismissRequest = onDismissRequest,
         confirmButton = {},
         containerColor = C.surface,
+        sourceScopeId = sourceScopeId,
+        dialogScopeId = dialogScopeId,
+        containerNodeId = containerNodeId,
         title = {
             M3Text(
                 text = title,
@@ -302,6 +304,10 @@ private fun <T, ID> SimpleMultiSelectDialog(
     dismissOrder: DismissOrder = DismissOrder.SubmitThenHide,
     itemEnabled: (T) -> Boolean = { true },
     maxSelectedCount: Int? = null,
+    sourceScopeId: WjzFocusScopeId? = null,
+    dialogScopeId: WjzFocusScopeId? = null,
+    containerNodeId: WjzFocusNodeId? = null,
+    itemNodeId: ((T) -> WjzFocusNodeId)? = null,
     onToggle: SnapshotStateList<ID>.(id: ID, selected: Boolean, item: T) -> Unit = { id, selected, _ ->
         if (selected) remove(id) else add(id)
     },
@@ -311,25 +317,6 @@ private fun <T, ID> SimpleMultiSelectDialog(
     // 注意：这份状态只存在于 dialog 内部
     val selectedIds = remember { mutableStateListOf<ID>() }
     val isMaxSelectedCountReached = maxSelectedCount != null && selectedIds.size >= maxSelectedCount
-
-    // 默认给第一个 item 聚焦，适合 TV 场景
-    val defaultFocusRequester = remember { FocusRequester() }
-    val defaultFocusItemKey = items.firstOrNull { item ->
-        val id = itemId(item)
-        itemEnabled(item) && (!isMaxSelectedCountReached || selectedIds.contains(id))
-    }?.let(itemId)
-    val didDefaultItemReceiveFocus = remember { mutableStateOf(false) }
-
-    LaunchedEffect(show, defaultFocusItemKey) {
-        didDefaultItemReceiveFocus.value = false
-    }
-
-    DialogDefaultItemAutoFocus(
-        show = show,
-        defaultFocusItemKey = defaultFocusItemKey,
-        didDefaultItemReceiveFocus = didDefaultItemReceiveFocus.value,
-        focusRequester = defaultFocusRequester
-    )
 
     LaunchedEffect(show, submitMode) {
         if (show && submitMode == SubmitMode.OnDismiss) {
@@ -347,6 +334,9 @@ private fun <T, ID> SimpleMultiSelectDialog(
         modifier = modifier,
         show = show,
         title = title,
+        sourceScopeId = sourceScopeId,
+        dialogScopeId = dialogScopeId,
+        containerNodeId = containerNodeId,
         onDismissRequest = {
             when (submitMode) {
                 SubmitMode.OnEachClick -> onHideDialog()
@@ -371,19 +361,15 @@ private fun <T, ID> SimpleMultiSelectDialog(
             val selected = selectedIds.contains(id)
             val reachedMaxSelectedCount = isMaxSelectedCountReached && !selected
             val enabled = itemEnabled(item) && !reachedMaxSelectedCount
-            val isDefaultFocusItem = id == defaultFocusItemKey
+            val itemNode = itemNodeId?.invoke(item)
+                ?: WjzFocusNodeId("dialog/multi-select/item/$id")
 
-            val itemModifier = if (isDefaultFocusItem) {
-                Modifier
-                    .focusRequester(defaultFocusRequester)
-                    .onFocusChanged { focusState ->
-                        if (focusState.hasFocus) {
-                            didDefaultItemReceiveFocus.value = true
-                        }
-                    }
-            } else {
-                Modifier
-            }
+            val itemModifier = Modifier
+                .wjzFocusable(
+                    nodeId = itemNode,
+                    layer = WjzFocusLayer.Dialog,
+                    scopeId = dialogScopeId
+                )
 
             BaseMultiSelectChip(
                 modifier = itemModifier,
@@ -402,35 +388,6 @@ private fun <T, ID> SimpleMultiSelectDialog(
             ) {
                 itemContent(item)
             }
-        }
-    }
-}
-
-/**
- * 弹窗默认焦点兜底：
- *
- * 1. 焦点目标不是“第一个 item”，而是“第一个 enabled item”
- * 2. 打开弹窗后会持续重试 requestFocus
- * 3. 只有目标 item 真的拿到焦点，才停止重试
- *
- * 这样能覆盖：
- * - 先显示弹窗、后到数据
- * - Dialog 刚创建时节点还没挂稳
- * - 底层已有焦点持有者时，首次 requestFocus 被吞掉
- */
-@Composable
-private fun <K> DialogDefaultItemAutoFocus(
-    show: Boolean,
-    defaultFocusItemKey: K?,
-    didDefaultItemReceiveFocus: Boolean,
-    focusRequester: FocusRequester
-) {
-    LaunchedEffect(show, defaultFocusItemKey, didDefaultItemReceiveFocus) {
-        if (!show || defaultFocusItemKey == null || didDefaultItemReceiveFocus) return@LaunchedEffect
-
-        repeat(DialogAutoFocusRetryCount) {
-            runCatching { focusRequester.requestFocus() }
-            delay(DialogAutoFocusRetryDelayMillis)
         }
     }
 }
@@ -477,6 +434,10 @@ internal fun BlockPageSelectDialog(
     allPages: List<BlockPage> = BlockPage.entries,
     initialSelectedPages: List<BlockPage> = emptyList(),
     onHideDialog: () -> Unit,
+    sourceScopeId: WjzFocusScopeId? = null,
+    dialogScopeId: WjzFocusScopeId? = null,
+    containerNodeId: WjzFocusNodeId? = null,
+    itemNodeId: ((BlockPage) -> WjzFocusNodeId)? = null,
     onSubmit: (List<BlockPage>) -> Unit
 ) {
     SimpleMultiSelectDialog(
@@ -489,7 +450,11 @@ internal fun BlockPageSelectDialog(
         onHideDialog = onHideDialog,
         onSubmit = onSubmit,
         submitMode = SubmitMode.OnDismiss,
-        dismissOrder = DismissOrder.SubmitThenHide
+        dismissOrder = DismissOrder.SubmitThenHide,
+        sourceScopeId = sourceScopeId,
+        dialogScopeId = dialogScopeId,
+        containerNodeId = containerNodeId,
+        itemNodeId = itemNodeId
     ) { page ->
         Text(text = page.displayName)
     }
@@ -508,6 +473,10 @@ internal fun HomeTopNavRefreshSelectDialog(
     items: List<HomeTopNavItem> = HomeTopNavItem.entries.filterNot { it == HomeTopNavItem.Search },
     initialSelectedItems: List<HomeTopNavItem> = emptyList(),
     onHideDialog: () -> Unit,
+    sourceScopeId: WjzFocusScopeId? = null,
+    dialogScopeId: WjzFocusScopeId? = null,
+    containerNodeId: WjzFocusNodeId? = null,
+    itemNodeId: ((HomeTopNavItem) -> WjzFocusNodeId)? = null,
     onSubmit: (List<HomeTopNavItem>) -> Unit
 ) {
     val context = LocalContext.current
@@ -528,7 +497,11 @@ internal fun HomeTopNavRefreshSelectDialog(
             )
         },
         submitMode = SubmitMode.OnDismiss,
-        dismissOrder = DismissOrder.SubmitThenHide
+        dismissOrder = DismissOrder.SubmitThenHide,
+        sourceScopeId = sourceScopeId,
+        dialogScopeId = dialogScopeId,
+        containerNodeId = containerNodeId,
+        itemNodeId = itemNodeId
     ) { item ->
         Text(text = item.getDisplayName(context))
     }
@@ -602,6 +575,10 @@ internal fun BlockGroupSelectDialog(
     tags: List<BlockTagItem>,
     initialSelectedTagIds: List<Int>,
     onHideDialog: () -> Unit,
+    sourceScopeId: WjzFocusScopeId? = null,
+    dialogScopeId: WjzFocusScopeId? = null,
+    containerNodeId: WjzFocusNodeId? = null,
+    itemNodeId: ((BlockTagItem) -> WjzFocusNodeId)? = null,
     onSubmit: (selectedTagIds: List<Int>) -> Unit
 ) {
     SimpleMultiSelectDialog(
@@ -614,7 +591,11 @@ internal fun BlockGroupSelectDialog(
         onHideDialog = onHideDialog,
         onSubmit = { ids -> onSubmit(ids.distinct().sorted()) },
         submitMode = SubmitMode.OnDismiss,
-        dismissOrder = DismissOrder.SubmitThenHide
+        dismissOrder = DismissOrder.SubmitThenHide,
+        sourceScopeId = sourceScopeId,
+        dialogScopeId = dialogScopeId,
+        containerNodeId = containerNodeId,
+        itemNodeId = itemNodeId
     ) { tag ->
         Row(
             horizontalArrangement = Arrangement.spacedBy(10.dp),

@@ -33,10 +33,11 @@ import dev.aaa1115910.biliapi.entity.user.DynamicVideo
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
-import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
+import dev.aaa1115910.bv.component.rememberTvGridFocusTarget
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
@@ -169,9 +170,11 @@ fun DynamicsScreen(
             state = gridState,
             columns = GridCells.Fixed(4),
             contentPadding = PaddingValues(24.dp),
+            nodeIdPrefix = "dynamics/videos",
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             focusItemCount = focusableWrapIndexMap.size,
+            focusItemKeys = focusableWrapIndexMap.keys.map { WjzFocusItemKey("Long:$it") },
             entryFocusRequester = contentEntryFocusRequester,
             upFocusRequester = tabFocusRequester,
             onEntryFocusReady = onContentEntryReady
@@ -183,9 +186,8 @@ fun DynamicsScreen(
                 val isRefreshPlaceholder = item.aid == DynamicViewModel.REFRESH_PLACEHOLDER_AID
 
                 SmallVideoCard(
-                    frameModifier = focusableWrapIndexMap[item.aid]
-                        ?.let { rememberTvGridFocusModifier(it) }
-                        ?: Modifier,
+                    focusTarget = focusableWrapIndexMap[item.aid]
+                        ?.let { rememberTvGridFocusTarget(it) },
                     uiState = cardUiStateFor(item.aid),
                     data = remember(item, isRefreshPlaceholder) {
                         VideoCardData(

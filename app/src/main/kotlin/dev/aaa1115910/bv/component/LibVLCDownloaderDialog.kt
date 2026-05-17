@@ -1,12 +1,12 @@
 package dev.aaa1115910.bv.component
 
-import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.tv.material3.Button
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.tv.component.TvAlertDialog
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.LibVLCDownloaderViewModel
 import org.koin.androidx.compose.koinViewModel
@@ -37,7 +37,7 @@ fun LibVLCDownloaderDialog(
     }
 
     if (show) {
-        AlertDialog(
+        TvAlertDialog(
             modifier = modifier,
             title = { Text(text = "LibVLC 下载器") },
             text = { Text(text = text) },

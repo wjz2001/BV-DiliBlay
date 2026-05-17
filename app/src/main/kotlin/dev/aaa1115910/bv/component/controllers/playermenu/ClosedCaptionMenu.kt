@@ -44,7 +44,13 @@ import dev.aaa1115910.bv.component.controllers.playermenu.component.RadioMenuLis
 import dev.aaa1115910.bv.component.controllers.playermenu.component.StepLessMenuItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.ToggleMenuItem
 import dev.aaa1115910.bv.component.ifElse
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusNode
 import java.text.NumberFormat
+
+private val PlayerClosedCaptionMenuColumnNodeId = WjzFocusNodeId("player/menu/closed-caption")
 
 @Composable
 fun ClosedCaptionMenuList(
@@ -61,10 +67,17 @@ fun ClosedCaptionMenuList(
     onFocusStateChange: (MenuFocusState) -> Unit
 ) {
     val context = LocalContext.current
+    val focusCoordinator = LocalWjzFocusCoordinator.current
     val focusState = LocalMenuFocusStateData.current
     val restorerFocusRequester = remember { FocusRequester() }
 
     val focusRequester = remember { FocusRequester() }
+    fun requestMenuColumnFocus() {
+        focusCoordinator?.requestFocus(
+            nodeId = PlayerClosedCaptionMenuColumnNodeId,
+            layer = WjzFocusLayer.Overlay
+        )
+    }
     var selectedClosedCaptionMenuItem by remember { mutableStateOf(VideoPlayerClosedCaptionMenuItem.Switch) }
     var continuePlayEnabled by remember { mutableStateOf(Prefs.continuePlayAutoSubtitleEnabled) }
 
@@ -142,7 +155,7 @@ fun ClosedCaptionMenuList(
                         },
                         onFocusBackToParent = {
                             onFocusStateChange(MenuFocusState.Menu)
-                            focusRequester.requestFocus()
+                            requestMenuColumnFocus()
                         }
                     )
                 }
@@ -161,7 +174,7 @@ fun ClosedCaptionMenuList(
                     onSelectedChanged = { onSubtitleChange(availableSubtitleTracks[it]) },
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)
-                        focusRequester.requestFocus()
+                        requestMenuColumnFocus()
                     },
                 )
 
@@ -201,7 +214,11 @@ fun ClosedCaptionMenuList(
 
         LazyColumn(
             modifier = Modifier
-                .focusRequester(focusRequester)
+                .wjzFocusNode(
+                    nodeId = PlayerClosedCaptionMenuColumnNodeId,
+                    requester = focusRequester,
+                    layer = WjzFocusLayer.Overlay
+                )
                 .padding(horizontal = 8.dp)
                 .onPreviewKeyEvent {
                     if (it.type == KeyEventType.KeyUp) {

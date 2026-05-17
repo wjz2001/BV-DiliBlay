@@ -21,7 +21,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -34,10 +33,11 @@ import dev.aaa1115910.biliapi.http.util.smartDate
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
-import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
+import dev.aaa1115910.bv.component.rememberTvGridFocusTarget
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.theme.C
@@ -138,9 +138,11 @@ fun TagScreen(
             columns = GridCells.Fixed(4),
             state = gridState,
             contentPadding = PaddingValues(24.dp),
+            nodeIdPrefix = "tag/${uiState.value.tagId}/videos",
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
-            focusItemCount = uiState.value.videoList.size
+            focusItemCount = uiState.value.videoList.size,
+            focusItemKeys = uiState.value.videoList.map { WjzFocusItemKey("Long:${it.aid}") }
         ) { cardUiStateFor ->
             itemsIndexed(
                 items = uiState.value.videoList,
@@ -150,7 +152,7 @@ fun TagScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     SmallVideoCard(
-                        frameModifier = rememberTvGridFocusModifier(index),
+                        focusTarget = rememberTvGridFocusTarget(index),
                         uiState = cardUiStateFor(video.aid),
                         data = VideoCardData(
                             avid = video.aid,

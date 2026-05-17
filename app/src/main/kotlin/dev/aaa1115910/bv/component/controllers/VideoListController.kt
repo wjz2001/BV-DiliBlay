@@ -30,7 +30,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
@@ -42,6 +41,10 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.component.wjzfocus.wjzFocusNode
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import androidx.tv.material3.ListItemDefaults
@@ -50,8 +53,14 @@ import dev.aaa1115910.bv.ui.theme.AppGray
 import dev.aaa1115910.bv.ui.theme.C
 
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+private fun videoListParentNodeId(cid: Long) = WjzFocusNodeId("player/video-list/parent/$cid")
+
+private fun videoListChildNodeId(parentCid: Long, childCid: Long) =
+    WjzFocusNodeId("player/video-list/parent/$parentCid/child/$childCid")
 
 @Composable
 fun VideoListController(
@@ -65,6 +74,7 @@ fun VideoListController(
     onEnsureUgcPagesLoaded: (aid: Long) -> Unit,
 ) {
     val listState = rememberLazyListState()
+    val focusCoordinator = LocalWjzFocusCoordinator.current
 
     val scope = rememberCoroutineScope()
     var ensureParentVisibleJob by remember { mutableStateOf<Job?>(null) }
@@ -305,7 +315,10 @@ fun VideoListController(
 
                                 // 如果 pendingFocusCid 指向父项自身：聚焦父项
                                 if (video.cid == wantCid) {
-                                    parentFocusRequester.requestFocus()
+                                    focusCoordinator?.requestFocus(
+                                        nodeId = videoListParentNodeId(video.cid),
+                                        layer = WjzFocusLayer.Player
+                                    )
                                     kotlinx.coroutines.android.awaitFrame()
                                     // bring into view 再兜底一次（只在这次消耗触发）
                                     kotlinx.coroutines.coroutineScope {
@@ -322,7 +335,10 @@ fun VideoListController(
                                     onEnsureUgcPagesLoaded(video.aid)
 
                                     // 先给父项焦点，至少不要“焦点在屏幕外”
-                                    parentFocusRequester.requestFocus()
+                                    focusCoordinator?.requestFocus(
+                                        nodeId = videoListParentNodeId(video.cid),
+                                        layer = WjzFocusLayer.Player
+                                    )
                                     kotlinx.coroutines.android.awaitFrame()
                                     kotlinx.coroutines.coroutineScope {
                                         launch { parentBringIntoViewRequester.bringIntoView() }
@@ -338,7 +354,12 @@ fun VideoListController(
                             DenseListItem(
                                 modifier = Modifier
                                     .padding(horizontal = 16.dp)
-                                    .focusRequester(parentFocusRequester)
+                                    .wjzFocusNode(
+                                        nodeId = videoListParentNodeId(video.cid),
+                                        requester = parentFocusRequester,
+                                        layer = WjzFocusLayer.Player,
+                                        fallback = isParentSelected && !isChildSelected
+                                    )
                                     .bringIntoViewRequester(parentBringIntoViewRequester)
                                     .onFocusChanged { state ->
                                         if (state.hasFocus) {
@@ -352,7 +373,7 @@ fun VideoListController(
                                                 if (!show) return@launch
 
                                                 // 等一帧，确保 listState.layoutInfo 是稳定的
-                                                kotlinx.coroutines.android.awaitFrame()
+                                                awaitFrame()
                                                 if (focusedParentCid != video.cid) return@launch
 
                                                 val index = videoList.indexOfFirst { it.cid == video.cid }
@@ -372,7 +393,7 @@ fun VideoListController(
 
                                                 if (!actuallyVisible) {
                                                     listState.scrollToItem(index, scrollOffset = -80)
-                                                    kotlinx.coroutines.android.awaitFrame()
+                                                    awaitFrame()
 
                                                     // 只在 off-screen 时才 bringIntoView，避免日常移动焦点时干扰滚动
                                                     if (focusedParentCid == video.cid) {
@@ -494,7 +515,10 @@ fun VideoListController(
                                                 }
 
                                                 // 请求焦点到子项
-                                                childFocusRequester.requestFocus()
+                                                focusCoordinator?.requestFocus(
+                                                    nodeId = videoListChildNodeId(video.cid, page.cid),
+                                                    layer = WjzFocusLayer.Player
+                                                )
                                                 kotlinx.coroutines.android.awaitFrame()
 
                                                 // bring into view 兜底（仅这一次）
@@ -509,7 +533,12 @@ fun VideoListController(
                                             MenuListItem(
                                                 modifier = Modifier
                                                     .padding(horizontal = 16.dp)
-                                                    .focusRequester(childFocusRequester)
+                                                    .wjzFocusNode(
+                                                        nodeId = videoListChildNodeId(video.cid, page.cid),
+                                                        requester = childFocusRequester,
+                                                        layer = WjzFocusLayer.Player,
+                                                        fallback = isPageSelected
+                                                    )
                                                     .bringIntoViewRequester(childBringIntoViewRequester),
                                                 text = page.title,
                                                 selected = isPageSelected,
@@ -527,14 +556,6 @@ fun VideoListController(
                                 }
                             }
 
-                            // 如果折叠子项，确保焦点回到父项
-                            LaunchedEffect(show, active, expanded) {
-                                if (!show) return@LaunchedEffect
-                                if (!active) return@LaunchedEffect
-                                if (!expanded && isParentSelected) {
-                                    parentFocusRequester.requestFocus()
-                                }
-                            }
                         }
                     }
                     }
