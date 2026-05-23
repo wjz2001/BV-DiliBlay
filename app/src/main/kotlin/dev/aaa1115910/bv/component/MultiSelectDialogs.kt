@@ -33,15 +33,14 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.block.BlockPage
-import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
-import dev.aaa1115910.bv.component.TvAlertDialog
+import dev.aaa1115910.bv.wjzfocus.wjzFocusable
 import dev.aaa1115910.bv.ui.theme.C
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.tv.material3.Border
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 
 /**
  * 简单多选弹框的“提交时机”：

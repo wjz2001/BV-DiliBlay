@@ -41,10 +41,10 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.component.wjzfocus.wjzFocusNode
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.wjzFocusNode
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import androidx.tv.material3.ListItemDefaults

@@ -21,9 +21,9 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.ProvideTextStyle
 import androidx.tv.material3.Text
-import dev.aaa1115910.bv.component.wjzfocus.WjzDialogFocusHost
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzDialogFocusHost
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.ui.theme.BVTheme
 
 @OptIn(ExperimentalMaterial3Api::class)

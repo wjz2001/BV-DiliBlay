@@ -42,10 +42,10 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.login.QrLoginState
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusHost
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.wjzFocusable
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppRed
 import dev.aaa1115910.bv.ui.theme.AppWhite

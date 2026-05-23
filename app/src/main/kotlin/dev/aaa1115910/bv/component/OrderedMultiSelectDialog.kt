@@ -47,12 +47,11 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.component.wjzfocus.wjzFocusNode
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.wjzFocusNode
 import androidx.tv.material3.Text as TvText
-import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.toast
 import kotlinx.coroutines.delay

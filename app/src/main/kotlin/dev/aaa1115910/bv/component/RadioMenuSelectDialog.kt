@@ -30,13 +30,12 @@ import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.RadioButton
 import androidx.tv.material3.RadioButtonDefaults
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import androidx.tv.material3.Text as TvText
-import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.theme.C
-import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.wjzFocusable
 
 /**
  * 单选列表 Dialog（TV 焦点友好）。

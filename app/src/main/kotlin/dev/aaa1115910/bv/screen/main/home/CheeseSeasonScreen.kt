@@ -55,12 +55,12 @@ import coil.compose.AsyncImage
 import dev.aaa1115910.biliapi.entity.cheese.CheeseEpisode
 import dev.aaa1115910.biliapi.entity.cheese.CheeseSeasonDetail
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusItemKey
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.component.TvGridFocusHost
-import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.wjzFocusable
 import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.component.videocard.VideoPartButton

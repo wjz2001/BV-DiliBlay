@@ -43,12 +43,12 @@ import androidx.tv.material3.TabDefaults
 import androidx.tv.material3.TabRow
 import androidx.tv.material3.TabRowDefaults
 import androidx.tv.material3.Text
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusRestoreStrategy
-import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusScopeId
-import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.wjzFocusable
 import dev.aaa1115910.bv.util.fInfo
 import io.github.oshai.kotlinlogging.KotlinLogging
 

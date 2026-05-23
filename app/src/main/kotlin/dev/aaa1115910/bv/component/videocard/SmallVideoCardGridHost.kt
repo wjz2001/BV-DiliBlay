@@ -22,7 +22,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusItemKey
+import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.component.CoAuthorsDialogHost
 import dev.aaa1115910.bv.component.FavoriteDialog
 import dev.aaa1115910.bv.component.TvGridFocusHost

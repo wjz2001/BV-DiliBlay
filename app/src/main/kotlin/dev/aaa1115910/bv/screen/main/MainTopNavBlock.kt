@@ -4,15 +4,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusEntryId
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusEntryResolution
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusExitRequest
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeExit
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusScopeId
-import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryResolution
+import dev.aaa1115910.bv.wjzfocus.WjzFocusExitRequest
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeExit
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.wjzFocusable
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryTarget
 
 internal data class MainTopNavEntryRequest(

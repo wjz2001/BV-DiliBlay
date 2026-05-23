@@ -4,8 +4,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusEntryId
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusHostExit
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusHostExit
 import dev.aaa1115910.bv.component.TopNavEntryFocusConsumed
 import dev.aaa1115910.bv.component.TopNavEntryFocusResolution
 import dev.aaa1115910.bv.component.TopNavEntryFocusTarget

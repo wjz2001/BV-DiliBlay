@@ -27,11 +27,11 @@ import dev.aaa1115910.bv.block.BlockManager
 import dev.aaa1115910.bv.component.BlockGroupSelectDialog
 import dev.aaa1115910.bv.component.BlockPageSelectDialog
 import dev.aaa1115910.bv.component.BlockTagItem
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusScopeId
-import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.component.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.wjzFocusable
 import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.relation.RelationGroupSnapshot
 import dev.aaa1115910.bv.relation.RelationGroupsDataSource

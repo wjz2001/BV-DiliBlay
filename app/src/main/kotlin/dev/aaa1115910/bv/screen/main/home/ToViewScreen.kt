@@ -62,7 +62,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusItemKey
+import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.component.BvTabLabel
 import dev.aaa1115910.bv.component.BvUnderlineTabRow
 import dev.aaa1115910.bv.component.MainTopBarContainer

@@ -41,14 +41,14 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusHost
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusSourceToken
-import dev.aaa1115910.bv.component.wjzfocus.WjzFocusTransitionGuard
-import dev.aaa1115910.bv.component.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.component.wjzfocus.wjzFocusNode
-import dev.aaa1115910.bv.component.wjzfocus.rememberWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTransitionGuard
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.wjzFocusNode
+import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.ui.theme.BVTheme
 
