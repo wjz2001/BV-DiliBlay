@@ -89,11 +89,11 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.wjzFocusNode
-import dev.aaa1115910.bv.component.wjzfocus.wjzRegisteredFocusNode
 import dev.aaa1115910.bv.component.richtext.RichText
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.C
+import dev.aaa1115910.bv.util.BvKeyDirection
 import dev.aaa1115910.bv.util.buildRichTextTokens
 import dev.aaa1115910.bv.util.countRichTextInteractiveTokens
 import dev.aaa1115910.bv.util.loadRichContentDocument
@@ -101,6 +101,10 @@ import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.launchPlayerActivity
 import dev.aaa1115910.bv.util.RichContentDocument
 import dev.aaa1115910.bv.util.ResolvedVideoLink
+import dev.aaa1115910.bv.util.bvKeyDirection
+import dev.aaa1115910.bv.util.isConfirmKey
+import dev.aaa1115910.bv.util.isKeyDown
+import dev.aaa1115910.bv.util.isKeyUp
 import dev.aaa1115910.bv.util.toast
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
@@ -573,7 +577,7 @@ fun VideoCommentsDialog(
                             )
                             .focusable()
                             .onPreviewKeyEvent {
-                                if (it.type == KeyEventType.KeyDown && it.key == Key.Back) {
+                                if (it.isKeyDown() && it.key == Key.Back) {
                                     goBackLayer()
                                     true
                                 } else false
@@ -606,7 +610,10 @@ fun VideoCommentsDialog(
                                             key = { _, c -> c.rpid }
                                         ) { index, comment ->
                                             // 这个就是“item 入口”FocusRequester，直接挂在评论正文上
-                                            val itemFr = mainItemFocusRequesters.getOrPut(comment.rpid) { FocusRequester() }
+                                            val itemFr = remember(comment.rpid) { FocusRequester() }
+                                            LaunchedEffect(comment.rpid, itemFr) {
+                                                mainItemFocusRequesters[comment.rpid] = itemFr
+                                            }
 
                                         val prevItemNodeId = comments
                                             .getOrNull(index - 1)
@@ -715,7 +722,10 @@ fun VideoCommentsDialog(
                                                 replies,
                                                 key = { _, c -> c.rpid }
                                             ) { index, reply ->
-                                                val itemFr = replyItemFocusRequesters.getOrPut(reply.rpid) { FocusRequester() }
+                                                val itemFr = remember(reply.rpid) { FocusRequester() }
+                                                LaunchedEffect(reply.rpid, itemFr) {
+                                                    replyItemFocusRequesters[reply.rpid] = itemFr
+                                                }
 
                                                 val prevItemNodeId = replies
                                                     .getOrNull(index - 1)
@@ -948,10 +958,11 @@ private fun Modifier.registerInlineFocusNodes(
 ): Modifier {
     var result = this
     nodeIds.zip(requesters).forEach { (nodeId, requester) ->
-        result = result.wjzRegisteredFocusNode(
+        result = result.wjzFocusNode(
             nodeId = nodeId,
             requester = requester,
-            layer = WjzFocusLayer.Dialog
+            layer = WjzFocusLayer.Dialog,
+            attachFocusModifiers = false
         )
     }
     return result
@@ -1553,7 +1564,7 @@ private fun RichContentPage(
                             }
                         }
                         .onPreviewKeyEvent { event ->
-                            if (bodyIsFocused && event.type == KeyEventType.KeyDown) {
+                            if (bodyIsFocused && event.isKeyDown()) {
                                 when (event.key) {
                                     Key.DirectionDown -> {
                                         coroutineScope.launch { handleBodyNavDown() }
@@ -1815,33 +1826,33 @@ private fun CommentImagePreviewDialog(
                             right = focusRequester
                         }
                         .onKeyEvent { e ->
-                            when (e.key) {
-                                Key.Back -> {
-                                    if (e.type == KeyEventType.KeyUp) return@onKeyEvent true
+                            when {
+                                e.key == Key.Back -> {
+                                    if (e.isKeyUp()) return@onKeyEvent true
                                     onDismissRequest()
                                     return@onKeyEvent true
                                 }
 
-                                Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
-                                    if (e.type == KeyEventType.KeyUp) return@onKeyEvent true
+                                e.isConfirmKey() -> {
+                                    if (e.isKeyUp()) return@onKeyEvent true
                                     isWidthFitMode = !isWidthFitMode
                                     return@onKeyEvent true
                                 }
 
-                                Key.DirectionLeft, Key.MediaRewind -> {
-                                    if (e.type == KeyEventType.KeyUp) return@onKeyEvent true
+                                e.bvKeyDirection() == BvKeyDirection.Left -> {
+                                    if (e.isKeyUp()) return@onKeyEvent true
                                     onSwitch(-1)
                                     return@onKeyEvent true
                                 }
 
-                                Key.DirectionRight, Key.MediaFastForward -> {
-                                    if (e.type == KeyEventType.KeyUp) return@onKeyEvent true
+                                e.bvKeyDirection() == BvKeyDirection.Right -> {
+                                    if (e.isKeyUp()) return@onKeyEvent true
                                     onSwitch(1)
                                     return@onKeyEvent true
                                 }
 
-                                Key.DirectionUp -> {
-                                    if (e.type == KeyEventType.KeyUp) return@onKeyEvent true
+                                e.bvKeyDirection() == BvKeyDirection.Up -> {
+                                    if (e.isKeyUp()) return@onKeyEvent true
                                     if (widthFitEnabled) {
                                         coroutineScope.launch {
                                             imageScrollState.animateScrollBy(-stepPx)
@@ -1850,8 +1861,8 @@ private fun CommentImagePreviewDialog(
                                     return@onKeyEvent true
                                 }
 
-                                Key.DirectionDown -> {
-                                    if (e.type == KeyEventType.KeyUp) return@onKeyEvent true
+                                e.bvKeyDirection() == BvKeyDirection.Down -> {
+                                    if (e.isKeyUp()) return@onKeyEvent true
                                     if (widthFitEnabled) {
                                         coroutineScope.launch {
                                             imageScrollState.animateScrollBy(stepPx)

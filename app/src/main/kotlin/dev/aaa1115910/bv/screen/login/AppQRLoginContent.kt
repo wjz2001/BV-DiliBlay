@@ -51,7 +51,7 @@ import dev.aaa1115910.bv.ui.theme.AppRed
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.util.ApiTestLoginExportUtil
 import dev.aaa1115910.bv.util.ApiTestLoginExportPayload
-import dev.aaa1115910.bv.util.isBvConfirmKey
+import dev.aaa1115910.bv.util.isConfirmKey
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.login.AppQrLoginViewModel
 import kotlinx.coroutines.delay
@@ -191,7 +191,7 @@ fun AppQRLoginContent(
                         fallback = true
                     )
                     .onKeyEvent {
-                        if (it.isBvConfirmKey()) {
+                        if (it.isConfirmKey()) {
                             if (listOf(QrLoginState.Expired, QrLoginState.Error)
                                     .contains(appQrLoginViewModel.state)
                             ) {

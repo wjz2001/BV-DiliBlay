@@ -69,6 +69,7 @@ import dev.aaa1115910.bv.util.BvKeyDirection
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.bvKeyDirection
 import dev.aaa1115910.bv.util.focusedBorder
+import dev.aaa1115910.bv.util.isKeyDown
 import dev.aaa1115910.bv.util.launchPlayerActivity
 import dev.aaa1115910.bv.util.resizedImageUrl
 import dev.aaa1115910.bv.util.toast
@@ -156,20 +157,17 @@ private fun CheeseSeasonContent(
             .fillMaxSize()
             .padding(32.dp)
             .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown || !event.nativeKeyEvent.isLongPress) {
+                if (!event.isKeyDown() || !event.nativeKeyEvent.isLongPress) {
                     return@onPreviewKeyEvent false
                 }
 
-                val keyDirection = event.bvKeyDirection()
-                when {
-                    keyDirection == BvKeyDirection.Left ||
-                        event.key == Key.MediaRewind -> {
+                when (event.bvKeyDirection()) {
+                    BvKeyDirection.Left -> {
                         episodeListExpanded = true
                         true
                     }
 
-                    keyDirection == BvKeyDirection.Right ||
-                        event.key == Key.MediaFastForward -> {
+                    BvKeyDirection.Right -> {
                         episodeListExpanded = false
                         true
                     }

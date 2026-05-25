@@ -87,6 +87,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import dev.aaa1115910.bv.util.isKeyDown
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.SpanStyle
@@ -2106,7 +2107,7 @@ private fun VideoDescriptionRichContentContent(
                             }
                         }
                         .onPreviewKeyEvent { event ->
-                            if (bodyIsFocused && event.type == KeyEventType.KeyDown) {
+                            if (bodyIsFocused && event.isKeyDown()) {
                                 when (event.key) {
                                     InfoNavDownKey -> {
                                         coroutineScope.launch { handleDown() }

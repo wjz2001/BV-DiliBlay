@@ -51,6 +51,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.aaa1115910.bv.util.isKeyDown
+import dev.aaa1115910.bv.util.isMenuKey
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
@@ -311,8 +313,8 @@ fun SearchResultScreen(
     ) {
         Scaffold(
             modifier = Modifier.onKeyEvent {
-                if (it.key == Key.Menu) {
-                    if (it.type == KeyEventType.KeyDown) return@onKeyEvent true
+                if (it.isMenuKey()) {
+                    if (it.isKeyDown()) return@onKeyEvent true
                     if (isVideoSearchViaWebApi) {
                         showFilter = true
                         return@onKeyEvent true

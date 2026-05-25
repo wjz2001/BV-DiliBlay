@@ -51,6 +51,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import dev.aaa1115910.bv.util.isKeyUp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
@@ -304,7 +305,7 @@ fun FollowScreen(
         modifier = modifier
             .fillMaxSize()
             .onPreviewKeyEvent {
-                if (showSearchDialog && it.key == Key.Back && it.type == KeyEventType.KeyUp) {
+                if (showSearchDialog && it.key == Key.Back && it.isKeyUp()) {
                     closeSearchDialog(apply = true)
                     return@onPreviewKeyEvent true
                 }

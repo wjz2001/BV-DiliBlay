@@ -31,6 +31,8 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import dev.aaa1115910.bv.util.isKeyDown
+import dev.aaa1115910.bv.util.isMenuKey
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -124,8 +126,8 @@ fun FollowingSeasonScreen(
         modifier = modifier
             .fillMaxSize()
             .onKeyEvent {
-                if (it.key == Key.Menu) {
-                    if (it.type == KeyEventType.KeyDown) return@onKeyEvent true
+                if (it.isMenuKey()) {
+                    if (it.isKeyDown()) return@onKeyEvent true
                     showFilter = true
                     return@onKeyEvent true
                 }

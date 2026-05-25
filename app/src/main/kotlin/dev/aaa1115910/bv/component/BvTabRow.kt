@@ -50,6 +50,8 @@ import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.wjzFocusable
 import dev.aaa1115910.bv.util.fInfo
+import dev.aaa1115910.bv.util.isConfirmKey
+import dev.aaa1115910.bv.util.isKeyDown
 import io.github.oshai.kotlinlogging.KotlinLogging
 
 enum class BvTabIndicator {
@@ -412,7 +414,7 @@ fun <T> BvTabRow(
                 val selected = selectedTabIndex == index
                 var tabModifier = Modifier
                     .onPreviewKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyDown) {
+                        if (event.isKeyDown()) {
                             when (event.key) {
                                 Key.DirectionLeft -> {
                                     if (index == 0 && onLeftExit != null) {
@@ -452,10 +454,7 @@ fun <T> BvTabRow(
                         }
                     }
 
-                    val isConfirmKey =
-                        event.key == Key.DirectionCenter ||
-                                event.key == Key.Enter ||
-                                event.key == Key.Spacebar
+                    val isConfirmKey = event.isConfirmKey()
                     if (!isConfirmKey) return@onPreviewKeyEvent false
 
                     when (event.type) {

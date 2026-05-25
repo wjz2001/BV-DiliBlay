@@ -36,6 +36,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.zIndex
+import dev.aaa1115910.bv.util.isKeyDown
+import dev.aaa1115910.bv.util.isMenuKey
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
@@ -262,9 +264,9 @@ fun HomeContent(
             modifier = Modifier
                 .padding(innerPadding)
                 .onPreviewKeyEvent {
-                    if (it.key == Key.Menu) {
+                    if (it.isMenuKey()) {
                         if (activeTab == HomeTopNavItem.Search) return@onPreviewKeyEvent false
-                        if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
+                        if (it.isKeyDown()) return@onPreviewKeyEvent true
                         homeContentViewModel.requestUserRefresh(activeTab)
                         requestTopNavFocus()
                         return@onPreviewKeyEvent true

@@ -51,6 +51,9 @@ import dev.aaa1115910.bv.wjzfocus.wjzFocusNode
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.util.isConfirmKey
+import dev.aaa1115910.bv.util.isKeyDown
+import dev.aaa1115910.bv.util.isKeyUp
 
 enum class SoftKeyboardType {
     English,
@@ -722,21 +725,18 @@ fun SoftKeyboardKey(
         modifier
     } else {
         modifier.onPreviewKeyEvent { event ->
-            val isConfirmKey =
-                event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.Spacebar
-
-            if (!isConfirmKey) {
+            if (!event.isConfirmKey()) {
                 return@onPreviewKeyEvent false
             }
 
             if (longPressGuard) {
-                if (event.type == KeyEventType.KeyUp) {
+                if (event.isKeyUp()) {
                     longPressGuard = false
                 }
                 return@onPreviewKeyEvent true
             }
 
-            if (event.type == KeyEventType.KeyDown && event.nativeKeyEvent.isLongPress) {
+            if (event.isKeyDown() && event.nativeKeyEvent.isLongPress) {
                 onLongClick()
                 longPressGuard = true
                 return@onPreviewKeyEvent true

@@ -39,6 +39,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import dev.aaa1115910.bv.util.isKeyUp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
@@ -178,7 +179,7 @@ fun HistoryScreen(
 
     Box(
         modifier = modifier.onPreviewKeyEvent {
-            if (historyViewModel.showSearchDialog && it.key == Key.Back && it.type == KeyEventType.KeyUp) {
+            if (historyViewModel.showSearchDialog && it.key == Key.Back && it.isKeyUp()) {
                 historyViewModel.closeSearchDialog(apply = true)
                 return@onPreviewKeyEvent true
             }

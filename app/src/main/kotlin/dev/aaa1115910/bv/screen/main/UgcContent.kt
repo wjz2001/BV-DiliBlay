@@ -24,6 +24,8 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.zIndex
+import dev.aaa1115910.bv.util.isKeyDown
+import dev.aaa1115910.bv.util.isMenuKey
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
@@ -197,8 +199,8 @@ fun UgcContent(
             modifier = Modifier
                 .padding(innerPadding)
                 .onPreviewKeyEvent {
-                    if (it.key == Key.Menu) {
-                        if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
+                    if (it.isMenuKey()) {
+                        if (it.isKeyDown()) return@onPreviewKeyEvent true
                         ugcViewModel.requestUserRefresh(activeTab)
                         requestTopNavFocus()
                         return@onPreviewKeyEvent true

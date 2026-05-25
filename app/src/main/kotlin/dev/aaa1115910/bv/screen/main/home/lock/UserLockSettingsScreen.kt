@@ -40,7 +40,7 @@ import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.screen.main.home.UserItem
 import dev.aaa1115910.bv.util.BvKeyDirection
 import dev.aaa1115910.bv.util.bvKeyDirection
-import dev.aaa1115910.bv.util.isBvConfirmKey
+import dev.aaa1115910.bv.util.isConfirmKey
 import dev.aaa1115910.bv.util.isNativeActionDown
 import dev.aaa1115910.bv.util.toast
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -148,7 +148,7 @@ private fun UserLockSettingsContent(
                     }
 
                     when {
-                        keyEvent.isBvConfirmKey() -> {
+                        keyEvent.isConfirmKey() -> {
                             when (inputState) {
                                 InputState.InputOldPassword -> {
                                     if (inputPassword == user.lock) {

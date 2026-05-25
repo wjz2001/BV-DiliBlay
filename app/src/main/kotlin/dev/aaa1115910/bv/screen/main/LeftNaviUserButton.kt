@@ -45,7 +45,7 @@ import coil.compose.AsyncImage
 import dev.aaa1115910.bv.component.MainChromeDefaults
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.C
-import dev.aaa1115910.bv.util.isBvConfirmKey
+import dev.aaa1115910.bv.util.isConfirmKey
 import dev.aaa1115910.bv.util.rememberTvImageRequest
 
 @Composable
@@ -113,7 +113,7 @@ fun LeftNaviUserButton(
                 onFocusChanged(state.hasFocus)
             }
             .onPreviewKeyEvent { keyEvent ->
-                val isConfirmKey = keyEvent.isBvConfirmKey()
+                val isConfirmKey = keyEvent.isConfirmKey()
                 if (isConfirmKey && !expanded) {
                     when (keyEvent.type) {
                         KeyEventType.KeyDown -> isPressed = true

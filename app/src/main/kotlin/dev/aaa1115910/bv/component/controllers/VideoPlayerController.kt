@@ -24,10 +24,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
-import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
@@ -58,8 +56,14 @@ import dev.aaa1115910.bv.ui.state.PlayerUiState
 import dev.aaa1115910.bv.ui.state.SeekerState
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.util.Prefs
+import dev.aaa1115910.bv.util.BvKeyDirection
 import dev.aaa1115910.bv.util.VideoShotImageCache
 import dev.aaa1115910.bv.util.toast
+import dev.aaa1115910.bv.util.bvKeyDirection
+import dev.aaa1115910.bv.util.isConfirmKey
+import dev.aaa1115910.bv.util.isKeyDown
+import dev.aaa1115910.bv.util.isKeyUp
+import dev.aaa1115910.bv.util.isMenuKey
 import dev.aaa1115910.bv.viewmodel.player.DanmakuSettingAction
 import dev.aaa1115910.bv.viewmodel.player.MediaProfileSettingAction
 import dev.aaa1115910.bv.viewmodel.player.SubtitleSettingAction
@@ -268,26 +272,23 @@ fun VideoPlayerController(
     }
 
     fun handleKeyEvent(event: KeyEvent): Boolean {
-        // 中键和下键需要区分短按和长按
-        val isConfirmKey =
-            event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.Spacebar || event.key == Key.DirectionDown
+        // 确认键和下键都要区分短按/长按
+        val isConfirmOrDown =
+            event.isConfirmKey() || event.bvKeyDirection() == BvKeyDirection.Down
 
-        if (event.type == KeyEventType.KeyUp && !isConfirmKey) {
+        if (event.isKeyUp() && !isConfirmOrDown) {
             return true
         }
 
-        if (event.key == Key.DirectionDown && directionDownLongPressGuard) {
-            if (event.type == KeyEventType.KeyUp) {
+        if (event.bvKeyDirection() == BvKeyDirection.Down && directionDownLongPressGuard) {
+            if (event.isKeyUp()) {
                 directionDownLongPressGuard = false
             }
             return true
         }
 
-        if (
-            (event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.Spacebar) &&
-            confirmLongPressGuard
-        ) {
-            if (event.type == KeyEventType.KeyUp) {
+        if (event.isConfirmKey() && confirmLongPressGuard) {
+            if (event.isKeyUp()) {
                 val originSpeed = confirmLongPressOriginSpeed ?: uiState.playSpeed
                 onTempPlaySpeedEnd(originSpeed)
                 confirmLongPressOriginSpeed = null
@@ -298,8 +299,8 @@ fun VideoPlayerController(
 
         logger.info { "[${event.key} press]" }
 
-        when (event.key) {
-            Key.Back -> {
+        when {
+            event.key == Key.Back -> {
                 if (showClickableControllers) {
                     showMenuController = false
                     showUpPanelController = false
@@ -317,28 +318,23 @@ fun VideoPlayerController(
                 return true
             }
 
-            Key.Menu -> {
+            event.isMenuKey() -> {
                 showInfoSeekController = false
                 showMenuController = !showMenuController
                 return true
             }
 
-            Key(763) -> {
-                showMenuController = true
-                return true
-            }
-
-            Key.MediaPlayPause -> {
+            event.key == Key.MediaPlayPause -> {
                 onPlayPause()
                 return true
             }
 
-            Key.MediaPlay -> {
+            event.key == Key.MediaPlay -> {
                 if (!isPlaying) onPlay()
                 return true
             }
 
-            Key.MediaPause -> {
+            event.key == Key.MediaPause -> {
                 if (isPlaying) onPause()
                 return true
             }
@@ -346,85 +342,79 @@ fun VideoPlayerController(
 
         if (showClickableControllers) {
             return false
-        } else {
-            when (event.key) {
-                Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
-                    if (event.type == KeyEventType.KeyDown) {
-                        // 新的一次按下确保 guard 关闭；长按触发时再打开
-                        if (event.nativeKeyEvent.repeatCount == 0 && !event.nativeKeyEvent.isLongPress) {
-                            confirmLongPressGuard = false
-                            confirmLongPressOriginSpeed = null
-                            return true
-                        }
+        }
 
-                        if (event.nativeKeyEvent.isLongPress) {
-                            //showMenuController = true
-                            // 触发长按：临时倍速 = 当前倍速 * 2
-                            if (!confirmLongPressGuard) {
-                                val originSpeed = uiState.playSpeed
-                                confirmLongPressOriginSpeed = originSpeed
+        if (event.isConfirmKey()) {
+            if (event.isKeyDown()) {
+                if (event.nativeKeyEvent.repeatCount == 0 && !event.nativeKeyEvent.isLongPress) {
+                    confirmLongPressGuard = false
+                    confirmLongPressOriginSpeed = null
+                    return true
+                }
 
-                                val boostedSpeed = (originSpeed * 2.0f).coerceAtMost(5f)
-                                // 只在临时倍速“生效时”提示一次
-                                "播放速度：${boostedSpeed}倍".toast(context)
-                                onTempPlaySpeedStart(boostedSpeed)
+                if (event.nativeKeyEvent.isLongPress) {
+                    if (!confirmLongPressGuard) {
+                        val originSpeed = uiState.playSpeed
+                        confirmLongPressOriginSpeed = originSpeed
 
-                                // 打开 guard，让后续事件（包括 KeyUp）被上面的 guard 分支吞掉
-                                confirmLongPressGuard = true
-                            }
-                            return true
-                        }
+                        val boostedSpeed = (originSpeed * 2.0f).coerceAtMost(5f)
+                        "播放速度：${boostedSpeed}倍".toast(context)
+                        onTempPlaySpeedStart(boostedSpeed)
+
+                        confirmLongPressGuard = true
                     }
-                    onPlayPause()
-                    return true
-                }
-
-                Key.DirectionUp -> {
-                    showUpPanelController = true
-                    return true
-                }
-
-                Key.DirectionDown -> {
-                    if (event.type == KeyEventType.KeyDown) {
-                        // 新的一次按下确保 guard 关闭；长按触发时再打开
-                        if (event.nativeKeyEvent.repeatCount == 0 && !event.nativeKeyEvent.isLongPress) {
-                            directionDownLongPressGuard = false
-                            return true
-                        }
-
-                        if (event.nativeKeyEvent.isLongPress) {
-                            // 打开 guard，让后续事件（包括 KeyUp）被上面的 guard 分支吞掉
-                            directionDownLongPressGuard = true
-                            onBackToStart()
-                            return true
-                        }
-
-                        return true
-                    }
-
-                    focusInfoButtonsOnShow = true
-                    showInfoSeekController = true
-                    return true
-                }
-
-                Key.MediaRewind, Key.DirectionLeft -> {
-                    if (uiState.showSkipToNextEp) onCancelSkipToNextEp()
-                    focusInfoButtonsOnShow = false
-                    showInfoSeekController = true
-                    onDirectionLeft()
-                    return true
-                }
-
-                Key.MediaFastForward, Key.DirectionRight -> {
-                    focusInfoButtonsOnShow = false
-                    showInfoSeekController = true
-                    onDirectionRight()
                     return true
                 }
             }
+
+            onPlayPause()
+            return true
         }
 
-        return false
+        when (event.bvKeyDirection()) {
+            BvKeyDirection.Up -> {
+                showUpPanelController = true
+                return true
+            }
+
+            BvKeyDirection.Down -> {
+                if (event.isKeyDown()) {
+                    if (event.nativeKeyEvent.repeatCount == 0 && !event.nativeKeyEvent.isLongPress) {
+                        directionDownLongPressGuard = false
+                        return true
+                    }
+
+                    if (event.nativeKeyEvent.isLongPress) {
+                        directionDownLongPressGuard = true
+                        onBackToStart()
+                        return true
+                    }
+
+                    return true
+                }
+
+                focusInfoButtonsOnShow = true
+                showInfoSeekController = true
+                return true
+            }
+
+            BvKeyDirection.Left -> {
+                if (uiState.showSkipToNextEp) onCancelSkipToNextEp()
+                focusInfoButtonsOnShow = false
+                showInfoSeekController = true
+                onDirectionLeft()
+                return true
+            }
+
+            BvKeyDirection.Right -> {
+                focusInfoButtonsOnShow = false
+                showInfoSeekController = true
+                onDirectionRight()
+                return true
+            }
+
+            null -> return false
+        }
     }
 
     WjzFocusHost(

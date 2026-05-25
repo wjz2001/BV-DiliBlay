@@ -47,6 +47,8 @@ import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.getDisplayName
+import dev.aaa1115910.bv.util.isKeyDown
+import dev.aaa1115910.bv.util.isMenuKey
 import dev.aaa1115910.bv.viewmodel.index.PgcIndexViewModel
 import dev.aaa1115910.bv.ui.theme.C
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -98,15 +100,15 @@ fun PgcIndexScreen(
         reloadData()
     }
 
-    Scaffold(
-        modifier = modifier.onKeyEvent {
-            if (it.key == Key.Menu) {
-                if (it.type == KeyEventType.KeyDown) return@onKeyEvent true
-                showFilter = true
-                return@onKeyEvent true
-            }
-            false
-        },
+        Scaffold(
+            modifier = modifier.onKeyEvent {
+                if (it.isMenuKey()) {
+                    if (it.isKeyDown()) return@onKeyEvent true
+                    showFilter = true
+                    return@onKeyEvent true
+                }
+                false
+            },
         topBar = {
             Box(
                 modifier = Modifier.padding(start = 48.dp, top = 24.dp, bottom = 8.dp, end = 48.dp)

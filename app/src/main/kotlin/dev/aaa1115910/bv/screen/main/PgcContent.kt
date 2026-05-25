@@ -172,8 +172,8 @@ fun PgcContent(
             modifier = Modifier
                 .padding(innerPadding)
                 .onPreviewKeyEvent {
-                    if (it.key == Key.Menu) {
-                        if (it.type == KeyEventType.KeyDown) return@onPreviewKeyEvent true
+                    if (it.isMenuKey()) {
+                        if (it.isKeyDown()) return@onPreviewKeyEvent true
                         pgcContentViewModel.requestUserRefresh(activeTab)
                         requestTopNavFocus()
                         return@onPreviewKeyEvent true

@@ -33,6 +33,9 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import dev.aaa1115910.bv.util.BvKeyDirection
+import dev.aaa1115910.bv.util.bvKeyDirection
+import dev.aaa1115910.bv.util.isKeyUp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -150,14 +153,14 @@ fun Carousel(
             .onKeyEvent {
                 when {
                     itemCount == 0 -> false
-                    it.type == KeyEventType.KeyUp -> false
-                    it.key == Key.DirectionLeft -> {
+                    it.isKeyUp() -> false
+                    it.bvKeyDirection() == BvKeyDirection.Left -> {
                         isMovingBackward = true
                         currentIndex = (currentIndex - 1 + itemCount) % itemCount
                         true
                     }
 
-                    it.key == Key.DirectionRight -> {
+                    it.bvKeyDirection() == BvKeyDirection.Right -> {
                         isMovingBackward = false
                         currentIndex = (currentIndex + 1) % itemCount
                         true

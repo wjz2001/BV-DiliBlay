@@ -39,7 +39,7 @@ import dev.aaa1115910.bv.entity.db.UserDB
 import dev.aaa1115910.bv.screen.main.home.UserItem
 import dev.aaa1115910.bv.util.BvKeyDirection
 import dev.aaa1115910.bv.util.bvKeyDirection
-import dev.aaa1115910.bv.util.isBvConfirmKey
+import dev.aaa1115910.bv.util.isConfirmKey
 import dev.aaa1115910.bv.util.isNativeActionDown
 import dev.aaa1115910.bv.util.toast
 import kotlinx.collections.immutable.ImmutableList
@@ -88,7 +88,7 @@ fun UnlockSwitchUserContent(
                         null -> Unit
                     }
                     when {
-                        it.isBvConfirmKey() -> {
+                        it.isConfirmKey() -> {
                             if (unlockUser?.lock == inputPassword) {
                                 onUnlockSuccess(unlockUser)
                             } else {

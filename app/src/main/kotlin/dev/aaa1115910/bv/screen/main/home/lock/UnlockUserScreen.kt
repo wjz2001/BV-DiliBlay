@@ -41,7 +41,7 @@ import dev.aaa1115910.bv.entity.db.UserDB
 import dev.aaa1115910.bv.screen.main.home.UserItem
 import dev.aaa1115910.bv.util.BvKeyDirection
 import dev.aaa1115910.bv.util.bvKeyDirection
-import dev.aaa1115910.bv.util.isBvConfirmKey
+import dev.aaa1115910.bv.util.isConfirmKey
 import dev.aaa1115910.bv.util.isNativeActionDown
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.UserSwitchViewModel
@@ -132,7 +132,7 @@ private fun UnlockUserContent(
                                 null -> Unit
                             }
                             when {
-                                it.isBvConfirmKey() -> {
+                                it.isConfirmKey() -> {
                                     if (selectedUser?.lock == inputPassword) {
                                         onUnlockSuccess(selectedUser)
                                     } else {

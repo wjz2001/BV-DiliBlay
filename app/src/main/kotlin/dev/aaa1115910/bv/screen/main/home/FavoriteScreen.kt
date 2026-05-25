@@ -51,6 +51,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import dev.aaa1115910.bv.util.isKeyUp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
@@ -522,7 +523,7 @@ fun FavoriteScreen(
             .fillMaxSize()
             .onPreviewKeyEvent {
                 // Dialog 打开时，返回键优先关闭 Dialog
-                if (showSearchDialog && it.key == Key.Back && it.type == KeyEventType.KeyUp) {
+                if (showSearchDialog && it.key == Key.Back && it.isKeyUp()) {
                     closeSearchDialog(apply = true)
                     return@onPreviewKeyEvent true
                 }

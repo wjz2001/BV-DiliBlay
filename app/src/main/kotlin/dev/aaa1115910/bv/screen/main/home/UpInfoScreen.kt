@@ -59,6 +59,8 @@ import dev.aaa1115910.bv.component.rememberTvGridFocusTarget
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.theme.C
+import dev.aaa1115910.bv.util.isKeyUp
+import dev.aaa1115910.bv.util.isMenuKey
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import dev.aaa1115910.bv.viewmodel.user.UpInfoViewModel
@@ -195,17 +197,17 @@ fun UpSpaceScreen(
     Scaffold(
         modifier = modifier
             .onKeyEvent {
-        if (it.key == Key.Menu ||it.key == Key(763) && !searchCanFocus) {
-            // 确保是按键抬起事件，防止重复触发
-            // 同时检查焦点是否确实在内容区域
-            if (it.type == KeyEventType.KeyUp) {
-                searchCanFocus = true
-                // 返回 true 表示我们已经处理了这个事件，
-                return@onKeyEvent true
-            }
-        }
-        return@onKeyEvent false
-    },
+                if (it.isMenuKey() && !searchCanFocus) {
+                    // 确保是按键抬起事件，防止重复触发
+                    // 同时检查焦点是否确实在内容区域
+                    if (it.isKeyUp()) {
+                        searchCanFocus = true
+                        // 返回 true 表示我们已经处理了这个事件，
+                        return@onKeyEvent true
+                    }
+                }
+                return@onKeyEvent false
+            },
         topBar = {
             Box(
                 modifier = Modifier.padding(start = 48.dp, top = 24.dp, bottom = 8.dp, end = 48.dp)

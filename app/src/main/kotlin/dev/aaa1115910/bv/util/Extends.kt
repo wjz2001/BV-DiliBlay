@@ -18,7 +18,6 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.TimeUnit
 
 fun String.toast(context: Context, duration: Int = Toast.LENGTH_SHORT) {
     Toast.makeText(context, this, duration).show()
@@ -141,9 +140,10 @@ fun Date.formatPubTimeString(): String {
     val currentYear = Calendar.getInstance().get(Calendar.YEAR)
 
     val formatter = if (year == currentYear) {
-        SimpleDateFormat("MM月dd日HH:mm")
+
+        SimpleDateFormat("MM月dd日HH:mm", Locale.CHINA)
     } else {
-        SimpleDateFormat("yyyy年MM月dd日HH:mm")
+        SimpleDateFormat("yyyy年MM月dd日HH:mm", Locale.CHINA)
     }
     return formatter.format(this)
 }
@@ -172,58 +172,11 @@ fun Long.formatHourMinSec(): String {
     return sb.toString()
 }
 
-fun Long.toMBString(): String = String.format("%.2f MB", this / 1024f / 1024f)
+fun Long.toMBString(): String = String.format(Locale.US, "%.2f MB", this / 1024f / 1024f)
 
 fun String.removeHtmlTags(): String = HtmlCompat.fromHtml(
     this, HtmlCompat.FROM_HTML_MODE_LEGACY
 ).toString()
-
-fun KeyEvent.isKeyDown(): Boolean = type == KeyEventType.KeyDown
-fun KeyEvent.isKeyUp(): Boolean = type == KeyEventType.KeyUp
-
-enum class BvKeyDirection {
-    Up,
-    Down,
-    Left,
-    Right
-}
-
-fun KeyEvent.bvKeyDirection(): BvKeyDirection? =
-    when {
-        key == Key.DirectionUp || nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_UP -> BvKeyDirection.Up
-        key == Key.DirectionDown || nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_DOWN -> BvKeyDirection.Down
-        key == Key.DirectionLeft || nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_LEFT -> BvKeyDirection.Left
-        key == Key.DirectionRight || nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> BvKeyDirection.Right
-        else -> null
-    }
-
-fun KeyEvent.isDpadUp(): Boolean = isBvDpadUp()
-fun KeyEvent.isDpadDown(): Boolean = isBvDpadDown()
-fun KeyEvent.isDpadLeft(): Boolean = isBvDpadLeft()
-fun KeyEvent.isDpadRight(): Boolean = isBvDpadRight()
-fun KeyEvent.isBvDpadUp(): Boolean =
-    key == Key.DirectionUp || nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_UP
-
-fun KeyEvent.isBvDpadDown(): Boolean =
-    key == Key.DirectionDown || nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_DOWN
-
-fun KeyEvent.isBvDpadLeft(): Boolean =
-    key == Key.DirectionLeft || nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_LEFT
-
-fun KeyEvent.isBvDpadRight(): Boolean =
-    key == Key.DirectionRight || nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_RIGHT
-
-fun KeyEvent.isBvConfirmKey(): Boolean =
-    key == Key.DirectionCenter ||
-            key == Key.Enter ||
-            key == Key.Spacebar ||
-            key == Key.NumPadEnter ||
-            nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_CENTER ||
-            nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_ENTER ||
-            nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_NUMPAD_ENTER ||
-            nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_SPACE
-
-fun KeyEvent.isNativeActionDown(): Boolean = nativeKeyEvent.action == AndroidKeyEvent.ACTION_DOWN
 
 fun Int.stringRes(context: Context): String = context.getString(this)
 
@@ -238,3 +191,55 @@ fun Long?.toWanString(): String =
         if (it < 10_000L) it.toString()
         else "${(it / 1000) / 10f}万"
     }.orEmpty()
+
+enum class BvKeyDirection {
+    Up,
+    Down,
+    Left,
+    Right
+}
+
+fun KeyEvent.isKeyDown(): Boolean = type == KeyEventType.KeyDown
+fun KeyEvent.isKeyUp(): Boolean = type == KeyEventType.KeyUp
+
+fun KeyEvent.bvKeyDirection(): BvKeyDirection? =
+    when {
+        key == Key.DirectionUp || nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_UP -> BvKeyDirection.Up
+        key == Key.DirectionDown || nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_DOWN -> BvKeyDirection.Down
+        key == Key.DirectionLeft || key == Key.MediaRewind || nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_LEFT -> BvKeyDirection.Left
+        key == Key.DirectionRight || key == Key.MediaFastForward || nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> BvKeyDirection.Right
+        else -> null
+    }
+
+fun KeyEvent.isDpadUp(): Boolean =
+    key == Key.DirectionUp ||
+            nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_UP
+
+fun KeyEvent.isDpadDown(): Boolean =
+    key == Key.DirectionDown ||
+            nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_DOWN
+
+fun KeyEvent.isDpadLeft(): Boolean =
+    key == Key.DirectionLeft ||
+            key == Key.MediaRewind ||
+            nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_LEFT
+
+fun KeyEvent.isDpadRight(): Boolean =
+    key == Key.DirectionRight ||
+            key == Key.MediaFastForward ||
+            nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_RIGHT
+
+fun KeyEvent.isConfirmKey(): Boolean =
+    key == Key.DirectionCenter ||
+            key == Key.Enter ||
+            key == Key.Spacebar ||
+            key == Key.NumPadEnter ||
+            nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_CENTER ||
+            nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_ENTER ||
+            nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_NUMPAD_ENTER ||
+            nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_SPACE
+
+fun KeyEvent.isMenuKey(): Boolean =
+    key == Key.Menu || key == Key(763)
+
+fun KeyEvent.isNativeActionDown(): Boolean = nativeKeyEvent.action == AndroidKeyEvent.ACTION_DOWN

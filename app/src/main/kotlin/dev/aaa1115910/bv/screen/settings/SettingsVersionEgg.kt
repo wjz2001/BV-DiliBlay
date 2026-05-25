@@ -33,6 +33,7 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import dev.aaa1115910.bv.util.isKeyDown
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -115,7 +116,7 @@ internal fun SettingsMotionColumnsLayout(
             modifier = modifier
                 .background(Color.Transparent)
                 .onPreviewKeyEvent {
-                    if (!contentActivated && it.type == KeyEventType.KeyDown && it.key.issettingsActivationKey()) {
+                    if (!contentActivated && it.isKeyDown() && it.key.issettingsActivationKey()) {
                         onContentActivated()
                     }
                     false
