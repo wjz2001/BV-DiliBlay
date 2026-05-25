@@ -23,7 +23,7 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.season.FollowingSeasonStatus
 import dev.aaa1115910.biliapi.entity.season.FollowingSeasonType
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.tv.component.TvAlertDialog
+import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.util.getDisplayName
 
 @Composable

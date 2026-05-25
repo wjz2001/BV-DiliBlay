@@ -58,7 +58,7 @@ import dev.aaa1115910.biliapi.entity.pgc.index.Style
 import dev.aaa1115910.biliapi.entity.pgc.index.Year
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.ifElse
-import dev.aaa1115910.bv.tv.component.TvAlertDialog
+import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.getDisplayName
 

@@ -45,7 +45,7 @@ import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.ThemeMode
-import dev.aaa1115910.bv.tv.component.TvAlertDialog
+import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.util.ApiTestLoginExportUtil
 import dev.aaa1115910.bv.util.LogCatcherUtil
 import dev.aaa1115910.bv.util.Prefs

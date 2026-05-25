@@ -39,7 +39,7 @@ import dev.aaa1115910.bv.component.rememberCoAuthorsDialogState
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.player.BvPlayerSurface
-import dev.aaa1115910.bv.player.danmaku.host.BvDanmakuSurface
+import dev.aaa1115910.bv.danmaku.api.BvDanmakuSurface
 import dev.aaa1115910.bv.player.impl.exo.ExoMediaPlayer
 import dev.aaa1115910.bv.repository.StartupCoverRepository
 import dev.aaa1115910.bv.ui.effect.PlayerUiEffect

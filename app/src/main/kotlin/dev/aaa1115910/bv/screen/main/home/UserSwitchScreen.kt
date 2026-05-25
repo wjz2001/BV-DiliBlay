@@ -81,7 +81,7 @@ import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.screen.main.home.lock.UnlockSwitchUserContent
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.C
-import dev.aaa1115910.bv.tv.component.TvAlertDialog
+import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.util.rememberTvImageRequest
 import dev.aaa1115910.bv.viewmodel.UserViewModel
 import dev.aaa1115910.bv.viewmodel.user.UserSwitchViewModel

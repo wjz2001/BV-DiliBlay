@@ -1,27 +1,32 @@
 package dev.aaa1115910.bv.player.danmaku.ui
 
+import android.annotation.SuppressLint
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import dev.aaa1115910.bv.player.danmaku.config.DanmakuConfig
-import dev.aaa1115910.bv.player.danmaku.config.DanmakuConfigApplyAction
-import dev.aaa1115910.bv.player.danmaku.config.DanmakuConfigDiff
-import dev.aaa1115910.bv.player.danmaku.config.DanmakuConfigDiffer
-import dev.aaa1115910.bv.player.danmaku.config.DanmakuConfigSourceMode
-import dev.aaa1115910.bv.player.danmaku.config.DanmakuLaneDensity
-import dev.aaa1115910.bv.player.danmaku.live.DanmakuLiveBusinessState
-import dev.aaa1115910.bv.player.danmaku.live.DanmakuLiveEventType
-import dev.aaa1115910.bv.player.danmaku.model.DanmakuRenderFrame
-import dev.aaa1115910.bv.player.danmaku.model.DanmakuRenderSnapshot
-import dev.aaa1115910.bv.player.danmaku.model.DanmakuSessionEvent
-import dev.aaa1115910.bv.player.danmaku.model.DanmakuSessionEventType
-import dev.aaa1115910.bv.player.danmaku.model.DanmakuSpeedModel
-import dev.aaa1115910.bv.player.danmaku.model.DanmakuTrackType
-import dev.aaa1115910.bv.player.danmaku.renderer.ComposeDanmakuRenderer
-import dev.aaa1115910.bv.player.danmaku.renderer.DanmakuRendererState
-import dev.aaa1115910.bv.player.danmaku.renderer.DanmakuRendererStats
+import dev.aaa1115910.bv.wjzdanmaku.api.DanmakuConfig
+import dev.aaa1115910.bv.wjzdanmaku.DanmakuConfigApplyAction
+import dev.aaa1115910.bv.wjzdanmaku.DanmakuConfigDiff
+import dev.aaa1115910.bv.wjzdanmaku.DanmakuConfigDiffer
+import dev.aaa1115910.bv.wjzdanmaku.api.DanmakuConfigSourceMode
+import dev.aaa1115910.bv.wjzdanmaku.api.DanmakuLaneDensity
+import dev.aaa1115910.bv.wjzdanmaku.live.DanmakuLiveBusinessState
+import dev.aaa1115910.bv.wjzdanmaku.DanmakuLiveEventType
+import dev.aaa1115910.bv.wjzdanmaku.api.DanmakuSessionEvent
+import dev.aaa1115910.bv.wjzdanmaku.api.DanmakuSessionEventType
+import dev.aaa1115910.bv.wjzdanmaku.DanmakuRenderFrame
+import dev.aaa1115910.bv.wjzdanmaku.DanmakuRenderSnapshot
+import dev.aaa1115910.bv.wjzdanmaku.DanmakuSpeedModel
+import dev.aaa1115910.bv.wjzdanmaku.DanmakuTrackType
+import dev.aaa1115910.bv.wjzdanmaku.renderer.ComposeDanmakuRenderer
+import dev.aaa1115910.bv.wjzdanmaku.renderer.DanmakuRendererState
+import dev.aaa1115910.bv.wjzdanmaku.renderer.DanmakuRendererStats
 import kotlin.math.max
 
+@SuppressLint("AutoboxingStateCreation")
 class DanmakuHostState(
     sessionId: String = "",
     isBound: Boolean = false,
@@ -42,13 +47,13 @@ class DanmakuHostState(
         private set
     var isPlaying by mutableStateOf(isPlaying)
         private set
-    var currentPositionMs by mutableStateOf(currentPositionMs.coerceAtLeast(0L))
+    var currentPositionMs by mutableLongStateOf(currentPositionMs.coerceAtLeast(0L))
         private set
-    var playbackSpeed by mutableStateOf(playbackSpeed.coerceAtLeast(0.1f))
+    var playbackSpeed by mutableFloatStateOf(playbackSpeed.coerceAtLeast(0.1f))
         private set
-    var lastSnapshotFrameId by mutableStateOf(lastSnapshotFrameId)
+    var lastSnapshotFrameId by mutableLongStateOf(lastSnapshotFrameId)
         private set
-    var lastConfigVersion by mutableStateOf(lastConfigVersion)
+    var lastConfigVersion by mutableIntStateOf(lastConfigVersion)
         private set
     var maskEnabled by mutableStateOf(maskEnabled)
         private set
@@ -78,7 +83,7 @@ class DanmakuHostState(
         private set
     var configUpdateSerial by mutableStateOf(0L)
         private set
-    var staticUpdateSerial by mutableStateOf(0L)
+    var staticUpdateSerial by mutableLongStateOf(0L)
         private set
     var repopulateSerial by mutableStateOf(0L)
         private set
@@ -86,11 +91,11 @@ class DanmakuHostState(
         private set
     var sourceSerial by mutableStateOf(0L)
         private set
-    var playbackSerial by mutableStateOf(0L)
+    var playbackSerial by mutableLongStateOf(0L)
         private set
-    var visibilitySerial by mutableStateOf(0L)
+    var visibilitySerial by mutableLongStateOf(0L)
         private set
-    var frameSerial by mutableStateOf(0L)
+    var frameSerial by mutableLongStateOf(0L)
         private set
     var renderSerial by mutableStateOf(0L)
         private set
@@ -100,7 +105,7 @@ class DanmakuHostState(
         private set
     var stateMachineSerial by mutableStateOf(0L)
         private set
-    var activeItemCount by mutableStateOf(0)
+    var activeItemCount by mutableIntStateOf(0)
         private set
     var pendingUpdateOnly by mutableStateOf(false)
         private set
@@ -108,7 +113,7 @@ class DanmakuHostState(
         private set
     var pendingRepopulate by mutableStateOf(false)
         private set
-    var pendingWorkCount by mutableStateOf(0)
+    var pendingWorkCount by mutableIntStateOf(0)
         private set
     var primaryAction by mutableStateOf(DanmakuHostInternalAction.None)
         private set
@@ -116,7 +121,7 @@ class DanmakuHostState(
         private set
     var lastSessionEventType by mutableStateOf<DanmakuSessionEventType?>(null)
         private set
-    var lastSessionEventTimestampMs by mutableStateOf(0L)
+    var lastSessionEventTimestampMs by mutableLongStateOf(0L)
         private set
     var liveState by mutableStateOf("idle")
         private set

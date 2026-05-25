@@ -41,13 +41,15 @@ import dev.aaa1115910.bv.player.VideoPlayerListener
 import dev.aaa1115910.bv.player.VideoPlayerOptions
 import dev.aaa1115910.bv.player.impl.exo.ExoPlayerFactory
 import dev.aaa1115910.bv.player.impl.exo.ExoMediaPlayer
-import dev.aaa1115910.bv.player.danmaku.config.DanmakuConfig
-import dev.aaa1115910.bv.player.danmaku.host.DanmakuSourceMode
-import dev.aaa1115910.bv.player.danmaku.model.DanmakuFilterRule
-import dev.aaa1115910.bv.player.danmaku.model.DanmakuSessionEvent
-import dev.aaa1115910.bv.player.danmaku.model.DanmakuSessionEventType
-import dev.aaa1115910.bv.player.danmaku.session.DanmakuLiveEventStream
-import dev.aaa1115910.bv.player.danmaku.session.DanmakuLiveInput
+import dev.aaa1115910.bv.wjzdanmaku.api.DanmakuHostCommand
+import dev.aaa1115910.bv.wjzdanmaku.api.DanmakuConfig
+import dev.aaa1115910.bv.wjzdanmaku.api.DanmakuConfigSourceMode
+import dev.aaa1115910.bv.wjzdanmaku.api.DanmakuFilterRule
+import dev.aaa1115910.bv.wjzdanmaku.api.DanmakuLiveEventStream
+import dev.aaa1115910.bv.wjzdanmaku.api.DanmakuLiveInput
+import dev.aaa1115910.bv.wjzdanmaku.api.DanmakuSessionEvent
+import dev.aaa1115910.bv.wjzdanmaku.api.DanmakuSessionEventType
+import dev.aaa1115910.bv.wjzdanmaku.api.DanmakuSourceMode
 import dev.aaa1115910.bv.repository.StartupCoverRepository
 import dev.aaa1115910.bv.repository.VideoInfoRepository
 import dev.aaa1115910.bv.screen.settings.content.ActionAfterPlayItems
@@ -304,6 +306,11 @@ class VideoPlayerV3ViewModel(
             }
             syncDanmakuHostStateFromPlayerState()
             onBufferingStateChanged(false)
+
+            if (_uiState.value.lastPlayed > 0) {
+                seekToLastPlayed()
+                _uiState.update { it.copy(lastPlayed = 0L) }
+            }
         }
 
         override fun onPause() {
@@ -1180,16 +1187,6 @@ class VideoPlayerV3ViewModel(
     }
 
     private fun syncDanmakuHostStateFromPlayerState() {
-        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
-            viewModelScope.launch(Dispatchers.Main.immediate) {
-                syncDanmakuHostStateFromPlayerStateOnMain()
-            }
-            return
-        }
-        syncDanmakuHostStateFromPlayerStateOnMain()
-    }
-
-    private fun syncDanmakuHostStateFromPlayerStateOnMain() {
         val state = _uiState.value
         val currentPositionMs = (videoPlayer?.currentPosition ?: 0L).coerceAtLeast(0L)
         val hasVisibleSubtitle = state.subtitleId != -1L &&
@@ -1218,7 +1215,7 @@ class VideoPlayerV3ViewModel(
                 mask = state.danmakuMask,
                 aid = state.aid,
                 cid = state.cid,
-                currentPositionMs = currentPositionMs,
+                currentPositionMs = (videoPlayer?.currentPosition ?: 0L).coerceAtLeast(0L),
                 isPlaying = state.playerState == PlayerState.Playing,
                 playbackSpeed = tempPlaySpeedOverride ?: state.playSpeed
             )
@@ -1918,8 +1915,7 @@ class VideoPlayerV3ViewModel(
                     apiType = playbackApi,
                     qn = targetQualityId,
                     codec = targetCodec,
-                    audio = targetAudio,
-                    startPositionMs = consumeInitialStartPosition()
+                    audio = targetAudio
                 )
                 videoPlayer?.start()
             }
@@ -2190,16 +2186,6 @@ class VideoPlayerV3ViewModel(
                 videoWidth = actualVideoItem.width
             )
         }
-    }
-
-    private fun consumeInitialStartPosition(): Long {
-        val startPositionMs = _uiState.value.lastPlayed.coerceAtLeast(0L)
-        if (startPositionMs > 0L) {
-            logger.fInfo { "Use initial start position: ${startPositionMs.formatHourMinSec()}" }
-            seekDanmakuHost(startPositionMs)
-            _uiState.update { it.copy(lastPlayed = 0L) }
-        }
-        return startPositionMs
     }
 
     private suspend fun updateSubtitle(
@@ -2573,6 +2559,22 @@ class VideoPlayerV3ViewModel(
         }
     }
 
+    private fun seekToLastPlayed() {
+        val time = _uiState.value.lastPlayed
+        logger.fInfo { "Back to history: ${time.formatHourMinSec()}" }
+
+        videoPlayer?.seekTo(time)
+        seekDanmakuHost(time)
+
+        _uiState.update { it.copy(showBackToStart = true) }
+
+        backToStartCountdownJob?.cancel()
+        backToStartCountdownJob = viewModelScope.launch {
+            delay(5000)
+            _uiState.update { it.copy(showBackToStart = false) }
+        }
+    }
+
     private fun stopSeekerUpdater() {
         seekerUpdateJob?.cancel()
         seekerUpdateJob = null
@@ -2807,24 +2809,6 @@ data class DanmakuLiveInterfaceState(
     val state: String = "idle",
     val errorMessage: String? = null,
 )
-
-sealed interface DanmakuHostCommand {
-    data class Seek(
-        val positionMs: Long,
-        val forceFetch: Boolean,
-        val reason: String,
-    ) : DanmakuHostCommand
-
-    data class RefreshFromPosition(
-        val positionMs: Long,
-        val forceFetch: Boolean,
-        val reason: String,
-    ) : DanmakuHostCommand
-
-    data class Clear(
-        val reason: String,
-    ) : DanmakuHostCommand
-}
 
 private fun DanmakuState.toDanmakuConfig(bottomPaddingPx: Int): DanmakuConfig {
     return DanmakuConfig(

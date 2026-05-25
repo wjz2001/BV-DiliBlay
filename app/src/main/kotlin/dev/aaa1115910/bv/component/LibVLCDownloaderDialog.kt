@@ -6,7 +6,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.tv.material3.Button
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
-import dev.aaa1115910.bv.tv.component.TvAlertDialog
+import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.LibVLCDownloaderViewModel
 import org.koin.androidx.compose.koinViewModel

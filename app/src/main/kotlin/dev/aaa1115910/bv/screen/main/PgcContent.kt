@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -16,11 +17,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
@@ -42,6 +39,8 @@ import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
 import dev.aaa1115910.bv.screen.main.common.mainContentEntryAdapter
 import dev.aaa1115910.bv.screen.main.runtime.ContentRuntimeState
 import dev.aaa1115910.bv.screen.main.runtime.runtimeContainerInputEnabled
+import dev.aaa1115910.bv.util.isKeyDown
+import dev.aaa1115910.bv.util.isMenuKey
 import dev.aaa1115910.bv.viewmodel.main.PgcContentViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcAnimeViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcDocumentaryViewModel
@@ -83,9 +82,8 @@ fun PgcContent(
     val entryFocusRequest = entryAdapter.topNavEntryFocusRequest
 
     fun requestTopNavFocus(): Boolean {
-        val coordinator = focusCoordinator
-        if (coordinator != null) {
-            return coordinator.enqueueRequestFocus(
+        if (focusCoordinator != null) {
+            return focusCoordinator.enqueueRequestFocus(
                 nodeId = PgcTopNavNodeId,
                 layer = WjzFocusLayer.Content,
                 scopeId = focusScopeId
@@ -395,7 +393,7 @@ private fun PgcTabContent(
 ) {
     val lazyListState = rememberRestoredLazyListState(pgcContentViewModel.viewportOf(tab))
     val refreshSerial = pgcContentViewModel.refreshSerialOf(tab)
-    var consumedRefreshSerial by remember(tab) { mutableStateOf(0L) }
+    var consumedRefreshSerial by remember(tab) { mutableLongStateOf(0L) }
 
     PersistLazyListViewportEffect(lazyListState) { index, offset ->
         pgcContentViewModel.updateViewport(tab, index, offset)

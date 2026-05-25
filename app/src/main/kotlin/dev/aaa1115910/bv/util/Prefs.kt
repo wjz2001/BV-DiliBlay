@@ -116,7 +116,7 @@ object Prefs {
 
     var defaultPlaySpeed by pref(
         PrefKeys.prefDefaultPlaySpeedKey,
-        PlaySpeedItem.x1,
+        PlaySpeedItem.X1,
         save = { it.code },
         restore = { PlaySpeedItem.fromCode(it) }
     )
@@ -354,7 +354,7 @@ object Prefs {
 
     var homeAutoRefreshTopNavItems by pref(
         PrefKeys.prefHomeAutoRefreshTopNavItemsKey,
-        emptyList<HomeTopNavItem>(),
+        emptyList(),
         save = { list -> list.joinToString(",") { it.code.toString() } },
         restore = { str ->
             if (str.isBlank()) emptyList()

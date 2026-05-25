@@ -38,14 +38,8 @@ import dev.aaa1115910.bv.component.controllers.playermenu.component.MenuListItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.StepLessMenuItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.ToggleMenuItem
 import dev.aaa1115910.bv.component.ifElse
-import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocusNode
 import java.text.NumberFormat
 import kotlin.math.roundToInt
-
-private val PlayerDanmakuMenuColumnNodeId = WjzFocusNodeId("player/menu/danmaku")
 
 @Composable
 fun DanmakuMenuList(
@@ -73,17 +67,10 @@ fun DanmakuMenuList(
     onFocusStateChange: (MenuFocusState) -> Unit
 ) {
     val context = LocalContext.current
-    val focusCoordinator = LocalWjzFocusCoordinator.current
     val focusState = LocalMenuFocusStateData.current
     val restorerFocusRequester = remember { FocusRequester() }
 
     val focusRequester = remember { FocusRequester() }
-    fun requestMenuColumnFocus() {
-        focusCoordinator?.requestFocus(
-            nodeId = PlayerDanmakuMenuColumnNodeId,
-            layer = WjzFocusLayer.Overlay
-        )
-    }
     var selectedDanmakuMenuItem by remember { mutableStateOf(VideoPlayerDanmakuMenuItem.Switch) }
 
     Row(
@@ -155,7 +142,7 @@ fun DanmakuMenuList(
                     },
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)
-                        requestMenuColumnFocus()
+                        focusRequester.requestFocus()
                     }
                 )
 
@@ -226,11 +213,7 @@ fun DanmakuMenuList(
         }
         LazyColumn(
             modifier = Modifier
-                .wjzFocusNode(
-                    nodeId = PlayerDanmakuMenuColumnNodeId,
-                    requester = focusRequester,
-                    layer = WjzFocusLayer.Overlay
-                )
+                .focusRequester(focusRequester)
                 .padding(horizontal = 8.dp)
                 .onPreviewKeyEvent {
                     if (it.type == KeyEventType.KeyUp) {

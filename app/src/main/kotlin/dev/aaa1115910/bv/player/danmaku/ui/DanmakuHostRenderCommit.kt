@@ -1,8 +1,8 @@
 package dev.aaa1115910.bv.player.danmaku.ui
 
-import dev.aaa1115910.bv.player.danmaku.model.DanmakuRenderFrame
-import dev.aaa1115910.bv.player.danmaku.model.DanmakuRenderSnapshot
-import dev.aaa1115910.bv.player.danmaku.model.MaskRegionSet
+import dev.aaa1115910.bv.wjzdanmaku.DanmakuRenderFrame
+import dev.aaa1115910.bv.wjzdanmaku.DanmakuRenderSnapshot
+import dev.aaa1115910.bv.wjzdanmaku.MaskRegionSet
 
 /**
  * UI/Host boundary object for committing renderer output into [DanmakuHostState].
