@@ -1,5 +1,5 @@
 package dev.aaa1115910.bv.wjzdanmaku.ui
 
-import dev.aaa1115910.bv.player.danmaku.renderer.DanmakuRendererStats
+import dev.aaa1115910.bv.wjzdanmaku.renderer.DanmakuRendererStats
 
 typealias DanmakuRenderStats = DanmakuRendererStats
