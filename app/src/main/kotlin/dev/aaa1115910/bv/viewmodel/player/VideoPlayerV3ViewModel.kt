@@ -1203,14 +1203,15 @@ class VideoPlayerV3ViewModel(
             bottomPaddingPx = subtitleBottomPaddingPx,
         )
         _danmakuHostState.update { current ->
+            val sourceMode = if (current.live.enabled && current.sourceMode is DanmakuSourceMode.Live) {
+                current.sourceMode
+            } else {
+                buildVodSourceMode(state)
+            }
             current.copy(
-                sourceMode = if (current.live.enabled && current.sourceMode is DanmakuSourceMode.Live) {
-                    current.sourceMode
-                } else {
-                    buildVodSourceMode(state)
-                },
+                sourceMode = sourceMode,
                 config = config,
-                filterRule = config.toFilterRule(),
+                filterRule = config.toFilterRule(sourceMode.toConfigSourceMode()),
                 maskEnabled = state.danmakuState.danmakuEnabled && state.danmakuState.maskEnabled,
                 mask = state.danmakuMask,
                 aid = state.aid,
@@ -2826,6 +2827,14 @@ private fun DanmakuState.toDanmakuConfig(bottomPaddingPx: Int): DanmakuConfig {
         allowTop = enabledTypes.contains(DanmakuType.All) || enabledTypes.contains(DanmakuType.Top),
         allowBottom = enabledTypes.contains(DanmakuType.All) || enabledTypes.contains(DanmakuType.Bottom),
     )
+}
+
+private fun DanmakuSourceMode.toConfigSourceMode(): DanmakuConfigSourceMode {
+    return when (this) {
+        is DanmakuSourceMode.Live -> DanmakuConfigSourceMode.Live
+        is DanmakuSourceMode.Vod,
+        DanmakuSourceMode.None -> DanmakuConfigSourceMode.Vod
+    }
 }
 
 sealed interface SubtitleSettingAction {
