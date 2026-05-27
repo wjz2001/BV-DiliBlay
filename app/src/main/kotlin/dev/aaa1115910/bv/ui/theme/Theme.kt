@@ -1,7 +1,6 @@
 package dev.aaa1115910.bv.ui.theme
 
 import android.app.Activity
-import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -47,16 +46,6 @@ fun BVTheme(
 
     val colorSchemeTv = themeTokens.toTvColorScheme()
     val colorSchemeCommon = themeTokens.toCommonColorScheme()
-    val colorExtras = themeTokens.extras
-
-    val typographyTv =
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.M) android6AndBelowTypographyTv else Typography()
-    val typographyCommon =
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.M) {
-            android6AndBelowTypographyCommon
-        } else {
-            androidx.compose.material3.Typography()
-        }
 
     if (!view.isInEditMode) {
         LaunchedEffect(resolvedThemeMode) {
@@ -80,11 +69,11 @@ fun BVTheme(
 
     MaterialTheme(
         colorScheme = colorSchemeTv,
-        typography = typographyTv
+        typography = Typography()
     ) {
         androidx.compose.material3.MaterialTheme(
             colorScheme = colorSchemeCommon,
-            typography = typographyCommon,
+            typography = androidx.compose.material3.Typography(),
             shapes = Shapes(
                 extraSmall = RoundedCornerShape(0.dp),
                 small = RoundedCornerShape(0.dp),
