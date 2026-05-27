@@ -3,13 +3,8 @@ package dev.aaa1115910.bv.component.settings
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ListItem
@@ -25,7 +20,7 @@ fun <T> SettingCycleListItem(
     title: String,
     options: List<T>,
     checked: T,
-    defaultHasFocus: Boolean = false,
+    focused: Boolean = false,
     colors: ListItemColors = ListItemDefaults.colors(),
     contentColor: Color? = null,
     supportText: (T) -> String = { "" },
@@ -33,8 +28,6 @@ fun <T> SettingCycleListItem(
     onCheckedChange: (T) -> Unit
 ) {
     if (options.isEmpty()) return
-
-    var hasFocus by remember { mutableStateOf(defaultHasFocus) }
 
     val currentIndex = options.indexOf(checked).takeIf { it >= 0 } ?: 0
     val currentOption = options[currentIndex]
@@ -44,11 +37,10 @@ fun <T> SettingCycleListItem(
     ListItem(
         modifier = SettingsBottomIndicator(
             modifier = modifier,
-            animatedSelected = hasFocus,
+            animatedSelected = focused,
             fixedSelected = false,
             color = C.primary
-        )
-            .onFocusChanged { hasFocus = it.hasFocus },
+        ),
         headlineContent = { Text(text = title, color = contentColor ?: Color.Unspecified) },
         supportingContent = {
             if (currentSupportText.isNotBlank()) {
@@ -69,7 +61,7 @@ fun <T> SettingCycleListItem(
             val nextIndex = (currentIndex + 1) % options.size
             onCheckedChange(options[nextIndex])
         },
-        selected = hasFocus,
+        selected = focused,
         colors = colors
     )
 }

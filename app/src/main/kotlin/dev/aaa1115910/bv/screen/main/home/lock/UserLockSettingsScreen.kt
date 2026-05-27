@@ -33,8 +33,7 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 import dev.aaa1115910.bv.entity.db.UserDB
 import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.screen.main.home.UserItem
@@ -129,8 +128,8 @@ private fun UserLockSettingsContent(
         Surface(
             modifier = modifier
                 .clickable {}
-                .wjzFocusable(
-                    nodeId = WjzFocusNodeId("user-lock-settings/input"),
+                .wjzFocus(
+                    id = "user-lock-settings/input",
                     layer = WjzFocusLayer.Content,
                     fallback = true
                 )

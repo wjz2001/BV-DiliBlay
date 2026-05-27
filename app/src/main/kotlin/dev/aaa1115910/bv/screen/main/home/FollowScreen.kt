@@ -39,8 +39,6 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -72,6 +70,7 @@ import coil.compose.AsyncImage
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
+import dev.aaa1115910.bv.wjzfocus.wjzObserveFocusChanged
 import dev.aaa1115910.bv.component.BlockTagItem
 import dev.aaa1115910.bv.component.BvTabLabel
 import dev.aaa1115910.bv.component.BvUnderlineTabRow
@@ -107,16 +106,12 @@ fun FollowScreen(
     activationSerial: Long = 0L,
     refreshSerial: Long = 0L,
     followViewModel: FollowViewModel = koinViewModel(),
-    contentEntryFocusRequester: FocusRequester? = null,
-    tabFocusRequester: FocusRequester? = null,
     onContentEntryReady: () -> Unit = {},
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
-    val followTabFocusRequester = tabFocusRequester
-    val followContentEntryFocusRequester = contentEntryFocusRequester
 
     var focusOnTabs by remember { mutableStateOf(true) }
     var topNavReadyGroupId by remember { mutableStateOf<Int?>(null) }
@@ -337,9 +332,9 @@ fun FollowScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = MainTopTabDefaults.TabRowHorizontalPadding)
-                            .onFocusChanged { state ->
-                                focusOnTabs = state.hasFocus
-                                if (!state.hasFocus) {
+                            .wjzObserveFocusChanged { hasFocus ->
+                                focusOnTabs = hasFocus
+                                if (!hasFocus) {
                                     followViewModel.syncGroupActivationToCurrent()
                                 }
                             },
@@ -347,7 +342,6 @@ fun FollowScreen(
                         selectedItem = groupList.firstOrNull { it.groupId == displayFocusedGroupId },
                         entryFocusItem = groupList.firstOrNull { it.groupId == requestedGroupFocusId },
                         itemKey = { it.groupId },
-                        defaultFocusRequester = followTabFocusRequester,
                         onDefaultFocusReady = { readyKey ->
                             val readyGroupId = readyKey as? Int
                             if (readyGroupId != null && topNavReadyGroupId != readyGroupId) {
@@ -380,7 +374,7 @@ fun FollowScreen(
                             true
                         },
                         backFocusEnabled = active,
-                        contentFocusRequester = followContentEntryFocusRequester,
+                        contentFocusEnabled = true,
                         contentFocusReadyKey = contentReadyGroupId,
                         onContentFocusRequested = { group ->
                             if (currentGroupId != group.groupId) {
@@ -436,8 +430,6 @@ fun FollowScreen(
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                     horizontalArrangement = Arrangement.spacedBy(24.dp),
                     nodeIdPrefix = "follow/${currentGroupId ?: "empty"}/users",
-                    entryFocusRequester = followContentEntryFocusRequester,
-                    upFocusRequester = followTabFocusRequester,
                     onEntryFocusReady = {
                         contentReadyGroupId = currentGroupId
                         onContentEntryReady()
@@ -525,7 +517,7 @@ fun FollowScreen(
                     TextField(
                         modifier = Modifier
                             .width(600.dp)
-                            .onFocusChanged { searchFieldHasFocus = it.hasFocus }
+                            .wjzObserveFocusChanged { searchFieldHasFocus = it }
                             .drawWithContent {
                                 drawContent()
                                 val stroke = 3.dp.toPx()
@@ -581,7 +573,7 @@ private fun UpCard(
 
     Surface(
         modifier = modifier
-            .onFocusChanged { onFocusChange(it.hasFocus) }
+            .wjzObserveFocusChanged { onFocusChange(it) }
             .size(280.dp, 80.dp),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = MaterialTheme.colorScheme.surface,

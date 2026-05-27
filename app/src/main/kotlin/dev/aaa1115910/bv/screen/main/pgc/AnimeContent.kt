@@ -9,7 +9,6 @@ import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -29,8 +28,6 @@ fun AnimeContent(
     modifier: Modifier = Modifier,
     lazyListState: LazyListState,
     pgcViewModel: PgcAnimeViewModel,
-    contentEntryFocusRequester: FocusRequester? = null,
-    tabFocusRequester: FocusRequester? = null,
     onContentEntryReady: () -> Unit = {},
     active: Boolean = true
 ) {
@@ -60,8 +57,6 @@ fun AnimeContent(
         pgcViewModel = pgcViewModel,
         pgcType = PgcType.Anime,
         active = active,
-        contentEntryFocusRequester = contentEntryFocusRequester,
-        tabFocusRequester = tabFocusRequester,
         onContentEntryReady = onContentEntryReady,
         featureButtons = {
             AnimeFeatureButtons(

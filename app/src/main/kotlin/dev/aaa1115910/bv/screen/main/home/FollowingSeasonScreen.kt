@@ -25,7 +25,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -63,8 +62,6 @@ fun FollowingSeasonScreen(
     active: Boolean = true,
     activationSerial: Long = 0L,
     refreshSerial: Long = 0L,
-    contentEntryFocusRequester: FocusRequester? = null,
-    tabFocusRequester: FocusRequester? = null,
     onContentEntryReady: () -> Unit = {},
     followingSeasonViewModel: FollowingSeasonViewModel = koinViewModel()
 ) {
@@ -153,8 +150,6 @@ fun FollowingSeasonScreen(
             focusItemCount = followingSeasons.size,
             focusItemKeys = followingSeasons.map { WjzFocusItemKey("Long:${it.seasonId}") },
             focusColumnCount = 6,
-            entryFocusRequester = contentEntryFocusRequester,
-            upFocusRequester = tabFocusRequester,
             onEntryFocusReady = onContentEntryReady
         ) { cardUiStateFor ->
             if (followingSeasons.isNotEmpty()) {

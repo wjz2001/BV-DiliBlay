@@ -1,7 +1,6 @@
 package dev.aaa1115910.bv.component.controllers
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -21,7 +20,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.key
@@ -38,9 +36,9 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 import dev.aaa1115910.bv.component.comments.VideoCommentsDialog
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.entity.VideoAspectRatio
@@ -71,6 +69,9 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+private val PlayerControllerFocusScopeId = WjzFocusScopeId("player/controller")
+private const val PlayerControllerRootFocusId = "root"
 
 @Composable
 fun VideoPlayerController(
@@ -149,7 +150,6 @@ fun VideoPlayerController(
     var showTimeJumpDialog by remember { mutableStateOf(false) }
     var showCommentsDialog by remember { mutableStateOf(false) }
     var focusInfoButtonsOnShow by remember { mutableStateOf(false) }
-    val rootFocusRequester = remember { FocusRequester() }
     val focusCoordinator = rememberWjzFocusCoordinator()
     var playerSourceToken by remember { mutableStateOf<WjzFocusSourceToken?>(null) }
     val currentPlayerSourceToken by rememberUpdatedState(playerSourceToken)
@@ -163,10 +163,7 @@ fun VideoPlayerController(
                 )
             }
             repeat(2) {
-                focusCoordinator.requestFocus(
-                    nodeId = WjzFocusNodeId("player/controller/root"),
-                    layer = WjzFocusLayer.Player
-                )
+                focusCoordinator.restoreActiveLayer(PlayerControllerFocusScopeId)
                 delay(100)
             }
         } else if (playerSourceToken != null) {
@@ -194,10 +191,7 @@ fun VideoPlayerController(
 
     LaunchedEffect(focusCoordinator.activeLayer) {
         if (focusCoordinator.activeLayer == WjzFocusLayer.Player) {
-            focusCoordinator.requestFocus(
-                nodeId = WjzFocusNodeId("player/controller/root"),
-                layer = WjzFocusLayer.Player
-            )
+            focusCoordinator.restoreActiveLayer(PlayerControllerFocusScopeId)
         }
     }
 
@@ -421,14 +415,13 @@ fun VideoPlayerController(
         modifier = modifier.background(AppBlack),
         coordinator = focusCoordinator,
         layer = WjzFocusLayer.Player,
-        fallbackRequester = rootFocusRequester
+        scopeId = PlayerControllerFocusScopeId
     ) {
         Box(
             modifier = Modifier
-                .wjzFocusable(
-                    nodeId = WjzFocusNodeId("player/controller/root"),
+                .wjzFocus(
+                    id = PlayerControllerRootFocusId,
                     layer = WjzFocusLayer.Player,
-                    requester = rootFocusRequester,
                     fallback = true
                 )
                 .onPreviewKeyEvent { event ->
@@ -503,7 +496,6 @@ fun VideoPlayerController(
             }
 
             ControllerVideoInfo(
-                modifier = Modifier.focusable(),
                 show = showInfoSeekController,
                 focusButtonsOnShow = focusInfoButtonsOnShow,
                 onConsumeFocusButtonsOnShow = { focusInfoButtonsOnShow = false },

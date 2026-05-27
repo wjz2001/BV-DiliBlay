@@ -37,7 +37,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -63,13 +62,9 @@ internal fun LeftNaviContent(
     onItemFocused: (LeftNaviItem) -> Unit = {},
     onOpenSettings: () -> Unit,
     drawerItemFocusModifier: @Composable (LeftNaviItem, Modifier, (Boolean) -> Unit) -> Modifier =
-        { _, itemModifier, onFocusChanged ->
-            itemModifier.onFocusChanged { state -> onFocusChanged(state.hasFocus) }
-        },
+        { _, itemModifier, _ -> itemModifier },
     settingsFocusModifier: @Composable (Modifier, (Boolean) -> Unit) -> Modifier =
-        { settingsModifier, onFocusChanged ->
-            settingsModifier.onFocusChanged { state -> onFocusChanged(state.hasFocus) }
-        },
+        { settingsModifier, _ -> settingsModifier },
     userContent: @Composable () -> Unit = {
         Spacer(modifier = Modifier.height(280.dp))
     }

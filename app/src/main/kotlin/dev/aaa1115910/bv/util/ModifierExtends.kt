@@ -13,7 +13,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.BlendMode
@@ -29,6 +28,7 @@ import com.caverock.androidsvg.SVG
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMaskFrame
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuMobMaskFrame
 import dev.aaa1115910.biliapi.entity.danmaku.DanmakuWebMaskFrame
+import dev.aaa1115910.bv.wjzfocus.wjzObserveFocusChanged
 
 
 /**
@@ -40,7 +40,7 @@ fun Modifier.focusedBorder(
     var hasFocus by remember { mutableStateOf(false) }
     val borderColor = if (hasFocus) C.selectedBorder else Color.Transparent
 
-    onFocusChanged { hasFocus = it.hasFocus }
+    wjzObserveFocusChanged { hasFocus = it }
         .border(
             width = 2.dp,
             color = borderColor,
@@ -60,7 +60,7 @@ fun Modifier.focusedScale(
         label = "focused scale"
     )
 
-    onFocusChanged { hasFocus = it.hasFocus }
+    wjzObserveFocusChanged { hasFocus = it }
         .scale(scaleValue)
 }
 

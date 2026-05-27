@@ -9,7 +9,6 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.focusGroup
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -23,11 +22,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -57,7 +51,9 @@ import dev.aaa1115910.bv.wjzfocus.WjzLazyFocusRestorerHost
 import dev.aaa1115910.bv.component.CoAuthorsDialogHost
 import dev.aaa1115910.bv.component.FavoriteDialog
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusGroup
 import dev.aaa1115910.bv.component.handleUpHomeClick
 import dev.aaa1115910.bv.component.rememberCoAuthorsDialogState
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
@@ -70,8 +66,6 @@ import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 private class RowWrapController {
-    private val requesters = mutableMapOf<Int, FocusRequester>()
-
     var lastFocusedIndex by mutableIntStateOf(0)
     var lastFocusedKey by mutableStateOf<WjzFocusItemKey?>(null)
     var itemCount: Int = 0
@@ -81,23 +75,19 @@ private class RowWrapController {
     var focusScopeId: WjzFocusScopeId? = null
     var listState: LazyListState? = null
     var leadingSlotOffset: Int = 0
-    var leadingRequester: FocusRequester? = null
-    var firstItemRequesterOverride: FocusRequester? = null
     var onItemFocusChanged: (WjzFocusItemKey, Boolean) -> Unit = { _, _ -> }
-
-    fun requesterFor(index: Int): FocusRequester {
-        if (index == 0 && firstItemRequesterOverride != null) {
-            return firstItemRequesterOverride!!
-        }
-        return requesters.getOrPut(index) { FocusRequester() }
-    }
 
     private fun itemKeyFor(index: Int): WjzFocusItemKey {
         return itemKeys[index]
     }
 
+    private fun itemFocusIdFor(index: Int): String {
+        return "item/${itemKeyFor(index)}"
+    }
+
     private fun nodeIdFor(index: Int): WjzFocusNodeId {
-        return WjzFocusNodeId("$nodeIdPrefix/item/${itemKeyFor(index)}")
+        val itemFocusId = itemFocusIdFor(index)
+        return WjzFocusNodeId("${focusScopeId?.value ?: nodeIdPrefix}/$itemFocusId")
     }
 
     private fun indexOfKey(key: WjzFocusItemKey): Int? {
@@ -135,15 +125,6 @@ private class RowWrapController {
         return itemKeys[previousIndex.coerceIn(0, itemKeys.lastIndex)]
     }
 
-    /**
-     * 这里只处理“相邻项”和 leadingItem：
-     * - 第一个左边 -> leadingItem（如果有）
-     * - 中间项左右 -> 前后项
-     * - 不在这里做首尾互跳
-     *
-     * 首尾循环交给 onPreviewKeyEvent + scrollToItem + requestFocus，
-     * 这样对 LazyRow 才是稳定的。
-     */
     @Composable
     fun Modifier.modifierFor(index: Int): Modifier {
         return targetFor(index)?.let { this.then(it.modifier) } ?: this
@@ -153,50 +134,33 @@ private class RowWrapController {
     fun targetFor(index: Int): BvLazyFocusItemTarget? {
         if (index !in 0 until itemCount) return null
 
-        val lastIndex = itemCount - 1
-        val requester = requesterFor(index)
         val nodeId = nodeIdFor(index)
+        val itemFocusId = itemFocusIdFor(index)
         val itemKey = itemKeyFor(index)
         val restorerId = "$nodeIdPrefix/lazy-restorer"
+        val itemFocusChanged: (Boolean) -> Unit = { hasFocus ->
+            if (hasFocus) {
+                lastFocusedIndex = index
+                lastFocusedKey = itemKey
+            }
+            onItemFocusChanged(itemKey, hasFocus)
+        }
 
         val modifier = Modifier
-            .wjzFocusable(
-                nodeId = nodeId,
+            .wjzFocus(
+                id = itemFocusId,
                 layer = focusLayer,
-                scopeId = focusScopeId,
-                requester = requester,
-                onFocusChanged = { hasFocus ->
-                    if (hasFocus) {
-                        lastFocusedIndex = index
-                        lastFocusedKey = itemKey
-                    }
-                    onItemFocusChanged(itemKey, hasFocus)
-                }
+                onFocusChanged = itemFocusChanged
             )
-            .focusProperties {
-                when {
-                    index == 0 && leadingRequester != null -> {
-                        left = leadingRequester!!
-                    }
-
-                    index > 0 -> {
-                        left = requesterFor(index - 1)
-                    }
-                }
-
-                if (index < lastIndex) {
-                    right = requesterFor(index + 1)
-                }
-            }
         return BvLazyFocusItemTarget(
             modifier = modifier,
             nodeId = nodeId,
-            requester = requester,
             layer = focusLayer,
             scopeId = focusScopeId,
             itemKey = itemKey,
             restorerId = restorerId,
-            listId = restorerId
+            listId = restorerId,
+            onFocusChanged = itemFocusChanged
         )
     }
 }
@@ -218,9 +182,6 @@ fun VideosRowCore(
     onGoToUpPage: ((Long, String) -> Unit)? = null,
     enableHorizontalWrap: Boolean = true,
     rowStateKey: String,
-    entryFocusRequester: FocusRequester? = null,
-    upFocusRequester: FocusRequester? = null,
-    downFocusRequester: FocusRequester? = null,
     leadingItem: (@Composable (Modifier) -> Unit)? = null,
     listState: LazyListState = rememberLazyListState(),
     manageRowFocusInternally: Boolean = true,
@@ -234,7 +195,10 @@ fun VideosRowCore(
     val scope = rememberCoroutineScope()
     val focusCoordinator = LocalWjzFocusCoordinator.current
 
-    var hasFocus by remember { mutableStateOf(false) }
+    var focusedItemKey by remember(rowStateKey) {
+        mutableStateOf<WjzFocusItemKey?>(null)
+    }
+    val hasFocus = focusedItemKey != null
     val titleColor = if (hasFocus) {
         focusedHeaderColor ?: C.onSurface
     } else {
@@ -250,8 +214,6 @@ fun VideosRowCore(
     val favoriteFolders = remember { mutableStateListOf<FavoriteFolderMetadata>() }
     val selectedFolderIds = remember { mutableStateListOf<Long>() }
 
-    val leadingFocusRequester = remember { FocusRequester() }
-    val firstVideoFocusRequester = entryFocusRequester ?: remember { FocusRequester() }
     val rowFocusScopeId = remember(rowStateKey) {
         WjzFocusScopeId("videos-row/$rowStateKey")
     }
@@ -267,16 +229,18 @@ fun VideosRowCore(
         focusScopeId = rowFocusScopeId
         this.listState = listState
         this.leadingSlotOffset = if (leadingItem != null) 1 else 0
-        leadingRequester = leadingItem?.let { leadingFocusRequester }
-        firstItemRequesterOverride = firstVideoFocusRequester
     }
     var shouldRestoreFocusedItem by remember(rowStateKey) {
         mutableStateOf(false)
     }
     rowWrapController.onItemFocusChanged = { itemKey, itemHasFocus ->
         if (itemHasFocus) {
+            focusedItemKey = itemKey
             shouldRestoreFocusedItem = true
         } else if (itemKey in itemKeys) {
+            if (focusedItemKey == itemKey) {
+                focusedItemKey = null
+            }
             shouldRestoreFocusedItem = false
         }
     }
@@ -379,14 +343,7 @@ fun VideosRowCore(
         var columnModifier = modifier
         if (manageRowFocusInternally) {
             columnModifier = columnModifier
-                .focusRestorer()
-                .focusGroup()
-        }
-        columnModifier = columnModifier.onFocusChanged {
-            hasFocus = it.hasFocus
-            if (!it.hasFocus && rowWrapController.lastFocusedKey?.let { key -> key in itemKeys } == true) {
-                shouldRestoreFocusedItem = false
-            }
+                .wjzFocusGroup()
         }
 
         Column(
@@ -421,13 +378,26 @@ fun VideosRowCore(
                     item(key = "${rowStateKey}_leading_item") {
                         leadingItem(
                             Modifier
-                                .focusRequester(leadingFocusRequester)
-                                .focusProperties {
-                                    if (videos.isNotEmpty()) {
-                                        right = rowWrapController.requesterFor(0)
+                                .onPreviewKeyEvent { event ->
+                                    if (
+                                        event.type != KeyEventType.KeyDown ||
+                                        event.key != Key.DirectionRight ||
+                                        videos.isEmpty()
+                                    ) {
+                                        return@onPreviewKeyEvent false
                                     }
-                                    if (upFocusRequester != null) up = upFocusRequester
-                                    if (downFocusRequester != null) down = downFocusRequester
+                                    scope.launch {
+                                        val targetKey = rowWrapController.itemKeyAt(0)
+                                        focusCoordinator?.enqueueLazyRestore(
+                                            nodeId = rowWrapController.nodeIdAt(0),
+                                            itemKey = targetKey,
+                                            layer = WjzFocusLayer.Content,
+                                            scopeId = rowFocusScopeId,
+                                            restorerId = "$rowStateKey/lazy-restorer",
+                                            listId = "$rowStateKey/lazy-restorer"
+                                        )
+                                    }
+                                    true
                                 }
                         )
                     }
@@ -437,87 +407,85 @@ fun VideosRowCore(
                     items = videos,
                     key = { _, item -> videoCardKey(item).value }
                 ) { index, videoData ->
-                    val lastIndex = videos.lastIndex
-                    val focusTarget = rowWrapController.targetFor(index)?.let { target ->
-                        target.copy(
-                            modifier = target.modifier
-                                .focusProperties {
-                                    if (upFocusRequester != null) up = upFocusRequester
-                                    if (downFocusRequester != null) down = downFocusRequester
-                                }
-                                .onPreviewKeyEvent { event ->
-                                    if (!enableHorizontalWrap) {
-                                        return@onPreviewKeyEvent false
-                                    }
-                                    if (videos.size <= 1) {
-                                        return@onPreviewKeyEvent false
-                                    }
-                                    if (event.type != KeyEventType.KeyDown) {
-                                        return@onPreviewKeyEvent false
-                                    }
-
-                                    when {
-                                        // 没有 leadingItem 时，第一个视频按左，循环到最后一个视频
-                                        event.key == Key.DirectionLeft &&
-                                                index == 0 &&
-                                                leadingItem == null -> {
-                                            scope.launch {
-                                                val targetKey = rowWrapController.itemKeyAt(lastIndex)
-                                                focusCoordinator?.enqueueLazyRestore(
-                                                    nodeId = rowWrapController.nodeIdAt(lastIndex),
-                                                    itemKey = targetKey,
-                                                    layer = WjzFocusLayer.Content,
-                                                    scopeId = rowFocusScopeId,
-                                                    restorerId = "$rowStateKey/lazy-restorer",
-                                                    listId = "$rowStateKey/lazy-restorer"
-                                                )
-                                            }
-                                            true
+                    CompositionLocalProvider(LocalWjzFocusScopeId provides rowFocusScopeId) {
+                        val lastIndex = videos.lastIndex
+                        val focusTarget = rowWrapController.targetFor(index)?.let { target ->
+                            target.copy(
+                                modifier = target.modifier
+                                    .onPreviewKeyEvent { event ->
+                                        if (!enableHorizontalWrap) {
+                                            return@onPreviewKeyEvent false
+                                        }
+                                        if (videos.size <= 1) {
+                                            return@onPreviewKeyEvent false
+                                        }
+                                        if (event.type != KeyEventType.KeyDown) {
+                                            return@onPreviewKeyEvent false
                                         }
 
-                                        // 最后一个视频按右，循环到第一个视频
-                                        event.key == Key.DirectionRight &&
-                                                index == lastIndex -> {
-                                            scope.launch {
-                                                val targetKey = rowWrapController.itemKeyAt(0)
-                                                focusCoordinator?.enqueueLazyRestore(
-                                                    nodeId = rowWrapController.nodeIdAt(0),
-                                                    itemKey = targetKey,
-                                                    layer = WjzFocusLayer.Content,
-                                                    scopeId = rowFocusScopeId,
-                                                    restorerId = "$rowStateKey/lazy-restorer",
-                                                    listId = "$rowStateKey/lazy-restorer"
-                                                )
+                                        when {
+                                            // 没有 leadingItem 时，第一个视频按左，循环到最后一个视频
+                                            event.key == Key.DirectionLeft &&
+                                                    index == 0 &&
+                                                    leadingItem == null -> {
+                                                scope.launch {
+                                                    val targetKey = rowWrapController.itemKeyAt(lastIndex)
+                                                    focusCoordinator?.enqueueLazyRestore(
+                                                        nodeId = rowWrapController.nodeIdAt(lastIndex),
+                                                        itemKey = targetKey,
+                                                        layer = WjzFocusLayer.Content,
+                                                        scopeId = rowFocusScopeId,
+                                                        restorerId = "$rowStateKey/lazy-restorer",
+                                                        listId = "$rowStateKey/lazy-restorer"
+                                                    )
+                                                }
+                                                true
                                             }
-                                            true
-                                        }
 
-                                        else -> false
+                                            // 最后一个视频按右，循环到第一个视频
+                                            event.key == Key.DirectionRight &&
+                                                    index == lastIndex -> {
+                                                scope.launch {
+                                                    val targetKey = rowWrapController.itemKeyAt(0)
+                                                    focusCoordinator?.enqueueLazyRestore(
+                                                        nodeId = rowWrapController.nodeIdAt(0),
+                                                        itemKey = targetKey,
+                                                        layer = WjzFocusLayer.Content,
+                                                        scopeId = rowFocusScopeId,
+                                                        restorerId = "$rowStateKey/lazy-restorer",
+                                                        listId = "$rowStateKey/lazy-restorer"
+                                                    )
+                                                }
+                                                true
+                                            }
+
+                                            else -> false
+                                        }
                                     }
+                            )
+                        }
+
+                        SmallVideoCard(
+                            modifier = Modifier.width(200.dp),
+                            focusTarget = focusTarget,
+                            uiState = cardUiStateFor(videoData.avid),
+                            data = videoData,
+                            titleMaxLines = 1,
+                            onClick = { onVideoClicked(videoData) },
+                            coverDensityMultiplier = 1f,
+                            coverFontScaleMultiplier = 1f,
+                            infoDensityMultiplier = 1f,
+                            infoFontScaleMultiplier = 1f,
+                            onAddWatchLater = onAddWatchLater?.let { callback ->
+                                { callback(videoData.avid) }
+                            },
+                            onGoToUpPage = onGoToUpPage?.let { callback ->
+                                videoData.upMid?.let { mid ->
+                                    { callback(mid, videoData.upName) }
                                 }
+                            }
                         )
                     }
-
-                    SmallVideoCard(
-                        modifier = Modifier.width(200.dp),
-                        focusTarget = focusTarget,
-                        uiState = cardUiStateFor(videoData.avid),
-                        data = videoData,
-                        titleMaxLines = 1,
-                        onClick = { onVideoClicked(videoData) },
-                        coverDensityMultiplier = 1f,
-                        coverFontScaleMultiplier = 1f,
-                        infoDensityMultiplier = 1f,
-                        infoFontScaleMultiplier = 1f,
-                        onAddWatchLater = onAddWatchLater?.let { callback ->
-                            { callback(videoData.avid) }
-                        },
-                        onGoToUpPage = onGoToUpPage?.let { callback ->
-                            videoData.upMid?.let { mid ->
-                                { callback(mid, videoData.upName) }
-                            }
-                        }
-                    )
                 }
             }
         }
@@ -551,9 +519,6 @@ fun VideosRow(
     onGoToUpPage: ((Long, String) -> Unit)? = null,
     enableHorizontalWrap: Boolean = true,
     rowStateKey: String? = null,
-    entryFocusRequester: FocusRequester? = null,
-    upFocusRequester: FocusRequester? = null,
-    downFocusRequester: FocusRequester? = null,
     manageRowFocusInternally: Boolean = true,
 ) {
     val resolvedRowStateKey = rowStateKey ?: remember(header, videos) {
@@ -572,9 +537,6 @@ fun VideosRow(
         onGoToUpPage = onGoToUpPage,
         enableHorizontalWrap = enableHorizontalWrap,
         rowStateKey = resolvedRowStateKey,
-        entryFocusRequester = entryFocusRequester,
-        upFocusRequester = upFocusRequester,
-        downFocusRequester = downFocusRequester,
         leadingItem = null,
         manageRowFocusInternally = manageRowFocusInternally
     )

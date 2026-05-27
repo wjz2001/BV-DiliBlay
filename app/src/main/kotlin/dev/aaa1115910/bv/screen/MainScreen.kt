@@ -42,7 +42,6 @@ import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.activities.user.UserSwitchActivity
 import dev.aaa1115910.bv.component.BlackoutSwitch
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryResolution
-import dev.aaa1115910.bv.wjzfocus.WjzFocusExitRequest
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
@@ -50,7 +49,8 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTransitionGuard
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRouter
 import dev.aaa1115910.bv.component.rememberBlackoutSwitchTransitionState
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.repository.UserRepository
@@ -369,25 +369,23 @@ fun MainScreen(
         }
     }
 
-    fun resolveContentNavigationExit(
-        request: WjzFocusExitRequest
-    ): WjzFocusEntryResolution {
-        return when (request.targetEntryId) {
-            MainContentNavigationExitEntry.TopNavUser.entryId -> {
+    fun resolveContentNavigationExit(target: String): WjzFocusEntryResolution {
+        return when (target) {
+            MainContentNavigationExitEntry.TopNavUser.entryId.value -> {
                 focusCoordinator.switchLayer(WjzFocusLayer.TopNav)
                 pendingTopNavEntryRequest = newTopNavEntryRequest(MainTopNavEntryTarget.User)
                 WjzFocusEntryResolution.Pending(
-                    entryId = request.targetEntryId,
+                    entryId = MainContentNavigationExitEntry.TopNavUser.entryId,
                     layer = WjzFocusLayer.TopNav,
                     scopeId = MainTopNavScopeId
                 )
             }
 
-            MainContentNavigationExitEntry.DrawerCurrentItem.entryId -> {
+            MainContentNavigationExitEntry.DrawerCurrentItem.entryId.value -> {
                 focusCoordinator.switchLayer(WjzFocusLayer.Drawer)
                 pendingDrawerEntryRequest = newDrawerEntryRequest(MainDrawerEntryTarget.CurrentItem)
                 WjzFocusEntryResolution.Pending(
-                    entryId = request.targetEntryId,
+                    entryId = MainContentNavigationExitEntry.DrawerCurrentItem.entryId,
                     layer = WjzFocusLayer.Drawer,
                     scopeId = MainDrawerScopeId
                 )
@@ -475,17 +473,18 @@ fun MainScreen(
         layer = WjzFocusLayer.Content,
         scopeId = MainFocusScopeId,
         exits = mainContentNavigationExits(contentNavigationExitEntry),
-        onHostExit = ::resolveContentNavigationExit
+        onHostExit = wjzFocusRouter(layer = WjzFocusLayer.Content) { target ->
+            resolveContentNavigationExit(target)
+        }
     ) {
         WjzFocusTransitionGuard(locked = focusTransitionLocked)
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .wjzFocusable(
-                    nodeId = MainRootNodeId,
-                    layer = WjzFocusLayer.Content,
-                    scopeId = MainFocusScopeId
+                .wjzFocus(
+                    id = MainRootNodeId.value.removePrefix("${MainFocusScopeId.value}/"),
+                    layer = WjzFocusLayer.Content
                 )
         ) {
         // ========== 主页内容区域 ==========
@@ -493,10 +492,9 @@ fun MainScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .zIndex(0f)
-                .wjzFocusable(
-                    nodeId = MainContentNodeId,
+                .wjzFocus(
+                    id = MainContentNodeId.value.removePrefix("${MainFocusScopeId.value}/"),
                     layer = WjzFocusLayer.Content,
-                    scopeId = MainFocusScopeId,
                     strategy = WjzFocusRestoreStrategy.Container,
                     fallback = true,
                     globalFallback = true,

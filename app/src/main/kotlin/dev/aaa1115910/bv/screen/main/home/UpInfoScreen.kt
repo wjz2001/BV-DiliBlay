@@ -29,7 +29,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalContext
@@ -53,6 +52,7 @@ import androidx.compose.runtime.snapshotFlow
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
+import dev.aaa1115910.bv.wjzfocus.wjzObserveFocusChanged
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.rememberTvGridFocusTarget
@@ -226,7 +226,7 @@ fun UpSpaceScreen(
                     TextField(
                         modifier = Modifier
                             .weight(1f)
-                            .onFocusChanged { searchFieldHasFocus = it.hasFocus }
+                            .wjzObserveFocusChanged { searchFieldHasFocus = it }
                             .drawWithContent {
                                 // 先让 TextField 自己画完（背景/文本/内部装饰）
                                 drawContent()
@@ -307,9 +307,9 @@ fun UpSpaceScreen(
                         contentAlignment = Alignment.Center,
                         modifier = if (index == 0) {
                             Modifier
-                                .onFocusChanged { state ->
+                                .wjzObserveFocusChanged { hasFocus ->
                                     // 一旦第一张卡确实拿到过焦点，就允许输入框可聚焦
-                                    if (state.hasFocus) {
+                                    if (hasFocus) {
                                         searchCanFocus = true
                                     }
                                 }

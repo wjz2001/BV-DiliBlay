@@ -1,14 +1,11 @@
 package dev.aaa1115910.bv.screen.main.common
 
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
-import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
-import dev.aaa1115910.bv.wjzfocus.WjzFocusHostExit
 import dev.aaa1115910.bv.component.TopNavEntryFocusConsumed
 import dev.aaa1115910.bv.component.TopNavEntryFocusResolution
 import dev.aaa1115910.bv.component.TopNavEntryFocusTarget
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusHostExit
 
 enum class MainContentEntryTarget {
     DefaultEntry,
@@ -48,22 +45,6 @@ fun mainContentNavigationExits(
         WjzFocusHostExit(FocusDirection.Left, targetEntry.entryId),
         WjzFocusHostExit(FocusDirection.Right, targetEntry.entryId)
     )
-}
-
-fun Modifier.mainContentLeftExit(
-    focusRequester: FocusRequester
-): Modifier {
-    return focusProperties {
-        left = focusRequester
-    }
-}
-
-fun Modifier.mainContentRightExit(
-    focusRequester: FocusRequester
-): Modifier {
-    return focusProperties {
-        right = focusRequester
-    }
 }
 
 data class MainContentEntryFocusRequest(

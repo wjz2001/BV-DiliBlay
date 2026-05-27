@@ -39,7 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -48,9 +48,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.foundation.interaction.FocusInteraction
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.tv.material3.Button
 import androidx.tv.material3.Icon
 import androidx.tv.material3.IconButton
@@ -59,12 +60,14 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.search.Hotword
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryResolution
+import dev.aaa1115910.bv.wjzfocus.WjzFocusHostExit
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.component.search.SearchKeyword
 import dev.aaa1115910.bv.component.search.SoftKeyboard
@@ -74,8 +77,7 @@ import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.viewmodel.search.SearchInputViewModel
-import dev.aaa1115910.bv.screen.main.common.mainContentLeftExit
-import dev.aaa1115910.bv.screen.main.common.mainContentRightExit
+import dev.aaa1115910.bv.screen.main.common.MainContentNavigationExitEntry
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import org.koin.androidx.compose.koinViewModel
@@ -86,10 +88,17 @@ private val SearchInputDeleteAllDialogContainerNodeId = WjzFocusNodeId("search/i
 private val SearchSubmitFocusNodeId = WjzFocusNodeId("main/content/current")
 private val SearchSubmitFocusScopeId = WjzFocusScopeId("main")
 
-private fun SearchRightEntryToken.toFocusNodeId(): WjzFocusNodeId {
+private fun searchInputHostExits(): List<WjzFocusHostExit> {
+    return listOf(
+        WjzFocusHostExit(FocusDirection.Left, MainContentNavigationExitEntry.DrawerCurrentItem.entryId),
+        WjzFocusHostExit(FocusDirection.Right, MainContentNavigationExitEntry.TopNavUser.entryId)
+    )
+}
+
+private fun SearchRightEntryToken.toFocusLocalId(): String {
     val slot = slot.name.lowercase()
     val key = firstItemIdentity.replace("/", "_")
-    return WjzFocusNodeId("search/input/right-entry/$slot/$key")
+    return "right-entry/$slot/$key"
 }
 
 @Composable
@@ -171,14 +180,12 @@ private fun resolveSearchRightEntryToken(
 @Composable
 fun SearchInputScreen(
     modifier: Modifier = Modifier,
-    defaultFocusRequester: FocusRequester,
     onDefaultFocusReady: (() -> Unit)? = null,
     onSearchSubmit: ((String, Boolean) -> Unit)? = null,
     searchInputViewModel: SearchInputViewModel = koinViewModel()
 ) {
     SearchInputRoute(
         modifier = modifier,
-        defaultFocusRequester = defaultFocusRequester,
         onDefaultFocusReady = onDefaultFocusReady,
         onSearchSubmit = onSearchSubmit,
         searchInputViewModel = searchInputViewModel
@@ -188,9 +195,6 @@ fun SearchInputScreen(
 @Composable
 fun MainDrawerSearchInputScreen(
     modifier: Modifier = Modifier,
-    defaultFocusRequester: FocusRequester,
-    drawerFocusRequester: FocusRequester,
-    rightEntryFocusRequester: FocusRequester,
     onDefaultFocusReady: (() -> Unit)? = null,
     onCurrentRightEntryTokenChanged: ((SearchRightEntryToken?) -> Unit)? = null,
     onRightEntryFocusReady: ((SearchRightEntryToken) -> Unit)? = null,
@@ -199,9 +203,6 @@ fun MainDrawerSearchInputScreen(
 ) {
     SearchInputRoute(
         modifier = modifier,
-        defaultFocusRequester = defaultFocusRequester,
-        drawerFocusRequester = drawerFocusRequester,
-        rightEntryFocusRequester = rightEntryFocusRequester,
         onDefaultFocusReady = onDefaultFocusReady,
         onCurrentRightEntryTokenChanged = onCurrentRightEntryTokenChanged,
         onRightEntryFocusReady = onRightEntryFocusReady,
@@ -213,9 +214,6 @@ fun MainDrawerSearchInputScreen(
 @Composable
 private fun SearchInputRoute(
     modifier: Modifier = Modifier,
-    defaultFocusRequester: FocusRequester,
-    drawerFocusRequester: FocusRequester = FocusRequester.Default,
-    rightEntryFocusRequester: FocusRequester? = null,
     onDefaultFocusReady: (() -> Unit)? = null,
     onCurrentRightEntryTokenChanged: ((SearchRightEntryToken?) -> Unit)? = null,
     onRightEntryFocusReady: ((SearchRightEntryToken) -> Unit)? = null,
@@ -256,12 +254,10 @@ private fun SearchInputRoute(
         coordinator = focusCoordinator,
         layer = WjzFocusLayer.Content,
         scopeId = SearchInputRootScopeId,
-        fallbackRequester = defaultFocusRequester
+        exits = searchInputHostExits(),
+        onHostExit = { WjzFocusEntryResolution.Reject }
     ) {
         SearchInputScreenContent(
-            defaultFocusRequester = defaultFocusRequester,
-            drawerFocusRequester = drawerFocusRequester,
-            rightEntryFocusRequester = rightEntryFocusRequester,
             onDefaultFocusReady = onDefaultFocusReady,
             onCurrentRightEntryTokenChanged = onCurrentRightEntryTokenChanged,
             onRightEntryFocusReady = onRightEntryFocusReady,
@@ -283,9 +279,6 @@ private fun SearchInputRoute(
 @Composable
 private fun SearchInputScreenContent(
     modifier: Modifier = Modifier,
-    defaultFocusRequester: FocusRequester,
-    drawerFocusRequester: FocusRequester = FocusRequester.Default,
-    rightEntryFocusRequester: FocusRequester? = null,
     onDefaultFocusReady: (() -> Unit)? = null,
     onCurrentRightEntryTokenChanged: ((SearchRightEntryToken?) -> Unit)? = null,
     onRightEntryFocusReady: ((SearchRightEntryToken) -> Unit)? = null,
@@ -338,11 +331,8 @@ private fun SearchInputScreenContent(
                     .padding(start = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                Box(
-                    modifier = Modifier.mainContentLeftExit(drawerFocusRequester)
-                ) {
+                Box {
                     SearchInput(
-                        firstButtonFocusRequester = defaultFocusRequester,
                         onDefaultFocusReady = onDefaultFocusReady,
                         searchKeyword = searchKeyword,
                         onSearchKeywordChange = onSearchKeywordChange,
@@ -365,7 +355,6 @@ private fun SearchInputScreenContent(
                         firstItemReadyToken = currentRightEntryToken?.takeIf {
                             it.slot == SearchRightEntryToken.Slot.Hotword
                         },
-                        firstItemFocusRequester = rightEntryFocusRequester,
                         onFirstItemPlaced = onRightEntryFocusReady,
                         onSearch = onSearch
                     )
@@ -376,7 +365,6 @@ private fun SearchInputScreenContent(
                         firstItemReadyToken = currentRightEntryToken?.takeIf {
                             it.slot == SearchRightEntryToken.Slot.Suggest
                         },
-                        firstItemFocusRequester = rightEntryFocusRequester,
                         onFirstItemPlaced = onRightEntryFocusReady,
                         onSearch = onSearch
                     )
@@ -386,12 +374,10 @@ private fun SearchInputScreenContent(
                     modifier = Modifier
                         .weight(1f)
                         .padding(end = 10.dp),
-                    drawerFocusRequester = drawerFocusRequester,
                     histories = histories,
                     firstItemReadyToken = currentRightEntryToken?.takeIf {
                         it.slot == SearchRightEntryToken.Slot.History
                     },
-                    firstItemFocusRequester = rightEntryFocusRequester,
                     onFirstItemPlaced = onRightEntryFocusReady,
                     onSearch = onSearch,
                     onDelete = onDeleteHistory,
@@ -405,7 +391,6 @@ private fun SearchInputScreenContent(
 @Composable
 private fun SearchInput(
     modifier: Modifier = Modifier,
-    firstButtonFocusRequester: FocusRequester,
     onDefaultFocusReady: (() -> Unit)? = null,
     searchKeyword: String,
     onSearchKeywordChange: (String) -> Unit,
@@ -419,6 +404,7 @@ private fun SearchInput(
 
     // 用 TextFieldValue 承载光标位置（selection）
     var fieldValue by remember { mutableStateOf(TextFieldValue(searchKeyword)) }
+    val textFieldInteractionSource = remember { MutableInteractionSource() }
     var keyboardType by remember { mutableStateOf(SoftKeyboardType.English) }
     var symbolKeyboardSourceType by remember { mutableStateOf(SoftKeyboardType.English) }
 
@@ -472,6 +458,25 @@ private fun SearchInput(
         onSearch(fieldValue.text)
     }
 
+    LaunchedEffect(textFieldInteractionSource) {
+        textFieldInteractionSource.interactions.collect { interaction ->
+            when (interaction) {
+                is FocusInteraction.Focus -> {
+                    if (!textFieldHasFocus) {
+                        fieldValue = fieldValue.copy(
+                            selection = TextRange(fieldValue.text.length)
+                        )
+                    }
+                    textFieldHasFocus = true
+                }
+
+                is FocusInteraction.Unfocus -> {
+                    textFieldHasFocus = false
+                }
+            }
+        }
+    }
+
     Box(
         modifier = modifier
             .width(
@@ -490,19 +495,7 @@ private fun SearchInput(
         ) {
             OutlinedTextField(
                 modifier = Modifier
-                    .width(258.dp)
-                    .onFocusChanged { focusState ->
-                        val nowFocused = focusState.isFocused || focusState.hasFocus
-
-                        // 只在“未聚焦 -> 聚焦”的瞬间把光标设置到末尾
-                        if (!textFieldHasFocus && nowFocused) {
-                            fieldValue = fieldValue.copy(
-                                selection = TextRange(fieldValue.text.length)
-                            )
-                        }
-
-                        textFieldHasFocus = nowFocused
-                    },
+                    .width(258.dp),
                 value = fieldValue,
                 onValueChange = {
                     fieldValue = it
@@ -516,13 +509,13 @@ private fun SearchInput(
                     onNext = { submitSearch() },
                     onDone = { submitSearch() }
                 ),
+                interactionSource = textFieldInteractionSource,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.inverseSurface,
                     cursorColor = MaterialTheme.colorScheme.inverseSurface
                 )
             )
             SoftKeyboard(
-                firstButtonFocusRequester = firstButtonFocusRequester,
                 keyboardType = keyboardType,
                 showSearchWithProxy = showProxyOptions,
                 enableSearchWithProxy = enableProxy,
@@ -559,7 +552,6 @@ private fun SearchHotwords(
     showHotword: Boolean,
     onToggleShowHotword: () -> Unit,
     firstItemReadyToken: SearchRightEntryToken? = null,
-    firstItemFocusRequester: FocusRequester? = null,
     onFirstItemPlaced: ((SearchRightEntryToken) -> Unit)? = null,
     onSearch: (String) -> Unit
 ) {
@@ -615,15 +607,11 @@ private fun SearchHotwords(
                     key = { _, hotword -> hotword.showName }
                 ) { index, hotword ->
                     val itemModifier =
-                        if (index == 0 &&
-                            firstItemReadyToken != null &&
-                            firstItemFocusRequester != null
-                        ) {
+                        if (index == 0 && firstItemReadyToken != null) {
                             Modifier
-                                .wjzFocusable(
-                                    nodeId = firstItemReadyToken.toFocusNodeId(),
+                                .wjzFocus(
+                                    id = firstItemReadyToken.toFocusLocalId(),
                                     layer = WjzFocusLayer.Content,
-                                    requester = firstItemFocusRequester,
                                     fallback = true
                                 )
                                 .onGloballyPositioned {
@@ -651,7 +639,6 @@ private fun SearchSuggestion(
     modifier: Modifier = Modifier,
     suggests: ImmutableList<String>,
     firstItemReadyToken: SearchRightEntryToken? = null,
-    firstItemFocusRequester: FocusRequester? = null,
     onFirstItemPlaced: ((SearchRightEntryToken) -> Unit)? = null,
     onSearch: (String) -> Unit
 ) {
@@ -674,15 +661,11 @@ private fun SearchSuggestion(
                 key = { _, suggest -> suggest }
             ) { index, suggest ->
                 val itemModifier =
-                    if (index == 0 &&
-                        firstItemReadyToken != null &&
-                        firstItemFocusRequester != null
-                    ) {
+                    if (index == 0 && firstItemReadyToken != null) {
                         Modifier
-                            .wjzFocusable(
-                                nodeId = firstItemReadyToken.toFocusNodeId(),
+                            .wjzFocus(
+                                id = firstItemReadyToken.toFocusLocalId(),
                                 layer = WjzFocusLayer.Content,
-                                requester = firstItemFocusRequester,
                                 fallback = true
                             )
                             .onGloballyPositioned {
@@ -706,10 +689,8 @@ private fun SearchSuggestion(
 @Composable
 private fun SearchHistory(
     modifier: Modifier = Modifier,
-    drawerFocusRequester: FocusRequester = FocusRequester.Default,
     histories: ImmutableList<SearchHistoryDB>,
     firstItemReadyToken: SearchRightEntryToken? = null,
-    firstItemFocusRequester: FocusRequester? = null,
     onFirstItemPlaced: ((SearchRightEntryToken) -> Unit)? = null,
     onSearch: (String) -> Unit,
     onDelete: (SearchHistoryDB) -> Unit,
@@ -720,7 +701,6 @@ private fun SearchHistory(
 
     Column(
         modifier = modifier
-            .mainContentRightExit(drawerFocusRequester)
             .width(250.dp)
             .fillMaxHeight(),
     ) {
@@ -765,15 +745,11 @@ private fun SearchHistory(
                 key = { _, searchHistory -> searchHistory.id ?: searchHistory.keyword }
             ) { index, searchHistory ->
                 val itemModifier =
-                    if (index == 0 &&
-                        firstItemReadyToken != null &&
-                        firstItemFocusRequester != null
-                    ) {
+                    if (index == 0 && firstItemReadyToken != null) {
                         Modifier
-                            .wjzFocusable(
-                                nodeId = firstItemReadyToken.toFocusNodeId(),
+                            .wjzFocus(
+                                id = firstItemReadyToken.toFocusLocalId(),
                                 layer = WjzFocusLayer.Content,
-                                requester = firstItemFocusRequester,
                                 fallback = true
                             )
                             .onGloballyPositioned {
@@ -852,7 +828,6 @@ private fun SearchInputScreenContentPreview() {
             )
             SearchInputScreenContent(
                 modifier = Modifier,
-                defaultFocusRequester = FocusRequester.Default,
                 searchKeyword = "",
                 onSearchKeywordChange = {},
                 onSearch = {},

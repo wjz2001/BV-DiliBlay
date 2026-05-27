@@ -15,7 +15,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -38,7 +37,6 @@ fun TopNav(
     autoRefreshItems: Collection<TopNavItem> = emptySet<TopNavItem>(),
     entryFocusItem: TopNavItem? = null,
     entryFocusTarget: TopNavEntryFocusTarget = TopNavEntryFocusTarget.DefaultEntry,
-    defaultFocusRequester: FocusRequester? = null,
     onDefaultFocusReady: ((Any) -> Unit)? = null,
     onEntryFocusReady: ((TopNavEntryFocusReady) -> Unit)? = null,
     onEntryFocusResolution: ((TopNavEntryFocusResolution) -> Unit)? = null,
@@ -46,7 +44,7 @@ fun TopNav(
     isHistorySearching: Boolean = false,
     focusedLeadingIcon: ((TopNavItem) -> TopNavLeadingIcon?)? = null,
     onTabConfirmLongPress: ((TopNavItem) -> Boolean)? = null,
-    contentFocusRequester: FocusRequester? = null,
+    contentFocusEnabled: Boolean = false,
     contentFocusReadyKey: Any? = null,
     onLeftBoundaryExit: (() -> Unit)? = null,
     onRightBoundaryExit: (() -> Unit)? = null,
@@ -118,7 +116,6 @@ fun TopNav(
                         itemHasIcon = { item -> focusedLeadingIcon?.invoke(item) != null },
                         iconMode = BvTabIconMode.FocusedIconText,
                         separator = { MainTopTabSeparator() },
-                        defaultFocusRequester = defaultFocusRequester,
                         onDefaultFocusReady = onDefaultFocusReady,
                         onEntryFocusReady = { ready ->
                             onEntryFocusReady?.invoke(
@@ -148,7 +145,7 @@ fun TopNav(
                         onLongClick = onTabConfirmLongPress,
                         onLeftExit = onLeftBoundaryExit,
                         onRightExit = onRightBoundaryExit,
-                        contentFocusRequester = contentFocusRequester,
+                        contentFocusEnabled = contentFocusEnabled,
                         contentFocusReadyKey = contentFocusReadyKey,
                         onContentFocusRequested = onContentFocusRequested,
                         focusNodeId = focusNodeId,

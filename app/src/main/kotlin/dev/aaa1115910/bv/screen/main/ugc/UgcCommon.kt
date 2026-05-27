@@ -15,7 +15,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.biliapi.entity.ugc.UgcItem
@@ -39,8 +38,6 @@ fun UgcRegionScaffold(
     state: UgcScaffoldState,
     gridState: LazyGridState,
     active: Boolean = true,
-    contentEntryFocusRequester: FocusRequester? = null,
-    tabFocusRequester: FocusRequester? = null,
     onContentEntryReady: () -> Unit = {},
     onLoadMore: () -> Unit,
     onAddWatchLater: ((Long) -> Unit),
@@ -71,8 +68,6 @@ fun UgcRegionScaffold(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         focusItemCount = state.ugcItems.size,
         focusItemKeys = state.ugcItems.map { WjzFocusItemKey("Long:${it.aid}") },
-        entryFocusRequester = contentEntryFocusRequester,
-        upFocusRequester = tabFocusRequester,
         onEntryFocusReady = onContentEntryReady
     ) { cardUiStateFor ->
         // 用index的话快速刷新有概率闪退

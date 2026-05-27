@@ -16,9 +16,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -37,7 +34,8 @@ import dev.aaa1115910.bv.component.controllers.playermenu.component.CheckBoxMenu
 import dev.aaa1115910.bv.component.controllers.playermenu.component.MenuListItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.StepLessMenuItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.ToggleMenuItem
-import dev.aaa1115910.bv.component.ifElse
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 import java.text.NumberFormat
 import kotlin.math.roundToInt
 
@@ -68,9 +66,6 @@ fun DanmakuMenuList(
 ) {
     val context = LocalContext.current
     val focusState = LocalMenuFocusStateData.current
-    val restorerFocusRequester = remember { FocusRequester() }
-
-    val focusRequester = remember { FocusRequester() }
     var selectedDanmakuMenuItem by remember { mutableStateOf(VideoPlayerDanmakuMenuItem.Switch) }
 
     Row(
@@ -84,6 +79,7 @@ fun DanmakuMenuList(
             when (selectedDanmakuMenuItem) {
                 VideoPlayerDanmakuMenuItem.Switch -> CheckBoxMenuList(
                     modifier = menuItemsModifier,
+                    focusIdPrefix = "$PlayerMenuDanmakuFocusIdPrefix/switch",
                     items = DanmakuType.entries.map { it.getDisplayName(context) },
                     selected = currentEnabledTypes.map { it.ordinal },
                     onSelectedChanged = { indices ->
@@ -142,12 +138,12 @@ fun DanmakuMenuList(
                     },
                     onFocusBackToParent = {
                         onFocusStateChange(MenuFocusState.Menu)
-                        focusRequester.requestFocus()
                     }
                 )
 
                 VideoPlayerDanmakuMenuItem.FilterLevel -> StepLessMenuItem(
                     modifier = menuItemsModifier,
+                    focusId = "$PlayerMenuDanmakuFocusIdPrefix/filter-level",
                     value = currentVodFilterLevel,
                     step = 1,
                     range = 0..10,
@@ -160,6 +156,7 @@ fun DanmakuMenuList(
 
                 VideoPlayerDanmakuMenuItem.Size -> StepLessMenuItem(
                     modifier = menuItemsModifier,
+                    focusId = "$PlayerMenuDanmakuFocusIdPrefix/size",
                     value = currentScale,
                     step = 0.01f,
                     range = 0.5f..4f,
@@ -172,6 +169,7 @@ fun DanmakuMenuList(
 
                 VideoPlayerDanmakuMenuItem.Opacity -> StepLessMenuItem(
                     modifier = menuItemsModifier,
+                    focusId = "$PlayerMenuDanmakuFocusIdPrefix/opacity",
                     value = currentOpacity,
                     step = 0.01f,
                     range = 0f..1f,
@@ -186,6 +184,7 @@ fun DanmakuMenuList(
 
                 VideoPlayerDanmakuMenuItem.Speed -> StepLessMenuItem(
                     modifier = menuItemsModifier,
+                    focusId = "$PlayerMenuDanmakuFocusIdPrefix/speed",
                     value = currentRollingDurationFactor,
                     step = 0.1f,
                     range = 0.2f..1.8f,
@@ -196,6 +195,7 @@ fun DanmakuMenuList(
 
                 VideoPlayerDanmakuMenuItem.Area -> StepLessMenuItem(
                     modifier = menuItemsModifier,
+                    focusId = "$PlayerMenuDanmakuFocusIdPrefix/area",
                     value = currentArea,
                     step = 0.01f,
                     range = 0f..1f,
@@ -213,7 +213,6 @@ fun DanmakuMenuList(
         }
         LazyColumn(
             modifier = Modifier
-                .focusRequester(focusRequester)
                 .padding(horizontal = 8.dp)
                 .onPreviewKeyEvent {
                     if (it.type == KeyEventType.KeyUp) {
@@ -229,15 +228,18 @@ fun DanmakuMenuList(
                     }
                     false
                 }
-                .focusRestorer(restorerFocusRequester),
+                .wjzFocus(
+                    id = "player/menu/danmaku",
+                    layer = WjzFocusLayer.Overlay
+                ),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(8.dp)
         ) {
             itemsIndexed(VideoPlayerDanmakuMenuItem.entries) { index, item ->
                 when (item) {
                     VideoPlayerDanmakuMenuItem.Colorful -> ToggleMenuItem(
-                        modifier = Modifier
-                            .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester)),
+                        modifier = Modifier,
+                        focusId = "$PlayerMenuDanmakuFocusIdPrefix/menu/$index",
                         text = item.getDisplayName(context),
                         checked = currentColorful,
                         onCheckedChange = onColorfulChange,
@@ -245,8 +247,8 @@ fun DanmakuMenuList(
                     )
 
                     VideoPlayerDanmakuMenuItem.Mask -> ToggleMenuItem(
-                        modifier = Modifier
-                            .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester)),
+                        modifier = Modifier,
+                        focusId = "$PlayerMenuDanmakuFocusIdPrefix/menu/$index",
                         text = item.getDisplayName(context),
                         checked = currentMaskEnabled,
                         onCheckedChange = onDanmakuMaskChange,
@@ -254,8 +256,8 @@ fun DanmakuMenuList(
                     )
 
                     VideoPlayerDanmakuMenuItem.Refresh -> ActionMenuItem(
-                        modifier = Modifier
-                            .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester)),
+                        modifier = Modifier,
+                        focusId = "$PlayerMenuDanmakuFocusIdPrefix/menu/$index",
                         text = if (isDanmakuRefreshing) {
                             stringResource(R.string.video_player_menu_danmaku_refreshing)
                         } else {
@@ -267,8 +269,8 @@ fun DanmakuMenuList(
                     )
 
                     else -> MenuListItem(
-                        modifier = Modifier
-                            .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester)),
+                        modifier = Modifier,
+                        focusId = "$PlayerMenuDanmakuFocusIdPrefix/menu/$index",
                         text = item.getDisplayName(context),
                         selected = selectedDanmakuMenuItem == item,
                         onClick = {},

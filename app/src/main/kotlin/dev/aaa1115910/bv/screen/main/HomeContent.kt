@@ -28,7 +28,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -48,7 +47,6 @@ import dev.aaa1115910.bv.component.PersistLazyGridViewportEffect
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.TopNavLeadingIcon
 import dev.aaa1115910.bv.component.TopNavItem
-import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusRequester
 import dev.aaa1115910.bv.component.rememberRestoredLazyGridState
 import dev.aaa1115910.bv.entity.state.GridViewportState
 import dev.aaa1115910.bv.screen.main.home.DynamicsScreen
@@ -102,7 +100,6 @@ fun HomeContent(
     val firstTab = remember { Prefs.firstHomeTopNavItem }
     val focusedTab = homeContentViewModel.focusedTab
     val activeTab = homeContentViewModel.activeTab
-    val topNavContentFocusRequester = rememberWjzFocusRequester()
     var contentReadyTab by remember { mutableStateOf<HomeTopNavItem?>(null) }
     var searchPage by rememberSaveable { mutableStateOf(HomeSearchPage.Input) }
     var searchKeyword by rememberSaveable { mutableStateOf("") }
@@ -120,18 +117,16 @@ fun HomeContent(
     )
     val entryFocusRequest = entryAdapter.topNavEntryFocusRequest
 
-    fun requestTopNavFocus(): Boolean {
+    val backToTopNav: () -> Unit = {
         val coordinator = focusCoordinator
         if (coordinator != null) {
-            return coordinator.enqueueRequestFocus(
+            coordinator.enqueueRequestFocus(
                 nodeId = HomeTopNavNodeId,
                 layer = WjzFocusLayer.Content,
                 scopeId = focusScopeId
             )
         }
-        return false
     }
-    val backToTopNav: () -> Unit = { requestTopNavFocus() }
 
     val reorderedItems = remember {
         Prefs.homeTopNavItems.ensureVisibleHomeTabs(firstTab)
@@ -197,6 +192,15 @@ fun HomeContent(
         entryAdapter.onDefaultFocusReady(entryFocusRequest)
     }
 
+    fun requestTopNavFocus() {
+        val coordinator = focusCoordinator ?: return
+        coordinator.enqueueRequestFocus(
+            nodeId = HomeTopNavNodeId,
+            layer = WjzFocusLayer.Content,
+            scopeId = focusScopeId
+        )
+    }
+
     fun handleTopNavConfirmLongPress(tab: HomeTopNavItem): Boolean {
         if (activeTab != tab) return false
 
@@ -233,7 +237,7 @@ fun HomeContent(
                     isHistorySearching = homeContentViewModel.isHistorySearching,
                     focusedLeadingIcon = homeFocusedLeadingIcon,
                     onTabConfirmLongPress = { nav -> handleTopNavConfirmLongPress(nav as HomeTopNavItem) },
-                    contentFocusRequester = topNavContentFocusRequester,
+                    contentFocusEnabled = true,
                     contentFocusReadyKey = contentReadyTab,
                     focusNodeId = HomeTopNavNodeId,
                     onContentFocusRequested = { nav ->
@@ -311,7 +315,6 @@ fun HomeContent(
                                         val searchInputViewModel: SearchInputViewModel =
                                             koinViewModel<SearchInputViewModel>()
                                         SearchInputScreen(
-                                            defaultFocusRequester = topNavContentFocusRequester,
                                             onDefaultFocusReady = {
                                                 handleDefaultFocusReady(tab)
                                                 if (tabActive) contentReadyTab = tab
@@ -331,7 +334,6 @@ fun HomeContent(
                                         SearchResultScreen(
                                             keyword = searchKeyword,
                                             enableProxy = searchEnableProxy,
-                                            contentEntryFocusRequester = topNavContentFocusRequester.takeIf { tabActive },
                                             onContentEntryReady = {
                                                 if (tabActive) contentReadyTab = tab
                                             },
@@ -343,12 +345,10 @@ fun HomeContent(
                             }
 
                             else -> key(tab) {
-                                    HomeActiveTabContent(
-                                        tab = tab,
-                                        homeContentViewModel = homeContentViewModel,
-                                        backToTopNav = backToTopNav,
-                                    contentEntryFocusRequester = topNavContentFocusRequester,
-                                    tabFocusRequester = null,
+                                HomeActiveTabContent(
+                                    tab = tab,
+                                    homeContentViewModel = homeContentViewModel,
+                                    backToTopNav = backToTopNav,
                                     onContentEntryReady = {
                                         if (tabActive) contentReadyTab = tab
                                     },
@@ -386,8 +386,6 @@ private fun HomeActiveTabContent(
     tab: HomeTopNavItem,
     homeContentViewModel: HomeContentViewModel,
     backToTopNav: () -> Unit,
-    contentEntryFocusRequester: FocusRequester?,
-    tabFocusRequester: FocusRequester?,
     onContentEntryReady: () -> Unit,
     active: Boolean
 ) {
@@ -395,8 +393,6 @@ private fun HomeActiveTabContent(
     val activationSerial = homeContentViewModel.activationSerialOf(tab)
     val refreshSerial = homeContentViewModel.refreshSerialOf(tab)
     val longPressSerial = homeContentViewModel.longPressSerialOf(tab)
-    val activeContentEntryFocusRequester = contentEntryFocusRequester?.takeIf { active }
-    val activeTabFocusRequester = tabFocusRequester?.takeIf { active }
     var consumedRefreshSerial by remember(tab) { mutableStateOf(0L) }
     var consumedLongPressSerial by remember(tab) { mutableStateOf(0L) }
 
@@ -424,8 +420,6 @@ private fun HomeActiveTabContent(
                 active = active,
                 activationSerial = activationSerial,
                 refreshSerial = consumedRefreshSerial,
-                contentEntryFocusRequester = activeContentEntryFocusRequester,
-                tabFocusRequester = activeTabFocusRequester,
                 onContentEntryReady = onContentEntryReady
             )
         }
@@ -435,8 +429,6 @@ private fun HomeActiveTabContent(
                 active = active,
                 activationSerial = activationSerial,
                 refreshSerial = consumedRefreshSerial,
-                contentEntryFocusRequester = activeContentEntryFocusRequester,
-                tabFocusRequester = activeTabFocusRequester,
                 onContentEntryReady = onContentEntryReady
             )
         }
@@ -447,8 +439,6 @@ private fun HomeActiveTabContent(
                 activationSerial = activationSerial,
                 refreshSerial = consumedRefreshSerial,
                 longPressSerial = consumedLongPressSerial,
-                contentEntryFocusRequester = activeContentEntryFocusRequester,
-                tabFocusRequester = activeTabFocusRequester,
                 onContentEntryReady = onContentEntryReady
             )
         }
@@ -460,8 +450,6 @@ private fun HomeActiveTabContent(
                 activationSerial = activationSerial,
                 refreshSerial = consumedRefreshSerial,
                 toViewViewModel = toViewViewModel,
-                contentEntryFocusRequester = activeContentEntryFocusRequester,
-                tabFocusRequester = activeTabFocusRequester,
                 onContentEntryReady = onContentEntryReady,
                 onBack = backToTopNav
             )
@@ -477,8 +465,6 @@ private fun HomeActiveTabContent(
                 longPressSerial = consumedLongPressSerial,
                 historyViewModel = historyViewModel,
                 toViewViewModel = toViewViewModel,
-                contentEntryFocusRequester = activeContentEntryFocusRequester,
-                tabFocusRequester = activeTabFocusRequester,
                 onContentEntryReady = onContentEntryReady,
                 onSearchStateChanged = homeContentViewModel::updateHistorySearching
             )
@@ -493,8 +479,6 @@ private fun HomeActiveTabContent(
                 refreshSerial = consumedRefreshSerial,
                 favoriteViewModel = favoriteViewModel,
                 toViewViewModel = toViewViewModel,
-                contentEntryFocusRequester = activeContentEntryFocusRequester,
-                tabFocusRequester = activeTabFocusRequester,
                 onContentEntryReady = onContentEntryReady,
                 onBack = backToTopNav
             )
@@ -507,8 +491,6 @@ private fun HomeActiveTabContent(
                 activationSerial = activationSerial,
                 refreshSerial = consumedRefreshSerial,
                 followViewModel = followViewModel,
-                contentEntryFocusRequester = activeContentEntryFocusRequester,
-                tabFocusRequester = activeTabFocusRequester,
                 onContentEntryReady = onContentEntryReady,
                 onBack = backToTopNav
             )
@@ -521,8 +503,6 @@ private fun HomeActiveTabContent(
                 active = active,
                 activationSerial = activationSerial,
                 refreshSerial = consumedRefreshSerial,
-                contentEntryFocusRequester = activeContentEntryFocusRequester,
-                tabFocusRequester = activeTabFocusRequester,
                 onContentEntryReady = onContentEntryReady,
                 followingSeasonViewModel = followingSeasonViewModel
             )
@@ -531,8 +511,6 @@ private fun HomeActiveTabContent(
             gridState = gridState,
             activationSerial = activationSerial,
             refreshSerial = consumedRefreshSerial,
-            contentEntryFocusRequester = activeContentEntryFocusRequester,
-            tabFocusRequester = activeTabFocusRequester,
             onContentEntryReady = onContentEntryReady
         )
         HomeTopNavItem.SubscribedCollection -> {
@@ -546,8 +524,6 @@ private fun HomeActiveTabContent(
                 refreshSerial = consumedRefreshSerial,
                 favoriteViewModel = subscribedCollectionViewModel,
                 toViewViewModel = toViewViewModel,
-                contentEntryFocusRequester = activeContentEntryFocusRequester,
-                tabFocusRequester = activeTabFocusRequester,
                 onContentEntryReady = onContentEntryReady,
                 onBack = backToTopNav
             )

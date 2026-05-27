@@ -31,8 +31,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -79,7 +77,7 @@ import dev.aaa1115910.bv.component.BvLazyFocusItemTarget
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SeasonCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
@@ -108,7 +106,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import org.koin.androidx.compose.koinViewModel
 
-private val SearchResultContentNodeId = WjzFocusNodeId("search/result/content")
+private const val SearchResultContentFocusId = "content"
 private val SearchResultTopNavNodeId = WjzFocusNodeId("search/result/top-nav")
 private val SearchResultRootScopeId = WjzFocusScopeId("search/result/root")
 private val SearchResultTopNavEntryId = WjzFocusEntryId("search/result/top-nav")
@@ -118,7 +116,6 @@ fun SearchResultScreen(
     modifier: Modifier = Modifier,
     keyword: String? = null,
     enableProxy: Boolean? = null,
-    contentEntryFocusRequester: FocusRequester? = null,
     onContentEntryReady: () -> Unit = {},
     onBackToInput: (() -> Unit)? = null,
     searchResultViewModel: SearchResultViewModel = koinViewModel(),
@@ -128,8 +125,6 @@ fun SearchResultScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val focusCoordinator = LocalWjzFocusCoordinator.current
     val logger = KotlinLogging.logger { }
-    val tabRowFocusRequester = contentEntryFocusRequester
-    val topNavContentFocusRequester = contentEntryFocusRequester ?: FocusRequester.Default
     var contentReadySearchType by remember { mutableStateOf<SearchTypeTopNavItem?>(null) }
 
     var rowSize by remember { mutableIntStateOf(4) }
@@ -342,8 +337,7 @@ fun SearchResultScreen(
                             leadingContent = {},
                             items = SearchTypeTopNavItem.entries,
                             selectedItem = focusedSearchType.toTopNavItem(),
-                            defaultFocusRequester = tabRowFocusRequester,
-                            contentFocusRequester = topNavContentFocusRequester,
+                            contentFocusEnabled = true,
                             contentFocusReadyKey = contentReadySearchType,
                             focusNodeId = SearchResultTopNavNodeId,
                             onContentFocusRequested = { nav ->
@@ -388,12 +382,12 @@ fun SearchResultScreen(
                     SearchType.BiliUser -> searchResult.biliUsers
                 }
 
-                if (currentItems.isEmpty() && loadState != LoadState.Idle) {
+                if (currentItems.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .wjzFocusable(
-                                nodeId = SearchResultContentNodeId,
+                            .wjzFocus(
+                                id = SearchResultContentFocusId,
                                 layer = WjzFocusLayer.Content,
                                 fallback = true,
                                 onFocusChanged = { focusOnContent = it }
@@ -406,6 +400,7 @@ fun SearchResultScreen(
                     ) {
                         when (loadState) {
                             LoadState.Loading -> LoadingTip()
+                            LoadState.Idle -> LoadingTip()
                             LoadState.Error -> Text(
                                 text = "搜索结果加载失败，请稍后重试",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -415,22 +410,23 @@ fun SearchResultScreen(
                                 text = "暂无搜索结果",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-
-                            LoadState.Idle -> Unit
                         }
                     }
                 } else {
                     SmallVideoCardGridHost(
                         modifier = Modifier
-                            .onFocusChanged { focusOnContent = it.hasFocus },
+                            .wjzFocus(
+                                id = SearchResultContentFocusId,
+                                layer = WjzFocusLayer.Content,
+                                fallback = true,
+                                onFocusChanged = { focusOnContent = it }
+                            ),
                         state = gridState,
                         columns = GridCells.Fixed(rowSize),
                         contentPadding = PaddingValues(24.dp),
                         nodeIdPrefix = "search/${searchResult.type.toTopNavItem()}",
                         verticalArrangement = Arrangement.spacedBy(24.dp),
                         horizontalArrangement = Arrangement.spacedBy(24.dp),
-                        entryFocusRequester = null,
-                        upFocusRequester = tabRowFocusRequester,
                         onEntryFocusReady = {
                             contentReadySearchType = searchResult.type.toTopNavItem()
                             onContentEntryReady()
@@ -513,7 +509,6 @@ fun UpCard(
 
     Surface(
         modifier = modifier
-            .onFocusChanged { onFocusChange(it.hasFocus) }
             .size(280.dp, 80.dp),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = MaterialTheme.colorScheme.surface,

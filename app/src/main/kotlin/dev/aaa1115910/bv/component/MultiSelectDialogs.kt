@@ -33,7 +33,7 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.block.BlockPage
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 import dev.aaa1115910.bv.ui.theme.C
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.graphics.RectangleShape
@@ -72,6 +72,15 @@ private enum class SubmitMode {
 private enum class DismissOrder {
     SubmitThenHide,
     HideThenSubmit
+}
+
+private fun WjzFocusNodeId.toDialogLocalFocusId(dialogScopeId: WjzFocusScopeId?): String {
+    val scopePrefix = dialogScopeId?.value?.let { "$it/" }
+    return if (scopePrefix != null && value.startsWith(scopePrefix)) {
+        value.removePrefix(scopePrefix)
+    } else {
+        value
+    }
 }
 
 /**
@@ -364,10 +373,9 @@ private fun <T, ID> SimpleMultiSelectDialog(
                 ?: WjzFocusNodeId("dialog/multi-select/item/$id")
 
             val itemModifier = Modifier
-                .wjzFocusable(
-                    nodeId = itemNode,
-                    layer = WjzFocusLayer.Dialog,
-                    scopeId = dialogScopeId
+                .wjzFocus(
+                    id = itemNode.toDialogLocalFocusId(dialogScopeId),
+                    layer = WjzFocusLayer.Dialog
                 )
 
             BaseMultiSelectChip(

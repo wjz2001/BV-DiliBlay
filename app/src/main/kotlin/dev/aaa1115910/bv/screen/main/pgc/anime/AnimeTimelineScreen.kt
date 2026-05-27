@@ -23,7 +23,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -35,8 +34,8 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzObserveFocusChanged
 import dev.aaa1115910.bv.component.videocard.SeasonCard
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
 import dev.aaa1115910.bv.util.ImageSize
@@ -50,8 +49,6 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
-
-private val AnimeTimelineRootNodeId = WjzFocusNodeId("pgc/anime/timeline/root")
 
 @Composable
 fun AnimeTimelineScreen(
@@ -114,8 +111,8 @@ fun AnimeTimelineScreen(
                 state = listState,
                 modifier = Modifier
                     .padding(innerPadding)
-                    .wjzFocusable(
-                        nodeId = AnimeTimelineRootNodeId,
+                    .wjzFocus(
+                        id = "pgc/anime/timeline/root",
                         layer = WjzFocusLayer.Content,
                         fallback = true
                     ),
@@ -179,7 +176,7 @@ fun TimelinePerDay(
     Column(
         modifier = modifier
             .padding(top = 24.dp)
-            .onFocusChanged { hasFocus = it.hasFocus },
+            .wjzObserveFocusChanged { hasFocus = it },
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
@@ -200,8 +197,8 @@ fun TimelinePerDay(
                         modifier = Modifier
                             .weight(1f)
                             .padding(horizontal = 8.dp)
-                            .wjzFocusable(
-                                nodeId = WjzFocusNodeId("pgc/anime/timeline/${timeline.dateString}/${episode.seasonId}"),
+                            .wjzFocus(
+                                id = "pgc/anime/timeline/${timeline.dateString}/${episode.seasonId}",
                                 layer = WjzFocusLayer.Content,
                                 fallback = index == 0 && episodeIndex == 0
                             ),

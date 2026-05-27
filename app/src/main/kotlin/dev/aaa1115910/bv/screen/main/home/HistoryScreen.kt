@@ -28,8 +28,6 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -51,6 +49,7 @@ import androidx.compose.ui.window.DialogProperties
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
+import dev.aaa1115910.bv.wjzfocus.wjzObserveFocusChanged
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.rememberTvGridFocusTarget
@@ -77,8 +76,6 @@ fun HistoryScreen(
     longPressSerial: Long = 0L,
     historyViewModel: HistoryViewModel = koinViewModel(),
     toViewViewModel: ToViewViewModel = koinViewModel(),
-    contentEntryFocusRequester: FocusRequester? = null,
-    tabFocusRequester: FocusRequester? = null,
     onContentEntryReady: () -> Unit = {},
     onSearchStateChanged: (Boolean) -> Unit = {}
 ) {
@@ -196,8 +193,6 @@ fun HistoryScreen(
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         focusItemCount = visibleHistories.size,
         focusItemKeys = visibleHistories.map { WjzFocusItemKey("String:${it.avid}_${it.epId ?: 0}") },
-        entryFocusRequester = contentEntryFocusRequester,
-        upFocusRequester = tabFocusRequester,
         onEntryFocusReady = onContentEntryReady
     ) { cardUiStateFor ->
             if (visibleHistories.isNotEmpty()) {
@@ -250,7 +245,7 @@ fun HistoryScreen(
                     TextField(
                         modifier = Modifier
                             .width(600.dp)
-                            .onFocusChanged { searchFieldHasFocus = it.hasFocus }
+                            .wjzObserveFocusChanged { searchFieldHasFocus = it }
                             .drawWithContent {
                                 drawContent()
                                 val stroke = 3.dp.toPx()

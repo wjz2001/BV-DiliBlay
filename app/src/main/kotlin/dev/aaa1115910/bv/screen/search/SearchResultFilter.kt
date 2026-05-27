@@ -16,7 +16,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -28,7 +27,7 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.util.Partition
 import dev.aaa1115910.bv.util.PartitionUtil
@@ -83,7 +82,10 @@ fun SearchResultVideoFilter(
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(filterRowSpace)
                     ) {
-                        items(items = SearchFilterOrderType.webFilters) { orderType ->
+                        items(
+                            items = SearchFilterOrderType.webFilters,
+                            key = { orderType -> orderType.name }
+                        ) { orderType ->
                             FilterDialogFilterChip(
                                 nodeId = searchResultFilterNodeId(
                                     row = SearchResultFilterRow.Order,
@@ -99,12 +101,16 @@ fun SearchResultVideoFilter(
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(filterRowSpace)
                     ) {
-                        items(items = SearchFilterDuration.entries) { duration ->
+                        items(
+                            items = SearchFilterDuration.entries,
+                            key = { duration -> duration.name }
+                        ) { duration ->
                             FilterDialogFilterChip(
                                 nodeId = searchResultFilterNodeId(
                                     row = SearchResultFilterRow.Duration,
                                     key = duration.name
                                 ),
+                                fallback = duration == selectedDuration,
                                 selected = duration == selectedDuration,
                                 onClick = { onSelectedDurationChange(duration) },
                                 label = { Text(text = duration.getDisplayName(context)) }
@@ -120,6 +126,7 @@ fun SearchResultVideoFilter(
                                     row = SearchResultFilterRow.Partition,
                                     key = "all"
                                 ),
+                                fallback = selectedPartition == null,
                                 selected = null == selectedPartition,
                                 onClick = {
                                     onSelectedPartitionChange(null)
@@ -128,12 +135,16 @@ fun SearchResultVideoFilter(
                                 label = { Text(text = "全部分区") }
                             )
                         }
-                        items(items = partitions) { partition ->
+                        items(
+                            items = partitions,
+                            key = { partition -> partition.tid }
+                        ) { partition ->
                             FilterDialogFilterChip(
                                 nodeId = searchResultFilterNodeId(
                                     row = SearchResultFilterRow.Partition,
                                     key = partition.tid.toString()
                                 ),
+                                fallback = partition == selectedPartition,
                                 selected = partition == selectedPartition,
                                 onClick = {
                                     onSelectedPartitionChange(partition)
@@ -147,12 +158,16 @@ fun SearchResultVideoFilter(
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(filterRowSpace)
                         ) {
-                            items(items = selectedPartition?.children ?: emptyList()) { partition ->
+                            items(
+                                items = selectedPartition?.children ?: emptyList(),
+                                key = { partition -> partition.tid }
+                            ) { partition ->
                                 FilterDialogFilterChip(
                                     nodeId = searchResultFilterNodeId(
                                         row = SearchResultFilterRow.ChildPartition,
                                         key = partition.tid.toString()
                                     ),
+                                    fallback = partition == selectedChildPartition,
                                     selected = partition == selectedChildPartition,
                                     onClick = {
                                         onSelectedChildPartitionChange(
@@ -191,12 +206,12 @@ private fun FilterDialogFilterChip(
 
     FilterChip(
         modifier = modifier
-            .wjzFocusable(
-                nodeId = nodeId,
+            .wjzFocus(
+                id = nodeId.toDialogLocalFocusId(),
                 layer = WjzFocusLayer.Dialog,
-                fallback = fallback
-            )
-            .onFocusChanged { hasFocus = it.hasFocus },
+                fallback = fallback,
+                onFocusChanged = { hasFocus = it }
+            ),
         selected = selected,
         onClick = onClick,
         label = label,
@@ -213,6 +228,15 @@ private fun FilterDialogFilterChip(
             selected = selected
         )
     )
+}
+
+private fun WjzFocusNodeId.toDialogLocalFocusId(): String {
+    val scopePrefix = "${SearchResultFilterDialogScopeId.value}/"
+    return if (value.startsWith(scopePrefix)) {
+        value.removePrefix(scopePrefix)
+    } else {
+        value
+    }
 }
 
 fun SearchFilterOrderType.getDisplayName(context: Context) = when (this) {

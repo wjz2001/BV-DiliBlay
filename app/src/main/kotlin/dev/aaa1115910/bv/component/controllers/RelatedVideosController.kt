@@ -18,21 +18,25 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocusNode
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 import dev.aaa1115910.bv.component.videocard.VideosRow
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.ui.theme.C
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toPersistentList
 
+private val RelatedVideosFocusScopeId = WjzFocusScopeId("player/related-videos")
+private const val RelatedVideosRootFocusId = "root"
 private val RelatedVideosRootNodeId = WjzFocusNodeId("player/related-videos/root")
 
 @Composable
@@ -42,7 +46,6 @@ fun RelatedVideosController(
     relatedVideos: List<VideoCardData>,
     onVideoClicked: (VideoCardData) -> Unit,
 ) {
-    val focusRequester = remember { FocusRequester() }
     val focusCoordinator = LocalWjzFocusCoordinator.current
     val rowVideos = remember(relatedVideos) { relatedVideos.toPersistentList() }
     var overlaySourceToken by remember { mutableStateOf<WjzFocusSourceToken?>(null) }
@@ -74,7 +77,7 @@ fun RelatedVideosController(
                 layer = WjzFocusLayer.Overlay,
                 recordSource = true
             )
-            focusCoordinator?.requestFocus(
+            focusCoordinator?.enqueueRequestFocus(
                 nodeId = RelatedVideosRootNodeId,
                 layer = WjzFocusLayer.Overlay
             )
@@ -99,16 +102,47 @@ fun RelatedVideosController(
         }
     }
 
+    if (focusCoordinator == null) {
+        RelatedVideosControllerContent(
+            modifier = modifier.fillMaxSize(),
+            show = show,
+            rowVideos = rowVideos,
+            onVideoClicked = onVideoClicked
+        )
+        return
+    }
+
+    WjzFocusHost(
+        modifier = modifier.fillMaxSize(),
+        coordinator = focusCoordinator,
+        layer = WjzFocusLayer.Overlay,
+        scopeId = RelatedVideosFocusScopeId
+    ) {
+        RelatedVideosControllerContent(
+            modifier = Modifier
+                .fillMaxSize()
+                .wjzFocus(
+                    id = RelatedVideosRootFocusId,
+                    layer = WjzFocusLayer.Overlay,
+                    fallback = true,
+                    enabled = show
+                ),
+            show = show,
+            rowVideos = rowVideos,
+            onVideoClicked = onVideoClicked
+        )
+    }
+}
+
+@Composable
+private fun RelatedVideosControllerContent(
+    modifier: Modifier = Modifier,
+    show: Boolean,
+    rowVideos: ImmutableList<VideoCardData>,
+    onVideoClicked: (VideoCardData) -> Unit,
+) {
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .wjzFocusNode(
-                nodeId = RelatedVideosRootNodeId,
-                requester = focusRequester,
-                layer = WjzFocusLayer.Overlay,
-                fallback = true,
-                enabled = show
-            ),
+        modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
         AnimatedVisibility(

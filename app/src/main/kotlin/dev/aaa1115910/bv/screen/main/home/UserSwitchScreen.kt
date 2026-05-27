@@ -73,7 +73,7 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.activities.user.UserLockSettingsActivity
 import dev.aaa1115910.bv.entity.db.UserDB
@@ -91,13 +91,13 @@ import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 
-private val UserSwitchManageButtonNodeId = WjzFocusNodeId("main/user-switch/manage")
-private val UserSwitchAddUserNodeId = WjzFocusNodeId("main/user-switch/add")
-private val UserSwitchMenuShowTokenNodeId = WjzFocusNodeId("main/user-switch/menu/show-token")
-private val UserSwitchMenuLockNodeId = WjzFocusNodeId("main/user-switch/menu/lock")
-private val UserSwitchMenuDeleteNodeId = WjzFocusNodeId("main/user-switch/menu/delete")
-private val UserSwitchDeleteConfirmNodeId = WjzFocusNodeId("main/user-switch/delete/confirm")
-private val UserSwitchDeleteDismissNodeId = WjzFocusNodeId("main/user-switch/delete/dismiss")
+private const val UserSwitchManageButtonFocusId = "manage"
+private const val UserSwitchAddUserFocusId = "add"
+private const val UserSwitchMenuShowTokenFocusId = "show-token"
+private const val UserSwitchMenuLockFocusId = "lock"
+private const val UserSwitchMenuDeleteFocusId = "delete"
+private const val UserSwitchDeleteConfirmFocusId = "confirm"
+private const val UserSwitchDeleteDismissFocusId = "dismiss"
 private val UserSwitchRootScopeId = WjzFocusScopeId("main/user-switch/root")
 private val UserSwitchMenuDialogScopeId = WjzFocusScopeId("main/user-switch/menu")
 private val UserSwitchMenuContainerNodeId = WjzFocusNodeId("main/user-switch/menu/container")
@@ -105,6 +105,12 @@ private val UserSwitchAuthDialogScopeId = WjzFocusScopeId("main/user-switch/auth
 private val UserSwitchAuthContainerNodeId = WjzFocusNodeId("main/user-switch/auth/container")
 private val UserSwitchDeleteDialogScopeId = WjzFocusScopeId("main/user-switch/delete")
 private val UserSwitchDeleteContainerNodeId = WjzFocusNodeId("main/user-switch/delete/container")
+
+private fun userSwitchItemFocusId(uid: Long): String = "item/$uid"
+
+private fun userSwitchRootNodeId(localId: String): WjzFocusNodeId {
+    return WjzFocusNodeId("${UserSwitchRootScopeId.value}/$localId")
+}
 
 @Composable
 fun UserSwitchScreen(
@@ -248,9 +254,9 @@ private fun UserSwitchContent(
                 removedIndex.coerceAtMost(currentUserUids.lastIndex)
             )
             val targetNodeId = when {
-                targetUid != null -> WjzFocusNodeId("main/user-switch/item/$targetUid")
-                isInManagerMode -> UserSwitchManageButtonNodeId
-                else -> UserSwitchAddUserNodeId
+                targetUid != null -> userSwitchRootNodeId(userSwitchItemFocusId(targetUid))
+                isInManagerMode -> userSwitchRootNodeId(UserSwitchManageButtonFocusId)
+                else -> userSwitchRootNodeId(UserSwitchAddUserFocusId)
             }
             focusCoordinator?.enqueueRequestFocus(
                 nodeId = targetNodeId,
@@ -290,8 +296,8 @@ private fun UserSwitchContent(
                     key = { _, user -> user.uid }
                 ) { index, user ->
                     UserItem(
-                        modifier = Modifier.wjzFocusable(
-                            nodeId = WjzFocusNodeId("main/user-switch/item/${user.uid}"),
+                        modifier = Modifier.wjzFocus(
+                            id = userSwitchItemFocusId(user.uid),
                             layer = WjzFocusLayer.Content,
                             fallback = !isInManagerMode && index == 0,
                             onFocusChanged = { hasFocus ->
@@ -315,8 +321,8 @@ private fun UserSwitchContent(
                 if (!isInManagerMode) {
                     item {
                         AddUserItem(
-                            modifier = Modifier.wjzFocusable(
-                                nodeId = UserSwitchAddUserNodeId,
+                            modifier = Modifier.wjzFocus(
+                                id = UserSwitchAddUserFocusId,
                                 layer = WjzFocusLayer.Content,
                                 fallback = userList.isEmpty()
                             ),
@@ -330,8 +336,8 @@ private fun UserSwitchContent(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 64.dp)
-                    .wjzFocusable(
-                        nodeId = UserSwitchManageButtonNodeId,
+                    .wjzFocus(
+                        id = UserSwitchManageButtonFocusId,
                         layer = WjzFocusLayer.Content,
                         fallback = isInManagerMode && userList.isEmpty()
                     ),
@@ -424,8 +430,8 @@ fun UserMenuDialog(
                     if (showTokenButton) {
                         item {
                             UserMenuButton(
-                                modifier = Modifier.wjzFocusable(
-                                    nodeId = UserSwitchMenuShowTokenNodeId,
+                                modifier = Modifier.wjzFocus(
+                                    id = UserSwitchMenuShowTokenFocusId,
                                     layer = WjzFocusLayer.Dialog,
                                     fallback = true
                                 ),
@@ -440,8 +446,8 @@ fun UserMenuDialog(
 
                     item {
                         UserMenuButton(
-                            modifier = Modifier.wjzFocusable(
-                                nodeId = UserSwitchMenuLockNodeId,
+                            modifier = Modifier.wjzFocus(
+                                id = UserSwitchMenuLockFocusId,
                                 layer = WjzFocusLayer.Dialog,
                                 fallback = !showTokenButton
                             ),
@@ -455,8 +461,8 @@ fun UserMenuDialog(
 
                     item {
                         UserMenuButton(
-                            modifier = Modifier.wjzFocusable(
-                                nodeId = UserSwitchMenuDeleteNodeId,
+                            modifier = Modifier.wjzFocus(
+                                id = UserSwitchMenuDeleteFocusId,
                                 layer = WjzFocusLayer.Dialog
                             ),
                             text = stringResource(R.string.user_switch_menu_delete_account),
@@ -564,8 +570,8 @@ private fun DeleteConfirmDialog(
             },
             confirmButton = {
                 Button(
-                    modifier = Modifier.wjzFocusable(
-                        nodeId = UserSwitchDeleteConfirmNodeId,
+                    modifier = Modifier.wjzFocus(
+                        id = UserSwitchDeleteConfirmFocusId,
                         layer = WjzFocusLayer.Dialog,
                         fallback = true
                     ),
@@ -576,8 +582,8 @@ private fun DeleteConfirmDialog(
             },
             dismissButton = {
                 OutlinedButton(
-                    modifier = Modifier.wjzFocusable(
-                        nodeId = UserSwitchDeleteDismissNodeId,
+                    modifier = Modifier.wjzFocus(
+                        id = UserSwitchDeleteDismissFocusId,
                         layer = WjzFocusLayer.Dialog
                     ),
                     onClick = { onHideDialog() }

@@ -30,9 +30,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
@@ -51,10 +48,14 @@ import androidx.tv.material3.ListItemDefaults
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppGray
 import dev.aaa1115910.bv.ui.theme.C
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocusNode
+import dev.aaa1115910.bv.wjzfocus.nodeKey
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzDisabledFocus
 
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.android.awaitFrame
@@ -75,10 +76,15 @@ data class CollectionChildItem(
     val extra: Any? = null
 )
 
-private fun collectionParentNodeId(key: Long) = WjzFocusNodeId("player/collection-list/parent/$key")
+private val CollectionListFallbackFocusScopeId = WjzFocusScopeId("__wjz_focus_sugar__")
 
-private fun collectionChildNodeId(parentKey: Long, childKey: Long) =
-    WjzFocusNodeId("player/collection-list/parent/$parentKey/child/$childKey")
+private fun collectionParentFocusId(key: Long) = "player/collection-list/parent/$key"
+
+private fun collectionChildFocusId(parentKey: Long, childKey: Long) =
+    "player/collection-list/parent/$parentKey/child/$childKey"
+
+private fun collectionNodeId(scopeId: WjzFocusScopeId, focusId: String) =
+    WjzFocusNodeId(scopeId.nodeKey(focusId))
 
 @Composable
 fun CollectionListController(
@@ -99,6 +105,7 @@ fun CollectionListController(
 ) {
     val listState = rememberLazyListState()
     val focusCoordinator = LocalWjzFocusCoordinator.current
+    val focusScopeId = LocalWjzFocusScopeId.current ?: CollectionListFallbackFocusScopeId
 
     // 宽度策略：
     // - “选择合集”（存在子项）固定 300.dp：与 VideoListController 完全一致，同时避免测量大量子项标题导致卡顿/闪屏
@@ -274,13 +281,12 @@ fun CollectionListController(
                             }
                         }
 
-                        val parentFocusRequester = remember(parent.key) { FocusRequester() }
                         val parentBringIntoViewRequester =
                             remember(parent.key) { androidx.compose.foundation.relocation.BringIntoViewRequester() }
 
                         Column(modifier = Modifier.animateContentSize()) {
                             // pendingFocus 消耗：只在 active 时执行
-                            LaunchedEffect(show, active, pendingFocusKey) {
+                            LaunchedEffect(show, active, pendingFocusKey, focusScopeId) {
                                 if (!show) return@LaunchedEffect
                                 if (!active) return@LaunchedEffect
                                 val wantKey = pendingFocusKey ?: return@LaunchedEffect
@@ -299,9 +305,10 @@ fun CollectionListController(
                                 }
 
                                 if (parent.key == wantKey) {
-                                    focusCoordinator?.requestFocus(
-                                        nodeId = collectionParentNodeId(parent.key),
-                                        layer = WjzFocusLayer.Player
+                                    focusCoordinator?.enqueueRequestFocus(
+                                        nodeId = collectionNodeId(focusScopeId, collectionParentFocusId(parent.key)),
+                                        layer = WjzFocusLayer.Player,
+                                        scopeId = focusScopeId
                                     )
                                     kotlinx.coroutines.android.awaitFrame()
                                     kotlinx.coroutines.coroutineScope {
@@ -313,9 +320,10 @@ fun CollectionListController(
 
                                 if (!childrenLoaded) {
                                     onEnsureChildrenLoaded(parent)
-                                    focusCoordinator?.requestFocus(
-                                        nodeId = collectionParentNodeId(parent.key),
-                                        layer = WjzFocusLayer.Player
+                                    focusCoordinator?.enqueueRequestFocus(
+                                        nodeId = collectionNodeId(focusScopeId, collectionParentFocusId(parent.key)),
+                                        layer = WjzFocusLayer.Player,
+                                        scopeId = focusScopeId
                                     )
                                     kotlinx.coroutines.android.awaitFrame()
                                     kotlinx.coroutines.coroutineScope {
@@ -328,15 +336,12 @@ fun CollectionListController(
                             DenseListItem(
                                 modifier = Modifier
                                     .padding(horizontal = 16.dp)
-                                    .wjzFocusNode(
-                                        nodeId = collectionParentNodeId(parent.key),
-                                        requester = parentFocusRequester,
+                                    .wjzFocus(
+                                        id = collectionParentFocusId(parent.key),
                                         layer = WjzFocusLayer.Player,
-                                        fallback = isParentSelected
-                                    )
-                                    .bringIntoViewRequester(parentBringIntoViewRequester)
-                                    .onFocusChanged { state ->
-                                        if (state.hasFocus) {
+                                        fallback = isParentSelected,
+                                        onFocusChanged = { focused ->
+                                            if (focused) {
                                             groupHasFocus = true
                                             pendingPrefetchKey = parent.key
 
@@ -372,14 +377,16 @@ fun CollectionListController(
                                                     }
                                                 }
                                             }
-                                        } else {
-                                            groupHasFocus = false
-                                            if (pendingPrefetchKey == parent.key) pendingPrefetchKey = null
-                                            scheduleCollapseIfNeeded()
+                                            } else {
+                                                groupHasFocus = false
+                                                if (pendingPrefetchKey == parent.key) pendingPrefetchKey = null
+                                                scheduleCollapseIfNeeded()
 
-                                            if (focusedParentKey == parent.key) focusedParentKey = null
+                                                if (focusedParentKey == parent.key) focusedParentKey = null
+                                            }
                                         }
-                                    },
+                                    )
+                                    .bringIntoViewRequester(parentBringIntoViewRequester),
                                 selected = isPinned,
                                 onClick = {
                                     if (hasChildren) {
@@ -424,7 +431,7 @@ fun CollectionListController(
                                     SimpleListItem(
                                         modifier = Modifier
                                             .padding(horizontal = 16.dp)
-                                            .focusProperties { canFocus = false },
+                                            .wjzDisabledFocus(),
                                         text = "加载中……",
                                         selected = false,
                                         textAlign = TextAlign.Start,
@@ -442,11 +449,10 @@ fun CollectionListController(
                                         key(child.key) {
                                             val isChildSelected = child.key == selectedChildKey
 
-                                            val childFocusRequester = remember(child.key) { FocusRequester() }
                                             val childBringIntoViewRequester =
                                                 remember(child.key) { androidx.compose.foundation.relocation.BringIntoViewRequester() }
 
-                                            LaunchedEffect(show, active, pendingFocusKey, expanded, childrenLoaded) {
+                                            LaunchedEffect(show, active, pendingFocusKey, expanded, childrenLoaded, focusScopeId) {
                                                 if (!show) return@LaunchedEffect
                                                 if (!active) return@LaunchedEffect
                                                 if (!expanded) return@LaunchedEffect
@@ -461,9 +467,13 @@ fun CollectionListController(
                                                     kotlinx.coroutines.android.awaitFrame()
                                                 }
 
-                                                focusCoordinator?.requestFocus(
-                                                    nodeId = collectionChildNodeId(parent.key, child.key),
-                                                    layer = WjzFocusLayer.Player
+                                                focusCoordinator?.enqueueRequestFocus(
+                                                    nodeId = collectionNodeId(
+                                                        focusScopeId,
+                                                        collectionChildFocusId(parent.key, child.key)
+                                                    ),
+                                                    layer = WjzFocusLayer.Player,
+                                                    scopeId = focusScopeId
                                                 )
                                                 kotlinx.coroutines.android.awaitFrame()
 
@@ -477,17 +487,18 @@ fun CollectionListController(
                                             SimpleListItem(
                                                 modifier = Modifier
                                                     .padding(horizontal = 16.dp)
-                                                    .wjzFocusNode(
-                                                        nodeId = collectionChildNodeId(parent.key, child.key),
-                                                        requester = childFocusRequester,
+                                                    .wjzFocus(
+                                                        id = collectionChildFocusId(parent.key, child.key),
                                                         layer = WjzFocusLayer.Player,
-                                                        fallback = isChildSelected
+                                                        fallback = isChildSelected,
+                                                        onFocusChanged = { focused ->
+                                                            if (focused) groupHasFocus = true
+                                                        }
                                                     )
                                                     .bringIntoViewRequester(childBringIntoViewRequester),
                                                 text = child.title,
                                                 selected = isChildSelected,
                                                 textAlign = TextAlign.Start,
-                                                onFocus = { groupHasFocus = true },
                                                 onClick = {
                                                     if (!isChildSelected) onChildClick(parent, child)
                                                 }
@@ -497,12 +508,13 @@ fun CollectionListController(
                                 }
                             }
 
-                            LaunchedEffect(active, expanded) {
+                            LaunchedEffect(active, expanded, focusScopeId) {
                                 if (!active) return@LaunchedEffect
                                 if (!expanded && isParentSelected) {
-                                    focusCoordinator?.requestFocus(
-                                        nodeId = collectionParentNodeId(parent.key),
-                                        layer = WjzFocusLayer.Player
+                                    focusCoordinator?.enqueueRequestFocus(
+                                        nodeId = collectionNodeId(focusScopeId, collectionParentFocusId(parent.key)),
+                                        layer = WjzFocusLayer.Player,
+                                        scopeId = focusScopeId
                                     )
                                 }
                             }
@@ -520,11 +532,10 @@ private fun SimpleListItem(
     text: String,
     selected: Boolean,
     textAlign: TextAlign = TextAlign.Center,
-    onFocus: () -> Unit = {},
     onClick: () -> Unit
 ) {
     DenseListItem(
-        modifier = modifier.onFocusChanged { if (it.hasFocus) onFocus() },
+        modifier = modifier,
         selected = selected,
         onClick = onClick,
         headlineContent = { Text(text = text, textAlign = textAlign) },

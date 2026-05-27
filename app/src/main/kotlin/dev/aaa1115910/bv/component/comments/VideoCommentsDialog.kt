@@ -2,7 +2,6 @@ package dev.aaa1115910.bv.component.comments
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,9 +45,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -87,8 +83,9 @@ import dev.aaa1115910.bv.wjzfocus.WjzDialogFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocusNode
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 import dev.aaa1115910.bv.component.richtext.RichText
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.ui.theme.AppBlack
@@ -112,29 +109,46 @@ import kotlin.math.ceil
 
 private enum class Page { Main, Replies, RichContent }
 
-private val CommentsDialogRootNodeId = WjzFocusNodeId("comments/dialog/root")
-private val CommentImagePreviewNodeId = WjzFocusNodeId("comments/dialog/image-preview")
-private val RichContentBodyNodeId = WjzFocusNodeId("comments/dialog/rich-content/body")
-private fun mainCommentFocusNodeId(rpid: Long) = WjzFocusNodeId("comments/dialog/main/$rpid")
-private fun replyCommentFocusNodeId(rpid: Long) = WjzFocusNodeId("comments/dialog/reply/$rpid")
-private fun commentInlineFocusNodeId(rpid: Long, index: Int) =
-    WjzFocusNodeId("comments/dialog/inline/comment/$rpid/$index")
-private fun richInlineFocusNodeId(stableDocKey: String, index: Int) =
-    WjzFocusNodeId("comments/dialog/inline/rich/$stableDocKey/$index")
-private fun commentPictureFocusNodeId(keyPrefix: String, index: Int) =
-    WjzFocusNodeId("comments/dialog/picture/$keyPrefix/$index")
+private val CommentsDialogScopeId = WjzFocusScopeId("comments/dialog")
+private const val CommentsDialogRootKey = "comments/dialog/root"
+private const val CommentsDialogRootLocalId = "root"
+private fun mainCommentFocusKey(rpid: Long) = "comments/dialog/main/$rpid"
+private fun replyCommentFocusKey(rpid: Long) = "comments/dialog/reply/$rpid"
+private fun commentInlineFocusKey(rpid: Long, index: Int) =
+    "comments/dialog/inline/comment/$rpid/$index"
+private fun richInlineFocusKey(stableDocKey: String, index: Int) =
+    "comments/dialog/inline/rich/$stableDocKey/$index"
+private fun commentPictureFocusKey(keyPrefix: String, index: Int) =
+    "comments/dialog/picture/$keyPrefix/$index"
 private fun richContentStableDocKey(document: RichContentDocument): String =
     "${document.title.hashCode()}-${document.body.plainText.hashCode()}"
 
-private fun requestDialogFocus(
+private fun commentsDialogLocalFocusId(key: String): String =
+    key.removePrefix("${CommentsDialogScopeId.value}/")
+
+private fun requestDialogNodeFocus(
     coordinator: WjzFocusCoordinator?,
-    nodeId: WjzFocusNodeId
+    nodeId: String
 ): Boolean {
     coordinator ?: return false
     coordinator.switchLayer(WjzFocusLayer.Dialog)
-    return coordinator.requestFocus(
-        nodeId = nodeId,
-        layer = WjzFocusLayer.Dialog
+    return coordinator.enqueueRequestFocus(
+        nodeId = WjzFocusNodeId(nodeId),
+        layer = WjzFocusLayer.Dialog,
+        scopeId = CommentsDialogScopeId
+    )
+}
+
+private fun requestDialogFocus(
+    coordinator: WjzFocusCoordinator?,
+    key: String
+): Boolean {
+    coordinator ?: return false
+    coordinator.switchLayer(WjzFocusLayer.Dialog)
+    return coordinator.enqueueRequestFocus(
+        nodeId = WjzFocusNodeId(key),
+        layer = WjzFocusLayer.Dialog,
+        scopeId = CommentsDialogScopeId
     )
 }
 @OptIn(ExperimentalFoundationApi::class)
@@ -186,8 +200,6 @@ fun VideoCommentsDialog(
 
     // 记录“主列表最后一次聚焦的评论 rpid”，用于从回复页返回时恢复焦点
     var lastMainFocusedRpid by remember { mutableStateOf<Long?>(null) }
-    // 为每个主评论 item 维护 FocusRequester（rpid -> requester）
-    val mainItemFocusRequesters = remember { mutableMapOf<Long, FocusRequester>() }
 
     // --- 回复页 ---
     var rootComment by remember { mutableStateOf<Comment?>(null) }
@@ -198,8 +210,6 @@ fun VideoCommentsDialog(
     var repliesError by remember { mutableStateOf<String?>(null) }
     val repliesListState = rememberLazyListState()
 
-    // 回复列表 item 焦点请求器（rpid -> requester）
-    val replyItemFocusRequesters = remember { mutableMapOf<Long, FocusRequester>() }
     var lastReplyFocusedRpid by remember { mutableStateOf<Long?>(null) }
 
     var richContent by remember { mutableStateOf<RichContentDocument?>(null) }
@@ -229,24 +239,22 @@ fun VideoCommentsDialog(
         previewIndex = (previewIndex + delta + size) % size
     }
 
-    // 根容器兜底焦点（无数据/异常时）
-    val rootFocusRequester = remember { FocusRequester() }
-    var pendingFocusRestoreNodeId by remember { mutableStateOf<WjzFocusNodeId?>(null) }
+    var pendingFocusRestoreKey by remember { mutableStateOf<String?>(null) }
 
     fun requestMainFocusRestore() {
         val target = lastMainFocusedRpid
         val targetRpid = target?.takeIf { rpid -> comments.any { it.rpid == rpid } }
             ?: comments.firstOrNull()?.rpid
-        pendingFocusRestoreNodeId = targetRpid?.let(::mainCommentFocusNodeId)
-            ?: CommentsDialogRootNodeId
+        pendingFocusRestoreKey = targetRpid?.let(::mainCommentFocusKey)
+            ?: CommentsDialogRootKey
     }
 
     fun requestReplyFocusRestore() {
         val target = lastReplyFocusedRpid
         val targetRpid = target?.takeIf { rpid -> replies.any { it.rpid == rpid } }
             ?: replies.firstOrNull()?.rpid
-        pendingFocusRestoreNodeId = targetRpid?.let(::replyCommentFocusNodeId)
-            ?: CommentsDialogRootNodeId
+        pendingFocusRestoreKey = targetRpid?.let(::replyCommentFocusKey)
+            ?: CommentsDialogRootKey
     }
 
     fun openRichContent(
@@ -306,7 +314,6 @@ fun VideoCommentsDialog(
                 replyPage = CommentReplyPage()
                 repliesHasNext = true
                 repliesError = null
-                replyItemFocusRequesters.clear()
                 lastReplyFocusedRpid = null
 
                 requestMainFocusRestore()
@@ -393,7 +400,6 @@ fun VideoCommentsDialog(
         repliesHasNext = true
         repliesLoading = false
         repliesError = null
-        replyItemFocusRequesters.clear()
         lastReplyFocusedRpid = null
 
         richContentParentPage = Page.Main
@@ -431,7 +437,7 @@ fun VideoCommentsDialog(
         gatePassed = true
 
         // 兜底给根容器焦点（等列表 item 创建后再把焦点交给 item）
-        pendingFocusRestoreNodeId = CommentsDialogRootNodeId
+        pendingFocusRestoreKey = CommentsDialogRootKey
     }
 
     // 主列表有数据时：如果没有记录过 lastMainFocusedRpid，就默认记录第一条，并尝试聚焦它
@@ -541,25 +547,22 @@ fun VideoCommentsDialog(
                 usePlatformDefaultWidth = false
             )
         ) {
-            WjzDialogFocusHost(fallbackRequester = rootFocusRequester) {
+            WjzDialogFocusHost(dialogScopeId = CommentsDialogScopeId) {
                 val dialogFocusCoordinator = LocalWjzFocusCoordinator.current
-                val restoreNodeId = pendingFocusRestoreNodeId
+                val restoreKey = pendingFocusRestoreKey
 
-                LaunchedEffect(dialogFocusCoordinator, restoreNodeId) {
+                LaunchedEffect(dialogFocusCoordinator, restoreKey) {
                     val coordinator = dialogFocusCoordinator ?: return@LaunchedEffect
-                    val nodeId = restoreNodeId ?: return@LaunchedEffect
+                    val key = restoreKey ?: return@LaunchedEffect
                     coordinator.switchLayer(WjzFocusLayer.Dialog)
-                    val restored = coordinator.requestFocus(
-                        nodeId = nodeId,
-                        layer = WjzFocusLayer.Dialog
+                    val restored = requestDialogNodeFocus(
+                        coordinator = coordinator,
+                        nodeId = commentsDialogLocalFocusId(key)
                     )
-                    if (!restored && nodeId != CommentsDialogRootNodeId) {
-                        coordinator.requestFocus(
-                            nodeId = CommentsDialogRootNodeId,
-                            layer = WjzFocusLayer.Dialog
-                        )
+                    if (!restored && key != CommentsDialogRootKey) {
+                        requestDialogNodeFocus(coordinator, CommentsDialogRootLocalId)
                     }
-                    pendingFocusRestoreNodeId = null
+                    pendingFocusRestoreKey = null
                 }
 
                 CompositionLocalProvider(
@@ -569,13 +572,11 @@ fun VideoCommentsDialog(
                     Surface(
                         modifier = Modifier
                             .fillMaxSize()
-                            .wjzFocusNode(
-                                nodeId = CommentsDialogRootNodeId,
-                                requester = rootFocusRequester,
+                            .wjzFocus(
+                                id = "root",
                                 layer = WjzFocusLayer.Dialog,
                                 fallback = true
                             )
-                            .focusable()
                             .onPreviewKeyEvent {
                                 if (it.isKeyDown() && it.key == Key.Back) {
                                     goBackLayer()
@@ -609,30 +610,24 @@ fun VideoCommentsDialog(
                                             comments,
                                             key = { _, c -> c.rpid }
                                         ) { index, comment ->
-                                            // 这个就是“item 入口”FocusRequester，直接挂在评论正文上
-                                            val itemFr = remember(comment.rpid) { FocusRequester() }
-                                            LaunchedEffect(comment.rpid, itemFr) {
-                                                mainItemFocusRequesters[comment.rpid] = itemFr
-                                            }
-
-                                        val prevItemNodeId = comments
+                                        val prevItemKey = comments
                                             .getOrNull(index - 1)
-                                            ?.let { prev -> mainCommentFocusNodeId(prev.rpid) }
+                                            ?.let { prev -> mainCommentFocusKey(prev.rpid) }
 
-                                        val nextItemNodeId = comments
+                                        val nextItemKey = comments
                                             .getOrNull(index + 1)
-                                            ?.let { next -> mainCommentFocusNodeId(next.rpid) }
+                                            ?.let { next -> mainCommentFocusKey(next.rpid) }
 
                                         LightCommentItem(
-                                            modifier = Modifier.onFocusChanged {
-                                                if (it.hasFocus) { // hasFocus 这里用于“组内任一子焦点获得焦点”也算这条评论被选中
+                                            modifier = Modifier,
+                                            onItemFocusChanged = { hasFocus ->
+                                                if (hasFocus) {
                                                     lastMainFocusedRpid = comment.rpid
                                                 }
                                             },
-                                            bodyFocusRequester = itemFr,
-                                            bodyNodeId = mainCommentFocusNodeId(comment.rpid),
-                                            previousBodyNodeId = prevItemNodeId,
-                                            nextBodyNodeId = nextItemNodeId,
+                                            bodyNodeKey = mainCommentFocusKey(comment.rpid),
+                                            previousBodyKey = prevItemKey,
+                                            nextBodyKey = nextItemKey,
                                             comment = comment,
                                             noteFullText = noteFullTexts[comment.rpid],
                                             showRepliesHint = comment.repliesCount > 0,
@@ -648,7 +643,6 @@ fun VideoCommentsDialog(
                                                 replyPage = CommentReplyPage()
                                                 repliesHasNext = true
                                                 repliesError = null
-                                                replyItemFocusRequesters.clear()
                                                 lastReplyFocusedRpid = null
                                                 loadReplies(reset = true)
                                             },
@@ -722,29 +716,24 @@ fun VideoCommentsDialog(
                                                 replies,
                                                 key = { _, c -> c.rpid }
                                             ) { index, reply ->
-                                                val itemFr = remember(reply.rpid) { FocusRequester() }
-                                                LaunchedEffect(reply.rpid, itemFr) {
-                                                    replyItemFocusRequesters[reply.rpid] = itemFr
-                                                }
-
-                                                val prevItemNodeId = replies
+                                                val prevItemKey = replies
                                                     .getOrNull(index - 1)
-                                                    ?.let { prev -> replyCommentFocusNodeId(prev.rpid) }
+                                                    ?.let { prev -> replyCommentFocusKey(prev.rpid) }
 
-                                                val nextItemNodeId = replies
+                                                val nextItemKey = replies
                                                     .getOrNull(index + 1)
-                                                    ?.let { next -> replyCommentFocusNodeId(next.rpid) }
+                                                    ?.let { next -> replyCommentFocusKey(next.rpid) }
 
                                                 LightCommentItem(
-                                                    modifier = Modifier.onFocusChanged {
-                                                        if (it.hasFocus) {
+                                                    modifier = Modifier,
+                                                    onItemFocusChanged = { hasFocus ->
+                                                        if (hasFocus) {
                                                             lastReplyFocusedRpid = reply.rpid
                                                         }
                                                     },
-                                                    bodyFocusRequester = itemFr,
-                                                    bodyNodeId = replyCommentFocusNodeId(reply.rpid),
-                                                    previousBodyNodeId = prevItemNodeId,
-                                                    nextBodyNodeId = nextItemNodeId,
+                                                    bodyNodeKey = replyCommentFocusKey(reply.rpid),
+                                                    previousBodyKey = prevItemKey,
+                                                    nextBodyKey = nextItemKey,
                                                     comment = reply,
                                                     noteFullText = noteFullTexts[reply.rpid],
                                                     showRepliesHint = false,
@@ -901,7 +890,6 @@ private fun RootCommentHeader(comment: Comment) {
                 content = comment.toRichTextContent(),
                 maxLines = 5,
                 enableLinkFocus = false,
-                interactiveFocusRequesters = emptyList(),
                 onVideoLinkClick = null,
                 onReferenceClick = null,
                 onMentionClick = null
@@ -952,29 +940,11 @@ private fun prevNodeFromPicture(index: Int, inlineCount: Int): CommentFocusNode 
 }
 
 @Composable
-private fun Modifier.registerInlineFocusNodes(
-    nodeIds: List<WjzFocusNodeId>,
-    requesters: List<FocusRequester>
-): Modifier {
-    var result = this
-    nodeIds.zip(requesters).forEach { (nodeId, requester) ->
-        result = result.wjzFocusNode(
-            nodeId = nodeId,
-            requester = requester,
-            layer = WjzFocusLayer.Dialog,
-            attachFocusModifiers = false
-        )
-    }
-    return result
-}
-
-@Composable
 private fun LightCommentItem(
     modifier: Modifier = Modifier,
-    bodyFocusRequester: FocusRequester,
-    bodyNodeId: WjzFocusNodeId,
-    previousBodyNodeId: WjzFocusNodeId? = null,
-    nextBodyNodeId: WjzFocusNodeId? = null,
+    bodyNodeKey: String,
+    previousBodyKey: String? = null,
+    nextBodyKey: String? = null,
     comment: Comment,
     noteFullText: String? = null,
     showRepliesHint: Boolean,
@@ -982,7 +952,8 @@ private fun LightCommentItem(
     onImageClick: (Int) -> Unit,
     onVideoLinkClick: (ResolvedVideoLink) -> Unit,
     onReferenceClick: (RichTextReference) -> Unit,
-    onMentionClick: (Long, String) -> Unit
+    onMentionClick: (Long, String) -> Unit,
+    onItemFocusChanged: (Boolean) -> Unit = {}
 ) {
     val pictures = comment.pictures
     val displayComment = if (comment.isNoteComment && noteFullText != null) {
@@ -1010,14 +981,8 @@ private fun LightCommentItem(
         )
     }
 
-    val interactiveFocusRequesters = remember(comment.rpid, interactiveCount) {
-        List(interactiveCount) { FocusRequester() }
-    }
-    val inlineFocusNodeIds = remember(comment.rpid, interactiveCount) {
-        List(interactiveCount) { index -> commentInlineFocusNodeId(comment.rpid, index) }
-    }
-    val pictureFocusRequesters = remember(comment.rpid, pictures.size) {
-        List(pictures.size) { FocusRequester() }
+    val inlineFocusKeys = remember(comment.rpid, interactiveCount) {
+        List(interactiveCount) { index -> commentInlineFocusKey(comment.rpid, index) }
     }
 
     // 文本区滚动
@@ -1037,15 +1002,15 @@ private fun LightCommentItem(
         activeNode = CommentFocusNode.Body
         shouldSyncFocus = false
         skipCurrentItemSync = false
-        requestDialogFocus(focusCoordinator, bodyNodeId)
+        requestDialogNodeFocus(focusCoordinator, commentsDialogLocalFocusId(bodyNodeKey))
     }
 
-    fun moveToAdjacentBody(targetNodeId: WjzFocusNodeId?) {
+    fun moveToAdjacentBody(targetNodeKey: String?) {
         activeNode = CommentFocusNode.Body
-        if (targetNodeId != null) {
+        if (targetNodeKey != null) {
             skipCurrentItemSync = true
             shouldSyncFocus = true
-            requestDialogFocus(focusCoordinator, targetNodeId)
+            requestDialogNodeFocus(focusCoordinator, commentsDialogLocalFocusId(targetNodeKey))
         } else {
             moveToCurrentBody()
         }
@@ -1064,7 +1029,7 @@ private fun LightCommentItem(
         if (nextNode != null) {
             moveToNode(nextNode)
         } else {
-            moveToAdjacentBody(nextBodyNodeId)
+            moveToAdjacentBody(nextBodyKey)
         }
     }
 
@@ -1073,7 +1038,7 @@ private fun LightCommentItem(
             textScrollState.animateScrollBy(-60f)
             return
         }
-        moveToAdjacentBody(previousBodyNodeId)
+        moveToAdjacentBody(previousBodyKey)
     }
 
     fun handleInlineNavDown() {
@@ -1086,7 +1051,7 @@ private fun LightCommentItem(
         if (nextNode != null) {
             moveToNode(nextNode)
         } else {
-            moveToAdjacentBody(nextBodyNodeId)
+            moveToAdjacentBody(nextBodyKey)
         }
     }
 
@@ -1100,7 +1065,7 @@ private fun LightCommentItem(
         if (nextNode != null) {
             moveToNode(nextNode)
         } else {
-            moveToAdjacentBody(nextBodyNodeId)
+            moveToAdjacentBody(nextBodyKey)
         }
     }
 
@@ -1119,13 +1084,13 @@ private fun LightCommentItem(
 
         when (val node = activeNode) {
             CommentFocusNode.Body -> {
-                requestDialogFocus(focusCoordinator, bodyNodeId)
+                requestDialogNodeFocus(focusCoordinator, commentsDialogLocalFocusId(bodyNodeKey))
                 shouldSyncFocus = false
             }
 
             is CommentFocusNode.Inline -> {
-                if (node.index in interactiveFocusRequesters.indices) {
-                    requestDialogFocus(focusCoordinator, inlineFocusNodeIds[node.index])
+                if (node.index in inlineFocusKeys.indices) {
+                    requestDialogFocus(focusCoordinator, inlineFocusKeys[node.index])
                     shouldSyncFocus = false
                 } else {
                     activeNode = CommentFocusNode.Body
@@ -1133,20 +1098,20 @@ private fun LightCommentItem(
             }
 
             is CommentFocusNode.Picture -> {
-                if (pictureFocusRequesters.isEmpty()) {
+                if (pictures.isEmpty()) {
                     activeNode = CommentFocusNode.Body
                 } else {
-                    val targetIndex = if (node.index in pictureFocusRequesters.indices) {
+                    val targetIndex = if (node.index in pictures.indices) {
                         node.index
                     } else {
-                        pictureFocusRequesters.lastIndex
+                        pictures.lastIndex
                     }
                     if (targetIndex != node.index) {
                         activeNode = CommentFocusNode.Picture(targetIndex)
                     } else {
-                        requestDialogFocus(
-                            focusCoordinator,
-                            commentPictureFocusNodeId(comment.rpid.toString(), targetIndex)
+                        requestDialogNodeFocus(
+                            coordinator = focusCoordinator,
+                            nodeId = commentPictureFocusKey(comment.rpid.toString(), targetIndex)
                         )
                         shouldSyncFocus = false
                     }
@@ -1168,19 +1133,14 @@ private fun LightCommentItem(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .wjzFocusNode(
-                    nodeId = bodyNodeId,
-                    requester = bodyFocusRequester,
+                .wjzFocus(
+                    id = commentsDialogLocalFocusId(bodyNodeKey),
                     layer = WjzFocusLayer.Dialog
-                )
-                .focusProperties {
-                    up = bodyFocusRequester
-                    // down 不再依赖默认焦点系统；我们自己在 onPreviewKeyEvent 里控制
-                }
-                .onFocusChanged { fs ->
-                    bodyIsFocused = fs.isFocused
-                    bodyHasFocus = fs.hasFocus
-                    if (fs.isFocused) {
+                ) { hasFocus ->
+                    bodyIsFocused = hasFocus
+                    bodyHasFocus = hasFocus
+                    onItemFocusChanged(hasFocus)
+                    if (hasFocus) {
                         activeNode = CommentFocusNode.Body
                     }
                 }
@@ -1280,19 +1240,16 @@ private fun LightCommentItem(
                     CommentMessageText(
                         modifier = Modifier
                             .heightIn(max = 240.dp)
-                            .verticalScroll(textScrollState)
-                            .registerInlineFocusNodes(
-                                nodeIds = inlineFocusNodeIds,
-                                requesters = interactiveFocusRequesters
-                            ),
+                            .verticalScroll(textScrollState),
                         content = messageContent,
                         maxLines = Int.MAX_VALUE,
                         enableLinkFocus = true,
-                        interactiveFocusRequesters = interactiveFocusRequesters,
+                        interactiveNodeKey = { index -> commentInlineFocusKey(comment.rpid, index) },
                         onVideoLinkClick = onVideoLinkClick,
                         onReferenceClick = onReferenceClick,
                         onMentionClick = onMentionClick,
                         onInteractiveFocused = { idx ->
+                            onItemFocusChanged(true)
                             activeNode = CommentFocusNode.Inline(idx)
                         },
                         onInteractiveNavDown = {
@@ -1319,9 +1276,9 @@ private fun LightCommentItem(
         FocusableCommentPictures(
             pictures = pictures,
             keyPrefix = comment.rpid.toString(),
-            pictureFocusRequesters = pictureFocusRequesters,
             onImageClick = onImageClick,
             onPictureFocused = { index ->
+                onItemFocusChanged(true)
                 activeNode = CommentFocusNode.Picture(index)
             },
             onPictureNavUp = ::handlePictureNavUp,
@@ -1336,7 +1293,7 @@ private fun CommentMessageText(
     content: RichTextContent,
     maxLines: Int,
     enableLinkFocus: Boolean,
-    interactiveFocusRequesters: List<FocusRequester>,
+    interactiveNodeKey: ((index: Int) -> String)? = null,
     onVideoLinkClick: ((ResolvedVideoLink) -> Unit)?,
     onReferenceClick: ((RichTextReference) -> Unit)?,
     onMentionClick: ((Long, String) -> Unit)?,
@@ -1357,8 +1314,8 @@ private fun CommentMessageText(
             lineHeight = 29.sp
         ),
         maxLines = maxLines,
-        enableInteractiveFocus = enableLinkFocus,
-        interactiveFocusRequesters = interactiveFocusRequesters,
+        interactiveFocusEnabled = enableLinkFocus,
+        interactiveNodeKey = interactiveNodeKey,
         onVideoLinkClick = onVideoLinkClick,
         onReferenceClick = onReferenceClick,
         onMentionClick = onMentionClick,
@@ -1406,15 +1363,8 @@ private fun RichContentPage(
                     includeMentions = false
                 )
             }
-            val bodyFocusRequester = remember(document.title) { FocusRequester() }
-            val interactiveFocusRequesters = remember(document.title, interactiveCount) {
-                List(interactiveCount) { FocusRequester() }
-            }
-            val inlineFocusNodeIds = remember(stableDocKey, interactiveCount) {
-                List(interactiveCount) { index -> richInlineFocusNodeId(stableDocKey, index) }
-            }
-            val pictureFocusRequesters = remember(document.title, document.pictures.size) {
-                List(document.pictures.size) { FocusRequester() }
+            val inlineFocusKeys = remember(stableDocKey, interactiveCount) {
+                List(interactiveCount) { index -> richInlineFocusKey(stableDocKey, index) }
             }
             var bodyIsFocused by remember(document.title) { mutableStateOf(false) }
             var bodyHasFocus by remember(document.title) { mutableStateOf(false) }
@@ -1434,7 +1384,7 @@ private fun RichContentPage(
             fun moveToCurrentBody() {
                 activeNode = CommentFocusNode.Body
                 shouldSyncFocus = false
-                requestDialogFocus(focusCoordinator, RichContentBodyNodeId)
+                requestDialogFocus(focusCoordinator, CommentsDialogRootKey)
             }
 
             suspend fun handleBodyNavDown() {
@@ -1495,13 +1445,13 @@ private fun RichContentPage(
 
                 when (val node = activeNode) {
                     CommentFocusNode.Body -> {
-                        requestDialogFocus(focusCoordinator, RichContentBodyNodeId)
+                        requestDialogFocus(focusCoordinator, CommentsDialogRootKey)
                         shouldSyncFocus = false
                     }
 
                     is CommentFocusNode.Inline -> {
-                        if (node.index in interactiveFocusRequesters.indices) {
-                            requestDialogFocus(focusCoordinator, inlineFocusNodeIds[node.index])
+                        if (node.index in inlineFocusKeys.indices) {
+                            requestDialogFocus(focusCoordinator, inlineFocusKeys[node.index])
                             shouldSyncFocus = false
                         } else {
                             activeNode = CommentFocusNode.Body
@@ -1509,20 +1459,20 @@ private fun RichContentPage(
                     }
 
                     is CommentFocusNode.Picture -> {
-                        if (pictureFocusRequesters.isEmpty()) {
+                        if (document.pictures.isEmpty()) {
                             activeNode = CommentFocusNode.Body
                         } else {
-                            val targetIndex = if (node.index in pictureFocusRequesters.indices) {
+                            val targetIndex = if (node.index in document.pictures.indices) {
                                 node.index
                             } else {
-                                pictureFocusRequesters.lastIndex
+                                document.pictures.lastIndex
                             }
                             if (targetIndex != node.index) {
                                 activeNode = CommentFocusNode.Picture(targetIndex)
                             } else {
                                 requestDialogFocus(
                                     focusCoordinator,
-                                    commentPictureFocusNodeId("rich-${document.title}", targetIndex)
+                                    commentPictureFocusKey("rich-$stableDocKey", targetIndex)
                                 )
                                 shouldSyncFocus = false
                             }
@@ -1551,18 +1501,17 @@ private fun RichContentPage(
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .wjzFocusNode(
-                            nodeId = RichContentBodyNodeId,
-                            requester = bodyFocusRequester,
-                            layer = WjzFocusLayer.Dialog
-                        )
-                        .onFocusChanged { fs ->
-                            bodyIsFocused = fs.isFocused
-                            bodyHasFocus = fs.hasFocus
-                            if (fs.isFocused) {
-                                activeNode = CommentFocusNode.Body
+                        .wjzFocus(
+                            id = CommentsDialogRootLocalId,
+                            layer = WjzFocusLayer.Dialog,
+                            onFocusChanged = { hasFocus ->
+                                bodyIsFocused = hasFocus
+                                bodyHasFocus = hasFocus
+                                if (hasFocus) {
+                                    activeNode = CommentFocusNode.Body
+                                }
                             }
-                        }
+                        )
                         .onPreviewKeyEvent { event ->
                             if (bodyIsFocused && event.isKeyDown()) {
                                 when (event.key) {
@@ -1608,15 +1557,11 @@ private fun RichContentPage(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(max = 520.dp)
-                                .verticalScroll(textScrollState)
-                                .registerInlineFocusNodes(
-                                    nodeIds = inlineFocusNodeIds,
-                                    requesters = interactiveFocusRequesters
-                                ),
+                                .verticalScroll(textScrollState),
                             content = document.body,
                             maxLines = Int.MAX_VALUE,
                             enableLinkFocus = true,
-                            interactiveFocusRequesters = interactiveFocusRequesters,
+                            interactiveNodeKey = { index -> richInlineFocusKey(stableDocKey, index) },
                             onVideoLinkClick = onVideoLinkClick,
                             onReferenceClick = onReferenceClick,
                             onMentionClick = null,
@@ -1635,8 +1580,7 @@ private fun RichContentPage(
 
                 FocusableCommentPictures(
                     pictures = document.pictures,
-                    keyPrefix = "rich-${document.title}",
-                    pictureFocusRequesters = pictureFocusRequesters,
+                    keyPrefix = "rich-$stableDocKey",
                     onImageClick = { index ->
                         onImageClick(document.pictures, index)
                     },
@@ -1655,7 +1599,6 @@ private fun RichContentPage(
 private fun FocusableCommentPictures(
     pictures: List<Comment.Picture>,
     keyPrefix: String,
-    pictureFocusRequesters: List<FocusRequester>,
     onImageClick: (Int) -> Unit,
     onPictureFocused: (Int) -> Unit,
     onPictureNavUp: (Int) -> Unit,
@@ -1668,18 +1611,12 @@ private fun FocusableCommentPictures(
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         itemsIndexed(pictures, key = { index, p -> "$keyPrefix-${p.imgSrc}-$index" }) { index, picture ->
-            val fr = pictureFocusRequesters[index]
             var pictureHasFocus by remember(keyPrefix, index) { mutableStateOf(false) }
 
             Surface(
                 modifier = Modifier
                     .width(184.dp)
                     .height(112.dp)
-                    .wjzFocusNode(
-                        nodeId = commentPictureFocusNodeId(keyPrefix, index),
-                        requester = fr,
-                        layer = WjzFocusLayer.Dialog
-                    )
                     .onPreviewKeyEvent { e ->
                         if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                         when (e.key) {
@@ -1696,12 +1633,16 @@ private fun FocusableCommentPictures(
                             else -> false
                         }
                     }
-                    .onFocusChanged {
-                        pictureHasFocus = it.isFocused
-                        if (it.isFocused) {
-                            onPictureFocused(index)
+                    .wjzFocus(
+                        id = commentPictureFocusKey(keyPrefix, index),
+                        layer = WjzFocusLayer.Dialog,
+                        onFocusChanged = {
+                            pictureHasFocus = it
+                            if (it) {
+                                onPictureFocused(index)
+                            }
                         }
-                    }
+                    )
                     .border(
                         width = if (pictureHasFocus) 3.dp else 0.dp,
                         color = if (pictureHasFocus) C.bilibili else Color.Transparent,
@@ -1772,7 +1713,6 @@ private fun CommentImagePreviewDialog(
     if (pictures.isEmpty()) return
 
     val safeIndex = currentIndex.coerceIn(0, pictures.lastIndex)
-    val focusRequester = remember { FocusRequester() }
     val coroutineScope = rememberCoroutineScope()
     val density = LocalDensity.current
     val stepPx = with(density) { 60.dp.toPx() }
@@ -1798,9 +1738,7 @@ private fun CommentImagePreviewDialog(
             usePlatformDefaultWidth = false
         )
     ) {
-        WjzDialogFocusHost(fallbackRequester = focusRequester) {
-            val focusCoordinator = LocalWjzFocusCoordinator.current
-
+        WjzDialogFocusHost {
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 shape = RoundedCornerShape(0.dp),
@@ -1814,17 +1752,10 @@ private fun CommentImagePreviewDialog(
                         .fillMaxSize()
                         .background(C.commentsBackground)
                         .clipToBounds()
-                        .wjzFocusNode(
-                            nodeId = CommentImagePreviewNodeId,
-                            requester = focusRequester,
+                        .wjzFocus(
+                            id = "comments/dialog/image-preview",
                             layer = WjzFocusLayer.Dialog
                         )
-                        .focusProperties {
-                            up = focusRequester
-                            down = focusRequester
-                            left = focusRequester
-                            right = focusRequester
-                        }
                         .onKeyEvent { e ->
                             when {
                                 e.key == Key.Back -> {
@@ -1874,7 +1805,6 @@ private fun CommentImagePreviewDialog(
                                 else -> false
                             }
                         }
-                        .focusable()
                 ) {
                     val viewportWidthPx = constraints.maxWidth
                     val viewportHeightPx = constraints.maxHeight
@@ -1884,15 +1814,6 @@ private fun CommentImagePreviewDialog(
                         viewportHeightPx
                     }
                     val widthFitHeightDp = with(density) { widthFitHeightPx.toDp() }
-
-                    // 关键：确保预览层真的拿到焦点（否则任何 onKeyEvent 都收不到）
-                    LaunchedEffect(pictures, safeIndex) {
-                        focusCoordinator?.requestFocus(
-                            nodeId = CommentImagePreviewNodeId,
-                            layer = WjzFocusLayer.Dialog,
-                            enqueueIfMissing = true
-                        )
-                    }
 
                     val imageModifier =
                         if (widthFitEnabled) {

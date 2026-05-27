@@ -47,9 +47,6 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -101,7 +98,13 @@ import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.component.TvGridBringIntoViewMode
 import dev.aaa1115910.bv.component.TvLazyVerticalGrid
 import dev.aaa1115910.bv.component.UpIcon
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.down
+import dev.aaa1115910.bv.wjzfocus.left
+import dev.aaa1115910.bv.wjzfocus.right
+import dev.aaa1115910.bv.wjzfocus.up
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzDisabledFocus
+import dev.aaa1115910.bv.wjzfocus.wjzObserveFocusChanged
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.repository.StartupCoverRepository
 import dev.aaa1115910.bv.ui.theme.AppWhite
@@ -278,13 +281,6 @@ private fun SmallVideoCardCore(
     var showActions by remember(data.avid) { mutableStateOf(false) }
     var releaseLongPress by remember(data.avid) { mutableStateOf(false) }
 
-    val defaultCardFocusRequester = remember(data.avid) { FocusRequester() }
-    val cardFocusRequester = focusTarget?.requester ?: defaultCardFocusRequester
-
-    val historyButtonRequester = remember(data.avid) { FocusRequester() }
-    val favoriteButtonRequester = remember(data.avid) { FocusRequester() }
-    val upButtonRequester = remember(data.avid) { FocusRequester() }
-    val watchLaterButtonRequester = remember(data.avid) { FocusRequester() }
     val actionNodeIdPrefix = remember(data.avid, data.cid, data.epId) {
         "small-video-card/${smallVideoCardFocusKey(data)}/action"
     }
@@ -295,7 +291,6 @@ private fun SmallVideoCardCore(
     val defaultCardNodeId = remember(data.avid, data.cid, data.epId) {
         WjzFocusNodeId("small-video-card/${smallVideoCardFocusKey(data)}")
     }
-    val cardNodeId = focusTarget?.nodeId ?: defaultCardNodeId
     var actionSourceToken by remember(data.avid) { mutableStateOf<WjzFocusSourceToken?>(null) }
 
     val isHostMode = hostVm != null
@@ -364,7 +359,7 @@ private fun SmallVideoCardCore(
     LaunchedEffect(
         actionLayerVisible,
         focusCoordinator,
-        focusTarget?.nodeId,
+        focusTarget?.key,
         focusTarget?.itemKey,
         focusTarget?.restorerId,
         focusTarget?.listId,
@@ -382,22 +377,14 @@ private fun SmallVideoCardCore(
             ) == true
             if (!restored) {
                 focusTarget?.let { target ->
-                    focusCoordinator?.switchLayer(target.layer)
-                    val requested = focusCoordinator?.requestFocus(
-                        nodeId = target.nodeId,
-                        layer = target.layer,
-                        scopeId = target.scopeId,
+                    val coordinator = focusCoordinator ?: return@let
+                    coordinator.switchLayer(target.layer)
+                    val requested = target.activate(
+                        coordinator = coordinator,
                         enqueueIfMissing = false
-                    ) == true
+                    )
                     if (!requested) {
-                        focusCoordinator?.enqueueLazyRestore(
-                            nodeId = target.nodeId,
-                            itemKey = target.itemKey,
-                            layer = target.layer,
-                            scopeId = target.scopeId,
-                            restorerId = target.restorerId,
-                            listId = target.listId
-                        )
+                        target.enqueueLazyRestore(coordinator)
                     }
                 }
             }
@@ -422,30 +409,12 @@ private fun SmallVideoCardCore(
         navigateToUp(mid = mid, name = data.upName)
     }
 
-    fun requestDefaultActionFocus() {
-        val target = when {
-            canUseHistory -> historyActionNodeId
-            canUseFavorite -> favoriteActionNodeId
-            canGoToUpPage -> upActionNodeId
-            canUseWatchLater -> watchLaterActionNodeId
-            else -> null
-        } ?: return
-        focusCoordinator?.requestFocus(
-            nodeId = target,
-            layer = WjzFocusLayer.Action
-        )
-    }
-
     LaunchedEffect(
         actionLayerVisible,
-        canHistory,
-        canFavorite,
-        canGoToUpPage,
-        canWatchLater,
         hostVm
     ) {
         if (actionLayerVisible) {
-            requestDefaultActionFocus()
+            focusCoordinator?.restoreActiveLayer()
 
             hostVm?.onActionsShown(
                 aid = data.avid,
@@ -460,7 +429,7 @@ private fun SmallVideoCardCore(
     LaunchedEffect(hostUiState.lastDismissedDialogAid, actionLayerVisible) {
         val dismissedAid = hostUiState.lastDismissedDialogAid
         if (actionLayerVisible && dismissedAid == data.avid) {
-            requestDefaultActionFocus()
+            focusCoordinator?.restoreActiveLayer()
             hostVm?.consumeLastDismissedDialogAid(data.avid)
         }
     }
@@ -492,8 +461,7 @@ private fun SmallVideoCardCore(
             interactive = interactive,
             showActions = actionLayerVisible,
             allowDismissActionsOnFocusLoss = allowDismissActionsOnFocusLoss,
-            cardFocusRequester = cardFocusRequester,
-            cardNodeId = cardNodeId,
+            cardNodeId = defaultCardNodeId,
             focusTarget = focusTarget,
             separationProgress = separationProgress,
             onCardHasFocusChanged = { cardHasFocus = it },
@@ -514,10 +482,6 @@ private fun SmallVideoCardCore(
         ) {
             if (actionLayerVisible) {
                 BvSmallVideoCardActions(
-                    historyButtonRequester = historyButtonRequester,
-                    favoriteButtonRequester = favoriteButtonRequester,
-                    upButtonRequester = upButtonRequester,
-                    watchLaterButtonRequester = watchLaterButtonRequester,
                     historyNodeId = historyActionNodeId,
                     favoriteNodeId = favoriteActionNodeId,
                     upNodeId = upActionNodeId,
@@ -632,7 +596,6 @@ private fun BvSmallVideoCardFrame(
     interactive: Boolean,
     showActions: Boolean,
     allowDismissActionsOnFocusLoss: Boolean,
-    cardFocusRequester: FocusRequester,
     cardNodeId: WjzFocusNodeId,
     focusTarget: BvLazyFocusItemTarget?,
     separationProgress: Float,
@@ -649,6 +612,17 @@ private fun BvSmallVideoCardFrame(
 
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
+    val handleCardFocusChanged: (Boolean) -> Unit = { hasFocus ->
+        cardHasFocusLocal = hasFocus
+        onCardHasFocusChanged(hasFocus)
+
+        if (pendingRemoval && canFinalizePendingRemovalOnFocusLoss && !hasFocus) {
+            onPendingRemovalFocusLost?.invoke()
+        }
+        if (!hasFocus && allowDismissActionsOnFocusLoss) {
+            onDismissActions()
+        }
+    }
 
     // 按压动画 (平常1f，按下0.9f)
     val pressScale by animateFloatAsState(
@@ -753,18 +727,16 @@ private fun BvSmallVideoCardFrame(
             onLongClick = { if (interactive) onLongClick() },
             interactionSource = interactionSource,
             modifier = modifier
+                .wjzDisabledFocus(!interactive)
                 .then(
-                    if (!interactive) Modifier.focusProperties { canFocus = false }
-                    else Modifier
-                )
-                .then(
-                    focusTarget?.modifier ?: Modifier.wjzFocusable(
-                        nodeId = cardNodeId,
+                    focusTarget?.modifier ?: Modifier.wjzFocus(
+                        id = cardNodeId.value,
                         layer = WjzFocusLayer.Content,
-                        requester = cardFocusRequester,
-                        enabled = interactive && !showActions && !pendingRemoval
+                        enabled = interactive && !showActions && !pendingRemoval,
+                        onFocusChanged = handleCardFocusChanged
                     )
                 )
+                .wjzObserveFocusChanged(handleCardFocusChanged)
                 .fillMaxSize()
                 .graphicsLayer {
                     val p = (separationProgress * pressSeparationFraction).coerceIn(0f, 1f)
@@ -779,18 +751,7 @@ private fun BvSmallVideoCardFrame(
                     shape = RectangleShape
                     clip = false
                 }
-                .onFocusChanged { focusState ->
-                    val hasFocus = focusState.hasFocus
-                    cardHasFocusLocal = hasFocus
-                    onCardHasFocusChanged(hasFocus)
-
-                    if (pendingRemoval && canFinalizePendingRemovalOnFocusLoss && !focusState.hasFocus) {
-                        onPendingRemovalFocusLost?.invoke()
-                    }
-                    if (!focusState.hasFocus && allowDismissActionsOnFocusLoss) {
-                        onDismissActions()
-                    }
-                },
+                ,
             shape = CardDefaults.shape(RectangleShape),
             scale = CardDefaults.scale(
                 scale = 1f,
@@ -810,10 +771,6 @@ private fun BvSmallVideoCardFrame(
 
 @Composable
 private fun BvSmallVideoCardActions(
-    historyButtonRequester: FocusRequester,
-    favoriteButtonRequester: FocusRequester,
-    upButtonRequester: FocusRequester,
-    watchLaterButtonRequester: FocusRequester,
     historyNodeId: WjzFocusNodeId,
     favoriteNodeId: WjzFocusNodeId,
     upNodeId: WjzFocusNodeId,
@@ -866,11 +823,21 @@ private fun BvSmallVideoCardActions(
                     contentAlignment = Alignment.Center
                 ) {
                     BvActionIconButton(
-                        modifier = Modifier.wjzFocusable(
-                            nodeId = historyNodeId,
+                        modifier = Modifier.wjzFocus(
+                            id = historyNodeId.value,
                             layer = WjzFocusLayer.Action,
-                            requester = historyButtonRequester,
-                            enabled = if (isPrivateFlavor) canHistory else canOpenVideoInfo
+                            fallback = if (isPrivateFlavor) canHistory else canOpenVideoInfo,
+                            enabled = if (isPrivateFlavor) canHistory else canOpenVideoInfo,
+                            exits = {
+                                right move favoriteNodeId.value
+                                down move upNodeId.value
+                                cancel(left)
+                                cancel(up)
+                            },
+                            entries = {
+                                favoriteNodeId.value ready favoriteNodeId.value
+                                upNodeId.value ready upNodeId.value
+                            }
                         ),
                         canClick = if (isPrivateFlavor) canHistory else canOpenVideoInfo,
                         onClick = if (isPrivateFlavor) onHistoryClick else onInfoClick
@@ -896,11 +863,21 @@ private fun BvSmallVideoCardActions(
                     contentAlignment = Alignment.Center
                 ) {
                     BvActionIconButton(
-                        modifier = Modifier.wjzFocusable(
-                            nodeId = favoriteNodeId,
+                        modifier = Modifier.wjzFocus(
+                            id = favoriteNodeId.value,
                             layer = WjzFocusLayer.Action,
-                            requester = favoriteButtonRequester,
-                            enabled = canFavorite
+                            fallback = !canHistory && canFavorite,
+                            enabled = canFavorite,
+                            exits = {
+                                left move historyNodeId.value
+                                down move watchLaterNodeId.value
+                                cancel(right)
+                                cancel(up)
+                            },
+                            entries = {
+                                historyNodeId.value ready historyNodeId.value
+                                watchLaterNodeId.value ready watchLaterNodeId.value
+                            }
                         ),
                         canClick = canFavorite,
                         onClick = onFavoriteClick
@@ -926,11 +903,21 @@ private fun BvSmallVideoCardActions(
                     contentAlignment = Alignment.Center
                 ) {
                     BvActionIconButton(
-                        modifier = Modifier.wjzFocusable(
-                            nodeId = upNodeId,
+                        modifier = Modifier.wjzFocus(
+                            id = upNodeId.value,
                             layer = WjzFocusLayer.Action,
-                            requester = upButtonRequester,
-                            enabled = canGoToUpPage
+                            fallback = !canHistory && !canFavorite && canGoToUpPage,
+                            enabled = canGoToUpPage,
+                            exits = {
+                                up move historyNodeId.value
+                                right move watchLaterNodeId.value
+                                cancel(left)
+                                cancel(down)
+                            },
+                            entries = {
+                                historyNodeId.value ready historyNodeId.value
+                                watchLaterNodeId.value ready watchLaterNodeId.value
+                            }
                         ),
                         canClick = canGoToUpPage,
                         onClick = onUpClick
@@ -958,11 +945,21 @@ private fun BvSmallVideoCardActions(
                     contentAlignment = Alignment.Center
                 ) {
                     BvActionIconButton(
-                        modifier = Modifier.wjzFocusable(
-                            nodeId = watchLaterNodeId,
+                        modifier = Modifier.wjzFocus(
+                            id = watchLaterNodeId.value,
                             layer = WjzFocusLayer.Action,
-                            requester = watchLaterButtonRequester,
-                            enabled = canWatchLater
+                            fallback = !canHistory && !canFavorite && !canGoToUpPage && canWatchLater,
+                            enabled = canWatchLater,
+                            exits = {
+                                left move upNodeId.value
+                                up move favoriteNodeId.value
+                                cancel(right)
+                                cancel(down)
+                            },
+                            entries = {
+                                favoriteNodeId.value ready favoriteNodeId.value
+                                upNodeId.value ready upNodeId.value
+                            }
                         ),
                         canClick = canWatchLater,
                         onClick = onWatchLaterClick
@@ -988,7 +985,7 @@ private fun BvActionIconButton(
 ) {
     IconButton(
         modifier = modifier
-            .focusProperties { canFocus = canClick }
+            .wjzDisabledFocus(!canClick)
             .size(ActionButtonSize)
             .aspectRatio(1f),
         enabled = canClick,

@@ -22,6 +22,7 @@ import androidx.tv.material3.Icon
 @Composable
 fun StepLessMenuItem(
     modifier: Modifier = Modifier,
+    focusId: String,
     value: Float = 1f,
     text: String,
     step: Float = 0.01f,
@@ -73,6 +74,7 @@ fun StepLessMenuItem(
                         }
                         false
                     },
+                focusId = focusId,
                 text = text,
                 selected = false
             ) { }
@@ -84,6 +86,7 @@ fun StepLessMenuItem(
 @Composable
 fun StepLessMenuItem(
     modifier: Modifier = Modifier,
+    focusId: String,
     value: Int = 100,
     text: String,
     step: Int = 1,
@@ -135,6 +138,7 @@ fun StepLessMenuItem(
                         }
                         false
                     },
+                focusId = focusId,
                 text = text,
                 selected = false
             ) { }

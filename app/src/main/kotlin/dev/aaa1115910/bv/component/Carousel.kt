@@ -26,7 +26,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -53,6 +52,7 @@ import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.ThemeMode
 import dev.aaa1115910.bv.util.focusedBorder
+import dev.aaa1115910.bv.wjzfocus.wjzObserveFocusChanged
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.delay
 
@@ -146,9 +146,7 @@ fun Carousel(
 
     Box(
         modifier = modifier
-            .onFocusChanged { focusState ->
-                hasFocus = focusState.isFocused
-            }
+            .wjzObserveFocusChanged { hasFocus = it }
             .clickable { onClick(currentIndex) }
             .onKeyEvent {
                 when {

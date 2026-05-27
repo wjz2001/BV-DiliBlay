@@ -5,23 +5,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.component.controllers.VideoPlayerMenuNavItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.MenuListItem
-import dev.aaa1115910.bv.component.ifElse
-import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocusNode
-
-private val PlayerMenuNavColumnNodeId = WjzFocusNodeId("player/menu/nav")
 
 @Composable
 fun MenuNavList(
@@ -31,36 +19,21 @@ fun MenuNavList(
     isFocusing: Boolean
 ) {
     val context = LocalContext.current
-    val focusCoordinator = LocalWjzFocusCoordinator.current
-    val restorerFocusRequester = remember { FocusRequester() }
-    val focusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(focusCoordinator) {
-        focusCoordinator?.requestFocus(
-            nodeId = PlayerMenuNavColumnNodeId,
-            layer = WjzFocusLayer.Overlay
-        )
-    }
 
     LazyColumn(
-        modifier = modifier
-            .focusRestorer(restorerFocusRequester)
-            .wjzFocusNode(
-                nodeId = PlayerMenuNavColumnNodeId,
-                requester = focusRequester,
-                layer = WjzFocusLayer.Overlay
-            ),
+        modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(16.dp)
     ) {
         itemsIndexed(VideoPlayerMenuNavItem.entries) { index, item ->
             MenuListItem(
-                modifier = Modifier
-                    .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester)),
+                modifier = Modifier,
+                focusId = "$PlayerMenuNavFocusIdPrefix/$index",
                 text = item.getDisplayName(context),
                 icon = item.icon,
                 expanded = isFocusing,
                 selected = selectedMenu == item,
+                fallback = index == 0,
                 onClick = {},
                 onFocus = { onSelectedChanged(item) },
             )

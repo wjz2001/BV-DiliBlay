@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,7 +22,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -46,6 +44,7 @@ import dev.aaa1115910.bv.ui.theme.ThemeMode
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.focusedBorder
 import dev.aaa1115910.bv.util.rememberTvImageRequest
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 
 @Composable
 fun LargeVideoCard(
@@ -69,10 +68,6 @@ fun LargeVideoCard(
         heightDp = height
     )
 
-    LaunchedEffect(hasFocus) {
-        if (hasFocus) onFocus()
-    }
-
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -80,7 +75,11 @@ fun LargeVideoCard(
                 scaleX = scale
                 scaleY = scale
             }
-            .onFocusChanged { hasFocus = it.isFocused }
+            .wjzFocus(
+                id = "large-video-card/${data.avid}_${data.cid ?: -1L}_${data.epId ?: -1}",
+                onFocused = onFocus,
+                onFocusChanged = { hasFocus = it }
+            )
             .focusedBorder(MaterialTheme.shapes.medium)
             .clickable { onClick() },
         shape = MaterialTheme.shapes.large

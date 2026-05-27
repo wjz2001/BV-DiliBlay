@@ -21,10 +21,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.FocusRequester.Companion.Default
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
@@ -59,6 +55,8 @@ import dev.aaa1115910.bv.util.ResolvedVideoLink
 import dev.aaa1115910.bv.util.RichTextToken
 import dev.aaa1115910.bv.util.VideoLinkToken
 import dev.aaa1115910.bv.util.resolveVideoLink
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -71,8 +69,8 @@ fun RichText(
     inlineKeyPrefix: String,
     textStyle: TextStyle,
     maxLines: Int = Int.MAX_VALUE,
-    enableInteractiveFocus: Boolean,
-    interactiveFocusRequesters: List<FocusRequester>,
+    interactiveFocusEnabled: Boolean,
+    interactiveNodeKey: ((index: Int) -> String)? = null,
     onVideoLinkClick: ((ResolvedVideoLink) -> Unit)?,
     onReferenceClick: ((RichTextReference) -> Unit)?,
     onMentionClick: ((Long, String) -> Unit)?,
@@ -103,14 +101,14 @@ fun RichText(
 
                 is RichTextToken.Mention -> {
                     val clickable = onMentionClick != null
-                    val focusEnabled = enableInteractiveFocus && clickable
+                    val focusEnabled = interactiveFocusEnabled && clickable
 
                     if (focusEnabled) {
                         val id = "${inlineKeyPrefix}_mention_$inlineIndex"
                         inlineIndex += 1
 
                         val idx = focusableIndex
-                        val fr = interactiveFocusRequesters.getOrNull(idx)
+                        val focusKey = interactiveNodeKey?.invoke(idx) ?: "$inlineKeyPrefix/mention/$idx"
 
                         appendInlineContent(id, "@${token.name}")
                         inlineContent[id] = InlineTextContent(
@@ -123,7 +121,7 @@ fun RichText(
                             MentionInlineItem(
                                 mention = token,
                                 enableFocus = true,
-                                focusRequester = fr,
+                                focusKey = focusKey,
                                 fontSize = fontSize,
                                 accentColor = accentColor,
                                 onMentionClick = onMentionClick,
@@ -167,7 +165,7 @@ fun RichText(
 
                 is RichTextToken.VideoLink -> {
                     val clickable = onVideoLinkClick != null
-                    val focusEnabled = enableInteractiveFocus && clickable
+                    val focusEnabled = interactiveFocusEnabled && clickable
 
                     val id = "${inlineKeyPrefix}_video_$inlineIndex"
                     inlineIndex += 1
@@ -193,7 +191,6 @@ fun RichText(
                             VideoLinkInlineItem(
                                 token = token.data,
                                 enableFocus = false,
-                                focusRequester = null,
                                 fontSize = fontSize,
                                 accentColor = accentColor,
                                 baseTextColor = baseTextColor,
@@ -201,12 +198,12 @@ fun RichText(
                             )
                         } else {
                             val idx = focusableIndex
-                            val fr = interactiveFocusRequesters.getOrNull(idx)
+                            val focusKey = interactiveNodeKey?.invoke(idx) ?: "$inlineKeyPrefix/video/$idx"
 
                             VideoLinkInlineItem(
                                 token = token.data,
                                 enableFocus = true,
-                                focusRequester = fr,
+                                focusKey = focusKey,
                                 fontSize = fontSize,
                                 accentColor = accentColor,
                                 baseTextColor = baseTextColor,
@@ -226,7 +223,7 @@ fun RichText(
 
                 is RichTextToken.Reference -> {
                     val clickable = onReferenceClick != null
-                    val focusEnabled = enableInteractiveFocus && clickable
+                    val focusEnabled = interactiveFocusEnabled && clickable
                     val id = "${inlineKeyPrefix}_reference_$inlineIndex"
                     inlineIndex += 1
                     val displayText = token.reference.displayText
@@ -248,19 +245,18 @@ fun RichText(
                             ReferenceInlineItem(
                                 reference = token.reference,
                                 enableFocus = false,
-                                focusRequester = null,
                                 fontSize = fontSize,
                                 accentColor = accentColor,
                                 onReferenceClick = onReferenceClick
                             )
                         } else {
                             val idx = focusableIndex
-                            val fr = interactiveFocusRequesters.getOrNull(idx)
+                            val focusKey = interactiveNodeKey?.invoke(idx) ?: "$inlineKeyPrefix/reference/$idx"
 
                             ReferenceInlineItem(
                                 reference = token.reference,
                                 enableFocus = true,
-                                focusRequester = fr,
+                                focusKey = focusKey,
                                 fontSize = fontSize,
                                 accentColor = accentColor,
                                 onReferenceClick = onReferenceClick,
@@ -299,8 +295,8 @@ private fun estimateInlineWidthEm(
     if (s.isEmpty()) return minEm.em
 
     // 简易视觉长度：CJK/全角按 2，其它按 1（再做上限）
-    val visualLen = s.sumOf { ch ->
-        if (ch.code in 0x2E80..0x9FFF) 2 else 1
+    val visualLen = s.fold(0) { acc, ch ->
+        acc + if (ch.code in 0x2E80..0x9FFF) 2 else 1
     }.coerceAtMost(40)
 
     val estimated = paddingEm + visualLen * 0.75f
@@ -311,7 +307,7 @@ private fun estimateInlineWidthEm(
 private fun MentionInlineItem(
     mention: RichTextToken.Mention,
     enableFocus: Boolean,
-    focusRequester: FocusRequester?,
+    focusKey: String,
     fontSize: TextUnit,
     accentColor: Color,
     onMentionClick: ((Long, String) -> Unit)?,
@@ -365,11 +361,14 @@ private fun MentionInlineItem(
                     else -> false
                 }
             }
-            .focusRequester(focusRequester ?: Default)
-            .onFocusChanged { fs ->
-                focused = fs.hasFocus
-                if (fs.isFocused && index >= 0) onFocused?.invoke(index)
-            }
+            .wjzFocus(
+                id = focusKey,
+                layer = WjzFocusLayer.Dialog,
+                onFocusChanged = { hasFocus ->
+                    focused = hasFocus
+                    if (hasFocus && index >= 0) onFocused?.invoke(index)
+                }
+            )
             .border(
                 width = if (focused) 3.dp else 0.dp,
                 color = if (focused) accentColor else Color.Transparent,
@@ -405,7 +404,7 @@ private fun MentionInlineItem(
 private fun VideoLinkInlineItem(
     token: VideoLinkToken,
     enableFocus: Boolean,
-    focusRequester: FocusRequester?,
+    focusKey: String = token.cleanedUrl,
     fontSize: TextUnit,
     accentColor: Color,
     baseTextColor: Color,
@@ -502,11 +501,14 @@ private fun VideoLinkInlineItem(
                     else -> false
                 }
             }
-            .focusRequester(focusRequester ?: Default)
-            .onFocusChanged { fs ->
-                focused = fs.hasFocus
-                if (fs.isFocused && index >= 0) onFocused?.invoke(index)
-            }
+            .wjzFocus(
+                id = focusKey,
+                layer = WjzFocusLayer.Dialog,
+                onFocusChanged = { hasFocus ->
+                    focused = hasFocus
+                    if (hasFocus && index >= 0) onFocused?.invoke(index)
+                }
+            )
             .border(
                 width = if (focused) 3.dp else 0.dp,
                 color = if (focused && showLinkStyle) accentColor else Color.Transparent,
@@ -562,7 +564,7 @@ private fun VideoLinkInlineItem(
 private fun ReferenceInlineItem(
     reference: RichTextReference,
     enableFocus: Boolean,
-    focusRequester: FocusRequester?,
+    focusKey: String = reference.displayText,
     fontSize: TextUnit,
     accentColor: Color,
     onReferenceClick: ((RichTextReference) -> Unit)?,
@@ -647,11 +649,14 @@ private fun ReferenceInlineItem(
                     else -> false
                 }
             }
-            .focusRequester(focusRequester ?: Default)
-            .onFocusChanged { fs ->
-                focused = fs.hasFocus
-                if (fs.isFocused && index >= 0) onFocused?.invoke(index)
-            }
+            .wjzFocus(
+                id = focusKey,
+                layer = WjzFocusLayer.Dialog,
+                onFocusChanged = { hasFocus ->
+                    focused = hasFocus
+                    if (hasFocus && index >= 0) onFocused?.invoke(index)
+                }
+            )
             .border(
                 width = if (focused) 3.dp else 0.dp,
                 color = if (focused) accentColor else Color.Transparent,

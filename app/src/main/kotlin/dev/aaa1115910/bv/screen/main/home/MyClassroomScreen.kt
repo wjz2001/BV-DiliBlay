@@ -14,7 +14,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.biliapi.entity.cheese.PurchasedCourse
@@ -35,8 +34,6 @@ fun MyClassroomScreen(
     gridState: LazyGridState = rememberLazyGridState(),
     activationSerial: Long = 0L,
     refreshSerial: Long = 0L,
-    contentEntryFocusRequester: FocusRequester? = null,
-    tabFocusRequester: FocusRequester? = null,
     onContentEntryReady: () -> Unit = {},
     myClassroomViewModel: MyClassroomViewModel = koinViewModel()
 ) {
@@ -73,8 +70,6 @@ fun MyClassroomScreen(
         focusItemCount = courses.size,
         focusItemKeys = courses.map { WjzFocusItemKey("Long:${it.seasonId}") },
         focusColumnCount = 4,
-        entryFocusRequester = contentEntryFocusRequester,
-        upFocusRequester = tabFocusRequester,
         onEntryFocusReady = onContentEntryReady
     ) { cardUiStateFor ->
         if (courses.isNotEmpty()) {

@@ -90,7 +90,6 @@ import dev.aaa1115910.bv.activities.settings.SpeedTestActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryResolution
-import dev.aaa1115910.bv.wjzfocus.WjzFocusExitRequest
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHostExit
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
@@ -109,7 +108,10 @@ import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.component.settings.SettingSwitchListItem
 import dev.aaa1115910.bv.component.settings.SettingsNavigationListItem
 import dev.aaa1115910.bv.component.settings.actionEntry
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.nodeKey
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRequestRouter
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRouter
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoCodec
@@ -204,15 +206,16 @@ internal data class SettingsEntry(
     val itemContent: @Composable (
         modifier: Modifier,
         colors: ListItemColors,
-        contentColor: Color?
-    ) -> Unit = { modifier, colors, contentColor ->
+        contentColor: Color?,
+        focused: Boolean
+    ) -> Unit = { modifier, colors, contentColor, focused ->
         SettingsNavigationListItem(
             modifier = modifier,
             title = title,
             description = if (showSupportTextInItem) supportText else "",
             colors = colors,
             contentColor = contentColor,
-            onFocus = {}
+            focused = focused
         )
     },
     val detailContent: @Composable (focused: Boolean) -> Unit
@@ -603,11 +606,11 @@ private fun SettingsCategoryBlock(
             WjzFocusHostExit(FocusDirection.Up, SettingsCategoryEntryId),
             WjzFocusHostExit(FocusDirection.Down, SettingsCategoryEntryId)
         ),
-        onHostExit = { request ->
+        onHostExit = wjzFocusRequestRouter(layer = WjzFocusLayer.Content) { request ->
             when (request.direction) {
                 FocusDirection.Right -> {
                     onRight()
-                    settingsPending(request)
+                    settingsPending(request.targetEntryId)
                 }
 
                 FocusDirection.Up -> {
@@ -666,17 +669,17 @@ private fun SettingsItemBlock(
             WjzFocusHostExit(FocusDirection.Up, SettingsItemEntryId),
             WjzFocusHostExit(FocusDirection.Down, SettingsItemEntryId)
         ),
-        onHostExit = { request ->
+        onHostExit = wjzFocusRequestRouter(layer = WjzFocusLayer.Content) { request ->
             when (request.direction) {
                 FocusDirection.Left -> {
                     onLeft()
-                    settingsPending(request)
+                    settingsPending(request.targetEntryId)
                 }
 
                 FocusDirection.Right -> {
                     if (selectedItem?.canRequestDetailFocus() == true) {
                         onRight()
-                        settingsPending(request)
+                        settingsPending(request.targetEntryId)
                     } else {
                         WjzFocusEntryResolution.Cancel
                     }
@@ -731,11 +734,11 @@ private fun SettingsDetailBlock(
             WjzFocusHostExit.cancel(FocusDirection.Down),
             WjzFocusHostExit.cancel(FocusDirection.Right)
         ),
-        onHostExit = { request ->
-            when (request.direction) {
-                FocusDirection.Left -> {
+        onHostExit = wjzFocusRouter(layer = WjzFocusLayer.Content) { target ->
+            when (target) {
+                SettingsItemEntryId.value -> {
                     onLeft()
-                    settingsPending(request)
+                    settingsPending(SettingsItemEntryId)
                 }
 
                 else -> WjzFocusEntryResolution.Reject
@@ -767,11 +770,13 @@ private fun SettingsCategoryColumn(
                 val selected = category == selectedCategory
                 val activePath = selected && !focused
                 val itemModifier = Modifier
-                    .wjzFocusable(
-                        nodeId = settingsCategoryNodeId(category),
+                    .wjzFocus(
+                        id = settingsCategoryFocusId(category),
                         layer = WjzFocusLayer.Content,
-                        scopeId = focusScopeId,
-                        fallback = selected
+                        fallback = selected,
+                        onFocusChanged = { hasFocus ->
+                            if (hasFocus) onCategoryFocused(category)
+                        }
                     )
                     .settingsActivePathAnchor(
                         active = activePath,
@@ -783,7 +788,7 @@ private fun SettingsCategoryColumn(
                     title = category.getDisplayName(context),
                     colors = settingsTransparentListItemColors(),
                     contentColor = if (activePath) C.onSurfaceVariant else null,
-                    onFocus = { onCategoryFocused(category) }
+                    focused = focused && selected
                 )
             }
     }
@@ -833,10 +838,9 @@ private fun SettingsItemColumn(
                 Box(
                     modifier = Modifier
                         .size(1.dp)
-                        .wjzFocusable(
-                            nodeId = focusNodeId,
+                        .wjzFocus(
+                            id = settingsLocalFocusId(focusScopeId, focusNodeId),
                             layer = WjzFocusLayer.Content,
-                            scopeId = focusScopeId,
                             fallback = true
                         )
                 )
@@ -848,10 +852,9 @@ private fun SettingsItemColumn(
             item(key = item.id) {
                 val itemModifier = Modifier
                     .fillMaxWidth()
-                    .wjzFocusable(
-                        nodeId = settingsItemNodeId(item.id),
+                    .wjzFocus(
+                        id = settingsItemFocusId(item.id),
                         layer = WjzFocusLayer.Content,
-                        scopeId = focusScopeId,
                         fallback = selected,
                         onFocusChanged = { hasFocus ->
                             if (hasFocus) onItemFocused(item)
@@ -865,23 +868,30 @@ private fun SettingsItemColumn(
                 item.itemContent(
                     itemModifier,
                     itemColors,
-                    if (activePath) activePathContentColor else null
+                    if (activePath) activePathContentColor else null,
+                    focused && selected
                 )
             }
         }
     }
 }
 
-private fun settingsCategoryNodeId(category: SettingsMenuNavItem) =
-    WjzFocusNodeId("settings/category/${category.name}")
+private fun settingsCategoryFocusId(category: SettingsMenuNavItem) = category.name
 
-private fun settingsItemNodeId(itemId: String) = WjzFocusNodeId("settings/item/$itemId")
+private fun settingsItemFocusId(itemId: String) = itemId
+
+private fun settingsItemNodeId(itemId: String) =
+    WjzFocusNodeId(SettingsItemScopeId.nodeKey(settingsItemFocusId(itemId)))
+
+private fun settingsLocalFocusId(scopeId: WjzFocusScopeId, nodeId: WjzFocusNodeId): String {
+    return nodeId.value.removePrefix("${scopeId.value}/")
+}
 
 private fun settingsPending(
-    request: WjzFocusExitRequest
+    entryId: WjzFocusEntryId
 ): WjzFocusEntryResolution {
     return WjzFocusEntryResolution.Pending(
-        entryId = request.targetEntryId,
+        entryId = entryId,
         layer = WjzFocusLayer.Content,
         scopeId = null
     )
@@ -923,10 +933,9 @@ private fun SettingsDetailColumn(
             .then(
                 if (canFocusDetail) {
                     Modifier
-                        .wjzFocusable(
-                            nodeId = focusNodeId,
+                        .wjzFocus(
+                            id = settingsLocalFocusId(focusScopeId, focusNodeId),
                             layer = WjzFocusLayer.Content,
-                            scopeId = focusScopeId,
                             onFocusChanged = { hasFocus ->
                                 if (hasFocus) onFocused()
                             }
@@ -1736,14 +1745,17 @@ private fun SettingsDetailActionListItem(
     fallback: Boolean = false,
     onClick: () -> Unit
 ) {
+    var focused by remember { mutableStateOf(false) }
+
     SettingListItem(
         modifier = Modifier
-            .wjzFocusable(
-                nodeId = nodeId,
+            .wjzFocus(
+                id = settingsLocalFocusId(SettingsDetailScopeId, nodeId),
                 layer = WjzFocusLayer.Content,
-                scopeId = SettingsDetailScopeId,
-                fallback = fallback
+                fallback = fallback,
+                onFocusChanged = { focused = it }
             ),
+        focused = focused,
         title = title,
         supportText = supportText,
         onClick = onClick
@@ -1848,10 +1860,9 @@ private fun logEntry(
         } else {
             Modifier
                 .fillMaxWidth()
-                .wjzFocusable(
-                    nodeId = actionNodeId,
+                .wjzFocus(
+                    id = settingsLocalFocusId(SettingsDetailScopeId, actionNodeId),
                     layer = WjzFocusLayer.Content,
-                    scopeId = SettingsDetailScopeId,
                     fallback = true
                 )
         }
@@ -1953,12 +1964,13 @@ private fun switchEntry(
     supportText = supportText,
     canFocusDetail = false,
     showSupportTextInItem = false,
-    itemContent = { modifier, colors, contentColor ->
+    itemContent = { modifier, colors, contentColor, focused ->
         SettingSwitchListItem(
             modifier = modifier,
             title = title,
             supportText = "",
             checked = checked,
+            focused = focused,
             colors = colors,
             contentColor = contentColor,
             onCheckedChange = onCheckedChange
@@ -1983,12 +1995,13 @@ private fun <T> cycleEntry(
     supportText = supportText,
     canFocusDetail = false,
     showSupportTextInItem = false,
-    itemContent = { modifier, colors, contentColor ->
+    itemContent = { modifier, colors, contentColor, focused ->
         SettingCycleListItem(
             modifier = modifier,
             title = title,
             options = items,
             checked = selected,
+            focused = focused,
             colors = colors,
             contentColor = contentColor,
             supportText = { "" },
@@ -2083,10 +2096,9 @@ private fun ProxyServerEditDialog(
             text = {
                 OutlinedTextField(
                     modifier = Modifier
-                        .wjzFocusable(
-                            nodeId = SettingsProxyDialogInputNodeId,
+                        .wjzFocus(
+                            id = settingsLocalFocusId(SettingsProxyDialogScopeId, SettingsProxyDialogInputNodeId),
                             layer = WjzFocusLayer.Dialog,
-                            scopeId = SettingsProxyDialogScopeId,
                             fallback = true
                         ),
                     value = proxyServerString,
@@ -2103,10 +2115,9 @@ private fun ProxyServerEditDialog(
             confirmButton = {
                 Button(
                     modifier = Modifier
-                        .wjzFocusable(
-                            nodeId = SettingsProxyDialogConfirmNodeId,
-                            layer = WjzFocusLayer.Dialog,
-                            scopeId = SettingsProxyDialogScopeId
+                        .wjzFocus(
+                            id = settingsLocalFocusId(SettingsProxyDialogScopeId, SettingsProxyDialogConfirmNodeId),
+                            layer = WjzFocusLayer.Dialog
                         ),
                     onClick = {
                         onProxyServerChange(
@@ -2124,10 +2135,9 @@ private fun ProxyServerEditDialog(
             dismissButton = {
                 OutlinedButton(
                     modifier = Modifier
-                        .wjzFocusable(
-                            nodeId = SettingsProxyDialogCancelNodeId,
-                            layer = WjzFocusLayer.Dialog,
-                            scopeId = SettingsProxyDialogScopeId
+                        .wjzFocus(
+                            id = settingsLocalFocusId(SettingsProxyDialogScopeId, SettingsProxyDialogCancelNodeId),
+                            layer = WjzFocusLayer.Dialog
                         ),
                     onClick = onHideDialog
                 ) {

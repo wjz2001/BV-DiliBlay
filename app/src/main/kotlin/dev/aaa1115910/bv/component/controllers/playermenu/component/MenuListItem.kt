@@ -23,7 +23,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
@@ -40,14 +39,20 @@ import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppGray
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 
 @Composable
 fun MenuListItem(
     modifier: Modifier = Modifier,
+    focusId: String,
     text: String,
     icon: ImageVector? = null,
     expanded: Boolean = true,
     selected: Boolean,
+    focusEnabled: Boolean = true,
+    fallback: Boolean = false,
+    globalFallback: Boolean = false,
     textAlign: TextAlign = TextAlign.Center,
     onFocus: () -> Unit = {},
     onClick: () -> Unit
@@ -65,10 +70,15 @@ fun MenuListItem(
     DenseListItem(
         modifier = modifier
             .width(itemWidth)
-            .onFocusChanged {
-                hasFocus = it.hasFocus
-                if (it.hasFocus) onFocus()
-            }
+            .wjzFocus(
+                id = focusId,
+                layer = WjzFocusLayer.Overlay,
+                enabled = focusEnabled,
+                fallback = fallback,
+                globalFallback = globalFallback,
+                onFocused = onFocus,
+                onFocusChanged = { focused -> hasFocus = focused }
+            )
             .sidebarFocusUnderlineIndicator(
                 animatedSelected = hasFocus && !selected,
                 color = AppWhite
@@ -146,10 +156,12 @@ fun MenuListItemPreview() {
     var expanded by remember { mutableStateOf(true) }
     BVTheme {
         MenuListItem(
+            focusId = "preview/menu-list-item",
             text = "MenuListItemAAAAAAAAAAAAA",
             icon = Icons.Default.Home,
             expanded = expanded,
             selected = true,
+            focusEnabled = true,
             textAlign = TextAlign.Center,
             onFocus = {},
             onClick = { expanded = !expanded }

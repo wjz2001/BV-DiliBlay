@@ -39,8 +39,6 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -64,6 +62,7 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
+import dev.aaa1115910.bv.wjzfocus.wjzObserveFocusChanged
 import dev.aaa1115910.bv.component.BvTabLabel
 import dev.aaa1115910.bv.component.BvUnderlineTabRow
 import dev.aaa1115910.bv.component.MainTopBarContainer
@@ -102,8 +101,6 @@ fun ToViewScreen(
     activationSerial: Long = 0L,
     refreshSerial: Long = 0L,
     toViewViewModel: ToViewViewModel = koinViewModel(),
-    contentEntryFocusRequester: FocusRequester? = null,
-    tabFocusRequester: FocusRequester? = null,
     onContentEntryReady: () -> Unit = {},
     onBack: () -> Unit = {}
 ) {
@@ -111,8 +108,6 @@ fun ToViewScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val histories by toViewViewModel.histories.collectAsStateWithLifecycle()
-    val toViewTabFocusRequester = tabFocusRequester
-    val toViewContentEntryFocusRequester = contentEntryFocusRequester
     var readyFocusTargetTabIndex by remember { mutableStateOf<Int?>(null) }
     var contentReadyTabIndex by remember { mutableStateOf<Int?>(null) }
 
@@ -297,7 +292,6 @@ fun ToViewScreen(
                 selectedItem = selectedTabIndex,
                 entryFocusItem = selectedTabIndex,
                 itemKey = { it },
-                defaultFocusRequester = toViewTabFocusRequester,
                 onDefaultFocusReady = { readyKey ->
                     readyFocusTargetTabIndex = readyKey as? Int
                 },
@@ -324,7 +318,7 @@ fun ToViewScreen(
                     }
                     true
                 },
-                contentFocusRequester = toViewContentEntryFocusRequester,
+                contentFocusEnabled = true,
                 contentFocusReadyKey = contentReadyTabIndex,
                 onContentFocusRequested = { index ->
                     if (selectedTabIndex != index) {
@@ -375,8 +369,6 @@ fun ToViewScreen(
             focusItemCount = visibleItems.size,
             focusItemKeys = visibleItems.map { WjzFocusItemKey("Long:${it.avid}") },
             focusColumnCount = 4,
-            entryFocusRequester = toViewContentEntryFocusRequester,
-            upFocusRequester = toViewTabFocusRequester,
             onEntryFocusReady = {
                 contentReadyTabIndex = selectedTabIndex
                 onContentEntryReady()
@@ -468,7 +460,7 @@ fun ToViewScreen(
                     TextField(
                         modifier = Modifier
                             .width(600.dp)
-                            .onFocusChanged { searchFieldHasFocus = it.hasFocus }
+                            .wjzObserveFocusChanged { searchFieldHasFocus = it }
                             .drawWithContent {
                                 drawContent()
                                 val stroke = 3.dp.toPx()

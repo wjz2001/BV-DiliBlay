@@ -30,8 +30,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -62,6 +60,7 @@ import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.C
 
+import dev.aaa1115910.bv.wjzfocus.wjzObserveFocusChanged
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.resizedImageUrl
 import dev.aaa1115910.bv.util.rememberTvImageRequest
@@ -77,8 +76,6 @@ fun PgcScaffold(
     pgcViewModel: PgcViewModel,
     pgcType: PgcType,
     active: Boolean = true,
-    contentEntryFocusRequester: FocusRequester? = null,
-    tabFocusRequester: FocusRequester? = null,
     onContentEntryReady: () -> Unit = {},
     featureButtons: (@Composable () -> Unit)? = null
 ) {
@@ -143,8 +140,8 @@ fun PgcScaffold(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 12.dp)
-                    .onFocusChanged {
-                        if (it.hasFocus) {
+                    .wjzObserveFocusChanged {
+                        if (it) {
                             if (index + 10 > pgcFeeds.size) {
                                 if (active) pgcViewModel.loadMore()
                             }

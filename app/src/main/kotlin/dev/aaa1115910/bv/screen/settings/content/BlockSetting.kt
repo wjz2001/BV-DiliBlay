@@ -31,7 +31,7 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.relation.RelationGroupSnapshot
 import dev.aaa1115910.bv.relation.RelationGroupsDataSource
@@ -262,19 +262,32 @@ private fun BlockSettingActionListItem(
     fallback: Boolean = false,
     onClick: () -> Unit
 ) {
+    var focused by remember { mutableStateOf(false) }
+
     SettingListItem(
         modifier = modifier
-            .wjzFocusable(
-                nodeId = nodeId,
+            .wjzFocus(
+                id = nodeId.toDetailLocalFocusId(),
                 layer = WjzFocusLayer.Content,
-                scopeId = BlockSettingDetailScopeId,
-                fallback = fallback
+                fallback = fallback,
+                enabled = enabled,
+                onFocusChanged = { focused = it }
             ),
         enabled = enabled,
+        focused = focused,
         title = title,
         supportText = supportText,
         onClick = onClick
     )
+}
+
+private fun WjzFocusNodeId.toDetailLocalFocusId(): String {
+    val scopePrefix = "${BlockSettingDetailScopeId.value}/"
+    return if (value.startsWith(scopePrefix)) {
+        value.removePrefix(scopePrefix)
+    } else {
+        value
+    }
 }
 
 @Composable

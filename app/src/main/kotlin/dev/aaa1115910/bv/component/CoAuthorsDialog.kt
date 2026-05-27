@@ -25,10 +25,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.layout.ContentScale
@@ -40,9 +36,9 @@ import androidx.tv.material3.Surface
 import coil.compose.AsyncImage
 import dev.aaa1115910.biliapi.entity.user.CoAuthor
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocusNode
+import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusGroup
 
 @Stable
 class CoAuthorsDialogState internal constructor() {
@@ -70,8 +66,6 @@ private data class CoAuthorGroup(
     val title: String,
     val members: List<CoAuthor>
 )
-
-private val CoAuthorsFirstMemberNodeId = WjzFocusNodeId("dialog/coauthors/first-member")
 
 private fun buildGroups(authors: List<CoAuthor>): List<CoAuthorGroup> {
     // 稳定去重
@@ -106,7 +100,6 @@ fun CoAuthorsDialogHost(
 
     // 找到弹窗里第一个可聚焦成员（UP主组已在 buildGroups 里置顶）
     val firstMemberMid = remember(groups) { groups.firstOrNull()?.members?.firstOrNull()?.mid }
-    val firstMemberFocusRequester = remember { FocusRequester() }
 
     TvAlertDialog(
         onDismissRequest = { state.dismiss() },
@@ -117,21 +110,17 @@ fun CoAuthorsDialogHost(
         ),
         title = { Text(text = title) },
         text = {
-            val focusCoordinator = LocalWjzFocusCoordinator.current
-
-            LaunchedEffect(firstMemberMid, focusCoordinator) {
-                if (firstMemberMid == null) return@LaunchedEffect
-                focusCoordinator?.requestFocus(
-                    nodeId = CoAuthorsFirstMemberNodeId,
-                    layer = WjzFocusLayer.Dialog
-                )
-            }
-
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp)
-                    .focusGroup(),
+                    .wjzFocus(
+                        id = "dialog/coauthors/root",
+                        layer = WjzFocusLayer.Dialog,
+                        strategy = WjzFocusRestoreStrategy.Container,
+                        fallback = true
+                    )
+                    .wjzFocusGroup(),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 items(groups, key = { it.title }) { group ->
@@ -147,22 +136,18 @@ fun CoAuthorsDialogHost(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             items(items = group.members, key = { it.mid }) { member ->
-                                val itemModifier =
-                                    if (member.mid == firstMemberMid) {
-                                        Modifier
-                                            .wjzFocusNode(
-                                                nodeId = CoAuthorsFirstMemberNodeId,
-                                                requester = firstMemberFocusRequester,
-                                                layer = WjzFocusLayer.Dialog,
-                                                fallback = true
-                                            )
-                                    } else {
-                                        Modifier
-                                    }
+                                var focused by remember { mutableStateOf(false) }
+                                val itemModifier = Modifier.wjzFocus(
+                                    id = "dialog/coauthors/member/${member.mid}",
+                                    layer = WjzFocusLayer.Dialog,
+                                    fallback = member.mid == firstMemberMid,
+                                    onFocusChanged = { focused = it }
+                                )
 
                                 CoAuthorItem(
                                     author = member,
                                     modifier = itemModifier,
+                                    focused = focused,
                                     onClick = {
                                         onClickAuthor(member.mid, member.name)
                                         state.dismiss()
@@ -183,29 +168,27 @@ fun CoAuthorsDialogHost(
 private fun CoAuthorItem(
     author: CoAuthor,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    focused: Boolean
 ) {
     // 外层固定最大尺寸：保证“名字不动”
     val outerSize = 86.dp
     val idleInnerSize = 72.dp
 
-    var focused by remember { mutableStateOf(false) }
     val innerSize by animateDpAsState(
         targetValue = if (focused) outerSize else idleInnerSize,
         label = "coAuthorAvatarSize"
     )
 
     Column(
-        modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
         // 名字贴着描边（避免看起来被描边挡住）
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         Surface(
             onClick = onClick,
-            modifier = Modifier
-                .size(outerSize)
-                .onFocusChanged { focused = it.isFocused },
+            modifier = modifier
+                .size(outerSize),
             shape = ClickableSurfaceDefaults.shape(shape = CircleShape),
             // 透明背景
             colors = ClickableSurfaceDefaults.colors(

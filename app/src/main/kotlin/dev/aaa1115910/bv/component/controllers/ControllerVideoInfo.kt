@@ -22,8 +22,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
@@ -46,10 +44,18 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.wjzFocusNode
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.down
+import dev.aaa1115910.bv.wjzfocus.left
+import dev.aaa1115910.bv.wjzfocus.nodeKey
+import dev.aaa1115910.bv.wjzfocus.requestWjzFocusKey
+import dev.aaa1115910.bv.wjzfocus.right
+import dev.aaa1115910.bv.wjzfocus.up
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRouter
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.ui.state.SeekerState
 import dev.aaa1115910.bv.ui.theme.AppBlack
@@ -65,7 +71,9 @@ import dev.aaa1115910.bv.entity.VideoRotation
 import kotlinx.coroutines.delay
 import java.util.Calendar
 
-private val PlayerControllerFirstActionNodeId = WjzFocusNodeId("player/controller/actions/first")
+private const val PlayerControllerActionFocusIdPrefix = "player/controller/actions"
+private const val PlayerControllerFirstActionFocusId = "$PlayerControllerActionFocusIdPrefix/danmaku"
+private val PlayerControllerDefaultFocusScopeId = WjzFocusScopeId("__wjz_focus_sugar__")
 
 @Composable
 fun ControllerVideoInfo(
@@ -252,17 +260,18 @@ fun ControllerVideoInfoBottom(
     focusButtonsOnShow: Boolean = false,
     onConsumeFocusButtonsOnShow: () -> Unit = {}
 ) {
-    val buttonsFocusRequester = remember { FocusRequester() }
-    val firstIconFocusRequester = remember { FocusRequester() }
     val focusCoordinator = LocalWjzFocusCoordinator.current
+    val focusScopeId = LocalWjzFocusScopeId.current
 
-    LaunchedEffect(show, focusButtonsOnShow, focusCoordinator) {
+    LaunchedEffect(show, focusButtonsOnShow, focusCoordinator, focusScopeId) {
         if (show) {
             delay(50)
             if (focusButtonsOnShow) {
-                val requested = focusCoordinator?.requestFocus(
-                    nodeId = PlayerControllerFirstActionNodeId,
-                    layer = WjzFocusLayer.Player
+                val requested = focusCoordinator?.requestWjzFocusKey(
+                    key = (focusScopeId ?: PlayerControllerDefaultFocusScopeId)
+                        .nodeKey(PlayerControllerFirstActionFocusId),
+                    layer = WjzFocusLayer.Player,
+                    scopeId = focusScopeId
                 ) == true
                 if (!requested) {
                     Log.d("ControllerVideoInfo", "requestFocus failed")
@@ -353,22 +362,26 @@ fun ControllerVideoInfoBottom(
 
             val icons = listOfNotNull(
                 ControllerActionIcon.Resource(
+                    id = "danmaku",
                     iconRes = if (danmakuEnabled) R.drawable.danmaku_on_24px else R.drawable.danmaku_off_24px,
                     description = "弹幕开关",
                     onClick = onDanmakuSwitchChange
                 ),
                 ControllerActionIcon.Resource(
+                    id = "comments",
                     iconRes = R.drawable.comment_24px,
                     description = "评论",
                     onClick = onShowComments
                 ),
                 ControllerActionIcon.Resource(
+                    id = "time-jump",
                     iconRes = R.drawable.manage_history_24px,
                     description = "时间跳转",
                     onClick = onShowTimeJump
                 ),
                 if (showVideoInfoEntry) {
                     ControllerActionIcon.Vector(
+                        id = "video-info",
                         imageVector = Icons.Rounded.Info,
                         description = "详情页",
                         onClick = onGoToVideoInfo
@@ -378,6 +391,7 @@ fun ControllerVideoInfoBottom(
                 },
                 if (source.isUgc) {
                     ControllerActionIcon.Resource(
+                        id = "up-page",
                         iconRes = if (hasMultipleCoAuthors) R.drawable.group_24px else R.drawable.contact_page_24px,
                         description = "up主页",
                         onClick = onGoToUpPage
@@ -387,6 +401,7 @@ fun ControllerVideoInfoBottom(
                 },
                 if (source.isUgc) {
                     ControllerActionIcon.Resource(
+                        id = "related-videos",
                         iconRes = R.drawable.related_videos_24px,
                         description = "相关视频",
                         onClick = onShowRelatedVideos
@@ -395,6 +410,7 @@ fun ControllerVideoInfoBottom(
                     null
                 },
                 ControllerActionIcon.Resource(
+                    id = "loop",
                     iconRes = if (isLooping) R.drawable.repeat_one_on_24px else R.drawable.repeat_one_24px,
                     description = "循环播放",
                     onClick = onToggleLoop
@@ -404,24 +420,33 @@ fun ControllerVideoInfoBottom(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .focusRequester(buttonsFocusRequester)
                     .padding(horizontal = 24.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start)
             ) {
                 icons.forEachIndexed { index, icon ->
+                    val previousFocusId = icons.getOrNull(index - 1)?.focusId ?: icons.last().focusId
+                    val nextFocusId = icons.getOrNull(index + 1)?.focusId ?: icons.first().focusId
                     Surface(
-                        modifier = if (index == 0) {
-                            Modifier
-                                .wjzFocusNode(
-                                    nodeId = PlayerControllerFirstActionNodeId,
-                                    requester = firstIconFocusRequester,
-                                    layer = WjzFocusLayer.Player,
-                                    fallback = true,
-                                    enabled = show
-                                )
-                        } else {
-                            Modifier
-                        },
+                        modifier = Modifier
+                            .wjzFocus(
+                                id = icon.focusId,
+                                layer = WjzFocusLayer.Player,
+                                fallback = index == 0,
+                                enabled = show,
+                                exits = {
+                                    left move previousFocusId
+                                    right move nextFocusId
+                                    cancel(up)
+                                    cancel(down)
+                                },
+                                onExit = wjzFocusRouter(layer = WjzFocusLayer.Player) { target ->
+                                    when (target) {
+                                        previousFocusId -> ready(previousFocusId)
+                                        nextFocusId -> ready(nextFocusId)
+                                        else -> reject()
+                                    }
+                                }
+                            ),
                         onClick = icon.onClick,
                         shape = ClickableSurfaceDefaults.shape(
                             shape = MaterialTheme.shapes.extraSmall.copy(all = CornerSize(0.dp)),
@@ -461,16 +486,21 @@ fun ControllerVideoInfoBottom(
 }
 
 private sealed interface ControllerActionIcon {
+    val id: String
     val description: String
     val onClick: () -> Unit
+    val focusId: String
+        get() = "$PlayerControllerActionFocusIdPrefix/$id"
 
     data class Resource(
+        override val id: String,
         val iconRes: Int,
         override val description: String,
         override val onClick: () -> Unit
     ) : ControllerActionIcon
 
     data class Vector(
+        override val id: String,
         val imageVector: androidx.compose.ui.graphics.vector.ImageVector,
         override val description: String,
         override val onClick: () -> Unit

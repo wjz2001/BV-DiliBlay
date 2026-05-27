@@ -17,11 +17,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -62,8 +61,6 @@ fun DynamicsScreen(
     activationSerial: Long = 0L,
     refreshSerial: Long = 0L,
     longPressSerial: Long = 0L,
-    contentEntryFocusRequester: FocusRequester? = null,
-    tabFocusRequester: FocusRequester? = null,
     onContentEntryReady: () -> Unit = {}
 ) {
     val dynamicViewModel: DynamicViewModel = koinViewModel()
@@ -126,7 +123,7 @@ fun DynamicsScreen(
         dynamicViewModel.requestScrollToTop()
     }
 
-    var lastHandledScrollToken by remember { mutableStateOf(dynamicViewModel.scrollToTopToken) }
+    var lastHandledScrollToken by remember { mutableLongStateOf(dynamicViewModel.scrollToTopToken) }
 
     LaunchedEffect(dynamicViewModel.scrollToTopToken, gridState, active) {
         if (!active) return@LaunchedEffect
@@ -157,7 +154,7 @@ fun DynamicsScreen(
     }
 
     if (dynamicViewModel.isLogin) {
-        val focusableWrapIndexMap = buildMap<Long, Int> {
+        val focusableWrapIndexMap = buildMap {
             dynamicList.forEach { video ->
                 if (video.aid != DynamicViewModel.REFRESH_PLACEHOLDER_AID) {
                     put(video.aid, size)
@@ -175,8 +172,6 @@ fun DynamicsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             focusItemCount = focusableWrapIndexMap.size,
             focusItemKeys = focusableWrapIndexMap.keys.map { WjzFocusItemKey("Long:$it") },
-            entryFocusRequester = contentEntryFocusRequester,
-            upFocusRequester = tabFocusRequester,
             onEntryFocusReady = onContentEntryReady
         ) { cardUiStateFor ->
             itemsIndexed(

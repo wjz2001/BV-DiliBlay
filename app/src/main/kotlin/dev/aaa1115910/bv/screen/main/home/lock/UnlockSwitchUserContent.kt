@@ -32,8 +32,7 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.db.UserDB
 import dev.aaa1115910.bv.screen.main.home.UserItem
@@ -73,8 +72,8 @@ fun UnlockSwitchUserContent(
         Surface(
             modifier = modifier
                 .clickable {}
-                .wjzFocusable(
-                    nodeId = WjzFocusNodeId("unlock-switch-user/input"),
+                .wjzFocus(
+                    id = "unlock-switch-user/input",
                     layer = WjzFocusLayer.Content,
                     fallback = true
                 )

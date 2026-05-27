@@ -15,7 +15,6 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -107,8 +106,6 @@ fun SmallVideoCardGridHost(
     */
     onNavigateUp: ((Long, String) -> Unit)? = null,
     enableRowHorizontalWrap: Boolean = true,
-    entryFocusRequester: FocusRequester? = null,
-    upFocusRequester: FocusRequester? = null,
     onEntryFocusReady: (() -> Unit)? = null,
     focusItemCount: Int = 0,
     focusItemKeys: List<WjzFocusItemKey>,
@@ -225,8 +222,6 @@ fun SmallVideoCardGridHost(
             horizontalArrangement = horizontalArrangement,
             nodeIdPrefix = nodeIdPrefix,
             enableRowHorizontalWrap = enableRowHorizontalWrap,
-            entryFocusRequester = entryFocusRequester,
-            upFocusRequester = upFocusRequester,
             onEntryFocusReady = onEntryFocusReady,
             focusItemCount = focusItemCount,
             itemKeys = focusItemKeys,

@@ -18,7 +18,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -46,6 +45,7 @@ import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.ThemeMode
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.rememberTvImageRequest
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 
 @Composable
 fun SeasonCard(
@@ -66,7 +66,10 @@ fun SeasonCard(
     )
 
     Surface(
-        modifier = modifier.onFocusChanged { if (it.hasFocus) onFocus() },
+        modifier = modifier.wjzFocus(
+            id = "season-card/${data.seasonId}",
+            onFocused = onFocus
+        ),
         onClick = onClick,
         onLongClick = onLongClick,
         colors = ClickableSurfaceDefaults.colors(

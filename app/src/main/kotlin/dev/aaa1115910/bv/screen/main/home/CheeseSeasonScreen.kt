@@ -57,10 +57,9 @@ import dev.aaa1115910.biliapi.entity.cheese.CheeseSeasonDetail
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.component.TvGridFocusHost
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
 import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.component.videocard.VideoPartButton
@@ -293,8 +292,8 @@ private fun CheeseSeasonIntro(
                 if (upMid != null && detail.upName.isNotBlank()) {
                     CheeseUpButton(
                         modifier = Modifier
-                            .wjzFocusable(
-                                nodeId = WjzFocusNodeId("cheese/${detail.seasonId}/up"),
+                            .wjzFocus(
+                                id = "cheese/${detail.seasonId}/up",
                                 layer = WjzFocusLayer.Content,
                                 fallback = focusEnabled,
                                 enabled = focusEnabled

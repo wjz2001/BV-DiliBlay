@@ -11,7 +11,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -33,8 +32,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalContext
@@ -49,14 +46,21 @@ import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocusNode
+import dev.aaa1115910.bv.wjzfocus.wjzFocusGroup
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 import androidx.tv.material3.Text as TvText
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.toast
 import kotlinx.coroutines.delay
 
-private val OrderedMultiSelectTargetNodeId = WjzFocusNodeId("dialog/ordered-multi-select/target")
+private val OrderedMultiSelectDialogScopeId = WjzFocusScopeId("dialog/ordered-multi-select")
+private val OrderedMultiSelectDialogContainerNodeId =
+    WjzFocusNodeId("dialog/ordered-multi-select/container")
+private const val OrderedMultiSelectTargetFocusId = "target"
+private val OrderedMultiSelectTargetNodeId =
+    WjzFocusNodeId("${OrderedMultiSelectDialogScopeId.value}/$OrderedMultiSelectTargetFocusId")
 
 /**
  * 带顺序的多选列表 Dialog（TV 焦点友好）：
@@ -158,7 +162,9 @@ internal fun <T, ID> OrderedMultiSelectDialog(
         titleContentColor = contentColor,
         textContentColor = contentColor,
         tonalElevation = tonalElevation,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        dialogScopeId = OrderedMultiSelectDialogScopeId,
+        containerNodeId = OrderedMultiSelectDialogContainerNodeId
     )
 }
 
@@ -183,7 +189,6 @@ internal fun <T, ID> OrderedMultiSelectListContent(
 ) {
     val context = LocalContext.current
     val focusCoordinator = LocalWjzFocusCoordinator.current
-    val focusRequester = remember { FocusRequester() }
     val listState = rememberLazyListState()
 
     val targetIndex = remember(items, itemKey, defaultFocusKey, defaultFocusIndex) {
@@ -214,9 +219,10 @@ internal fun <T, ID> OrderedMultiSelectListContent(
         }
 
         repeat(5) {
-            focusCoordinator?.requestFocus(
+            focusCoordinator?.enqueueRequestFocus(
                 nodeId = OrderedMultiSelectTargetNodeId,
-                layer = WjzFocusLayer.Dialog
+                layer = WjzFocusLayer.Dialog,
+                scopeId = OrderedMultiSelectDialogScopeId
             )
             delay(50L)
         }
@@ -226,18 +232,7 @@ internal fun <T, ID> OrderedMultiSelectListContent(
         state = listState,
         modifier = modifier
             .fillMaxWidth()
-            .onFocusChanged { focusState ->
-                val requiredId = defaultFocusId ?: return@onFocusChanged
-                if (focusState.hasFocus) return@onFocusChanged
-                if (requiredId in selectedOrders) return@onFocusChanged
-
-                "初始页面不能隐藏".toast(context)
-                focusCoordinator?.requestFocus(
-                    nodeId = OrderedMultiSelectTargetNodeId,
-                    layer = WjzFocusLayer.Dialog
-                )
-            }
-            .focusGroup(),
+            .wjzFocusGroup(),
         horizontalAlignment = horizontalAlignment,
         verticalArrangement = verticalArrangement,
     ) {
@@ -245,17 +240,21 @@ internal fun <T, ID> OrderedMultiSelectListContent(
             items = items,
             key = itemKey?.let { k -> { _: Int, item: T -> k(item) } }
         ) { index, item ->
+            var hasFocus by remember { mutableStateOf(false) }
             val itemModifier =
                 if (index == targetIndex) {
-                    Modifier
-                        .wjzFocusNode(
-                            nodeId = OrderedMultiSelectTargetNodeId,
-                            requester = focusRequester,
-                            layer = WjzFocusLayer.Dialog,
-                            fallback = true
-                        )
+                    Modifier.wjzFocus(
+                        id = OrderedMultiSelectTargetFocusId,
+                        layer = WjzFocusLayer.Dialog,
+                        fallback = true,
+                        onFocusChanged = { hasFocus = it }
+                    )
                 } else {
-                    Modifier
+                    Modifier.wjzFocus(
+                        id = "item/${itemKey?.invoke(item) ?: itemId(item)}",
+                        layer = WjzFocusLayer.Dialog,
+                        onFocusChanged = { hasFocus = it }
+                    )
                 }
             val id = itemId(item)
             val order = selectedOrders[id]
@@ -264,19 +263,24 @@ internal fun <T, ID> OrderedMultiSelectListContent(
                 modifier = itemModifier,
                 text = text(item),
                 order = order,
+                hasFocus = hasFocus,
                 onClick = {
-                    val nextOrders = selectedOrders.toMutableMap()
-
-                    if (order != null) {
-                        nextOrders.remove(id)
+                    if (id == defaultFocusId && order != null) {
+                        "初始页面不能隐藏".toast(context)
                     } else {
-                        val nextOrder = nextOrders.values.firstMissingOrder()
-                        if (nextOrder != null) {
-                            nextOrders[id] = nextOrder
-                        }
-                    }
+                        val nextOrders = selectedOrders.toMutableMap()
 
-                    onSelectedOrdersChange(nextOrders)
+                        if (order != null) {
+                            nextOrders.remove(id)
+                        } else {
+                            val nextOrder = nextOrders.values.firstMissingOrder()
+                            if (nextOrder != null) {
+                                nextOrders[id] = nextOrder
+                            }
+                        }
+
+                        onSelectedOrdersChange(nextOrders)
+                    }
                 }
             )
         }
@@ -288,12 +292,11 @@ private fun OrderedMultiSelectItem(
     modifier: Modifier = Modifier,
     text: String,
     order: Int?,
+    hasFocus: Boolean,
     onClick: () -> Unit
 ) {
-    var hasFocus by remember { mutableStateOf(false) }
-
     ListItem(
-        modifier = modifier.onFocusChanged { hasFocus = it.hasFocus },
+        modifier = modifier,
         headlineContent = { TvText(text = text) },
         trailingContent = {
             NumberedSelectBox(

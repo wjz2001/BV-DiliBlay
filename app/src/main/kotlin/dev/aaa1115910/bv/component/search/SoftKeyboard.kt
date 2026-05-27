@@ -23,7 +23,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -44,10 +43,11 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTransitionGuard
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocusNode
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.ui.theme.BVTheme
@@ -61,7 +61,10 @@ enum class SoftKeyboardType {
     Symbol
 }
 
-private val SoftKeyboardFirstKeyNodeId = WjzFocusNodeId("search/keyboard/key/first")
+private val SoftKeyboardScopeId = WjzFocusScopeId("search/keyboard")
+private const val SoftKeyboardFirstKeyFocusId = "key/first"
+private val SoftKeyboardFirstKeyNodeId =
+    WjzFocusNodeId("${SoftKeyboardScopeId.value}/$SoftKeyboardFirstKeyFocusId")
 
 private data class JapaneseKey(
     val label: String,
@@ -72,7 +75,6 @@ private data class JapaneseKey(
 @Composable
 fun SoftKeyboard(
     modifier: Modifier = Modifier,
-    firstButtonFocusRequester: FocusRequester,
     keyboardType: SoftKeyboardType = SoftKeyboardType.English,
     showSearchWithProxy: Boolean,
     enableSearchWithProxy: Boolean,
@@ -99,7 +101,7 @@ fun SoftKeyboard(
             layer = WjzFocusLayer.Keyboard,
             recordSource = true
         )
-        coordinator.requestFocus(
+        coordinator.enqueueRequestFocus(
             nodeId = SoftKeyboardFirstKeyNodeId,
             layer = WjzFocusLayer.Keyboard
         )
@@ -124,12 +126,11 @@ fun SoftKeyboard(
         modifier = modifier,
         coordinator = coordinator,
         layer = WjzFocusLayer.Keyboard,
-        fallbackRequester = firstButtonFocusRequester
+        scopeId = SoftKeyboardScopeId
     ) {
         WjzFocusTransitionGuard(locked = keyboardTransitionLocked)
         when (keyboardType) {
             SoftKeyboardType.English -> EnglishKeyboardLayout(
-                firstButtonFocusRequester = firstButtonFocusRequester,
                 showSearchWithProxy = showSearchWithProxy,
                 enableSearchWithProxy = enableSearchWithProxy,
                 onClick = onClick,
@@ -171,7 +172,6 @@ fun SoftKeyboard(
 @Composable
 private fun EnglishKeyboardLayout(
     modifier: Modifier = Modifier,
-    firstButtonFocusRequester: FocusRequester,
     showSearchWithProxy: Boolean,
     enableSearchWithProxy: Boolean,
     onClick: (String) -> Unit,
@@ -235,9 +235,8 @@ private fun EnglishKeyboardLayout(
                 rowKeys.forEachIndexed { index, key ->
                     val keyModifier = if (rowIndex == 0 && index == 0) {
                         Modifier
-                            .wjzFocusNode(
-                                nodeId = SoftKeyboardFirstKeyNodeId,
-                                requester = firstButtonFocusRequester,
+                            .wjzFocus(
+                                id = SoftKeyboardFirstKeyFocusId,
                                 layer = WjzFocusLayer.Keyboard,
                                 fallback = true
                             )
@@ -893,10 +892,8 @@ private fun SoftKeyboardKeyPreview() {
 @Preview
 @Composable
 private fun SoftKeyboardPreview() {
-    val firstButtonFocusRequester = remember { FocusRequester() }
     BVTheme {
         SoftKeyboard(
-            firstButtonFocusRequester = firstButtonFocusRequester,
             showSearchWithProxy = true,
             enableSearchWithProxy = true,
             onClick = {},

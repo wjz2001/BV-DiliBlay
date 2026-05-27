@@ -3,17 +3,19 @@ package dev.aaa1115910.bv.screen.main
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusDirection
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryResolution
-import dev.aaa1115910.bv.wjzfocus.WjzFocusExitRequest
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeExit
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.down
+import dev.aaa1115910.bv.wjzfocus.left
+import dev.aaa1115910.bv.wjzfocus.right
+import dev.aaa1115910.bv.wjzfocus.up
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRouter
 
 internal data class MainDrawerEntryRequest(
     val id: Long,
@@ -76,55 +78,111 @@ internal fun MainDrawerBlock(
         onItemFocused = onItemFocused,
         onOpenSettings = onOpenSettings,
         drawerItemFocusModifier = { item, itemModifier, onFocusChanged ->
-            itemModifier.wjzFocusable(
-                nodeId = item.drawerContentNodeId(),
+            itemModifier.wjzFocus(
+                id = "item/${item.name}",
                 layer = WjzFocusLayer.Drawer,
-                scopeId = focusScopeId,
                 fallback = item == selectedItem,
-                exits = drawerItemExits(item),
-                onExit = { request ->
-                    resolveDrawerExit(
-                        request = request,
-                        focusScopeId = focusScopeId,
-                        currentItem = currentItem,
-                        onContentEntryRequested = onContentEntryRequested
-                    )
+                exits = {
+                    left move "main/content/right-entry"
+                    right move "main/content/left-entry"
+                    if (item == LeftNaviItem.Home) {
+                        up move "main/drawer/user"
+                    }
+                    if (item == LeftNaviItem.PGC) {
+                        down move "main/drawer/settings"
+                    }
+                },
+                onExit = wjzFocusRouter(layer = WjzFocusLayer.Drawer) { target ->
+                    when (target) {
+                        "main/drawer/user" -> drawerReady(LeftNaviUserNodeId, focusScopeId)
+                        "main/drawer/current-item" -> drawerReady(currentItem.drawerContentNodeId(), focusScopeId)
+                        "main/drawer/item/${LeftNaviItem.PGC.name}" -> drawerReady(LeftNaviItem.PGC.drawerContentNodeId(), focusScopeId)
+                        "main/drawer/settings" -> drawerReady(LeftNaviSettingsNodeId, focusScopeId)
+                        "main/content/left-entry" -> drawerContentEntry(
+                            target = MainDrawerContentEntryTarget.LeftEntry,
+                            entryId = "main/content/left-entry",
+                            currentItem = currentItem,
+                            onContentEntryRequested = onContentEntryRequested
+                        )
+                        "main/content/right-entry" -> drawerContentEntry(
+                            target = MainDrawerContentEntryTarget.RightEntry,
+                            entryId = "main/content/right-entry",
+                            currentItem = currentItem,
+                            onContentEntryRequested = onContentEntryRequested
+                        )
+                        else -> reject()
+                    }
                 },
                 onFocusChanged = onFocusChanged
             )
         },
         settingsFocusModifier = { settingsModifier, onFocusChanged ->
-            settingsModifier.wjzFocusable(
-                nodeId = LeftNaviSettingsNodeId,
+            settingsModifier.wjzFocus(
+                id = "settings",
                 layer = WjzFocusLayer.Drawer,
-                scopeId = focusScopeId,
-                exits = settingsExits(),
-                onExit = { request ->
-                    resolveDrawerExit(
-                        request = request,
-                        focusScopeId = focusScopeId,
-                        currentItem = currentItem,
-                        onContentEntryRequested = onContentEntryRequested
-                    )
+                exits = {
+                    up move "main/drawer/item/${LeftNaviItem.PGC.name}"
+                    down move "main/drawer/user"
+                    left move "main/content/right-entry"
+                    right move "main/content/left-entry"
+                },
+                onExit = wjzFocusRouter(layer = WjzFocusLayer.Drawer) { target ->
+                    when (target) {
+                        "main/drawer/user" -> drawerReady(LeftNaviUserNodeId, focusScopeId)
+                        "main/drawer/current-item" -> drawerReady(currentItem.drawerContentNodeId(), focusScopeId)
+                        "main/drawer/item/${LeftNaviItem.PGC.name}" -> drawerReady(LeftNaviItem.PGC.drawerContentNodeId(), focusScopeId)
+                        "main/drawer/settings" -> drawerReady(LeftNaviSettingsNodeId, focusScopeId)
+                        "main/content/left-entry" -> drawerContentEntry(
+                            target = MainDrawerContentEntryTarget.LeftEntry,
+                            entryId = "main/content/left-entry",
+                            currentItem = currentItem,
+                            onContentEntryRequested = onContentEntryRequested
+                        )
+                        "main/content/right-entry" -> drawerContentEntry(
+                            target = MainDrawerContentEntryTarget.RightEntry,
+                            entryId = "main/content/right-entry",
+                            currentItem = currentItem,
+                            onContentEntryRequested = onContentEntryRequested
+                        )
+                        else -> reject()
+                    }
                 },
                 onFocusChanged = onFocusChanged
             )
         },
         userContent = {
             LeftNaviUserButton(
-                Modifier.wjzFocusable(
-                    nodeId = LeftNaviUserNodeId,
+                Modifier.wjzFocus(
+                    id = "user",
                     layer = WjzFocusLayer.Drawer,
-                    scopeId = focusScopeId,
-                    exits = userExits(),
-                    onExit = { request ->
-                        resolveDrawerExit(
-                            request = request,
-                            focusScopeId = focusScopeId,
-                            currentItem = currentItem,
-                            onContentEntryRequested = onContentEntryRequested
-                        )
-                    }
+                    exits = {
+                        up move "main/drawer/settings"
+                        down move "main/drawer/current-item"
+                        cancel(left)
+                        cancel(right)
+                    },
+                    onExit = wjzFocusRouter(layer = WjzFocusLayer.Drawer) { target ->
+                        when (target) {
+                            "main/drawer/user" -> drawerReady(LeftNaviUserNodeId, focusScopeId)
+                            "main/drawer/current-item" -> drawerReady(currentItem.drawerContentNodeId(), focusScopeId)
+                            "main/drawer/item/${LeftNaviItem.PGC.name}" -> drawerReady(LeftNaviItem.PGC.drawerContentNodeId(), focusScopeId)
+                            "main/drawer/settings" -> drawerReady(LeftNaviSettingsNodeId, focusScopeId)
+                            "main/content/left-entry" -> drawerContentEntry(
+                                target = MainDrawerContentEntryTarget.LeftEntry,
+                                entryId = "main/content/left-entry",
+                                currentItem = currentItem,
+                                onContentEntryRequested = onContentEntryRequested
+                            )
+                            "main/content/right-entry" -> drawerContentEntry(
+                                target = MainDrawerContentEntryTarget.RightEntry,
+                                entryId = "main/content/right-entry",
+                                currentItem = currentItem,
+                                onContentEntryRequested = onContentEntryRequested
+                            )
+                            else -> reject()
+                        }
+                    },
+                    onFocusChanged = onUserFocusChanged
                 ),
                 expanded = true,
                 colorAnimationEnabled = userColorAnimationEnabled,
@@ -132,7 +190,7 @@ internal fun MainDrawerBlock(
                 avatar = userAvatar,
                 username = username,
                 isFocused = userIsFocused,
-                onFocusChanged = onUserFocusChanged,
+                onFocusChanged = {},
                 onConfirmLongPress = {
                     onOpenUser()
                     true
@@ -144,86 +202,15 @@ internal fun MainDrawerBlock(
     )
 }
 
-private enum class MainDrawerFocusEntry(
-    val entryId: WjzFocusEntryId
-) {
-    User(WjzFocusEntryId("main/drawer/user")),
-    CurrentItem(WjzFocusEntryId("main/drawer/current-item")),
-    Pgc(WjzFocusEntryId("main/drawer/item/${LeftNaviItem.PGC.name}")),
-    Settings(WjzFocusEntryId("main/drawer/settings")),
-    ContentLeftEntry(WjzFocusEntryId("main/content/left-entry")),
-    ContentRightEntry(WjzFocusEntryId("main/content/right-entry"))
-}
-
-private fun userExits(): List<WjzFocusNodeExit> {
-    return listOf(
-        WjzFocusNodeExit(FocusDirection.Up, MainDrawerFocusEntry.Settings.entryId),
-        WjzFocusNodeExit(FocusDirection.Down, MainDrawerFocusEntry.CurrentItem.entryId),
-        WjzFocusNodeExit.cancel(FocusDirection.Left),
-        WjzFocusNodeExit.cancel(FocusDirection.Right)
-    )
-}
-
-private fun drawerItemExits(item: LeftNaviItem): List<WjzFocusNodeExit> {
-    return buildList {
-        add(WjzFocusNodeExit(FocusDirection.Left, MainDrawerFocusEntry.ContentRightEntry.entryId))
-        add(WjzFocusNodeExit(FocusDirection.Right, MainDrawerFocusEntry.ContentLeftEntry.entryId))
-        if (item == LeftNaviItem.Home) {
-            add(WjzFocusNodeExit(FocusDirection.Up, MainDrawerFocusEntry.User.entryId))
-        }
-        if (item == LeftNaviItem.PGC) {
-            add(WjzFocusNodeExit(FocusDirection.Down, MainDrawerFocusEntry.Settings.entryId))
-        }
-    }
-}
-
-private fun settingsExits(): List<WjzFocusNodeExit> {
-    return listOf(
-        WjzFocusNodeExit(FocusDirection.Up, MainDrawerFocusEntry.Pgc.entryId),
-        WjzFocusNodeExit(FocusDirection.Down, MainDrawerFocusEntry.User.entryId),
-        WjzFocusNodeExit(FocusDirection.Left, MainDrawerFocusEntry.ContentRightEntry.entryId),
-        WjzFocusNodeExit(FocusDirection.Right, MainDrawerFocusEntry.ContentLeftEntry.entryId)
-    )
-}
-
-private fun resolveDrawerExit(
-    request: WjzFocusExitRequest,
-    focusScopeId: WjzFocusScopeId?,
-    currentItem: LeftNaviItem,
-    onContentEntryRequested: (LeftNaviItem, MainDrawerContentEntryTarget) -> Boolean
-): WjzFocusEntryResolution {
-    return when (request.targetEntryId) {
-        MainDrawerFocusEntry.User.entryId -> drawerReady(LeftNaviUserNodeId, focusScopeId)
-        MainDrawerFocusEntry.CurrentItem.entryId -> drawerReady(currentItem.drawerContentNodeId(), focusScopeId)
-        MainDrawerFocusEntry.Pgc.entryId -> drawerReady(LeftNaviItem.PGC.drawerContentNodeId(), focusScopeId)
-        MainDrawerFocusEntry.Settings.entryId -> drawerReady(LeftNaviSettingsNodeId, focusScopeId)
-        MainDrawerFocusEntry.ContentLeftEntry.entryId -> drawerContentEntry(
-            request = request,
-            target = MainDrawerContentEntryTarget.LeftEntry,
-            currentItem = currentItem,
-            onContentEntryRequested = onContentEntryRequested
-        )
-
-        MainDrawerFocusEntry.ContentRightEntry.entryId -> drawerContentEntry(
-            request = request,
-            target = MainDrawerContentEntryTarget.RightEntry,
-            currentItem = currentItem,
-            onContentEntryRequested = onContentEntryRequested
-        )
-
-        else -> WjzFocusEntryResolution.Reject
-    }
-}
-
 private fun drawerContentEntry(
-    request: WjzFocusExitRequest,
     target: MainDrawerContentEntryTarget,
+    entryId: String,
     currentItem: LeftNaviItem,
     onContentEntryRequested: (LeftNaviItem, MainDrawerContentEntryTarget) -> Boolean
 ): WjzFocusEntryResolution {
     return if (onContentEntryRequested(currentItem, target)) {
         WjzFocusEntryResolution.Pending(
-            entryId = request.targetEntryId,
+            entryId = WjzFocusEntryId(entryId),
             layer = WjzFocusLayer.Content,
             scopeId = null
         )

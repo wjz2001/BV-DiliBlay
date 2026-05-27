@@ -39,8 +39,6 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -65,6 +63,7 @@ import dev.aaa1115910.biliapi.entity.SubscribedCollectionMetadata
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
+import dev.aaa1115910.bv.wjzfocus.wjzObserveFocusChanged
 import dev.aaa1115910.bv.component.BvTabLabel
 import dev.aaa1115910.bv.component.BvUnderlineTabRow
 import dev.aaa1115910.bv.component.MainTopBarContainer
@@ -104,8 +103,6 @@ fun SubscribedCollectionScreen(
     refreshSerial: Long = 0L,
     favoriteViewModel: SubscribedCollectionViewModel = koinViewModel(),
     toViewViewModel: ToViewViewModel = koinViewModel(),
-    contentEntryFocusRequester: FocusRequester? = null,
-    tabFocusRequester: FocusRequester? = null,
     onContentEntryReady: () -> Unit = {},
     onBack: () -> Unit
 ) {
@@ -114,8 +111,6 @@ fun SubscribedCollectionScreen(
     val scope = rememberCoroutineScope()
     val folderList by favoriteViewModel.favoriteFolderMetadataList.collectAsStateWithLifecycle()
     val folderStates by favoriteViewModel.folderStates.collectAsStateWithLifecycle()
-    val favoriteTabFocusRequester = tabFocusRequester
-    val favoriteContentEntryFocusRequester = contentEntryFocusRequester
     var focusOnTabs by remember { mutableStateOf(true) }
     var readyFocusTargetFolderId by remember { mutableStateOf<Long?>(null) }
     var contentReadyFolderId by remember { mutableStateOf<Long?>(null) }
@@ -537,9 +532,9 @@ fun SubscribedCollectionScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = MainTopTabDefaults.TabRowHorizontalPadding)
-                        .onFocusChanged { state ->
-                            focusOnTabs = state.hasFocus
-                            if (!state.hasFocus) {
+                        .wjzObserveFocusChanged { hasFocus ->
+                            focusOnTabs = hasFocus
+                            if (!hasFocus) {
                                 favoriteViewModel.syncFolderActivationToCurrent()
                             }
                         },
@@ -547,7 +542,6 @@ fun SubscribedCollectionScreen(
                     selectedItem = folderList.getOrNull(currentTabIndex),
                     entryFocusItem = folderList.getOrNull(focusTargetIndex),
                     itemKey = { it.id },
-                    defaultFocusRequester = favoriteTabFocusRequester,
                     onDefaultFocusReady = { readyKey ->
                         readyFocusTargetFolderId = readyKey as? Long
                     },
@@ -578,7 +572,7 @@ fun SubscribedCollectionScreen(
                         }
                         true
                     },
-                    contentFocusRequester = favoriteContentEntryFocusRequester,
+                    contentFocusEnabled = true,
                     contentFocusReadyKey = contentReadyFolderId,
                     onContentFocusRequested = { folderMetadata ->
                         if (activeFolderId != folderMetadata.id) {
@@ -632,8 +626,6 @@ fun SubscribedCollectionScreen(
             focusItemCount = visibleFavorites.size,
             focusItemKeys = visibleFavorites.map { WjzFocusItemKey("Long:${it.avid}") },
             focusColumnCount = 4,
-            entryFocusRequester = favoriteContentEntryFocusRequester,
-            upFocusRequester = favoriteTabFocusRequester,
             onEntryFocusReady = {
                 contentReadyFolderId = currentFolderId
                 onContentEntryReady()
@@ -699,7 +691,7 @@ fun SubscribedCollectionScreen(
                     TextField(
                         modifier = Modifier
                             .width(600.dp)
-                            .onFocusChanged { searchFieldHasFocus = it.hasFocus }
+                            .wjzObserveFocusChanged { searchFieldHasFocus = it }
                             .drawWithContent {
                                 drawContent()
                                 val stroke = 3.dp.toPx()

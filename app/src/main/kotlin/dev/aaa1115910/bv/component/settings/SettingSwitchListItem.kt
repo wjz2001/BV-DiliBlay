@@ -9,24 +9,20 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.foundation.focusable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemColors
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.component.SettingsBottomIndicator
 import dev.aaa1115910.bv.ui.theme.C
+import dev.aaa1115910.bv.wjzfocus.wjzDisabledFocus
 
 @Composable
 fun SettingSwitchListItem(
@@ -34,41 +30,37 @@ fun SettingSwitchListItem(
     title: String,
     supportText: String,
     checked: Boolean,
-    defaultHasFocus: Boolean = false,
+    focused: Boolean = false,
     colors: ListItemColors = ListItemDefaults.colors(),
     contentColor: Color? = null,
     onCheckedChange: (Boolean) -> Unit
 ) {
-    var hasFocus by remember { mutableStateOf(defaultHasFocus) }
-
     ListItem(
         modifier = SettingsBottomIndicator(
             modifier = modifier,
-            animatedSelected = hasFocus,
+            animatedSelected = focused,
             fixedSelected = false,
             color = C.primary
-        )
-            .onFocusChanged { hasFocus = it.hasFocus },
+        ),
         headlineContent = { Text(text = title, color = contentColor ?: Color.Unspecified) },
         supportingContent = { Text(text = supportText, color = contentColor ?: Color.Unspecified) },
         trailingContent = {
             Switch(
-                    modifier = Modifier
-                        .focusable(false),
-                    checked = checked,
-                    selected = hasFocus,
-                    checkedSelectedThumbColor = C.primary,
-                    checkedSelectedTrackColor = C.secondary,
-                    checkedUnselectedThumbColor = C.secondary,
-                    checkedUnselectedTrackColor = C.tertiary,
-                    uncheckedThumbColor = C.onSurfaceVariant,
-                    uncheckedTrackColor = C.onSurfaceVariant
-                )
+                modifier = Modifier.wjzDisabledFocus(),
+                checked = checked,
+                selected = focused,
+                checkedSelectedThumbColor = C.primary,
+                checkedSelectedTrackColor = C.secondary,
+                checkedUnselectedThumbColor = C.secondary,
+                checkedUnselectedTrackColor = C.tertiary,
+                uncheckedThumbColor = C.onSurfaceVariant,
+                uncheckedTrackColor = C.onSurfaceVariant
+            )
         },
         onClick = {
             onCheckedChange(!checked)
         },
-        selected = hasFocus,
+        selected = focused,
         colors = colors
     )
 }

@@ -1,6 +1,5 @@
 package dev.aaa1115910.bv.component
 
-import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -20,10 +19,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -46,9 +41,12 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusGroup
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRestorerHost
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.isConfirmKey
 import dev.aaa1115910.bv.util.isKeyDown
@@ -165,6 +163,19 @@ fun <T> resolveBvTabEntryFocus(
 
 private val bvTabRowFocusLogger = KotlinLogging.logger("BvTabRowFocus")
 
+private fun WjzFocusNodeId.toBvTabLocalFocusId(scopeId: WjzFocusScopeId?): String {
+    val scopePrefix = scopeId?.value?.let { "$it/" }
+    return if (scopePrefix != null && value.startsWith(scopePrefix)) {
+        value.removePrefix(scopePrefix)
+    } else {
+        value
+    }
+}
+
+private fun String.toBvTabRegisteredNodeId(scopeId: WjzFocusScopeId?): WjzFocusNodeId {
+    return scopeId?.let { WjzFocusNodeId("${it.value}/$this") } ?: WjzFocusNodeId(this)
+}
+
 /**
  * 项目统一的 TV TabRow 封装
  *
@@ -201,10 +212,7 @@ private val bvTabRowFocusLogger = KotlinLogging.logger("BvTabRowFocus")
  * @param retainIndicatorWhenFocusBelow 当焦点从 TabRow 按下方向键进入内容区时，离焦后是否保留 indicator
  * @param separatorWidth 默认 tab 间距宽度。仅当 [separator] 为 null 时生效，默认 12.dp。
  * @param separator 自定义 tab 间 separator，优先级高于 [separatorWidth]
- * @param defaultFocusRequester 默认焦点入口。组件会把它挂到 [entryFocusItem] 解析出的目标 tab 上，
- * 如果不传，组件内部创建一个 [FocusRequester] 供 [focusRestorer] 使用。
- * @param onDefaultFocusReady 默认焦点目标完成布局后回调。适合外部在收到该回调后调用 [defaultFocusRequester] 的
- * `requestFocus()`，避免目标节点尚未挂载时请求焦点失败。每个目标 key 只通知一次。
+ * @param onDefaultFocusReady 默认焦点目标完成布局后回调。每个目标 key 只通知一次。
  * @param onEntryFocusReady legacy ready 回调，只在入口可请求且目标完成布局后触发。
  * @param onEntryFocusResolution 语义入口解析状态回调，会通知 Ready/Pending/Reject；Ready 只在入口可请求且目标完成布局后触发。
  * @param onEntryFocusConsumed 语义入口消费回调，只在目标 tab 实际获得焦点后触发。
@@ -243,7 +251,6 @@ fun <T> BvTabRow(
     retainIndicatorWhenFocusBelow: Boolean = true,
     separatorWidth: Dp = 12.dp,
     separator: (@Composable () -> Unit)? = null,
-    defaultFocusRequester: FocusRequester? = null,
     onDefaultFocusReady: ((Any) -> Unit)? = null,
     onEntryFocusReady: ((BvTabEntryFocusReady<T>) -> Unit)? = null,
     onEntryFocusResolution: ((BvTabEntryFocusResolution<T>) -> Unit)? = null,
@@ -256,7 +263,7 @@ fun <T> BvTabRow(
     onRightExit: (() -> Unit)? = null,
     onUp: ((T) -> Boolean)? = null,
     onDown: ((T) -> Boolean)? = null,
-    contentFocusRequester: FocusRequester? = null,
+    contentFocusEnabled: Boolean = false,
     contentFocusReadyKey: Any? = null,
     onContentFocusRequested: (T) -> Unit = {},
     blockUp: Boolean = false,
@@ -276,8 +283,6 @@ fun <T> BvTabRow(
         return
     }
 
-    val internalFocusRequester = remember { FocusRequester() }
-    val entryFocusRequester = defaultFocusRequester ?: internalFocusRequester
     val targetEntryFocusItem = when (entryFocusTarget) {
         BvTabEntryFocusTarget.DefaultEntry -> entryFocusItem
         BvTabEntryFocusTarget.LeftEntry -> items.firstOrNull()
@@ -286,37 +291,45 @@ fun <T> BvTabRow(
     val itemKeys = remember(items) { items.map(itemKey) }
     val selectedItemKey = selectedItem?.let(itemKey)
     val entryFocusItemKey = targetEntryFocusItem?.let(itemKey)
+    val focusCoordinator = LocalWjzFocusCoordinator.current
+    val focusScopeId = LocalWjzFocusScopeId.current
+    val tabRowFocusId = remember(focusNodeId, focusScopeId) {
+        focusNodeId?.toBvTabLocalFocusId(focusScopeId)
+    }
+    val registeredFocusNodeId = remember(tabRowFocusId, focusScopeId) {
+        tabRowFocusId?.toBvTabRegisteredNodeId(focusScopeId)
+    }
     val entryFocusResolution = resolveBvTabEntryFocus(
         items = items,
         selectedItem = selectedItem,
         entryFocusItem = entryFocusItem,
         entryFocusTarget = entryFocusTarget,
         itemKey = itemKey,
-        focusNodeId = focusNodeId
+        focusNodeId = registeredFocusNodeId
     )
 
     val selectedTabIndex = itemKeys.indexOf(selectedItemKey).takeIf { it >= 0 } ?: 0
     val focusTargetIndex = itemKeys.indexOf(entryFocusItemKey).takeIf { it >= 0 } ?: selectedTabIndex
-    val focusTargetNodeId = remember(focusNodeId, itemKeys, focusTargetIndex) {
-        focusNodeId?.let { WjzFocusNodeId("${it.value}/tab/${itemKeys[focusTargetIndex]}") }
+    val focusTargetNodeId = remember(registeredFocusNodeId, itemKeys, focusTargetIndex) {
+        registeredFocusNodeId?.let { WjzFocusNodeId("${it.value}/tab/${itemKeys[focusTargetIndex]}") }
+    }
+    val focusTargetFocusId = remember(focusTargetNodeId, focusScopeId) {
+        focusTargetNodeId?.toBvTabLocalFocusId(focusScopeId)
     }
 
     var focusedTabIndex by remember(itemKeys) { mutableIntStateOf(focusTargetIndex) }
     var isFocusBelowTabRow by remember(itemKeys) { mutableStateOf(false) }
     var pendingContentFocusKey by remember(itemKeys) { mutableStateOf<Any?>(null) }
     var lastDefaultFocusPositionedState by remember(itemKeys) { mutableStateOf<String?>(null) }
-    val focusCoordinator = LocalWjzFocusCoordinator.current
-    val focusScopeId = LocalWjzFocusScopeId.current
     fun legacyRequestEntryFocus(): Boolean {
         if (!backFocusEnabled) return false
-        val nodeId = focusTargetNodeId ?: focusNodeId ?: return false
+        val nodeId = focusTargetNodeId ?: registeredFocusNodeId ?: return false
         val coordinator = focusCoordinator ?: return false
         coordinator.switchLayer(focusLayer)
-        return coordinator.requestFocus(
+        return coordinator.enqueueRequestFocus(
             nodeId = nodeId,
             layer = focusLayer,
-            scopeId = focusScopeId,
-            enqueueIfMissing = true
+            scopeId = focusScopeId
         )
     }
 
@@ -330,7 +343,6 @@ fun <T> BvTabRow(
     val canAutoRequestEntryFocus = autoRequestEntryFocus && backFocusEnabled
     LaunchedEffect(canAutoRequestEntryFocus, entryFocusItemKey, focusTargetIndex) {
         if (!canAutoRequestEntryFocus) return@LaunchedEffect
-        if (targetEntryFocusItem == null) return@LaunchedEffect
         repeat(3) {
             withFrameNanos { }
             if (legacyRequestEntryFocus()) return@LaunchedEffect
@@ -346,11 +358,11 @@ fun <T> BvTabRow(
     LaunchedEffect(
         pendingContentFocusKey,
         contentFocusReadyKey,
-        contentFocusRequester,
+        contentFocusEnabled,
         focusCoordinator
     ) {
         val pendingKey = pendingContentFocusKey ?: return@LaunchedEffect
-        if (contentFocusRequester == null || focusCoordinator == null) {
+        if (!contentFocusEnabled || focusCoordinator == null) {
             pendingContentFocusKey = null
             return@LaunchedEffect
         }
@@ -370,34 +382,26 @@ fun <T> BvTabRow(
         }
     }
 
-        val tabRowModifier = if (focusNodeId == null) {
-            modifier
-        } else {
-            modifier
-                .wjzFocusable(
-                    nodeId = focusNodeId,
-                    layer = focusLayer,
-                    scopeId = focusScopeId,
-                    strategy = WjzFocusRestoreStrategy.Container,
-                    fallback = true,
-                    enabled = backFocusEnabled,
-                    onFocusChanged = { focused ->
-                        if (focused && backFocusEnabled) {
-                            focusCoordinator?.switchLayer(focusLayer)
-                        }
-                    }
-                )
-                .focusProperties {
-                    onEnter = {
-                        legacyRequestEntryFocus()
-                    }
+    val tabRowModifier = if (tabRowFocusId == null) {
+        modifier
+    } else {
+        modifier.wjzFocus(
+            id = tabRowFocusId,
+            layer = focusLayer,
+            strategy = WjzFocusRestoreStrategy.Container,
+            fallback = true,
+            enabled = backFocusEnabled,
+            onFocusChanged = { focused ->
+                if (focused && backFocusEnabled) {
+                    focusCoordinator?.switchLayer(focusLayer)
                 }
-        }
+            }
+        )
+    }
 
+    val tabRowContent: @Composable () -> Unit = {
         TabRow(
-            modifier = tabRowModifier
-                .focusRestorer(entryFocusRequester)
-                .focusGroup(),
+            modifier = Modifier.wjzFocusGroup(),
             selectedTabIndex = selectedTabIndex,
             separator = separator ?: { Spacer(modifier = Modifier.width(separatorWidth)) },
             indicator = bvTabIndicator(
@@ -423,86 +427,84 @@ fun <T> BvTabRow(
                                     }
                                 }
 
-                            Key.DirectionRight -> {
-                                if (index == items.lastIndex && onRightExit != null) {
-                                    onRightExit()
-                                    return@onPreviewKeyEvent true
+                                Key.DirectionRight -> {
+                                    if (index == items.lastIndex && onRightExit != null) {
+                                        onRightExit()
+                                        return@onPreviewKeyEvent true
+                                    }
+                                }
+
+                                Key.DirectionUp -> {
+                                    if (onUp?.invoke(item) == true) return@onPreviewKeyEvent true
+                                    if (blockUp) return@onPreviewKeyEvent true
+                                }
+
+                                Key.DirectionDown -> {
+                                    if (onDown?.invoke(item) == true) {
+                                        isFocusBelowTabRow = true
+                                        return@onPreviewKeyEvent true
+                                    }
+                                    if (contentFocusEnabled && focusCoordinator != null) {
+                                        isFocusBelowTabRow = true
+                                        pendingContentFocusKey = key
+                                        focusCoordinator.switchLayer(WjzFocusLayer.Content)
+                                        onContentFocusRequested(item)
+                                        return@onPreviewKeyEvent true
+                                    }
+                                    if (blockDown) return@onPreviewKeyEvent true
+                                }
+
+                                else -> Unit
+                            }
+                        }
+
+                        val isConfirmKey = event.isConfirmKey()
+                        if (!isConfirmKey) return@onPreviewKeyEvent false
+
+                        when (event.type) {
+                            KeyEventType.KeyDown -> {
+                                if (event.nativeKeyEvent.isLongPress) {
+                                    if (onLongClick == null) {
+                                        return@onPreviewKeyEvent false
+                                    }
+                                    if (!confirmLongPressTriggered) {
+                                        confirmLongPressTriggered = onLongClick(item)
+                                    }
+                                    return@onPreviewKeyEvent confirmLongPressTriggered
+                                }
+                                false
+                            }
+
+                            KeyEventType.KeyUp -> {
+                                if (confirmLongPressTriggered) {
+                                    confirmLongPressTriggered = false
+                                    true
+                                } else {
+                                    onConfirm(item)
+                                    true
                                 }
                             }
 
-                            Key.DirectionUp -> {
-                                if (onUp?.invoke(item) == true) return@onPreviewKeyEvent true
-                                if (blockUp) return@onPreviewKeyEvent true
-                            }
-
-                            Key.DirectionDown -> {
-                                if (onDown?.invoke(item) == true) {
-                                    isFocusBelowTabRow = true
-                                    return@onPreviewKeyEvent true
-                                }
-                                if (contentFocusRequester != null && focusCoordinator != null) {
-                                    isFocusBelowTabRow = true
-                                    pendingContentFocusKey = key
-                                    focusCoordinator.switchLayer(WjzFocusLayer.Content)
-                                    onContentFocusRequested(item)
-                                    return@onPreviewKeyEvent true
-                                }
-                                if (blockDown) return@onPreviewKeyEvent true
-                            }
-
-                            else -> Unit
+                            else -> false
                         }
                     }
 
-                    val isConfirmKey = event.isConfirmKey()
-                    if (!isConfirmKey) return@onPreviewKeyEvent false
-
-                    when (event.type) {
-                        KeyEventType.KeyDown -> {
-                            if (event.nativeKeyEvent.isLongPress) {
-                                if (onLongClick == null) {
-                                    return@onPreviewKeyEvent false
+                if (index == focusTargetIndex) {
+                    tabModifier = if (focusTargetFocusId != null) {
+                        tabModifier.wjzFocus(
+                            id = focusTargetFocusId,
+                            layer = focusLayer,
+                            fallback = true,
+                            enabled = backFocusEnabled,
+                            onFocusChanged = { focused ->
+                                if (focused && backFocusEnabled) {
+                                    focusCoordinator?.switchLayer(focusLayer)
                                 }
-                                if (!confirmLongPressTriggered) {
-                                    confirmLongPressTriggered = onLongClick(item)
-                                }
-                                return@onPreviewKeyEvent confirmLongPressTriggered
                             }
-                            false
-                        }
-
-                        KeyEventType.KeyUp -> {
-                            if (confirmLongPressTriggered) {
-                                confirmLongPressTriggered = false
-                                true
-                            } else {
-                                onConfirm(item)
-                                true
-                            }
-                        }
-
-                        else -> false
-                    }
-                }
-
-            if (index == focusTargetIndex) {
-                tabModifier = if (focusTargetNodeId == null) {
-                    tabModifier.focusRequester(entryFocusRequester)
-                } else {
-                    tabModifier.wjzFocusable(
-                        nodeId = focusTargetNodeId,
-                        layer = focusLayer,
-                        scopeId = focusScopeId,
-                        fallback = true,
-                        enabled = backFocusEnabled,
-                        requester = entryFocusRequester,
-                        onFocusChanged = { focused ->
-                            if (focused && backFocusEnabled) {
-                                focusCoordinator?.switchLayer(focusLayer)
-                            }
-                        }
-                    )
-                }.onGloballyPositioned {
+                        )
+                    } else {
+                        tabModifier
+                    }.onGloballyPositioned {
                         val state = buildString {
                             append("key=").append(key)
                             append(", index=").append(index)
@@ -529,47 +531,67 @@ fun <T> BvTabRow(
                             currentOnEntryFocusResolution?.invoke(ready)
                         }
                     }
-            }
+                }
 
-            Tab(
-                colors = when (indicator) {
-                    BvTabIndicator.Pill -> mainTopTabColors()
-                    BvTabIndicator.Underline -> TabDefaults.underlinedIndicatorTabColors()
-                },
-                modifier = tabModifier,
-                selected = selected,
-                onFocus = {
-                    isFocusBelowTabRow = false
-                    confirmLongPressTriggered = false
-                    focusedTabIndex = index
-                    val ready = entryFocusResolution as? BvTabEntryFocusResolution.Ready
-                    if (ready != null && ready.itemKey == key) {
-                        currentOnEntryFocusConsumed?.invoke(
-                            BvTabEntryFocusConsumed(
-                                target = ready.target,
-                                item = ready.item,
-                                itemKey = ready.itemKey,
-                                nodeId = ready.nodeId
+                Tab(
+                    colors = when (indicator) {
+                        BvTabIndicator.Pill -> mainTopTabColors()
+                        BvTabIndicator.Underline -> TabDefaults.underlinedIndicatorTabColors()
+                    },
+                    modifier = tabModifier,
+                    selected = selected,
+                    onFocus = {
+                        isFocusBelowTabRow = false
+                        confirmLongPressTriggered = false
+                        focusedTabIndex = index
+                        val ready = entryFocusResolution as? BvTabEntryFocusResolution.Ready
+                        if (ready != null && ready.itemKey == key) {
+                            currentOnEntryFocusConsumed?.invoke(
+                                BvTabEntryFocusConsumed(
+                                    target = ready.target,
+                                    item = ready.item,
+                                    itemKey = ready.itemKey,
+                                    nodeId = ready.nodeId
+                                )
                             )
+                        }
+                        onSelectedChanged(item)
+                    },
+                    onClick = { onConfirm(item) }
+                ) {
+                    if (tabContent != null) {
+                        tabContent(item, selected, focused)
+                    } else {
+                        BvTabDefaultContent(
+                            item = item,
+                            text = itemText,
+                            icon = itemIcon,
+                            hasIcon = itemHasIcon,
+                            iconMode = iconMode,
+                            focused = focused
                         )
                     }
-                    onSelectedChanged(item)
-                },
-                onClick = { onConfirm(item) }
-            ) {
-                if (tabContent != null) {
-                    tabContent(item, selected, focused)
-                } else {
-                    BvTabDefaultContent(
-                        item = item,
-                        text = itemText,
-                        icon = itemIcon,
-                        hasIcon = itemHasIcon,
-                        iconMode = iconMode,
-                        focused = focused
-                    )
                 }
             }
+        }
+    }
+
+    if (focusNodeId == null) {
+        tabRowContent()
+    } else {
+        Box(
+            modifier = tabRowModifier
+                .wjzFocusRestorerHost(
+                    enabled = backFocusEnabled,
+                    layer = focusLayer,
+                    scopeId = focusScopeId,
+                    restorerId = "${focusNodeId.value}/restorer",
+                    listId = "${focusNodeId.value}/list",
+                    fallbackNodeId = focusTargetNodeId
+                )
+                .wjzFocusGroup()
+        ) {
+            tabRowContent()
         }
     }
 }
@@ -595,7 +617,6 @@ fun <T> BvPillTabRow(
     retainIndicatorWhenFocusBelow: Boolean = true,
     separatorWidth: Dp = 12.dp,
     separator: (@Composable () -> Unit)? = null,
-    defaultFocusRequester: FocusRequester? = null,
     onDefaultFocusReady: ((Any) -> Unit)? = null,
     onEntryFocusReady: ((BvTabEntryFocusReady<T>) -> Unit)? = null,
     onEntryFocusResolution: ((BvTabEntryFocusResolution<T>) -> Unit)? = null,
@@ -608,7 +629,7 @@ fun <T> BvPillTabRow(
     onRightExit: (() -> Unit)? = null,
     onUp: ((T) -> Boolean)? = null,
     onDown: ((T) -> Boolean)? = null,
-    contentFocusRequester: FocusRequester? = null,
+    contentFocusEnabled: Boolean = false,
     contentFocusReadyKey: Any? = null,
     onContentFocusRequested: (T) -> Unit = {},
     blockUp: Boolean = false,
@@ -634,7 +655,6 @@ fun <T> BvPillTabRow(
         retainIndicatorWhenFocusBelow = retainIndicatorWhenFocusBelow,
         separatorWidth = separatorWidth,
         separator = separator,
-        defaultFocusRequester = defaultFocusRequester,
         onDefaultFocusReady = onDefaultFocusReady,
         onEntryFocusReady = onEntryFocusReady,
         onEntryFocusResolution = onEntryFocusResolution,
@@ -647,7 +667,7 @@ fun <T> BvPillTabRow(
         onRightExit = onRightExit,
         onUp = onUp,
         onDown = onDown,
-        contentFocusRequester = contentFocusRequester,
+        contentFocusEnabled = contentFocusEnabled,
         contentFocusReadyKey = contentFocusReadyKey,
         onContentFocusRequested = onContentFocusRequested,
         blockUp = blockUp,
@@ -681,7 +701,6 @@ fun <T> BvUnderlineTabRow(
     retainIndicatorWhenFocusBelow: Boolean = true,
     separatorWidth: Dp = 12.dp,
     separator: (@Composable () -> Unit)? = null,
-    defaultFocusRequester: FocusRequester? = null,
     onDefaultFocusReady: ((Any) -> Unit)? = null,
     onEntryFocusReady: ((BvTabEntryFocusReady<T>) -> Unit)? = null,
     onEntryFocusResolution: ((BvTabEntryFocusResolution<T>) -> Unit)? = null,
@@ -694,7 +713,7 @@ fun <T> BvUnderlineTabRow(
     onRightExit: (() -> Unit)? = null,
     onUp: ((T) -> Boolean)? = null,
     onDown: ((T) -> Boolean)? = null,
-    contentFocusRequester: FocusRequester? = null,
+    contentFocusEnabled: Boolean = false,
     contentFocusReadyKey: Any? = null,
     onContentFocusRequested: (T) -> Unit = {},
     blockUp: Boolean = false,
@@ -720,7 +739,6 @@ fun <T> BvUnderlineTabRow(
         retainIndicatorWhenFocusBelow = retainIndicatorWhenFocusBelow,
         separatorWidth = separatorWidth,
         separator = separator,
-        defaultFocusRequester = defaultFocusRequester,
         onDefaultFocusReady = onDefaultFocusReady,
         onEntryFocusReady = onEntryFocusReady,
         onEntryFocusResolution = onEntryFocusResolution,
@@ -733,7 +751,7 @@ fun <T> BvUnderlineTabRow(
         onRightExit = onRightExit,
         onUp = onUp,
         onDown = onDown,
-        contentFocusRequester = contentFocusRequester,
+        contentFocusEnabled = contentFocusEnabled,
         contentFocusReadyKey = contentFocusReadyKey,
         onContentFocusRequested = onContentFocusRequested,
         blockUp = blockUp,

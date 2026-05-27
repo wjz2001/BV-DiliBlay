@@ -6,11 +6,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -18,10 +14,13 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import dev.aaa1115910.bv.component.ifElse
+import dev.aaa1115910.bv.component.controllers.playermenu.playerMenuFocusNodeId
 import dev.aaa1115910.bv.entity.VideoFlip
 import dev.aaa1115910.bv.entity.VideoRotation
 import dev.aaa1115910.bv.entity.VideoTransformNormal
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRestorerHost
 
 private sealed interface VideoTransformMenuAction {
     data object Normal : VideoTransformMenuAction
@@ -32,6 +31,7 @@ private sealed interface VideoTransformMenuAction {
 @Composable
 fun VideoTransformMenuList(
     modifier: Modifier = Modifier,
+    focusIdPrefix: String,
     currentVideoRotation: VideoRotation?,
     currentVideoFlip: VideoFlip?,
     onVideoTransformReset: () -> Unit,
@@ -40,12 +40,20 @@ fun VideoTransformMenuList(
     onFocusBackToParent: () -> Unit
 ) {
     val context = LocalContext.current
-    val focusRequester = remember { FocusRequester() }
+    val focusScopeId = LocalWjzFocusScopeId.current
     val actions = buildList {
         add(VideoTransformMenuAction.Normal)
         addAll(VideoRotation.entries.map { VideoTransformMenuAction.Rotate(it) })
         addAll(VideoFlip.entries.map { VideoTransformMenuAction.Flip(it) })
     }
+    val selectedIndex = actions.indexOfFirst { action ->
+        when (action) {
+            VideoTransformMenuAction.Normal -> currentVideoRotation == null && currentVideoFlip == null
+            is VideoTransformMenuAction.Rotate -> currentVideoRotation == action.rotation
+            is VideoTransformMenuAction.Flip -> currentVideoFlip == action.flip
+        }
+    }.takeIf { it >= 0 } ?: 0
+    val fallbackFocusId = "$focusIdPrefix/$selectedIndex"
 
     LazyColumn(
         modifier = modifier
@@ -61,11 +69,20 @@ fun VideoTransformMenuList(
                 if (result) onFocusBackToParent()
                 result
             }
-            .focusRestorer(focusRequester),
+            .wjzFocusRestorerHost(
+                layer = WjzFocusLayer.Overlay,
+                scopeId = focusScopeId,
+                restorerId = "$focusIdPrefix/restorer",
+                listId = "$focusIdPrefix/list",
+                fallbackNodeId = playerMenuFocusNodeId(focusScopeId, fallbackFocusId)
+            ),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(vertical = 120.dp, horizontal = 8.dp)
     ) {
-        itemsIndexed(actions) { index, action ->
+        itemsIndexed(
+            items = actions,
+            key = { index, action -> "$focusIdPrefix/$index/${action::class.simpleName}" }
+        ) { index, action ->
             val text = when (action) {
                 VideoTransformMenuAction.Normal -> {
                     VideoTransformNormal.Normal.getDisplayName(context)
@@ -86,20 +103,8 @@ fun VideoTransformMenuList(
 
             MenuListItem(
                 modifier = Modifier
-                    .width(200.dp)
-                    .ifElse(
-                        when (action) {
-                            VideoTransformMenuAction.Normal ->
-                                currentVideoRotation == null && currentVideoFlip == null
-
-                            is VideoTransformMenuAction.Rotate ->
-                                currentVideoRotation == action.rotation
-
-                            is VideoTransformMenuAction.Flip ->
-                                currentVideoFlip == action.flip
-                        },
-                        Modifier.focusRequester(focusRequester)
-                    ),
+                    .width(200.dp),
+                focusId = "$focusIdPrefix/$index",
                 text = text,
                 selected = selected,
                 onClick = {

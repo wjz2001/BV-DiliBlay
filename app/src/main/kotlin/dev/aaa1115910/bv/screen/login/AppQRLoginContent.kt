@@ -44,8 +44,8 @@ import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppRed
 import dev.aaa1115910.bv.ui.theme.AppWhite
@@ -57,7 +57,7 @@ import dev.aaa1115910.bv.viewmodel.login.AppQrLoginViewModel
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
 
-private val AppQrLoginRootNodeId = WjzFocusNodeId("login/qr/root")
+private val AppQrLoginScopeId = WjzFocusScopeId("login/qr")
 
 @Composable
 fun AppQRLoginContent(
@@ -175,7 +175,8 @@ fun AppQRLoginContent(
 
     WjzFocusHost(
         modifier = modifier.fillMaxSize(),
-        layer = WjzFocusLayer.Content
+        layer = WjzFocusLayer.Content,
+        scopeId = AppQrLoginScopeId
     ) {
         Surface(
             modifier = Modifier
@@ -185,8 +186,8 @@ fun AppQRLoginContent(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .wjzFocusable(
-                        nodeId = AppQrLoginRootNodeId,
+                    .wjzFocus(
+                        id = "root",
                         layer = WjzFocusLayer.Content,
                         fallback = true
                     )

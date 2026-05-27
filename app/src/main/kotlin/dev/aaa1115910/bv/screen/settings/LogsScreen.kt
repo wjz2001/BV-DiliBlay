@@ -35,7 +35,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -48,8 +47,8 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 import dev.aaa1115910.bv.network.HttpServer
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.C
@@ -66,7 +65,7 @@ import java.io.File
 import java.net.Inet4Address
 import java.net.NetworkInterface
 
-private val LogsCreateNodeId = WjzFocusNodeId("settings/logs/create")
+private val LogsScopeId = WjzFocusScopeId("settings/logs")
 
 @Composable
 fun LogsScreen(
@@ -227,7 +226,8 @@ fun LogsScreenContent(
 ) {
     WjzFocusHost(
         modifier = modifier,
-        layer = WjzFocusLayer.Content
+        layer = WjzFocusLayer.Content,
+        scopeId = LogsScopeId
     ) {
         Scaffold(
             topBar = {
@@ -264,24 +264,24 @@ fun LogsScreenContent(
                     ) {
                         item {
                             CreateLogItem(
-                                modifier = Modifier.wjzFocusable(
-                                    nodeId = LogsCreateNodeId,
+                                modifier = Modifier.wjzFocus(
+                                    id = "create",
                                     layer = WjzFocusLayer.Content,
-                                    fallback = true
+                                    fallback = true,
+                                    onFocusChanged = { if (it) onFocusCreate() }
                                 ),
-                                onFocus = onFocusCreate,
                                 onClick = onClickCreateLog
                             )
                         }
                         items(items = logs) { logFile ->
                             LogItem(
-                                modifier = Modifier.wjzFocusable(
-                                    nodeId = WjzFocusNodeId("settings/logs/file/${logFile.name}"),
-                                    layer = WjzFocusLayer.Content
+                                modifier = Modifier.wjzFocus(
+                                    id = "file/${logFile.name}",
+                                    layer = WjzFocusLayer.Content,
+                                    onFocusChanged = { if (it) onFocusLogFile(logFile) }
                                 ),
                                 filename = logFile.name,
-                                size = logFile.length(),
-                                onFocus = { onFocusLogFile(logFile) }
+                                size = logFile.length()
                             )
                         }
                         if (logs.isEmpty()) {
@@ -343,14 +343,10 @@ fun LogsScreenContent(
 fun LogItem(
     modifier: Modifier = Modifier,
     filename: String,
-    size: Long,
-    onFocus: () -> Unit
+    size: Long
 ) {
     ListItem(
-        modifier = modifier
-            .onFocusChanged {
-                if (it.hasFocus) onFocus()
-            },
+        modifier = modifier,
         selected = false,
         onClick = { /*TODO*/ },
         headlineContent = {
@@ -378,14 +374,10 @@ fun LogItem(
 @Composable
 fun CreateLogItem(
     modifier: Modifier = Modifier,
-    onFocus: () -> Unit,
     onClick: () -> Unit,
 ) {
     ListItem(
-        modifier = modifier
-            .onFocusChanged {
-                if (it.hasFocus) onFocus()
-            },
+        modifier = modifier,
         selected = false,
         onClick = onClick,
         headlineContent = {
@@ -400,8 +392,7 @@ fun LogItemPreview() {
     BVTheme {
         LogItem(
             filename = "logs_manual_3202-11-11_08:16:23.log",
-            size = 2145,
-            onFocus = {}
+            size = 2145
         )
     }
 }

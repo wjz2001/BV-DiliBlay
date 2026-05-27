@@ -18,7 +18,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -34,6 +33,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.component.VerticalDashedDivider
 import dev.aaa1115910.bv.ui.theme.C
+import dev.aaa1115910.bv.wjzfocus.wjzObserveFocusChanged
 
 @Composable
 fun VideoPartButton(
@@ -76,7 +76,7 @@ fun VideoPartButton(
                 scaleX = pressedScale
                 scaleY = pressedScale
             }
-            .onFocusChanged { isFocused = it.isFocused },
+            .wjzObserveFocusChanged { isFocused = it },
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
             contentColor = C.onSurface,

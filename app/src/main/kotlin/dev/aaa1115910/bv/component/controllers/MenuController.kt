@@ -1,7 +1,6 @@
 package dev.aaa1115910.bv.component.controllers
 
 import android.content.Context
-import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.shrinkHorizontally
@@ -30,8 +29,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -51,16 +48,16 @@ import dev.aaa1115910.biliapi.entity.video.SubtitleAiType
 import dev.aaa1115910.biliapi.entity.video.SubtitleType
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTransitionGuard
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 import dev.aaa1115910.bv.component.controllers.playermenu.ClosedCaptionMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.DanmakuMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.MenuNavList
 import dev.aaa1115910.bv.component.controllers.playermenu.PictureMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedItem
+import dev.aaa1115910.bv.component.controllers.playermenu.PlayerMenuRootFocusId
 import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedMenuList
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.VideoAspectRatio
@@ -74,8 +71,6 @@ import dev.aaa1115910.bv.ui.theme.C
 
 import kotlinx.coroutines.delay
 import dev.aaa1115910.bv.util.swapList
-
-private val PlayerMenuRootNodeId = WjzFocusNodeId("player/menu/root")
 
 @Composable
 fun MenuController(
@@ -106,7 +101,6 @@ fun MenuController(
     onSubtitleBackgroundOpacityChange: (Float) -> Unit,
     onSubtitleBottomPadding: (Dp) -> Unit
 ) {
-    val focusRequester = remember { FocusRequester() }
     val focusCoordinator = LocalWjzFocusCoordinator.current
     var overlaySourceToken by remember { mutableStateOf<WjzFocusSourceToken?>(null) }
     var transitionLocked by remember { mutableStateOf(false) }
@@ -123,10 +117,6 @@ fun MenuController(
                     recordSource = true
                 )
                 overlaySourceToken = activatedToken
-                focusCoordinator?.requestFocus(
-                    nodeId = PlayerMenuRootNodeId,
-                    layer = WjzFocusLayer.Overlay
-                )
             } else {
                 val token = overlaySourceToken
                 overlaySourceToken = null
@@ -155,14 +145,12 @@ fun MenuController(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .wjzFocusable(
-                nodeId = PlayerMenuRootNodeId,
+            .wjzFocus(
+                id = PlayerMenuRootFocusId,
                 layer = WjzFocusLayer.Overlay,
-                requester = focusRequester,
                 fallback = true,
                 enabled = show
-            )
-            .onFocusChanged { Log.d("MenuController", "focus: $it") },
+            ),
         contentAlignment = Alignment.CenterEnd
     ) {
         WjzFocusTransitionGuard(locked = transitionLocked)
@@ -471,7 +459,7 @@ fun MenuControllerPreview() {
     var currentVideoRotation by remember { mutableStateOf<VideoRotation?>(null) }
     var currentVideoFlip by remember { mutableStateOf<VideoFlip?>(null) }
     var currentPlaySpeed by remember { mutableFloatStateOf(1f) }
-    var currentSelectedPlaySpeedItem by remember { mutableStateOf(PlaySpeedItem.x1) }
+    var currentSelectedPlaySpeedItem by remember { mutableStateOf(PlaySpeedItem.X1) }
     var currentAudio by remember { mutableStateOf(Audio.A192K) }
 
     val currentDanmakuSwitch = remember { mutableStateListOf<DanmakuType>() }

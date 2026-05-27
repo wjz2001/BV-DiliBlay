@@ -19,7 +19,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -55,8 +54,6 @@ fun RecommendScreen(
     active: Boolean = true,
     activationSerial: Long = 0L,
     refreshSerial: Long = 0L,
-    contentEntryFocusRequester: FocusRequester? = null,
-    tabFocusRequester: FocusRequester? = null,
     onContentEntryReady: () -> Unit = {}
 ) {
     val recommendViewModel: RecommendViewModel = koinViewModel()
@@ -117,8 +114,6 @@ fun RecommendScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         focusItemCount = recommendVideoList.size,
         focusItemKeys = recommendVideoList.map { WjzFocusItemKey("Long:${it.aid}") },
-        entryFocusRequester = contentEntryFocusRequester,
-        upFocusRequester = tabFocusRequester,
         onEntryFocusReady = onContentEntryReady
     ) { cardUiStateFor ->
         itemsIndexed(

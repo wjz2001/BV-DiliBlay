@@ -27,7 +27,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -41,8 +40,9 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzObserveFocusChanged
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.CodecInfoData
@@ -55,7 +55,7 @@ import dev.aaa1115910.bv.util.bvKeyDirection
 import dev.aaa1115910.bv.util.swapList
 import java.util.Locale
 
-private val MediaCodecEmptyNodeId = WjzFocusNodeId("settings/media-codec/empty")
+private val MediaCodecScopeId = WjzFocusScopeId("settings/media-codec")
 
 @Composable
 fun MediaCodecScreen(
@@ -79,7 +79,8 @@ fun MediaCodecScreen(
 
     WjzFocusHost(
         modifier = modifier,
-        layer = WjzFocusLayer.Content
+        layer = WjzFocusLayer.Content,
+        scopeId = MediaCodecScopeId
     ) {
         Scaffold(
             topBar = {
@@ -113,7 +114,7 @@ fun MediaCodecScreen(
             ) {
                 MediaCodecListItems(
                     modifier = Modifier
-                        .onFocusChanged { focusInNav = it.hasFocus }
+                        .wjzObserveFocusChanged { focusInNav = it }
                         .weight(3f)
                         .fillMaxHeight(),
                     codecInfoDataList = decoderList,
@@ -150,8 +151,8 @@ fun MediaCodecListItems(
             MediaCodecListItem(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .wjzFocusable(
-                        nodeId = WjzFocusNodeId("settings/media-codec/list/${codecInfoData.name}/${codecInfoData.mimeType}"),
+                    .wjzFocus(
+                        id = "list/${codecInfoData.name}/${codecInfoData.mimeType}",
                         layer = WjzFocusLayer.Content,
                         fallback = currentCodecInfoData == codecInfoData ||
                             (currentCodecInfoData == null && codecInfoDataList.firstOrNull() == codecInfoData)
@@ -175,7 +176,7 @@ fun MediaCodecListItem(
 ) {
     ListItem(
         modifier = modifier
-            .onFocusChanged { if (it.hasFocus) onFocus() else onLoseFocus() },
+            .wjzObserveFocusChanged { if (it) onFocus() else onLoseFocus() },
         selected = selected,
         onClick = onClick,
         headlineContent = {
@@ -342,8 +343,8 @@ fun MediaCodecDetails(
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .wjzFocusable(
-                    nodeId = MediaCodecEmptyNodeId,
+                .wjzFocus(
+                    id = "empty",
                     layer = WjzFocusLayer.Content,
                     fallback = true
                 ),
@@ -364,7 +365,7 @@ fun MediaCodecDetailItem(
 
     ListItem(
         modifier = modifier
-            .onFocusChanged { hasFocus = it.hasFocus },
+            .wjzObserveFocusChanged { hasFocus = it },
         selected = hasFocus,
         onClick = {},
         headlineContent = { Text(text = title) },

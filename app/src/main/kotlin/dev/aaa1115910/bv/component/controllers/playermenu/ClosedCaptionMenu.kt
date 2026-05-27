@@ -18,10 +18,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -34,7 +30,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.aaa1115910.biliapi.entity.video.Subtitle
 import dev.aaa1115910.biliapi.entity.video.SubtitleType
-import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.component.controllers.playermenu.component.CheckBoxMenuList
 import dev.aaa1115910.bv.component.controllers.LocalMenuFocusStateData
 import dev.aaa1115910.bv.component.controllers.MenuFocusState
@@ -43,14 +38,11 @@ import dev.aaa1115910.bv.component.controllers.playermenu.component.MenuListItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.RadioMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.component.StepLessMenuItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.ToggleMenuItem
-import dev.aaa1115910.bv.component.ifElse
-import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocusNode
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.wjzDisabledFocus
 import java.text.NumberFormat
-
-private val PlayerClosedCaptionMenuColumnNodeId = WjzFocusNodeId("player/menu/closed-caption")
 
 @Composable
 fun ClosedCaptionMenuList(
@@ -67,17 +59,10 @@ fun ClosedCaptionMenuList(
     onFocusStateChange: (MenuFocusState) -> Unit
 ) {
     val context = LocalContext.current
-    val focusCoordinator = LocalWjzFocusCoordinator.current
     val focusState = LocalMenuFocusStateData.current
-    val restorerFocusRequester = remember { FocusRequester() }
-
-    val focusRequester = remember { FocusRequester() }
-    fun requestMenuColumnFocus() {
-        focusCoordinator?.requestFocus(
-            nodeId = PlayerClosedCaptionMenuColumnNodeId,
-            layer = WjzFocusLayer.Overlay
-        )
-    }
+    val focusCoordinator = LocalWjzFocusCoordinator.current
+    val focusScopeId = LocalWjzFocusScopeId.current
+    var pendingParentFocusRestore by remember { mutableStateOf(false) }
     var selectedClosedCaptionMenuItem by remember { mutableStateOf(VideoPlayerClosedCaptionMenuItem.Switch) }
     var continuePlayEnabled by remember { mutableStateOf(Prefs.continuePlayAutoSubtitleEnabled) }
 
@@ -88,6 +73,7 @@ fun ClosedCaptionMenuList(
         val menuItemsModifier = Modifier
             .width(216.dp)
             .padding(horizontal = 8.dp)
+            .wjzDisabledFocus(pendingParentFocusRestore)
         // 真实字幕轨道是否存在（排除 id=-1 的“关闭”）
         val hasRealSubtitleTrack = remember(availableSubtitleTracks) {
             availableSubtitleTracks.any { it.id != -1L }
@@ -116,6 +102,18 @@ fun ClosedCaptionMenuList(
                 Prefs.autoSubtitleRuleTokenLabels = autoRuleBuildResult.selectedTokenLabels
             }
         }
+        LaunchedEffect(pendingParentFocusRestore, focusState.focusState) {
+            if (pendingParentFocusRestore && focusState.focusState == MenuFocusState.Menu) {
+                focusCoordinator?.restoreActiveLayer(scopeId = focusScopeId)
+                pendingParentFocusRestore = false
+            }
+        }
+
+        fun focusBackToParentMenu() {
+            onFocusStateChange(MenuFocusState.Menu)
+            pendingParentFocusRestore = true
+        }
+
         AnimatedVisibility(visible = focusState.focusState != MenuFocusState.MenuNav) {
             when (selectedClosedCaptionMenuItem) {
                 VideoPlayerClosedCaptionMenuItem.AutoEnableRules -> {
@@ -131,6 +129,7 @@ fun ClosedCaptionMenuList(
 
                     CheckBoxMenuList(
                         modifier = menuItemsModifier,
+                        focusIdPrefix = "$PlayerMenuClosedCaptionFocusIdPrefix/auto-enable-rules",
                         items = options.map { it.label },
                         selected = selectedIndexes,
                         onSelectedChanged = { indexes ->
@@ -153,10 +152,7 @@ fun ClosedCaptionMenuList(
                             Prefs.autoSubtitleRuleTokens = newTokens.sorted()
                             Prefs.autoSubtitleRuleTokenLabels = newTokenLabels
                         },
-                        onFocusBackToParent = {
-                            onFocusStateChange(MenuFocusState.Menu)
-                            requestMenuColumnFocus()
-                        }
+                        onFocusBackToParent = ::focusBackToParentMenu
                     )
                 }
 
@@ -164,6 +160,7 @@ fun ClosedCaptionMenuList(
 
                 VideoPlayerClosedCaptionMenuItem.Switch -> RadioMenuList(
                     modifier = menuItemsModifier,
+                    focusIdPrefix = "$PlayerMenuClosedCaptionFocusIdPrefix/switch",
                     items = availableSubtitleTracks.map {
                         it.langDoc
                             .replace("（自动生成）", "")
@@ -172,24 +169,23 @@ fun ClosedCaptionMenuList(
                     },
                     selected = availableSubtitleTracks.indexOfFirst { it.id == currentSubtitleId },
                     onSelectedChanged = { onSubtitleChange(availableSubtitleTracks[it]) },
-                    onFocusBackToParent = {
-                        onFocusStateChange(MenuFocusState.Menu)
-                        requestMenuColumnFocus()
-                    },
+                    onFocusBackToParent = ::focusBackToParentMenu,
                 )
 
                 VideoPlayerClosedCaptionMenuItem.Size -> StepLessMenuItem(
                     modifier = menuItemsModifier,
+                    focusId = "$PlayerMenuClosedCaptionFocusIdPrefix/size",
                     value = currentFontSize.value.toInt(),
                     step = 1,
                     range = 12..48,
                     text = "${currentFontSize.value.toInt()} SP",
                     onValueChange = { onSubtitleSizeChange(it.sp) },
-                    onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
+                    onFocusBackToParent = ::focusBackToParentMenu
                 )
 
                 VideoPlayerClosedCaptionMenuItem.Opacity -> StepLessMenuItem(
                     modifier = menuItemsModifier,
+                    focusId = "$PlayerMenuClosedCaptionFocusIdPrefix/opacity",
                     value = currentOpacity,
                     step = 0.01f,
                     range = 0f..1f,
@@ -197,28 +193,24 @@ fun ClosedCaptionMenuList(
                         .apply { maximumFractionDigits = 0 }
                         .format(currentOpacity),
                     onValueChange = onSubtitleBackgroundOpacityChange,
-                    onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
+                    onFocusBackToParent = ::focusBackToParentMenu
                 )
 
                 VideoPlayerClosedCaptionMenuItem.Padding -> StepLessMenuItem(
                     modifier = menuItemsModifier,
+                    focusId = "$PlayerMenuClosedCaptionFocusIdPrefix/padding",
                     value = currentPadding.value.toInt(),
                     step = 1,
                     range = 0..48,
                     text = "${currentPadding.value.toInt()} DP",
                     onValueChange = { onSubtitleBottomPadding(it.dp) },
-                    onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
+                    onFocusBackToParent = ::focusBackToParentMenu
                 )
             }
         }
 
         LazyColumn(
             modifier = Modifier
-                .wjzFocusNode(
-                    nodeId = PlayerClosedCaptionMenuColumnNodeId,
-                    requester = focusRequester,
-                    layer = WjzFocusLayer.Overlay
-                )
                 .padding(horizontal = 8.dp)
                 .onPreviewKeyEvent {
                     if (it.type == KeyEventType.KeyUp) {
@@ -230,8 +222,7 @@ fun ClosedCaptionMenuList(
                         else -> {}
                     }
                     false
-                }
-                .focusRestorer(restorerFocusRequester),
+                },
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(8.dp)
         ) {
@@ -246,9 +237,8 @@ fun ClosedCaptionMenuList(
                 if (item == VideoPlayerClosedCaptionMenuItem.ContinuePlay) {
                     ToggleMenuItem(
                         modifier = Modifier
-                            .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester))
-                            .focusProperties { canFocus = true }
                             .alpha(1f),
+                        focusId = "$PlayerMenuClosedCaptionFocusIdPrefix/menu/$index",
                         text = item.getDisplayName(context),
                         checked = continuePlayEnabled,
                         onCheckedChange = {
@@ -258,13 +248,17 @@ fun ClosedCaptionMenuList(
                         onFocus = { selectedClosedCaptionMenuItem = item },
                     )
                 } else {
+                    val selected = selectedClosedCaptionMenuItem == item
                     MenuListItem(
                         modifier = Modifier
-                            .ifElse(index == 0, Modifier.focusRequester(restorerFocusRequester))
-                            .focusProperties { canFocus = enabled }
+                            .wjzDisabledFocus(!enabled)
                             .alpha(if (enabled) 1f else 0.45f),
+                        focusId = "$PlayerMenuClosedCaptionFocusIdPrefix/menu/$index",
                         text = item.getDisplayName(context),
-                        selected = selectedClosedCaptionMenuItem == item,
+                        fallback = if (pendingParentFocusRestore) selected else index == 0,
+                        globalFallback = pendingParentFocusRestore && selected,
+                        selected = selected,
+                        focusEnabled = enabled,
                         onClick = {},
                         onFocus = { if (enabled) selectedClosedCaptionMenuItem = item },
                     )

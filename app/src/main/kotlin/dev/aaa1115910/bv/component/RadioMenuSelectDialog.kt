@@ -1,6 +1,5 @@
 package dev.aaa1115910.bv.component
 
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,7 +17,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalDensity
@@ -35,7 +33,16 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import androidx.tv.material3.Text as TvText
 import dev.aaa1115910.bv.ui.theme.C
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
+
+private fun WjzFocusNodeId.toDialogLocalFocusId(dialogScopeId: WjzFocusScopeId?): String {
+    val scopePrefix = dialogScopeId?.value?.let { "$it/" }
+    return if (scopePrefix != null && value.startsWith(scopePrefix)) {
+        value.removePrefix(scopePrefix)
+    } else {
+        value
+    }
+}
 
 /**
  * 单选列表 Dialog（TV 焦点友好）。
@@ -147,16 +154,18 @@ internal fun <T> RadioMenuSelectListContent(
         ) { index, item ->
             val itemNode = itemNodeId?.invoke(item)
                 ?: WjzFocusNodeId("dialog/radio-menu/item/${itemKey?.invoke(item) ?: index}")
-            val itemModifier = Modifier.wjzFocusable(
-                    nodeId = itemNode,
-                    layer = WjzFocusLayer.Dialog,
-                    scopeId = dialogScopeId
-                )
+            var hasFocus by remember { mutableStateOf(false) }
+            val itemModifier = Modifier.wjzFocus(
+                id = itemNode.toDialogLocalFocusId(dialogScopeId),
+                layer = WjzFocusLayer.Dialog,
+                onFocusChanged = { hasFocus = it }
+            )
 
             RadioMenuSelectItem(
                 modifier = itemModifier,
                 text = text(item),
                 selected = selected(item),
+                hasFocus = hasFocus,
                 onClick = { onClick(item) }
             )
         }
@@ -168,18 +177,15 @@ private fun RadioMenuSelectItem(
     modifier: Modifier = Modifier,
     text: String,
     selected: Boolean,
+    hasFocus: Boolean,
     onClick: () -> Unit
 ) {
-    // 高亮只认真实焦点（onFocusChanged）
-    var hasFocus by remember { mutableStateOf(false) }
-
     ListItem(
-        modifier = modifier.onFocusChanged { hasFocus = it.hasFocus },
+        modifier = modifier,
         leadingContent = {
             RadioButton(
-                modifier = Modifier.focusable(false),
                 selected = selected,
-                onClick = {}, // 交给 ListItem 的 onClick
+                onClick = null, // 交给 ListItem 的 onClick
                 colors = settingsSelectRadioColors(hasFocus = hasFocus)
             )
         },

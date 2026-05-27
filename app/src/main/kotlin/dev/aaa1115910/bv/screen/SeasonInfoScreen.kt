@@ -53,11 +53,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.focus.FocusRequester as ComposeFocusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -93,13 +96,15 @@ import dev.aaa1115910.biliapi.repositories.VideoDetailRepository
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.component.BvUnderlineTabRow
+import dev.aaa1115910.bv.component.TvGridFocusHost
+import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocusable
+import dev.aaa1115910.bv.wjzfocus.wjzFocus
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
-import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.buttons.SeasonInfoButtons
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.VideoListItem
@@ -130,34 +135,26 @@ import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import kotlin.math.ceil
 
-private val SeasonInfoDefaultNodeId = WjzFocusNodeId("season-info/default")
+private val SeasonInfoScopeId = WjzFocusScopeId("season-info")
+private val SeasonInfoDefaultNodeId = WjzFocusNodeId("season-info/cover")
+private val SeasonInfoLoadingNodeId = WjzFocusNodeId("season-info/loading")
 private val SeasonInfoDialogTabNodeId = WjzFocusNodeId("season-info/episodes-dialog/tab")
-private val SeasonInfoDialogVideoListNodeId = WjzFocusNodeId("season-info/episodes-dialog/video-list")
+private val SeasonInfoDialogScopeId = WjzFocusScopeId("season-info/episodes-dialog")
+private val SeasonInfoDialogContainerNodeId = WjzFocusNodeId("season-info/episodes-dialog/container")
 private val SeasonInfoSelectorNodeId = WjzFocusNodeId("season-info/selector")
 private val SeasonInfoSelectorCurrentNodeId = WjzFocusNodeId("season-info/selector/current")
 
-private fun seasonInfoEpisodeRowFirstNodeId(title: String) =
-    WjzFocusNodeId("season-info/episode-row/${title}/first")
+private fun seasonInfoEpisodeRowNodeId(rowKey: String) =
+    WjzFocusNodeId("season-info/episode-row/$rowKey")
 
-private fun seasonInfoEpisodeRowTargetNodeId(title: String) =
-    WjzFocusNodeId("season-info/episode-row/${title}/target")
+private fun seasonInfoEpisodeRowDialogNodeId(rowKey: String) =
+    WjzFocusNodeId("season-info/episode-row/$rowKey/dialog")
 
-@Composable
-private fun Modifier.infoFocusNode(
-    requester: ComposeFocusRequester,
-    nodeKey: String? = null,
-    fallback: Boolean = false
-): Modifier {
-    val focusNodeId = remember(nodeKey, requester) {
-        WjzFocusNodeId(nodeKey ?: "season-info/focus/${System.identityHashCode(requester)}")
-    }
-    return wjzFocusable(
-        nodeId = focusNodeId,
-        layer = WjzFocusLayer.Content,
-        fallback = fallback,
-        requester = requester
-    )
-}
+private fun seasonInfoEpisodeRowFirstNodeId(rowKey: String) =
+    WjzFocusNodeId("season-info/episode-row/$rowKey/first")
+
+private fun seasonInfoEpisodeRowTargetNodeId(rowKey: String) =
+    WjzFocusNodeId("season-info/episode-row/$rowKey/target")
 
 @Composable
 fun SeasonInfoScreen(
@@ -185,7 +182,6 @@ fun SeasonInfoScreen(
 
     var showSeasonSelector by remember { mutableStateOf(false) }
 
-    val defaultFocusRequester = remember { ComposeFocusRequester() }
     val parentFocusCoordinator = LocalWjzFocusCoordinator.current
     val ownedFocusCoordinator = rememberWjzFocusCoordinator()
     val focusCoordinator = parentFocusCoordinator ?: ownedFocusCoordinator
@@ -283,7 +279,7 @@ fun SeasonInfoScreen(
             pendingAutoFocusEpisodeId = null
             pendingAutoFocusRowItemIndex = -1
             with(focusCoordinator) {
-                requestFocus(
+                enqueueRequestFocus(
                     nodeId = SeasonInfoDefaultNodeId,
                     layer = WjzFocusLayer.Content
                 )
@@ -309,15 +305,33 @@ fun SeasonInfoScreen(
     }
 
     if (seasonData == null) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
+        WjzFocusHost(
+            modifier = modifier,
+            coordinator = focusCoordinator,
+            layer = WjzFocusLayer.Content,
+            scopeId = SeasonInfoScopeId
         ) {
-            Text(
-                modifier = Modifier.align(Alignment.Center),
-                text = tip
-            )
+            LaunchedEffect(tip) {
+                focusCoordinator.enqueueRequestFocus(
+                    nodeId = SeasonInfoLoadingNodeId,
+                    layer = WjzFocusLayer.Content
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .wjzFocus(
+                        id = "loading",
+                        fallback = true
+                    )
+            ) {
+                Text(
+                    modifier = Modifier.align(Alignment.Center),
+                    text = tip
+                )
+            }
         }
     } else {
         CompositionLocalProvider(
@@ -329,7 +343,8 @@ fun SeasonInfoScreen(
             WjzFocusHost(
                 modifier = modifier,
                 coordinator = focusCoordinator,
-                layer = WjzFocusLayer.Content
+                layer = WjzFocusLayer.Content,
+                scopeId = SeasonInfoScopeId
             ) {
                 Scaffold { innerPadding ->
                 LazyColumn(
@@ -342,10 +357,7 @@ fun SeasonInfoScreen(
                 ) {
                     item {
                         SeasonInfoPart(
-                            modifier = Modifier.infoFocusNode(
-                                requester = defaultFocusRequester,
-                                nodeKey = SeasonInfoDefaultNodeId.value
-                            ),
+                            modifier = Modifier,
                             title = seasonData!!.title,
                             cover = seasonData!!.cover,
                             newEpDesc = seasonData!!.newEpDesc,
@@ -476,6 +488,7 @@ fun SeasonInfoScreen(
                     if (seasonData?.episodes?.isNotEmpty() == true) {
                         item {
                             SeasonEpisodeRow(
+                                rowKey = "feature",
                                 title = stringResource(R.string.season_feature_film),
                                 episodes = seasonData?.episodes ?: emptyList(),
                                 lastPlayedId = lastPlayProgress?.lastEpId ?: 0,
@@ -512,6 +525,7 @@ fun SeasonInfoScreen(
                             val sectionRowItemIndex = 1 + (if (hasFeatureEpisodes) 1 else 0) + sectionIndex
 
                             SeasonEpisodeRow(
+                                rowKey = "section-${sectionIndex}-${section.id}",
                                 title = section.title,
                                 episodes = section.episodes,
                                 lastPlayedId = lastPlayProgress?.lastEpId ?: 0,
@@ -554,7 +568,7 @@ fun SeasonInfoScreen(
         onHideSelector = {
             showSeasonSelector = false
             with(focusCoordinator) {
-                requestFocus(
+                enqueueRequestFocus(
                     nodeId = SeasonInfoDefaultNodeId,
                     layer = WjzFocusLayer.Content
                 )
@@ -587,7 +601,10 @@ fun SeasonCover(
     )
 
     Card(
-        modifier = modifier.onFocusChanged { hasFocus = it.hasFocus },
+        modifier = modifier.wjzFocus(
+            id = "cover",
+            onFocusChanged = { hasFocus = it }
+        ),
         onClick = onClick,
         shape = CardDefaults.shape(shape = MaterialTheme.shapes.large),
         glow = CardDefaults.glow(
@@ -803,6 +820,7 @@ fun SeasonEpisodeButton(
 fun SeasonEpisodesDialog(
     modifier: Modifier = Modifier,
     show: Boolean,
+    rowKey: String,
     title: String,
     episodes: List<Episode>,
     lastPlayedId: Int = 0,
@@ -810,16 +828,11 @@ fun SeasonEpisodesDialog(
     onHideDialog: () -> Unit,
     onClick: (avid: Long, cid: Long, epid: Int, episodeTitle: String, startTime: Int) -> Unit
 ) {
-    val scope = rememberCoroutineScope()
-    val focusCoordinator = LocalWjzFocusCoordinator.current
-
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val tabCount by remember { mutableIntStateOf(ceil(episodes.size / 20.0).toInt()) }
     val tabItems = remember(tabCount) { (0 until tabCount).toList() }
     val selectedEpisodes = remember { mutableStateListOf<Episode>() }
 
-    val tabRowFocusRequester = remember { ComposeFocusRequester() }
-    val videoListFocusRequester = remember { ComposeFocusRequester() }
     val listState = rememberLazyGridState()
 
     LaunchedEffect(selectedTabIndex) {
@@ -831,31 +844,6 @@ fun SeasonEpisodesDialog(
         selectedEpisodes.swapList(episodes.subList(fromIndex, toIndex))
     }
 
-    LaunchedEffect(show) {
-        if (show && tabCount > 1) {
-            focusCoordinator?.let {
-                with(it) {
-                    switchLayer(WjzFocusLayer.TopNav)
-                    requestFocus(
-                        nodeId = SeasonInfoDialogTabNodeId,
-                        layer = WjzFocusLayer.TopNav
-                    )
-                }
-            }
-        }
-        if (show && tabCount == 1) {
-            focusCoordinator?.let {
-                with(it) {
-                    switchLayer(WjzFocusLayer.Content)
-                    requestFocus(
-                        nodeId = SeasonInfoDialogVideoListNodeId,
-                        layer = WjzFocusLayer.Content
-                    )
-                }
-            }
-        }
-    }
-
     if (show) {
         TvAlertDialog(
             modifier = modifier,
@@ -863,7 +851,46 @@ fun SeasonEpisodesDialog(
             onDismissRequest = { onHideDialog() },
             confirmButton = {},
             properties = DialogProperties(usePlatformDefaultWidth = false),
+            dialogScopeId = SeasonInfoDialogScopeId,
+            containerNodeId = SeasonInfoDialogContainerNodeId,
             text = {
+                val dialogFocusCoordinator = LocalWjzFocusCoordinator.current
+                val dialogNodeIdPrefix = selectedEpisodes.firstOrNull()
+                    ?.let { "season-info/$rowKey/episodes/${it.id}_${it.aid}_${it.cid}" }
+                    ?: "season-info/$rowKey/episodes/empty"
+                val dialogFocusItemKeys = selectedEpisodes.map {
+                    WjzFocusItemKey("${it.id}_${it.aid}_${it.cid}")
+                }
+                val dialogVideoListFocusNodeId = dialogFocusItemKeys.firstOrNull()
+                    ?.let { WjzFocusNodeId("$dialogNodeIdPrefix/item/${it.value}") }
+                    ?: WjzFocusNodeId("$dialogNodeIdPrefix/empty")
+
+                LaunchedEffect(tabCount, dialogVideoListFocusNodeId) {
+                    if (tabCount > 1) {
+                        dialogFocusCoordinator?.let {
+                            with(it) {
+                                switchLayer(WjzFocusLayer.Dialog)
+                                enqueueRequestFocus(
+                                    nodeId = SeasonInfoDialogTabNodeId,
+                                    layer = WjzFocusLayer.Dialog,
+                                    scopeId = SeasonInfoDialogScopeId
+                                )
+                            }
+                        }
+                    } else {
+                        dialogFocusCoordinator?.let {
+                            with(it) {
+                                switchLayer(WjzFocusLayer.Dialog)
+                                enqueueRequestFocus(
+                                    nodeId = dialogVideoListFocusNodeId,
+                                    layer = WjzFocusLayer.Dialog,
+                                    scopeId = SeasonInfoDialogScopeId
+                                )
+                            }
+                        }
+                    }
+                }
+
                 Column(
                     modifier = Modifier
                         .size(600.dp, 330.dp),
@@ -873,29 +900,23 @@ fun SeasonEpisodesDialog(
                     // https://issuetracker.google.com/issues/264018028
                     if (tabCount > 1) {
                         BvUnderlineTabRow(
-                            modifier = Modifier
-                                .onFocusChanged {
-                                    if (it.hasFocus) {
-                                        scope.launch(Dispatchers.Main) {
-                                            listState.scrollToItem(0)
-                                        }
-                                    }
-                                },
+                            modifier = Modifier,
                             items = tabItems,
                             selectedItem = selectedTabIndex,
                             entryFocusItem = selectedTabIndex,
                             itemKey = { it },
-                            defaultFocusRequester = tabRowFocusRequester,
                             focusNodeId = SeasonInfoDialogTabNodeId,
+                            focusLayer = WjzFocusLayer.Dialog,
                             separator = { Spacer(modifier = Modifier.width(12.dp)) },
                             onSelectedChanged = { selectedTabIndex = it },
                             onDown = {
-                                focusCoordinator?.let {
+                                dialogFocusCoordinator?.let {
                                     with(it) {
-                                        switchLayer(WjzFocusLayer.Content)
-                                        requestFocus(
-                                            nodeId = SeasonInfoDialogVideoListNodeId,
-                                            layer = WjzFocusLayer.Content
+                                        switchLayer(WjzFocusLayer.Dialog)
+                                        enqueueRequestFocus(
+                                            nodeId = dialogVideoListFocusNodeId,
+                                            layer = WjzFocusLayer.Dialog,
+                                            scopeId = SeasonInfoDialogScopeId
                                         )
                                     }
                                 }
@@ -916,32 +937,48 @@ fun SeasonEpisodesDialog(
                         )
                     }
 
-                    SmallVideoCardGridHost(
+                    TvGridFocusHost(
                         state = listState,
                         columns = GridCells.Fixed(2),
                         contentPadding = PaddingValues(8.dp),
-                        nodeIdPrefix = selectedEpisodes.firstOrNull()
-                            ?.let { "season-info/$title/episodes/${it.aid}_${it.cid}" }
-                            ?: "season-info/$title/episodes/empty",
+                        nodeIdPrefix = dialogNodeIdPrefix,
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         focusColumnCount = 2,
                         focusItemCount = selectedEpisodes.size,
-                        focusItemKeys = selectedEpisodes.map { WjzFocusItemKey("${it.aid}_${it.cid}") },
-                    ) { cardUiStateFor ->
+                        itemKeys = dialogFocusItemKeys,
+                        focusLayer = WjzFocusLayer.Dialog,
+                        focusScopeId = SeasonInfoDialogScopeId
+                    ) {
                         itemsIndexed(
                             items = selectedEpisodes,
-                            key = { _, episode -> "${episode.aid}_${episode.cid}" }
+                            key = { _, episode -> "${episode.id}_${episode.aid}_${episode.cid}" }
                         ) { index, episode ->
                             val episodeTitle by remember { mutableStateOf(if (episode.longTitle != "") episode.longTitle else episode.title) }
-                            val buttonModifier =
-                                if (index == 0) {
-                                    Modifier.infoFocusNode(
-                                        requester = videoListFocusRequester,
-                                        nodeKey = SeasonInfoDialogVideoListNodeId.value
-                                    )
-                                } else {
-                                    Modifier
+                            var buttonModifier = rememberTvGridFocusModifier(index)
+                            if (index < 2) {
+                                buttonModifier = buttonModifier.onPreviewKeyEvent { event ->
+                                    if (
+                                        event.type == KeyEventType.KeyDown &&
+                                        event.key == Key.DirectionUp
+                                    ) {
+                                        if (tabCount > 1) {
+                                            dialogFocusCoordinator?.let {
+                                                with(it) {
+                                                    switchLayer(WjzFocusLayer.Dialog)
+                                                    enqueueRequestFocus(
+                                                        nodeId = SeasonInfoDialogTabNodeId,
+                                                        layer = WjzFocusLayer.Dialog,
+                                                        scopeId = SeasonInfoDialogScopeId
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        true
+                                    } else {
+                                        false
+                                    }
                                 }
+                            }
                             SeasonEpisodeButton(
                                 modifier = buttonModifier
                                     .focusedScale(0.95f),
@@ -979,6 +1016,7 @@ fun SeasonEpisodesDialog(
 @Composable
 fun SeasonEpisodeRow(
     modifier: Modifier = Modifier,
+    rowKey: String,
     title: String,
     episodes: List<Episode>,
     lastPlayedId: Int = 0,
@@ -988,12 +1026,12 @@ fun SeasonEpisodeRow(
     onTargetAutoFocused: () -> Unit = {},
     onClick: (avid: Long, cid: Long, epid: Int, episodeTitle: String, startTime: Int) -> Unit
 ) {
-    val focusRequester = remember { ComposeFocusRequester() }
-    val targetEpisodeFocusRequester = remember { ComposeFocusRequester() }
     val rowState = rememberLazyListState()
     val focusCoordinator = LocalWjzFocusCoordinator.current
-    val firstEpisodeNodeId = remember(title) { seasonInfoEpisodeRowFirstNodeId(title) }
-    val targetEpisodeNodeId = remember(title) { seasonInfoEpisodeRowTargetNodeId(title) }
+    val rowNodeId = remember(rowKey) { seasonInfoEpisodeRowNodeId(rowKey) }
+    val dialogEntryNodeId = remember(rowKey) { seasonInfoEpisodeRowDialogNodeId(rowKey) }
+    val firstEpisodeNodeId = remember(rowKey) { seasonInfoEpisodeRowFirstNodeId(rowKey) }
+    val targetEpisodeNodeId = remember(rowKey) { seasonInfoEpisodeRowTargetNodeId(rowKey) }
 
     var targetFocusApplied by remember { mutableStateOf(false) }
 
@@ -1019,7 +1057,7 @@ fun SeasonEpisodeRow(
                 delay(32)
                 focusCoordinator?.let {
                     with(it) {
-                        requestFocus(
+                        enqueueRequestFocus(
                             nodeId = firstEpisodeNodeId,
                             layer = WjzFocusLayer.Content
                         )
@@ -1038,7 +1076,7 @@ fun SeasonEpisodeRow(
             delay(32)
             focusCoordinator?.let {
                 with(it) {
-                    requestFocus(
+                    enqueueRequestFocus(
                         nodeId = targetEpisodeNodeId,
                         layer = WjzFocusLayer.Content
                     )
@@ -1052,7 +1090,7 @@ fun SeasonEpisodeRow(
             // 兜底：目标焦点仍失败时，至少落到该行首个可聚焦项，避免停在封面
             focusCoordinator?.let {
                 with(it) {
-                    requestFocus(
+                    enqueueRequestFocus(
                         nodeId = firstEpisodeNodeId,
                         layer = WjzFocusLayer.Content
                     )
@@ -1073,7 +1111,10 @@ fun SeasonEpisodeRow(
 
     Column(
         modifier = modifier
-            .onFocusChanged { hasFocus = it.hasFocus },
+            .wjzFocus(
+                id = "episode-row/$rowKey",
+                onFocusChanged = { hasFocus = it }
+            ),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
@@ -1092,7 +1133,9 @@ fun SeasonEpisodeRow(
         ) {
             item {
                 Surface(
-                    modifier = modifier.size(60.dp, 80.dp),
+                    modifier = Modifier
+                        .wjzFocus(id = "episode-row/$rowKey/dialog")
+                        .size(60.dp, 80.dp),
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
                         focusedContainerColor = MaterialTheme.colorScheme.inverseSurface,
@@ -1126,20 +1169,18 @@ fun SeasonEpisodeRow(
                 val isTargetEpisode = index == targetEpisodeIndex && targetEpisodeIndex >= 0
                 val buttonModifier = when {
                     isTargetEpisode -> Modifier
-                        .infoFocusNode(
-                            requester = targetEpisodeFocusRequester,
-                            nodeKey = targetEpisodeNodeId.value
-                        )
-                        .onFocusChanged { focusState ->
-                            if (focusState.isFocused && shouldAutoFocusTarget && !targetFocusApplied) {
-                                targetFocusApplied = true
-                                onTargetAutoFocused()
+                        .wjzFocus(
+                            id = "episode-row/$rowKey/target",
+                            onFocusChanged = { focused ->
+                                if (focused && shouldAutoFocusTarget && !targetFocusApplied) {
+                                    targetFocusApplied = true
+                                    onTargetAutoFocused()
+                                }
                             }
-                        }
+                        )
 
-                    index == 0 -> Modifier.infoFocusNode(
-                        requester = focusRequester,
-                        nodeKey = firstEpisodeNodeId.value
+                    index == 0 -> Modifier.wjzFocus(
+                        id = "episode-row/$rowKey/first"
                     )
                     else -> Modifier
                 }
@@ -1173,6 +1214,7 @@ fun SeasonEpisodeRow(
 
     SeasonEpisodesDialog(
         show = showEpisodesDialog,
+        rowKey = rowKey,
         title = title,
         episodes = episodes,
         onHideDialog = { showEpisodesDialog = false },
@@ -1189,14 +1231,13 @@ fun SeasonSelector(
     seasons: List<PgcSeason>,
     onClickSeason: (Int) -> Unit
 ) {
-    val focusRequester = remember { ComposeFocusRequester() }
     val focusCoordinator = LocalWjzFocusCoordinator.current
 
     LaunchedEffect(show) {
         if (show) {
             focusCoordinator?.let {
                 with(it) {
-                    requestFocus(
+                    enqueueRequestFocus(
                         nodeId = SeasonInfoSelectorNodeId,
                         layer = WjzFocusLayer.Content
                     )
@@ -1207,11 +1248,7 @@ fun SeasonSelector(
 
     if (show) {
         SeasonSelectorContent(
-            modifier = modifier
-                .infoFocusNode(
-                    requester = focusRequester,
-                    nodeKey = SeasonInfoSelectorNodeId.value
-                ),
+            modifier = modifier,
             seasons = seasons,
             currentSeasonId = currentSeasonId,
             onClickSeason = { seasonId ->
@@ -1237,7 +1274,6 @@ private fun SeasonSelectorContent(
     val scope = rememberCoroutineScope()
     val rowState = rememberLazyListState()
     val logger = KotlinLogging.logger {}
-    val currentSeasonFocusRequester = remember { ComposeFocusRequester() }
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     val focusCoordinator = LocalWjzFocusCoordinator.current
 
@@ -1245,8 +1281,10 @@ private fun SeasonSelectorContent(
     var currentSeasonIndex by remember { mutableIntStateOf(0) }
     val isCurrentSeasonInScreen by remember {
         derivedStateOf {
-            rowState.layoutInfo.visibleItemsInfo.first().index <= currentSeasonIndex
-                    && rowState.layoutInfo.visibleItemsInfo.last().index >= currentSeasonIndex
+            val visibleItems = rowState.layoutInfo.visibleItemsInfo
+            visibleItems.isNotEmpty() &&
+                    visibleItems.first().index <= currentSeasonIndex &&
+                    visibleItems.last().index >= currentSeasonIndex
         }
     }
 
@@ -1257,7 +1295,7 @@ private fun SeasonSelectorContent(
             if (isCurrentSeasonInScreen) {
                 focusCoordinator?.let {
                     with(it) {
-                        requestFocus(
+                        enqueueRequestFocus(
                             nodeId = SeasonInfoSelectorCurrentNodeId,
                             layer = WjzFocusLayer.Content
                         )
@@ -1277,7 +1315,7 @@ private fun SeasonSelectorContent(
             scrolling = false
             focusCoordinator?.let {
                 with(it) {
-                    requestFocus(
+                    enqueueRequestFocus(
                         nodeId = SeasonInfoSelectorCurrentNodeId,
                         layer = WjzFocusLayer.Content
                     )
@@ -1289,9 +1327,12 @@ private fun SeasonSelectorContent(
     Surface(
         modifier = modifier
             .fillMaxSize()
-            .onFocusChanged {
-                if (it.hasFocus) scrollToCurrentSeason()
-            },
+            .wjzFocus(
+                id = "selector",
+                onFocusChanged = { focused ->
+                    if (focused) scrollToCurrentSeason()
+                }
+            ),
         shape = RoundedCornerShape(0.dp)
     ) {
         Box(
@@ -1358,15 +1399,15 @@ private fun SeasonSelectorContent(
                     ) { index, season ->
                         Card(
                             modifier = Modifier
-                                .onFocusChanged {
-                                    if (it.hasFocus) currentSeasonIndex = index
-                                }
-                                .ifElse(
-                                    season.seasonId == currentSeasonId,
-                                    Modifier.infoFocusNode(
-                                        requester = currentSeasonFocusRequester,
-                                        nodeKey = SeasonInfoSelectorCurrentNodeId.value
-                                    )
+                                .wjzFocus(
+                                    id = if (season.seasonId == currentSeasonId) {
+                                        "selector/current"
+                                    } else {
+                                        "selector/item/${season.seasonId}"
+                                    },
+                                    onFocusChanged = { focused ->
+                                        if (focused) currentSeasonIndex = index
+                                    }
                                 )
                                 .ifElse(
                                     season.seasonId == currentSeasonId,
@@ -1479,6 +1520,7 @@ fun SeasonEpisodeRowPreview() {
     }
     BVTheme {
         SeasonEpisodeRow(
+            rowKey = "preview",
             title = "正片",
             episodes = episodes,
             onClick = { _, _, _, _, _ -> }

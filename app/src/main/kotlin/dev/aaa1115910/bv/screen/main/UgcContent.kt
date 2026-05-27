@@ -15,7 +15,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -38,7 +37,6 @@ import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.UgcTopNavItem
 import dev.aaa1115910.bv.component.PersistLazyGridViewportEffect
-import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusRequester
 import dev.aaa1115910.bv.component.rememberRestoredLazyGridState
 import dev.aaa1115910.bv.entity.state.GridViewportState
 import dev.aaa1115910.bv.screen.main.ugc.UgcRegionScaffold
@@ -73,7 +71,6 @@ fun UgcContent(
     val focusedTab = ugcViewModel.focusedTab
     val activeTab = ugcViewModel.activeTab
     val ugcScaffoldStateMap by ugcViewModel.ugcScaffoldStateMap.collectAsStateWithLifecycle()
-    val topNavContentFocusRequester = rememberWjzFocusRequester()
     val ugcTopNavItems = UgcTopNavItem.entries
     var contentReadyTab by remember { mutableStateOf<UgcTopNavItem?>(null) }
     var previousActiveTab by remember { mutableStateOf<UgcTopNavItem?>(null) }
@@ -169,7 +166,7 @@ fun UgcContent(
                     onEntryFocusConsumed = { consumed ->
                         entryAdapter.onTopNavEntryFocusConsumed(entryFocusRequest, consumed)
                     },
-                    contentFocusRequester = topNavContentFocusRequester,
+                    contentFocusEnabled = true,
                     contentFocusReadyKey = contentReadyTab,
                     focusNodeId = UgcTopNavNodeId,
                     onContentFocusRequested = { nav ->
@@ -244,8 +241,6 @@ fun UgcContent(
                                 ugcScaffoldStateMap = ugcScaffoldStateMap,
                                 ugcViewModel = ugcViewModel,
                                 toViewViewModel = toViewViewModel,
-                                contentEntryFocusRequester = topNavContentFocusRequester,
-                                tabFocusRequester = null,
                                 onContentEntryReady = {
                                     if (tabActive) contentReadyTab = tab
                                 },
@@ -269,8 +264,6 @@ private fun UgcActiveTabContent(
     ugcScaffoldStateMap: Map<UgcTopNavItem, UgcScaffoldState>,
     ugcViewModel: UgcViewModel,
     toViewViewModel: ToViewViewModel,
-    contentEntryFocusRequester: FocusRequester?,
-    tabFocusRequester: FocusRequester?,
     onContentEntryReady: () -> Unit,
     active: Boolean
 ) {
@@ -279,8 +272,6 @@ private fun UgcActiveTabContent(
     val refreshSerial = ugcViewModel.refreshSerialOf(screen)
 
     if (screenState != null) {
-        val activeContentEntryFocusRequester = contentEntryFocusRequester?.takeIf { active }
-        val activeTabFocusRequester = tabFocusRequester?.takeIf { active }
         val gridState = rememberRestoredLazyGridState(
             GridViewportState(
                 index = screenState.firstVisibleItemIndex,
@@ -304,8 +295,6 @@ private fun UgcActiveTabContent(
             state = screenState,
             gridState = gridState,
             active = active,
-            contentEntryFocusRequester = activeContentEntryFocusRequester,
-            tabFocusRequester = activeTabFocusRequester,
             onContentEntryReady = onContentEntryReady,
             onLoadMore = { ugcViewModel.loadMoreData(screen) },
             onAddWatchLater = { aid ->

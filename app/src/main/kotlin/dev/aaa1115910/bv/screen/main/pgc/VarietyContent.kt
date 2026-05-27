@@ -7,7 +7,6 @@ import androidx.compose.material.icons.automirrored.rounded.List
 import androidx.compose.material.icons.rounded.QuestionMark
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -23,8 +22,6 @@ fun VarietyContent(
     modifier: Modifier = Modifier,
     lazyListState: LazyListState,
     pgcViewModel: PgcVarietyViewModel,
-    contentEntryFocusRequester: FocusRequester? = null,
-    tabFocusRequester: FocusRequester? = null,
     onContentEntryReady: () -> Unit = {},
     active: Boolean = true
 ) {
@@ -39,8 +36,6 @@ fun VarietyContent(
         pgcViewModel = pgcViewModel,
         pgcType = PgcType.Variety,
         active = active,
-        contentEntryFocusRequester = contentEntryFocusRequester,
-        tabFocusRequester = tabFocusRequester,
         onContentEntryReady = onContentEntryReady,
         featureButtons = {
             VarietyFeatureButtons(
