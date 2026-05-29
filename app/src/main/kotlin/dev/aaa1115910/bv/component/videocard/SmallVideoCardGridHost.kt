@@ -7,33 +7,14 @@ import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.remember
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
-import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
-import dev.aaa1115910.bv.component.CoAuthorsDialogHost
-import dev.aaa1115910.bv.component.FavoriteDialog
 import dev.aaa1115910.bv.component.TvGridFocusHost
-import dev.aaa1115910.bv.component.handleUpHomeClick
-import dev.aaa1115910.bv.component.rememberCoAuthorsDialogState
-import dev.aaa1115910.bv.util.toast
-import dev.aaa1115910.bv.viewmodel.SmallVideoCardGridEvent
 import dev.aaa1115910.bv.viewmodel.SmallVideoCardGridUiState
 import dev.aaa1115910.bv.viewmodel.SmallVideoCardGridViewModel
 import dev.aaa1115910.bv.viewmodel.SmallVideoCardItemUiState
-import androidx.lifecycle.repeatOnLifecycle
-import org.koin.androidx.compose.koinViewModel
 
 /**
  * 通过 CompositionLocal 向 SmallVideoCard 提供通用的页面级 ViewModel。
@@ -112,107 +93,13 @@ fun SmallVideoCardGridHost(
     focusColumnCount: Int = 4,
     content: LazyGridScope.((Long) -> SmallVideoCardItemUiState?) -> Unit
 ) {
-    val viewModel: SmallVideoCardGridViewModel = koinViewModel()
-    val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val cardUiMap by viewModel.cardUiMap.collectAsStateWithLifecycle()
-    val coAuthorsDialogState = rememberCoAuthorsDialogState()
-
-    /**
-     * 默认导航实现：
-     * 如果页面没有传自己的 onNavigateUp，就直接打开 UpInfoActivity
-     */
-    val navigateUp = remember(context, onNavigateUp) {
-        onNavigateUp ?: { mid: Long, name: String ->
-            UpInfoActivity.actionStart(context, mid = mid, name = name)
-        }
-    }
-
-    /**
-     * FavoriteDialog 当前 API 需要可变列表，这里做一层桥接。
-     * ViewModel 内部仍然保持不可变 UI state。
-     */
-    val favoriteFolders = remember { mutableStateListOf<FavoriteFolderMetadata>() }
-    val selectedFolderIds = remember { mutableStateListOf<Long>() }
-
-    val cardUiStateFor = remember(cardUiMap) {
-        { aid: Long -> cardUiMap[aid] }
-    }
-
-    LaunchedEffect(Unit) {
-        viewModel.refreshCapabilities()
-    }
-
-    /**
-     * 把 VM 中的 favorite dialog 数据同步到 FavoriteDialog 需要的列表容器。
-     */
-    LaunchedEffect(uiState.favoriteDialog.folders, uiState.favoriteDialog.selectedFolderIds) {
-        favoriteFolders.clear()
-        favoriteFolders.addAll(uiState.favoriteDialog.folders)
-
-        selectedFolderIds.clear()
-        selectedFolderIds.addAll(uiState.favoriteDialog.selectedFolderIds)
-    }
-
-    /**
-     * 当 VM 要求显示 coAuthors dialog 时，由 Host 真正弹出。
-     *
-     * 这里继续复用项目现有的 handleUpHomeClick：
-     * - 单作者：直接走 onNavigateSingle
-     * - 多作者：交给 CoAuthorsDialogHost
-     */
-    LaunchedEffect(uiState.coAuthorsDialog.show, uiState.coAuthorsDialog.authors) {
-        if (uiState.coAuthorsDialog.show) {
-            handleUpHomeClick(
-                authors = uiState.coAuthorsDialog.authors,
-                state = coAuthorsDialogState,
-                onNavigateSingle = { mid, name ->
-                    navigateUp(mid, name)
-                    viewModel.dismissCoAuthorsDialog()
-                }
-            )
-        }
-    }
-
-    /**
-     * 如果 dialog 被外部关闭（比如返回键），同步通知 VM 清理状态。
-     */
-    LaunchedEffect(coAuthorsDialogState.visible, uiState.coAuthorsDialog.show) {
-        if (!coAuthorsDialogState.visible && uiState.coAuthorsDialog.show) {
-            viewModel.dismissCoAuthorsDialog()
-        }
-    }
-
-    /**
-     * 收集一次性事件：
-     * - Toast
-     * - NavigateUp
-     */
-    LaunchedEffect(viewModel, lifecycleOwner) {
-        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            viewModel.events.collect { event ->
-                when (event) {
-                    is SmallVideoCardGridEvent.Toast -> {
-                        event.message.toast(context)
-                    }
-
-                    is SmallVideoCardGridEvent.NavigateUp -> {
-                        navigateUp(event.mid, event.name)
-                    }
-                }
-            }
-        }
-    }
-
     /**
      * 真正的 grid 内容。
      * 所有 SmallVideoCard 都可以通过 CompositionLocal 拿到同一个 VM。
      */
-    CompositionLocalProvider(
-        LocalSmallVideoCardGridViewModel provides viewModel,
-        LocalSmallVideoCardGridUiState provides uiState
-    ) {
+    SmallVideoCardHostProviders(
+        onNavigateUp = onNavigateUp
+    ) { cardUiStateFor ->
         TvGridFocusHost(
             columns = columns,
             modifier = modifier,
@@ -230,25 +117,4 @@ fun SmallVideoCardGridHost(
             content(cardUiStateFor)
         }
     }
-
-    /**
-     * 页面级唯一 FavoriteDialog。
-     */
-    FavoriteDialog(
-        show = uiState.favoriteDialog.show,
-        onHideDialog = viewModel::dismissFavoriteDialog,
-        userFavoriteFolders = favoriteFolders,
-        favoriteFolderIds = selectedFolderIds,
-        onUpdateFavoriteFolders = viewModel::updateFavoriteFolders
-    )
-
-    /**
-     * 页面级唯一 CoAuthorsDialogHost。
-     */
-    CoAuthorsDialogHost(
-        state = coAuthorsDialogState,
-        onClickAuthor = { mid, name ->
-            viewModel.onCoAuthorClicked(mid, name)
-        }
-    )
 }

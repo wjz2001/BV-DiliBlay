@@ -15,7 +15,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -28,42 +27,27 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.repeatOnLifecycle
 import androidx.tv.material3.Text
-import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
-import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.component.BvLazyFocusItemTarget
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzLazyFocusRestorerHost
-import dev.aaa1115910.bv.component.CoAuthorsDialogHost
-import dev.aaa1115910.bv.component.FavoriteDialog
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.wjzFocus
 import dev.aaa1115910.bv.wjzfocus.wjzFocusGroup
-import dev.aaa1115910.bv.component.handleUpHomeClick
-import dev.aaa1115910.bv.component.rememberCoAuthorsDialogState
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
-import dev.aaa1115910.bv.util.toast
-import dev.aaa1115910.bv.viewmodel.SmallVideoCardGridEvent
-import dev.aaa1115910.bv.viewmodel.SmallVideoCardGridViewModel
 import dev.aaa1115910.bv.ui.theme.C
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.launch
-import org.koin.androidx.compose.koinViewModel
 
 private class RowWrapController {
     var lastFocusedIndex by mutableIntStateOf(0)
@@ -186,12 +170,6 @@ fun VideosRowCore(
     listState: LazyListState = rememberLazyListState(),
     manageRowFocusInternally: Boolean = true,
 ) {
-    val viewModel: SmallVideoCardGridViewModel = koinViewModel(key = rowStateKey)
-    val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val cardUiMap by viewModel.cardUiMap.collectAsStateWithLifecycle()
-    val coAuthorsDialogState = rememberCoAuthorsDialogState()
     val scope = rememberCoroutineScope()
     val focusCoordinator = LocalWjzFocusCoordinator.current
 
@@ -204,15 +182,6 @@ fun VideosRowCore(
     } else {
         unfocusedHeaderColor ?: C.onSurfaceVariant
     }
-
-    val navigateUp = remember(context, onGoToUpPage) {
-        onGoToUpPage ?: { mid: Long, name: String ->
-            UpInfoActivity.actionStart(context, mid = mid, name = name)
-        }
-    }
-
-    val favoriteFolders = remember { mutableStateListOf<FavoriteFolderMetadata>() }
-    val selectedFolderIds = remember { mutableStateListOf<Long>() }
 
     val rowFocusScopeId = remember(rowStateKey) {
         WjzFocusScopeId("videos-row/$rowStateKey")
@@ -244,17 +213,9 @@ fun VideosRowCore(
             shouldRestoreFocusedItem = false
         }
     }
-    val cardUiStateFor = remember(cardUiMap) {
-        { aid: Long -> cardUiMap[aid] }
-    }
 
-    val leadingSlotOffset = if (leadingItem != null) 1 else 0
     var previousItemKeys by remember(rowStateKey) {
         mutableStateOf<List<WjzFocusItemKey>>(emptyList())
-    }
-
-    LaunchedEffect(Unit) {
-        viewModel.refreshCapabilities()
     }
 
     LaunchedEffect(itemKeys) {
@@ -289,222 +250,167 @@ fun VideosRowCore(
         previousItemKeys = itemKeys
     }
 
-    LaunchedEffect(uiState.favoriteDialog.folders, uiState.favoriteDialog.selectedFolderIds) {
-        favoriteFolders.clear()
-        favoriteFolders.addAll(uiState.favoriteDialog.folders)
-
-        selectedFolderIds.clear()
-        selectedFolderIds.addAll(uiState.favoriteDialog.selectedFolderIds)
-    }
-
-    LaunchedEffect(uiState.coAuthorsDialog.show, uiState.coAuthorsDialog.authors) {
-        if (uiState.coAuthorsDialog.show) {
-            handleUpHomeClick(
-                authors = uiState.coAuthorsDialog.authors,
-                state = coAuthorsDialogState,
-                onNavigateSingle = { mid, name ->
-                    navigateUp(mid, name)
-                    viewModel.dismissCoAuthorsDialog()
-                }
+    SmallVideoCardHostProviders(
+        viewModelKey = rowStateKey,
+        onNavigateUp = onGoToUpPage
+    ) { cardUiStateFor ->
+        CompositionLocalProvider(
+            LocalDensity provides Density(
+                density = LocalDensity.current.density * 1.25f,
+                fontScale = LocalDensity.current.fontScale * 1.25f
             )
-        }
-    }
-
-    LaunchedEffect(coAuthorsDialogState.visible, uiState.coAuthorsDialog.show) {
-        if (!coAuthorsDialogState.visible && uiState.coAuthorsDialog.show) {
-            viewModel.dismissCoAuthorsDialog()
-        }
-    }
-
-    LaunchedEffect(viewModel, lifecycleOwner) {
-        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            viewModel.events.collect { event ->
-                when (event) {
-                    is SmallVideoCardGridEvent.Toast -> {
-                        event.message.toast(context)
-                    }
-
-                    is SmallVideoCardGridEvent.NavigateUp -> {
-                        navigateUp(event.mid, event.name)
-                    }
-                }
-            }
-        }
-    }
-
-    CompositionLocalProvider(
-        LocalDensity provides Density(
-            density = LocalDensity.current.density * 1.25f,
-            fontScale = LocalDensity.current.fontScale * 1.25f
-        ),
-        LocalSmallVideoCardGridViewModel provides viewModel,
-        LocalSmallVideoCardGridUiState provides uiState
-    ) {
-        var columnModifier = modifier
-        if (manageRowFocusInternally) {
-            columnModifier = columnModifier
-                .wjzFocusGroup()
-        }
-
-        Column(
-            modifier = columnModifier
         ) {
-            Text(
-                modifier = Modifier.padding(horizontal = 62.dp),
-                text = header,
-                fontSize = fontSize,
-                color = titleColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            var columnModifier = modifier
+            if (manageRowFocusInternally) {
+                columnModifier = columnModifier
+                    .wjzFocusGroup()
+            }
 
-            WjzLazyFocusRestorerHost(
-                layer = WjzFocusLayer.Content,
-                scopeId = rowFocusScopeId,
-                restorerId = "$rowStateKey/lazy-restorer",
-                listId = "$rowStateKey/lazy-restorer",
-                scrollToItem = { key -> rowWrapController.scrollToKey(key) },
-                isItemVisible = { key -> rowWrapController.isKeyVisible(key) }
-            )
-
-            LazyRow(
-                state = listState,
-                modifier = Modifier.padding(top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(24.dp),
-                verticalAlignment = Alignment.Top,
-                contentPadding = PaddingValues(horizontal = 58.dp)
+            Column(
+                modifier = columnModifier
             ) {
-                if (leadingItem != null) {
-                    item(key = "${rowStateKey}_leading_item") {
-                        leadingItem(
-                            Modifier
-                                .onPreviewKeyEvent { event ->
-                                    if (
-                                        event.type != KeyEventType.KeyDown ||
-                                        event.key != Key.DirectionRight ||
-                                        videos.isEmpty()
-                                    ) {
-                                        return@onPreviewKeyEvent false
-                                    }
-                                    scope.launch {
-                                        val targetKey = rowWrapController.itemKeyAt(0)
-                                        focusCoordinator?.enqueueLazyRestore(
-                                            nodeId = rowWrapController.nodeIdAt(0),
-                                            itemKey = targetKey,
-                                            layer = WjzFocusLayer.Content,
-                                            scopeId = rowFocusScopeId,
-                                            restorerId = "$rowStateKey/lazy-restorer",
-                                            listId = "$rowStateKey/lazy-restorer"
-                                        )
-                                    }
-                                    true
-                                }
-                        )
-                    }
-                }
+                Text(
+                    modifier = Modifier.padding(horizontal = 62.dp),
+                    text = header,
+                    fontSize = fontSize,
+                    color = titleColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
 
-                itemsIndexed(
-                    items = videos,
-                    key = { _, item -> videoCardKey(item).value }
-                ) { index, videoData ->
-                    CompositionLocalProvider(LocalWjzFocusScopeId provides rowFocusScopeId) {
-                        val lastIndex = videos.lastIndex
-                        val focusTarget = rowWrapController.targetFor(index)?.let { target ->
-                            target.copy(
-                                modifier = target.modifier
+                WjzLazyFocusRestorerHost(
+                    layer = WjzFocusLayer.Content,
+                    scopeId = rowFocusScopeId,
+                    restorerId = "$rowStateKey/lazy-restorer",
+                    listId = "$rowStateKey/lazy-restorer",
+                    scrollToItem = { key -> rowWrapController.scrollToKey(key) },
+                    isItemVisible = { key -> rowWrapController.isKeyVisible(key) }
+                )
+
+                LazyRow(
+                    state = listState,
+                    modifier = Modifier.padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    verticalAlignment = Alignment.Top,
+                    contentPadding = PaddingValues(horizontal = 58.dp)
+                ) {
+                    if (leadingItem != null) {
+                        item(key = "${rowStateKey}_leading_item") {
+                            leadingItem(
+                                Modifier
                                     .onPreviewKeyEvent { event ->
-                                        if (!enableHorizontalWrap) {
+                                        if (
+                                            event.type != KeyEventType.KeyDown ||
+                                            event.key != Key.DirectionRight ||
+                                            videos.isEmpty()
+                                        ) {
                                             return@onPreviewKeyEvent false
                                         }
-                                        if (videos.size <= 1) {
-                                            return@onPreviewKeyEvent false
+                                        scope.launch {
+                                            val targetKey = rowWrapController.itemKeyAt(0)
+                                            focusCoordinator?.enqueueLazyRestore(
+                                                nodeId = rowWrapController.nodeIdAt(0),
+                                                itemKey = targetKey,
+                                                layer = WjzFocusLayer.Content,
+                                                scopeId = rowFocusScopeId,
+                                                restorerId = "$rowStateKey/lazy-restorer",
+                                                listId = "$rowStateKey/lazy-restorer"
+                                            )
                                         }
-                                        if (event.type != KeyEventType.KeyDown) {
-                                            return@onPreviewKeyEvent false
-                                        }
-
-                                        when {
-                                            // 没有 leadingItem 时，第一个视频按左，循环到最后一个视频
-                                            event.key == Key.DirectionLeft &&
-                                                    index == 0 &&
-                                                    leadingItem == null -> {
-                                                scope.launch {
-                                                    val targetKey = rowWrapController.itemKeyAt(lastIndex)
-                                                    focusCoordinator?.enqueueLazyRestore(
-                                                        nodeId = rowWrapController.nodeIdAt(lastIndex),
-                                                        itemKey = targetKey,
-                                                        layer = WjzFocusLayer.Content,
-                                                        scopeId = rowFocusScopeId,
-                                                        restorerId = "$rowStateKey/lazy-restorer",
-                                                        listId = "$rowStateKey/lazy-restorer"
-                                                    )
-                                                }
-                                                true
-                                            }
-
-                                            // 最后一个视频按右，循环到第一个视频
-                                            event.key == Key.DirectionRight &&
-                                                    index == lastIndex -> {
-                                                scope.launch {
-                                                    val targetKey = rowWrapController.itemKeyAt(0)
-                                                    focusCoordinator?.enqueueLazyRestore(
-                                                        nodeId = rowWrapController.nodeIdAt(0),
-                                                        itemKey = targetKey,
-                                                        layer = WjzFocusLayer.Content,
-                                                        scopeId = rowFocusScopeId,
-                                                        restorerId = "$rowStateKey/lazy-restorer",
-                                                        listId = "$rowStateKey/lazy-restorer"
-                                                    )
-                                                }
-                                                true
-                                            }
-
-                                            else -> false
-                                        }
+                                        true
                                     }
                             )
                         }
+                    }
 
-                        SmallVideoCard(
-                            modifier = Modifier.width(200.dp),
-                            focusTarget = focusTarget,
-                            uiState = cardUiStateFor(videoData.avid),
-                            data = videoData,
-                            titleMaxLines = 1,
-                            onClick = { onVideoClicked(videoData) },
-                            coverDensityMultiplier = 1f,
-                            coverFontScaleMultiplier = 1f,
-                            infoDensityMultiplier = 1f,
-                            infoFontScaleMultiplier = 1f,
-                            onAddWatchLater = onAddWatchLater?.let { callback ->
-                                { callback(videoData.avid) }
-                            },
-                            onGoToUpPage = onGoToUpPage?.let { callback ->
-                                videoData.upMid?.let { mid ->
-                                    { callback(mid, videoData.upName) }
-                                }
+                    itemsIndexed(
+                        items = videos,
+                        key = { _, item -> videoCardKey(item).value }
+                    ) { index, videoData ->
+                        CompositionLocalProvider(LocalWjzFocusScopeId provides rowFocusScopeId) {
+                            val lastIndex = videos.lastIndex
+                            val focusTarget = rowWrapController.targetFor(index)?.let { target ->
+                                target.copy(
+                                    modifier = target.modifier
+                                        .onPreviewKeyEvent { event ->
+                                            if (!enableHorizontalWrap) {
+                                                return@onPreviewKeyEvent false
+                                            }
+                                            if (videos.size <= 1) {
+                                                return@onPreviewKeyEvent false
+                                            }
+                                            if (event.type != KeyEventType.KeyDown) {
+                                                return@onPreviewKeyEvent false
+                                            }
+
+                                            when {
+                                                // 没有 leadingItem 时，第一个视频按左，循环到最后一个视频
+                                                event.key == Key.DirectionLeft &&
+                                                        index == 0 &&
+                                                        leadingItem == null -> {
+                                                    scope.launch {
+                                                        val targetKey = rowWrapController.itemKeyAt(lastIndex)
+                                                        focusCoordinator?.enqueueLazyRestore(
+                                                            nodeId = rowWrapController.nodeIdAt(lastIndex),
+                                                            itemKey = targetKey,
+                                                            layer = WjzFocusLayer.Content,
+                                                            scopeId = rowFocusScopeId,
+                                                            restorerId = "$rowStateKey/lazy-restorer",
+                                                            listId = "$rowStateKey/lazy-restorer"
+                                                        )
+                                                    }
+                                                    true
+                                                }
+
+                                                // 最后一个视频按右，循环到第一个视频
+                                                event.key == Key.DirectionRight &&
+                                                        index == lastIndex -> {
+                                                    scope.launch {
+                                                        val targetKey = rowWrapController.itemKeyAt(0)
+                                                        focusCoordinator?.enqueueLazyRestore(
+                                                            nodeId = rowWrapController.nodeIdAt(0),
+                                                            itemKey = targetKey,
+                                                            layer = WjzFocusLayer.Content,
+                                                            scopeId = rowFocusScopeId,
+                                                            restorerId = "$rowStateKey/lazy-restorer",
+                                                            listId = "$rowStateKey/lazy-restorer"
+                                                        )
+                                                    }
+                                                    true
+                                                }
+
+                                                else -> false
+                                            }
+                                        }
+                                )
                             }
-                        )
+
+                            SmallVideoCard(
+                                modifier = Modifier.width(200.dp),
+                                focusTarget = focusTarget,
+                                uiState = cardUiStateFor(videoData.avid),
+                                data = videoData,
+                                titleMaxLines = 1,
+                                onClick = { onVideoClicked(videoData) },
+                                coverDensityMultiplier = 1f,
+                                coverFontScaleMultiplier = 1f,
+                                infoDensityMultiplier = 1f,
+                                infoFontScaleMultiplier = 1f,
+                                onAddWatchLater = onAddWatchLater?.let { callback ->
+                                    { callback(videoData.avid) }
+                                },
+                                onGoToUpPage = onGoToUpPage?.let { callback ->
+                                    videoData.upMid?.let { mid ->
+                                        { callback(mid, videoData.upName) }
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             }
         }
     }
-
-    FavoriteDialog(
-        show = uiState.favoriteDialog.show,
-        onHideDialog = viewModel::dismissFavoriteDialog,
-        userFavoriteFolders = favoriteFolders,
-        favoriteFolderIds = selectedFolderIds,
-        onUpdateFavoriteFolders = viewModel::updateFavoriteFolders
-    )
-
-    CoAuthorsDialogHost(
-        state = coAuthorsDialogState,
-        onClickAuthor = { mid, name ->
-            viewModel.onCoAuthorClicked(mid, name)
-        }
-    )
 }
 
 @Composable
