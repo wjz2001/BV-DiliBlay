@@ -48,8 +48,13 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.wjzFocusGroup
 import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRouter
+import dev.aaa1115910.bv.wjzfocus.horizontal
+import dev.aaa1115910.bv.wjzfocus.down
+import dev.aaa1115910.bv.wjzfocus.up
 import androidx.tv.material3.Text as TvText
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.toast
@@ -59,8 +64,12 @@ private val OrderedMultiSelectDialogScopeId = WjzFocusScopeId("dialog/ordered-mu
 private val OrderedMultiSelectDialogContainerNodeId =
     WjzFocusNodeId("dialog/ordered-multi-select/container")
 private const val OrderedMultiSelectTargetFocusId = "target"
-private val OrderedMultiSelectTargetNodeId =
-    WjzFocusNodeId("${OrderedMultiSelectDialogScopeId.value}/$OrderedMultiSelectTargetFocusId")
+private const val OrderedMultiSelectRequiredSelectionGuardEntryId =
+    "ordered-multi-select/required-selection-guard"
+private const val OrderedMultiSelectLoopToFirstEntryId =
+    "ordered-multi-select/loop-to-first"
+private const val OrderedMultiSelectLoopToLastEntryId =
+    "ordered-multi-select/loop-to-last"
 
 /**
  * 带顺序的多选列表 Dialog（TV 焦点友好）：
@@ -83,6 +92,9 @@ internal fun <T, ID> OrderedMultiSelectDialog(
     defaultFocusIndex: Int? = null,
     emptySelectionToastText: String = "请至少选择一项",
     discontinuousOrderToastText: String = "序号不连续，请补齐后再退出",
+    requiredSelectedIds: Collection<ID> = emptyList(),
+    requiredSelectionToastText: String = "请先选择必选项",
+    onBlockedExit: (() -> Unit)? = null,
     shape: Shape = RoundedCornerShape(12.dp),
     containerColor: Color = C.surface,
     contentColor: Color = C.onSurface,
@@ -98,6 +110,10 @@ internal fun <T, ID> OrderedMultiSelectDialog(
 
     val context = LocalContext.current
     val selectedOrders = remember { mutableStateMapOf<ID, Int>() }
+    val validIds = remember(items, itemId) { items.map(itemId).toSet() }
+    val requiredItemIds = remember(validIds, requiredSelectedIds) {
+        requiredSelectedIds.toSet().intersect(validIds)
+    }
     val windowInfo = LocalWindowInfo.current
     val density = LocalDensity.current
     val maxHeightDp = with(density) {
@@ -107,7 +123,6 @@ internal fun <T, ID> OrderedMultiSelectDialog(
     LaunchedEffect(true, items, initialSelectedIds) {
         if (!visible) return@LaunchedEffect
 
-        val validIds = items.map(itemId).toSet()
         selectedOrders.clear()
         selectedOrders.putAll(initialSelectedIds.toInitialSelectedOrders(validIds))
     }
@@ -121,6 +136,10 @@ internal fun <T, ID> OrderedMultiSelectDialog(
     TvAlertDialog(
         onDismissRequest = {
             when {
+                requiredItemIds.hasMissingSelection(selectedOrders) -> {
+                    requiredSelectionToastText.toast(context)
+                    onBlockedExit?.invoke()
+                }
                 selectedOrders.isEmpty() -> emptySelectionToastText.toast(context)
                 !selectedOrders.values.hasContinuousOrders() -> discontinuousOrderToastText.toast(context)
                 else -> {
@@ -153,6 +172,9 @@ internal fun <T, ID> OrderedMultiSelectDialog(
                 defaultFocusKey = defaultFocusKey,
                 defaultFocusIndex = defaultFocusIndex,
                 requestDefaultFocus = true,
+                requiredSelectedIds = requiredSelectedIds,
+                requiredSelectionToastText = requiredSelectionToastText,
+                onBlockedExit = onBlockedExit,
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(itemSpacing),
             )
@@ -176,6 +198,9 @@ internal fun <T, ID> OrderedMultiSelectListContent(
     itemId: (T) -> ID,
     onSelectedOrdersChange: (Map<ID, Int>) -> Unit,
     text: (T) -> String,
+    requiredSelectedIds: Collection<ID> = emptyList(),
+    requiredSelectionToastText: String = "请先选择必选项",
+    onBlockedExit: (() -> Unit)? = null,
 
     // key & default focus
     itemKey: ((T) -> Any)? = null,
@@ -189,7 +214,9 @@ internal fun <T, ID> OrderedMultiSelectListContent(
 ) {
     val context = LocalContext.current
     val focusCoordinator = LocalWjzFocusCoordinator.current
+    val focusScopeId = LocalWjzFocusScopeId.current ?: OrderedMultiSelectDialogScopeId
     val listState = rememberLazyListState()
+    var pendingLoopTargetIndex by remember { mutableStateOf<Int?>(null) }
 
     val targetIndex = remember(items, itemKey, defaultFocusKey, defaultFocusIndex) {
         items.resolveTargetFocusIndex(
@@ -208,6 +235,10 @@ internal fun <T, ID> OrderedMultiSelectListContent(
             }?.let(itemId)
         }
     }
+    val requiredItemIds = remember(items, itemId, requiredSelectedIds) {
+        val validIds = items.map(itemId).toSet()
+        requiredSelectedIds.toSet().intersect(validIds)
+    }
 
     LaunchedEffect(targetIndex, requestDefaultFocus) {
         if (!requestDefaultFocus) return@LaunchedEffect
@@ -220,12 +251,53 @@ internal fun <T, ID> OrderedMultiSelectListContent(
 
         repeat(5) {
             focusCoordinator?.enqueueRequestFocus(
-                nodeId = OrderedMultiSelectTargetNodeId,
+                nodeId = orderedMultiSelectNodeId(
+                    index = targetIndex,
+                    item = items[targetIndex],
+                    targetIndex = targetIndex,
+                    scopeId = focusScopeId,
+                    itemId = itemId,
+                    itemKey = itemKey
+                ),
                 layer = WjzFocusLayer.Dialog,
-                scopeId = OrderedMultiSelectDialogScopeId
+                scopeId = focusScopeId
             )
             delay(50L)
         }
+    }
+
+    LaunchedEffect(pendingLoopTargetIndex, items, targetIndex) {
+        val loopTargetIndex = pendingLoopTargetIndex ?: return@LaunchedEffect
+        if (loopTargetIndex !in items.indices) {
+            pendingLoopTargetIndex = null
+            return@LaunchedEffect
+        }
+
+        val targetItem = items[loopTargetIndex]
+        val targetNodeId = orderedMultiSelectNodeId(
+            index = loopTargetIndex,
+            item = targetItem,
+            targetIndex = targetIndex,
+            scopeId = focusScopeId,
+            itemId = itemId,
+            itemKey = itemKey
+        )
+
+        val targetVisible = listState.layoutInfo.visibleItemsInfo.any { it.index == loopTargetIndex }
+        if (!targetVisible) {
+            runCatching { listState.scrollToItem(loopTargetIndex) }
+        }
+
+        repeat(5) {
+            focusCoordinator?.enqueueRequestFocus(
+                nodeId = targetNodeId,
+                layer = WjzFocusLayer.Dialog,
+                scopeId = focusScopeId
+            )
+            delay(50L)
+        }
+
+        pendingLoopTargetIndex = null
     }
 
     LazyColumn(
@@ -241,21 +313,55 @@ internal fun <T, ID> OrderedMultiSelectListContent(
             key = itemKey?.let { k -> { _: Int, item: T -> k(item) } }
         ) { index, item ->
             var hasFocus by remember { mutableStateOf(false) }
+            val nodeId = orderedMultiSelectNodeId(
+                index = index,
+                item = item,
+                targetIndex = targetIndex,
+                scopeId = focusScopeId,
+                itemId = itemId,
+                itemKey = itemKey
+            )
             val itemModifier =
-                if (index == targetIndex) {
-                    Modifier.wjzFocus(
-                        id = OrderedMultiSelectTargetFocusId,
-                        layer = WjzFocusLayer.Dialog,
-                        fallback = true,
-                        onFocusChanged = { hasFocus = it }
-                    )
-                } else {
-                    Modifier.wjzFocus(
-                        id = "item/${itemKey?.invoke(item) ?: itemId(item)}",
-                        layer = WjzFocusLayer.Dialog,
-                        onFocusChanged = { hasFocus = it }
-                    )
-                }
+                Modifier.wjzFocus(
+                    id = nodeId.value.removePrefix("${focusScopeId.value}/"),
+                    layer = WjzFocusLayer.Dialog,
+                    fallback = index == targetIndex,
+                    exits = {
+                        horizontal move OrderedMultiSelectRequiredSelectionGuardEntryId
+                        if (index == 0 && items.size > 1) {
+                            up move OrderedMultiSelectLoopToLastEntryId
+                        }
+                        if (index == items.lastIndex && items.size > 1) {
+                            down move OrderedMultiSelectLoopToFirstEntryId
+                        }
+                    },
+                    onExit = wjzFocusRouter(layer = WjzFocusLayer.Dialog) { target ->
+                        when (target) {
+                            OrderedMultiSelectRequiredSelectionGuardEntryId -> {
+                                if (requiredItemIds.hasMissingSelection(selectedOrders)) {
+                                    requiredSelectionToastText.toast(context)
+                                    onBlockedExit?.invoke()
+                                    cancel()
+                                } else {
+                                    reject()
+                                }
+                            }
+
+                            OrderedMultiSelectLoopToFirstEntryId -> {
+                                pendingLoopTargetIndex = 0
+                                cancel()
+                            }
+
+                            OrderedMultiSelectLoopToLastEntryId -> {
+                                pendingLoopTargetIndex = items.lastIndex
+                                cancel()
+                            }
+
+                            else -> reject()
+                        }
+                    },
+                    onFocusChanged = { hasFocus = it }
+                )
             val id = itemId(item)
             val order = selectedOrders[id]
 
@@ -395,6 +501,27 @@ private fun Collection<Int>.firstMissingOrder(): Int? {
 private fun Collection<Int>.hasContinuousOrders(): Boolean {
     val sortedOrders = sorted()
     return sortedOrders == (1..sortedOrders.size).toList()
+}
+
+private fun <ID> Collection<ID>.hasMissingSelection(selectedOrders: Map<ID, Int>): Boolean {
+    return any { id -> selectedOrders[id] == null }
+}
+
+private fun <T, ID> orderedMultiSelectNodeId(
+    index: Int,
+    item: T,
+    targetIndex: Int?,
+    scopeId: WjzFocusScopeId,
+    itemId: (T) -> ID,
+    itemKey: ((T) -> Any)?
+): WjzFocusNodeId {
+    return if (index == targetIndex) {
+        WjzFocusNodeId("${scopeId.value}/$OrderedMultiSelectTargetFocusId")
+    } else {
+        WjzFocusNodeId(
+            "${scopeId.value}/item/${itemKey?.invoke(item) ?: itemId(item)}"
+        )
+    }
 }
 
 /**

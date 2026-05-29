@@ -1284,9 +1284,7 @@ private fun uiSettingsEntries(): List<SettingsEntry> {
                         .distinct()
 
                     selectedHomeTopNavItems = nextItems
-                    if (selectedFirstHomeTopNavItem in nextItems) {
-                        Prefs.homeTopNavItems = nextItems
-                    }
+                    Prefs.homeTopNavItems = nextItems
                 },
                 text = { it.getDisplayName(context) },
                 defaultFocusKey = selectedFirstHomeTopNavItem.code,

@@ -790,7 +790,10 @@ fun <T, ID : Any> BvTabOrderListContent(
     itemKey: ((T) -> Any)? = null,
     defaultFocusKey: Any? = enabledOrderedIds.firstOrNull(),
     defaultFocusIndex: Int? = null,
-    requestDefaultFocus: Boolean = true
+    requestDefaultFocus: Boolean = true,
+    requiredSelectedIds: Collection<ID> = emptyList(),
+    requiredSelectionToastText: String = "初始页面不能隐藏",
+    onBlockedExit: (() -> Unit)? = null
 ) {
     var selectedOrders by remember(allItems, enabledOrderedIds) {
         mutableStateOf(
@@ -800,6 +803,22 @@ fun <T, ID : Any> BvTabOrderListContent(
                 .mapIndexed { index, id -> id to index + 1 }
                 .toMap()
         )
+    }
+    val startupItemId = remember(allItems, itemKey, defaultFocusKey) {
+        if (defaultFocusKey == null) {
+            null
+        } else {
+            allItems.firstOrNull { item ->
+                (itemKey?.invoke(item) ?: itemId(item)) == defaultFocusKey
+            }?.let(itemId)
+        }
+    }
+    val resolvedRequiredSelectedIds = remember(requiredSelectedIds, startupItemId) {
+        if (startupItemId == null) {
+            requiredSelectedIds
+        } else {
+            requiredSelectedIds + startupItemId
+        }
     }
 
     OrderedMultiSelectListContent(
@@ -819,7 +838,10 @@ fun <T, ID : Any> BvTabOrderListContent(
         itemKey = itemKey ?: { itemId(it) },
         defaultFocusKey = defaultFocusKey,
         defaultFocusIndex = defaultFocusIndex,
-        requestDefaultFocus = requestDefaultFocus
+        requestDefaultFocus = requestDefaultFocus,
+        requiredSelectedIds = resolvedRequiredSelectedIds,
+        requiredSelectionToastText = requiredSelectionToastText,
+        onBlockedExit = onBlockedExit
     )
 }
 
