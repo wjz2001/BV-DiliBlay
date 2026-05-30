@@ -63,6 +63,7 @@ import dev.aaa1115910.bv.component.TvGridFocusHost
 import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.component.videocard.VideoPartButton
+import dev.aaa1115910.bv.component.videocard.VideoPartButtonStyle
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.BvKeyDirection
 import dev.aaa1115910.bv.util.ImageSize
@@ -412,6 +413,7 @@ private fun CheeseEpisodeList(
                 title = episode.title,
                 duration = duration,
                 played = if (episode.watched) duration else episode.watchedHistory.coerceAtLeast(0),
+                style = VideoPartButtonStyle.Poetry,
                 onClick = { onEpisodeClick(episode) }
             )
         }

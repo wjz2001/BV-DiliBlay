@@ -39,6 +39,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -146,13 +147,13 @@ import dev.aaa1115910.bv.wjzfocus.wjzFocusRequestRouter
 import dev.aaa1115910.bv.component.BvUnderlineTabRow
 import dev.aaa1115910.bv.component.CoAuthorsDialogHost
 import dev.aaa1115910.bv.component.FollowGroupSelectDialog
-import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.component.rememberCoAuthorsDialogState
 import dev.aaa1115910.bv.component.comments.VideoCommentsDialog
 import dev.aaa1115910.bv.component.richtext.RichText
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.VideoPartButton
+import dev.aaa1115910.bv.component.videocard.VideoPartButtonStyle
 import dev.aaa1115910.bv.component.videocard.VideosRow
 import dev.aaa1115910.bv.component.videocard.VideosRowCore
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
@@ -1034,7 +1035,7 @@ private fun VideoInfoData(
             modifier = Modifier
                 .weight(7.3f)
                 .height(heightIs),
-            verticalArrangement = Arrangement.spacedBy(3.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
                 text = videoDetail.title,
@@ -1106,6 +1107,7 @@ private fun VideoInfoData(
                         modifier = Modifier.onSizeChanged { upButtonHeightPx = it.height }
                     ) {
                         UpButton(
+                            avatarUrl = videoDetail.author.face,
                             name = videoDetail.author.name,
                             followed = isFollowing,
                             onClickUp = onClickUp,
@@ -1263,6 +1265,7 @@ private fun UpButton(
     modifier: Modifier = Modifier,
     upInfoModifier: Modifier = Modifier,
     followModifier: Modifier = Modifier,
+    avatarUrl: String,
     name: String,
     followed: Boolean,
     onClickUp: () -> Unit,
@@ -1286,8 +1289,20 @@ private fun UpButton(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            UpIcon(color = C.onSurface)
-            Text(text = name, color = C.onSurface)
+            AsyncImage(
+                model = avatarUrl,
+                contentDescription = "UP主头像",
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+            Text(
+                text = name,
+                color = C.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
         AnimatedVisibility(visible = isLogin) {
             Row(
@@ -2312,11 +2327,12 @@ fun VideoPartRow(
             VideoPartButton(
                 modifier = Modifier
                     .wjzFocus(id = "part/page/$index")
-                    .width(300.dp),
+                    .width(380.dp),
                 index = index + 1,
                 title = page.title,
                 played = if (page.cid == lastPlayedCid) lastPlayedTime else 0,
                 duration = page.duration,
+                style = VideoPartButtonStyle.Muji,
                 onClick = { onClick(page.cid) }
             )
         }
@@ -2335,6 +2351,7 @@ fun VideoPartRow(
             title = page.title,
             played = 0,
             duration = page.duration,
+            style = VideoPartButtonStyle.Muji,
             onClick = { onClick(page.cid) }
         )
     }
@@ -3100,6 +3117,7 @@ private fun UpButtonPreview() {
     var followed by remember { mutableStateOf(false) }
     BVTheme {
         UpButton(
+            avatarUrl = "",
             name = "12435678",
             followed = followed,
             onClickUp = { followed = !followed },

@@ -1,15 +1,17 @@
 package dev.aaa1115910.bv.component.videocard
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,12 +30,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ClickableSurfaceDefaults
-import androidx.tv.material3.LocalTextStyle
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
-import dev.aaa1115910.bv.component.VerticalDashedDivider
 import dev.aaa1115910.bv.ui.theme.C
+import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.wjzfocus.wjzObserveFocusChanged
+
+enum class VideoPartButtonStyle {
+    Muji,
+    Poetry
+}
 
 @Composable
 fun VideoPartButton(
@@ -42,31 +48,13 @@ fun VideoPartButton(
     title: String,
     duration: Int,
     played: Int = 0,
+    style: VideoPartButtonStyle = VideoPartButtonStyle.Muji,
     onClick: () -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    val surfaceVariant = C.surfaceVariant
-    val defaultBackgroundBrush = remember(surfaceVariant) {
-        Brush.horizontalGradient(
-            colors = listOf(
-                surfaceVariant.copy(alpha = 0.9f),
-                surfaceVariant.copy(alpha = 1f)
-            )
-        )
-    }
-    val progressColor = when {
-        isPressed -> C.primaryContainer
-        isFocused -> C.secondaryContainer
-        else -> C.inverseSurface
-    }
-    val backgroundColor = when {
-        isPressed -> C.secondaryContainer
-        isFocused -> C.tertiaryContainer
-        else -> Color.Transparent
-    }
-    val textColor = C.onSurface
+    val durationText = remember(duration) { (duration * 1000L).formatHourMinSec() }
 
     Surface(
         modifier = modifier
@@ -95,9 +83,7 @@ fun VideoPartButton(
                 .videoPartButtonBackground(
                     isActive = isFocused || isPressed,
                     isPressed = isPressed,
-                    backgroundBrush = defaultBackgroundBrush,
-                    backgroundColor = backgroundColor,
-                    progressColor = progressColor,
+                    style = style,
                     progress = if (played < 0) {
                         1f
                     } else if (duration > 0) {
@@ -107,85 +93,16 @@ fun VideoPartButton(
                     }
                 )
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(end = 32.dp)
-            ) {
-                Text(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(32.dp)
-                        .padding(start = 14.dp, end = 8.dp, top = 2.dp),
-                    text = "P$index",
-                    color = textColor,
-                    fontSize = LocalTextStyle.current.fontSize * 1.5,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Clip
+            when (style) {
+                VideoPartButtonStyle.Muji -> VideoPartButtonMujiContent(
+                    index = index,
+                    title = title,
+                    durationText = durationText
                 )
-                Text(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(64.dp)
-                        .align(Alignment.BottomStart)
-                        .padding(start = 88.dp, end = 8.dp, top = 2.dp, bottom = 6.dp),
-                    text = title,
-                    color = textColor,
-                    fontSize = LocalTextStyle.current.fontSize * 1.5,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            if (isFocused || isPressed) {
-                VerticalDivider(
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 32.dp)
-                        .height(96.dp),
-                    color = textColor
-                )
-            } else {
-                VerticalDashedDivider(
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 32.dp)
-                        .height(96.dp),
-                    color = textColor,
-                    dashLength = 6.dp,
-                    gapLength = 4.dp
-                )
-            }
-            Column(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .width(32.dp)
-                    .height(96.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                DurationUnitText(
-                    modifier = Modifier.weight(1f),
-                    duration = duration,
-                    unit = "h",
-                    fontSize = 22,
-                    visible = duration >= 3600,
-                    color = textColor
-                )
-                DurationUnitText(
-                    modifier = Modifier.weight(1f),
-                    duration = duration,
-                    unit = "m",
-                    fontSize = 21,
-                    visible = duration >= 60,
-                    color = textColor
-                )
-                DurationUnitText(
-                    modifier = Modifier.weight(1f),
-                    duration = duration,
-                    unit = "s",
-                    fontSize = 20,
-                    visible = true,
-                    color = textColor
+                VideoPartButtonStyle.Poetry -> VideoPartButtonPoetryContent(
+                    index = index,
+                    title = title,
+                    durationText = durationText
                 )
             }
         }
@@ -195,19 +112,40 @@ fun VideoPartButton(
 private fun Modifier.videoPartButtonBackground(
     isActive: Boolean,
     isPressed: Boolean,
-    backgroundBrush: Brush,
-    backgroundColor: Color,
-    progressColor: Color,
+    style: VideoPartButtonStyle,
     progress: Float
 ): Modifier = drawWithCache {
+    val backgroundBrush = when (style) {
+        VideoPartButtonStyle.Muji -> Brush.horizontalGradient(
+            colors = listOf(
+                Color(0xFFF5F5F0),
+                Color(0xFFF8F8F4)
+            )
+        )
+        VideoPartButtonStyle.Poetry -> Brush.horizontalGradient(
+            colors = listOf(
+                Color(0xFFFCFBF9),
+                Color(0xFFF9F7F3)
+            )
+        )
+    }
+    val activeBackgroundColor = when (style) {
+        VideoPartButtonStyle.Muji -> if (isPressed) Color(0xFFE4E6D9) else Color(0xFFECEDE4)
+        VideoPartButtonStyle.Poetry -> if (isPressed) Color(0xFFF0EBE1) else Color(0xFFF5F1EA)
+    }
+    val progressColor = when (style) {
+        VideoPartButtonStyle.Muji -> Color(0xFFE4E6D9)
+        VideoPartButtonStyle.Poetry -> Color(0xFFF0EBE1)
+    }
+
     onDrawWithContent {
         if (isActive) {
-            drawRect(color = backgroundColor)
+            drawRect(color = activeBackgroundColor)
         } else {
             drawRect(brush = backgroundBrush)
         }
         drawRect(
-            color = progressColor,
+            color = progressColor.copy(alpha = 0.48f),
             size = Size(
                 width = size.width * progress,
                 height = size.height
@@ -223,31 +161,105 @@ private fun Modifier.videoPartButtonBackground(
 }
 
 @Composable
-private fun DurationUnitText(
-    modifier: Modifier = Modifier,
-    duration: Int,
-    unit: String,
-    fontSize: Int,
-    visible: Boolean,
-    color: Color
+private fun VideoPartButtonMujiContent(
+    index: Int,
+    title: String,
+    durationText: String
 ) {
-    val value = when (unit.lowercase()) {
-        "h" -> duration / 3600
-        "m" -> (duration % 3600) / 60
-        "s" -> duration % 60
-        else -> 0L
-    }
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.Center
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(start = 18.dp, end = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        if (visible) {
+        Text(
+            modifier = Modifier.width(58.dp),
+            text = "P$index",
+            color = Color(0xFF333333),
+            fontSize = 26.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Clip
+        )
+        Text(
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 16.dp),
+            text = title,
+            color = Color(0xFF333333),
+            fontSize = 28.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        Box(
+            modifier = Modifier
+                .background(Color(0xFFE4E6D9), shape = RectangleShape)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
             Text(
-                text = value.toString().padStart(2, '0'),
-                color = color,
-                fontSize = fontSize.sp,
-                fontWeight = FontWeight.Bold,
+                text = durationText,
+                color = Color(0xFF6B705C),
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Medium,
                 maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+private fun VideoPartButtonPoetryContent(
+    index: Int,
+    title: String,
+    durationText: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(start = 16.dp, end = 18.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Column(
+            modifier = Modifier
+                .background(Color(0xFFF0EBE1), shape = RectangleShape)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(0.dp)
+        ) {
+            durationText.forEach { char ->
+                Text(
+                    text = char.toString(),
+                    fontSize = 16.sp,
+                    color = Color(0xFF9E9485),
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(22.dp))
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(top = 10.dp)
+        ) {
+            Text(
+                text = "P$index",
+                color = Color(0xFF9E9485),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Clip
+            )
+            Text(
+                text = title,
+                color = Color(0xFF333333),
+                fontSize = 30.sp,
+                fontWeight = FontWeight.Light,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
