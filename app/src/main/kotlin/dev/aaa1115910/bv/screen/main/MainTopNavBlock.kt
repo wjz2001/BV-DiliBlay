@@ -3,19 +3,21 @@ package dev.aaa1115910.bv.screen.main
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
-import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryResolution
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.down
 import dev.aaa1115910.bv.wjzfocus.left
 import dev.aaa1115910.bv.wjzfocus.right
 import dev.aaa1115910.bv.wjzfocus.up
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
-import dev.aaa1115910.bv.wjzfocus.wjzFocusRouter
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryTarget
+import dev.aaa1115910.bv.screen.main.common.MainContentTopEntryId
+import dev.aaa1115910.bv.screen.main.common.MainTopNavFocusComponentId
+import dev.aaa1115910.bv.screen.main.common.MainTopNavDefaultEntryId
 
 internal data class MainTopNavEntryRequest(
     val id: Long,
@@ -31,8 +33,7 @@ internal enum class MainTopNavContentEntryTarget {
     RightEntry
 }
 
-private val MainTopNavUserNodeId = WjzFocusNodeId("main/top-nav/user")
-private val MainTopNavScopeId = WjzFocusScopeId("main/top-nav")
+private val MainTopNavDefaultNodeId = WjzFocusNodeId("${MainTopNavFocusComponentId}/default")
 
 @Composable
 internal fun MainTopNavBlock(
@@ -51,50 +52,39 @@ internal fun MainTopNavBlock(
     onContentEntryRequested: (MainTopNavContentEntryTarget) -> Boolean
 ) {
     val focusCoordinator = LocalWjzFocusCoordinator.current
+    val focusScopeId = LocalWjzFocusScopeId.current
 
     LaunchedEffect(entryRequest, focusCoordinator) {
         val request = entryRequest ?: return@LaunchedEffect
-        val nodeId = when (request.target) {
-            MainTopNavEntryTarget.User -> MainTopNavUserNodeId
+        val entryId = when (request.target) {
+            MainTopNavEntryTarget.User -> MainTopNavDefaultEntryId
         }
-        if (focusCoordinator?.enqueueRequestFocus(
-                nodeId = nodeId,
-                layer = WjzFocusLayer.TopNav,
-                scopeId = MainTopNavScopeId
-            ) == true
-        ) {
+        if (focusCoordinator?.requestEntryFocus(entryId) == true) {
             onEntryRequestConsumed(request.id)
         }
     }
 
+    WjzFocusEntrySurface(
+        componentId = MainTopNavFocusComponentId,
+        default = {
+            defaultEntry(
+                nodeId = MainTopNavDefaultNodeId,
+                layer = WjzFocusLayer.TopNav,
+                scopeId = focusScopeId
+            )
+        }
+    )
+
     LeftNaviUserButton(
-        modifier = modifier.wjzFocus(
-            id = "user",
+        modifier = modifier.wjzFocusExits(
+            id = "default",
             layer = WjzFocusLayer.TopNav,
-            fallback = true,
             enabled = focusEnabled,
             exits = {
-                left move "main/content/right-entry"
-                right move "main/content/left-entry"
+                down move MainContentTopEntryId
+                right move MainContentTopEntryId
+                cancel(left)
                 cancel(up)
-                cancel(down)
-            },
-            onExit = wjzFocusRouter(layer = WjzFocusLayer.TopNav) { target ->
-                when (target) {
-                    "main/content/left-entry" -> topNavContentEntry(
-                        target = MainTopNavContentEntryTarget.LeftEntry,
-                        entryId = "main/content/left-entry",
-                        onContentEntryRequested = onContentEntryRequested
-                    )
-
-                    "main/content/right-entry" -> topNavContentEntry(
-                        target = MainTopNavContentEntryTarget.RightEntry,
-                        entryId = "main/content/right-entry",
-                        onContentEntryRequested = onContentEntryRequested
-                    )
-
-                    else -> reject()
-                }
             },
             onFocusChanged = onUserFocusChanged
         ),
@@ -114,25 +104,9 @@ internal fun MainTopNavBlock(
     )
 }
 
-private fun topNavContentEntry(
-    target: MainTopNavContentEntryTarget,
-    entryId: String,
-    onContentEntryRequested: (MainTopNavContentEntryTarget) -> Boolean
-): WjzFocusEntryResolution {
-    return if (onContentEntryRequested(target)) {
-        WjzFocusEntryResolution.Pending(
-            entryId = WjzFocusEntryId(entryId),
-            layer = WjzFocusLayer.Content,
-            scopeId = null
-        )
-    } else {
-        WjzFocusEntryResolution.Reject
-    }
-}
-
 internal fun MainTopNavContentEntryTarget.toMainContentEntryTarget(): MainContentEntryTarget {
     return when (this) {
         MainTopNavContentEntryTarget.LeftEntry -> MainContentEntryTarget.LeftEntry
-        MainTopNavContentEntryTarget.RightEntry -> MainContentEntryTarget.RightEntry
+        MainTopNavContentEntryTarget.RightEntry -> MainContentEntryTarget.TopEntry
     }
 }

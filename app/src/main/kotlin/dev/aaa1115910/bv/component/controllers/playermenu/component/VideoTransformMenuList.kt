@@ -7,19 +7,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import dev.aaa1115910.bv.component.controllers.PlayerMenuMainEntryId
 import dev.aaa1115910.bv.component.controllers.playermenu.playerMenuFocusNodeId
 import dev.aaa1115910.bv.entity.VideoFlip
 import dev.aaa1115910.bv.entity.VideoRotation
 import dev.aaa1115910.bv.entity.VideoTransformNormal
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.right
 import dev.aaa1115910.bv.wjzfocus.wjzFocusRestorerHost
 
 private sealed interface VideoTransformMenuAction {
@@ -37,6 +34,8 @@ fun VideoTransformMenuList(
     onVideoTransformReset: () -> Unit,
     onVideoRotationChange: (VideoRotation?) -> Unit,
     onVideoFlipChange: (VideoFlip?) -> Unit,
+    parentFocusEntryId: String = PlayerMenuMainEntryId,
+    onItemFocused: () -> Unit = {},
     onFocusBackToParent: () -> Unit
 ) {
     val context = LocalContext.current
@@ -57,18 +56,6 @@ fun VideoTransformMenuList(
 
     LazyColumn(
         modifier = modifier
-            .onPreviewKeyEvent {
-                println(it)
-                if (it.type == KeyEventType.KeyUp) {
-                    if (listOf(Key.Enter, Key.DirectionCenter).contains(it.key)) {
-                        return@onPreviewKeyEvent false
-                    }
-                    return@onPreviewKeyEvent true
-                }
-                val result = it.key == Key.DirectionRight
-                if (result) onFocusBackToParent()
-                result
-            }
             .wjzFocusRestorerHost(
                 layer = WjzFocusLayer.Overlay,
                 scopeId = focusScopeId,
@@ -107,6 +94,10 @@ fun VideoTransformMenuList(
                 focusId = "$focusIdPrefix/$index",
                 text = text,
                 selected = selected,
+                exits = {
+                    right move parentFocusEntryId
+                },
+                onFocus = onItemFocused,
                 onClick = {
                     when (action) {
                         VideoTransformMenuAction.Normal -> onVideoTransformReset()

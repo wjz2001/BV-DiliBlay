@@ -34,11 +34,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -55,8 +50,11 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.right
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.wjzfocus.wjzDisabledFocus
 import dev.aaa1115910.bv.component.sidebarFocusUnderlineIndicator
 import dev.aaa1115910.bv.entity.VideoListItem
@@ -79,6 +77,8 @@ private enum class UpPanelTab(
 
 private enum class UpPanelFocusState { Nav, Content }
 
+private const val UpPanelNavFocusComponentId = "upPanelNav"
+private const val UpPanelContentFocusComponentId = "upPanelContent"
 private val UpPanelNavVideoNodeId = WjzFocusNodeId("player/up-panel/nav/video")
 
 private fun upPanelNavNodeId(tab: UpPanelTab) = when (tab) {
@@ -86,6 +86,11 @@ private fun upPanelNavNodeId(tab: UpPanelTab) = when (tab) {
     UpPanelTab.Video -> UpPanelNavVideoNodeId
     UpPanelTab.Collection -> WjzFocusNodeId("player/up-panel/nav/collection")
 }
+
+private fun videoListParentNodeId(cid: Long) = WjzFocusNodeId("video-list/parent/$cid")
+
+private fun collectionListParentNodeId(key: Long) =
+    WjzFocusNodeId("player/collection-list/parent/$key")
 
 @Composable
 fun UpPanelController(
@@ -154,6 +159,45 @@ fun UpPanelController(
         if (selectedTab == UpPanelTab.Collection && !collectionsEnabled) selectedTab = UpPanelTab.Video
     }
 
+    WjzFocusEntrySurface(
+        componentId = UpPanelNavFocusComponentId,
+        default = {
+            defaultEntry(
+                nodeId = upPanelNavNodeId(selectedTab),
+                layer = WjzFocusLayer.Player
+            )
+        }
+    )
+    WjzFocusEntrySurface(
+        componentId = UpPanelContentFocusComponentId,
+        default = {
+            focusState = UpPanelFocusState.Content
+            forceNavExpandedOnOpen = false
+            defaultEntry(
+                nodeId = when (selectedTab) {
+                    UpPanelTab.Video -> {
+                        val target = uiState.availableVideoList.firstOrNull { it.aid == uiState.aid }
+                            ?: uiState.availableVideoList.firstOrNull { it.cid == uiState.cid }
+                            ?: uiState.availableVideoList.firstOrNull { video ->
+                                video.ugcPages?.any { page -> page.cid == uiState.cid } == true
+                            }
+                            ?: uiState.availableVideoList.firstOrNull()
+                        videoListParentNodeId(target?.cid ?: uiState.cid)
+                    }
+
+                    UpPanelTab.Chapter -> {
+                        collectionListParentNodeId(chapterBuilt.selectedParentKey ?: 0L)
+                    }
+
+                    UpPanelTab.Collection -> {
+                        collectionListParentNodeId(collectionBuilt.selectedParentKey ?: 0L)
+                    }
+                },
+                layer = WjzFocusLayer.Player
+            )
+        }
+    )
+
     Box(
         modifier = modifier,
         contentAlignment = Alignment.CenterStart
@@ -165,29 +209,7 @@ fun UpPanelController(
         ) {
             Surface(
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .onPreviewKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyDown) {
-                            when {
-                                event.key == Key.DirectionRight && focusState == UpPanelFocusState.Nav -> {
-                                    focusState = UpPanelFocusState.Content
-                                    forceNavExpandedOnOpen = false
-                                    return@onPreviewKeyEvent true
-                                }
-
-                                event.key == Key.DirectionLeft && focusState == UpPanelFocusState.Content -> {
-                                    focusState = UpPanelFocusState.Nav
-                                    return@onPreviewKeyEvent true
-                                }
-                            }
-                        }
-                        if (!forceNavExpandedOnOpen) return@onPreviewKeyEvent false
-                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                        if (event.key != Key.DirectionUp && event.key != Key.Unknown) {
-                            forceNavExpandedOnOpen = false
-                        }
-                        false
-                    },
+                    .fillMaxHeight(),
                 colors = SurfaceDefaults.colors(
                     containerColor = C.scrim,
                     contentColor = C.onScrim
@@ -200,14 +222,6 @@ fun UpPanelController(
                     // 左侧导航
                     // 左侧导航
                     UpPanelNavList(
-                        modifier = Modifier
-                            .onPreviewKeyEvent {
-                                if (it.type == KeyEventType.KeyUp) {
-                                    // 直接判断，避免创建 List 对象
-                                    return@onPreviewKeyEvent it.key != Key.Enter && it.key != Key.DirectionCenter
-                                }
-                                false
-                            },
                         selectedTab = selectedTab,
                         isExpanded = forceNavExpandedOnOpen || focusState == UpPanelFocusState.Nav,
                         chaptersEnabled = chaptersEnabled,
@@ -313,7 +327,6 @@ private fun UpPanelNavItem(
     selected: Boolean,
     enabled: Boolean,
     nodeId: WjzFocusNodeId,
-    fallback: Boolean = false,
     onFocus: () -> Unit = {},
     onClick: () -> Unit
 ) {
@@ -330,11 +343,13 @@ private fun UpPanelNavItem(
     DenseListItem(
         modifier = modifier
             .width(itemWidth)
-            .wjzFocus(
+            .wjzFocusExits(
                 id = nodeId.value,
                 layer = WjzFocusLayer.Player,
                 enabled = enabled,
-                fallback = fallback,
+                exits = {
+                    right move UpPanelContentFocusComponentId
+                },
                 onFocused = onFocus,
                 onFocusChanged = { hasFocus = it }
             )
@@ -461,7 +476,6 @@ private fun UpPanelNavList(
                 selected = selectedTab == tab,
                 enabled = enabled,
                 nodeId = upPanelNavNodeId(tab),
-                fallback = tab == UpPanelTab.Video,
                 onClick = {},
                 onFocus = { if (enabled) onSelectedChanged(tab) }
             )

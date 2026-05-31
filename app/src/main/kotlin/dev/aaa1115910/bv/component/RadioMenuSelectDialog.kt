@@ -33,7 +33,7 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import androidx.tv.material3.Text as TvText
 import dev.aaa1115910.bv.ui.theme.C
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 
 private fun WjzFocusNodeId.toDialogLocalFocusId(dialogScopeId: WjzFocusScopeId?): String {
     val scopePrefix = dialogScopeId?.value?.let { "$it/" }
@@ -155,7 +155,7 @@ internal fun <T> RadioMenuSelectListContent(
             val itemNode = itemNodeId?.invoke(item)
                 ?: WjzFocusNodeId("dialog/radio-menu/item/${itemKey?.invoke(item) ?: index}")
             var hasFocus by remember { mutableStateOf(false) }
-            val itemModifier = Modifier.wjzFocus(
+            val itemModifier = Modifier.wjzFocusExits(
                 id = itemNode.toDialogLocalFocusId(dialogScopeId),
                 layer = WjzFocusLayer.Dialog,
                 onFocusChanged = { hasFocus = it }

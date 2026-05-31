@@ -22,13 +22,16 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.videocard.VideosRow
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.ui.theme.C
@@ -36,7 +39,7 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toPersistentList
 
 private val RelatedVideosFocusScopeId = WjzFocusScopeId("player/related-videos")
-private const val RelatedVideosRootFocusId = "root"
+private const val RelatedVideosFocusComponentId = "relatedVideos"
 private val RelatedVideosRootNodeId = WjzFocusNodeId("player/related-videos/root")
 
 @Composable
@@ -77,10 +80,7 @@ fun RelatedVideosController(
                 layer = WjzFocusLayer.Overlay,
                 recordSource = true
             )
-            focusCoordinator?.enqueueRequestFocus(
-                nodeId = RelatedVideosRootNodeId,
-                layer = WjzFocusLayer.Overlay
-            )
+            focusCoordinator?.requestEntryFocus(WjzFocusEntryId.parse(RelatedVideosFocusComponentId))
         } else if (overlaySourceToken != null) {
             focusCoordinator?.restoreSourceLayer(
                 expectedActiveLayer = WjzFocusLayer.Overlay,
@@ -118,13 +118,22 @@ fun RelatedVideosController(
         layer = WjzFocusLayer.Overlay,
         scopeId = RelatedVideosFocusScopeId
     ) {
+        WjzFocusEntrySurface(
+            componentId = RelatedVideosFocusComponentId,
+            default = {
+                defaultEntry(
+                    nodeId = RelatedVideosRootNodeId,
+                    layer = WjzFocusLayer.Overlay,
+                    scopeId = RelatedVideosFocusScopeId
+                )
+            }
+        )
         RelatedVideosControllerContent(
             modifier = Modifier
                 .fillMaxSize()
-                .wjzFocus(
-                    id = RelatedVideosRootFocusId,
+                .wjzFocusExits(
+                    id = RelatedVideosRootNodeId.value,
                     layer = WjzFocusLayer.Overlay,
-                    fallback = true,
                     enabled = show
                 ),
             show = show,

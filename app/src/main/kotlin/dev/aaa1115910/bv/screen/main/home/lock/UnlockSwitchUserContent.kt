@@ -22,7 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -30,18 +30,23 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.db.UserDB
 import dev.aaa1115910.bv.screen.main.home.UserItem
-import dev.aaa1115910.bv.util.BvKeyDirection
-import dev.aaa1115910.bv.util.bvKeyDirection
 import dev.aaa1115910.bv.util.isConfirmKey
 import dev.aaa1115910.bv.util.isNativeActionDown
 import dev.aaa1115910.bv.util.toast
 import kotlinx.collections.immutable.ImmutableList
+
+private const val UnlockSwitchUserFocusComponentId = "unlock-switch-user"
+private const val UnlockSwitchUserInputFocusId = "unlock-switch-user/input"
 
 @Composable
 fun UnlockSwitchUserContent(
@@ -69,22 +74,34 @@ fun UnlockSwitchUserContent(
     }
 
     WjzFocusHost {
+        val focusScopeId = LocalWjzFocusScopeId.current
+
+        WjzFocusEntrySurface(
+            componentId = UnlockSwitchUserFocusComponentId,
+            default = {
+                defaultEntry(
+                    nodeId = WjzFocusNodeId(UnlockSwitchUserInputFocusId),
+                    layer = WjzFocusLayer.Content,
+                    scopeId = focusScopeId
+                )
+            }
+        )
+
         Surface(
             modifier = modifier
                 .clickable {}
-                .wjzFocus(
-                    id = "unlock-switch-user/input",
-                    layer = WjzFocusLayer.Content,
-                    fallback = true
+                .wjzFocusExits(
+                    id = UnlockSwitchUserInputFocusId,
+                    layer = WjzFocusLayer.Content
                 )
-                .onPreviewKeyEvent {
-                    if (it.isNativeActionDown()) return@onPreviewKeyEvent true
-                    when (it.bvKeyDirection()) {
-                        BvKeyDirection.Up -> inputPassword += "u"
-                        BvKeyDirection.Down -> inputPassword += "d"
-                        BvKeyDirection.Left -> inputPassword += "l"
-                        BvKeyDirection.Right -> inputPassword += "r"
-                        null -> Unit
+                .onKeyEvent {
+                    if (it.isNativeActionDown()) return@onKeyEvent true
+                    when (it.key) {
+                        Key.DirectionUp -> inputPassword += "u"
+                        Key.DirectionDown -> inputPassword += "d"
+                        Key.DirectionLeft -> inputPassword += "l"
+                        Key.DirectionRight -> inputPassword += "r"
+                        else -> Unit
                     }
                     when {
                         it.isConfirmKey() -> {
@@ -104,7 +121,7 @@ fun UnlockSwitchUserContent(
                             }
                         }
                     }
-                    return@onPreviewKeyEvent true
+                    return@onKeyEvent true
                 },
             shape = RoundedCornerShape(0.dp)
         ) {

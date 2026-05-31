@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -34,6 +35,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.tv.material3.Button
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.BVApp
@@ -86,12 +90,17 @@ class MainActivity : ComponentActivity() {
             var startupErrorMessage by remember { mutableStateOf("启动失败") }
             var showStoragePermissionDialog by remember { mutableStateOf(false) }
             var retryNonce by remember { mutableIntStateOf(0) }
+            var hasTriggeredAutoLogin by remember { mutableStateOf(false) }
+            var waitingAutoLoginReturn by remember { mutableStateOf(false) }
+            var allowFirstLaunchMainDialog by remember { mutableStateOf(false) }
 
             LaunchedEffect(retryNonce) {
                 phase = MainStartupPhase.Shell
                 showStartupShell = true
                 startupError = false
                 startupErrorMessage = "启动失败"
+                waitingAutoLoginReturn = false
+                allowFirstLaunchMainDialog = false
 
                 runCatching {
                     val app = BVApp.instance
@@ -115,17 +124,43 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            var hasTriggeredAutoLogin by remember { mutableStateOf(false) }
+            val lifecycleOwner = LocalLifecycleOwner.current
+            DisposableEffect(lifecycleOwner) {
+                val observer = LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_RESUME && waitingAutoLoginReturn) {
+                        waitingAutoLoginReturn = false
+                        allowFirstLaunchMainDialog = true
+                    }
+                }
+
+                lifecycleOwner.lifecycle.addObserver(observer)
+                onDispose {
+                    lifecycleOwner.lifecycle.removeObserver(observer)
+                }
+            }
+
             LaunchedEffect(phase) {
                 if (phase != MainStartupPhase.RealUi) return@LaunchedEffect
-                if (hasTriggeredAutoLogin) return@LaunchedEffect
-                if (!Prefs.autoOpenLoginOnFirstLaunch) return@LaunchedEffect
+                if (hasTriggeredAutoLogin) {
+                    if (!waitingAutoLoginReturn) {
+                        allowFirstLaunchMainDialog = true
+                    }
+                    return@LaunchedEffect
+                }
+                if (!Prefs.autoOpenLoginOnFirstLaunch) {
+                    allowFirstLaunchMainDialog = true
+                    return@LaunchedEffect
+                }
 
                 if (Prefs.autoOpenLoginOnFirstLaunch) {
                     hasTriggeredAutoLogin = true
                     Prefs.autoOpenLoginOnFirstLaunch = false
                     if (!userRepository.isLogin) {
+                        waitingAutoLoginReturn = true
+                        allowFirstLaunchMainDialog = false
                         startActivity(Intent(this@MainActivity, LoginActivity::class.java))
+                    } else {
+                        allowFirstLaunchMainDialog = true
                     }
                 }
             }
@@ -146,6 +181,7 @@ class MainActivity : ComponentActivity() {
                     // 启动链完成后挂载主页，避免 Prefs 未就绪时读到默认值
                     when (currentScreen) {
                         AppScreen.Main -> MainScreenReady(
+                            allowFirstLaunchMainDialog = allowFirstLaunchMainDialog,
                             onReady = {
                                 showStartupShell = false
                             }
@@ -274,12 +310,15 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun MainScreenReady(
+        allowFirstLaunchMainDialog: Boolean,
         onReady: () -> Unit
     ) {
         SideEffect {
             onReady()
         }
-        MainScreen()
+        MainScreen(
+            allowFirstLaunchMainDialog = allowFirstLaunchMainDialog
+        )
     }
 }
 

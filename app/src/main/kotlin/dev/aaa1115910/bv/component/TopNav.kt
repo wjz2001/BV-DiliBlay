@@ -120,7 +120,7 @@ fun TopNav(
                         onEntryFocusReady = { ready ->
                             onEntryFocusReady?.invoke(
                                 TopNavEntryFocusReady(
-                                    target = ready.target.toTopNavEntryFocusTarget(),
+                                    target = entryFocusTarget,
                                     item = ready.item,
                                     itemKey = ready.itemKey,
                                     nodeId = ready.nodeId
@@ -128,12 +128,14 @@ fun TopNav(
                             )
                         },
                         onEntryFocusResolution = { resolution ->
-                            onEntryFocusResolution?.invoke(resolution.toTopNavEntryFocusResolution())
+                            onEntryFocusResolution?.invoke(
+                                resolution.toTopNavEntryFocusResolution(entryFocusTarget)
+                            )
                         },
                         onEntryFocusConsumed = { consumed ->
                             onEntryFocusConsumed?.invoke(
                                 TopNavEntryFocusConsumed(
-                                    target = consumed.target.toTopNavEntryFocusTarget(),
+                                    target = entryFocusTarget,
                                     item = consumed.item,
                                     itemKey = consumed.itemKey,
                                     nodeId = consumed.nodeId
@@ -213,7 +215,7 @@ fun resolveTopNavEntryFocus(
     )) {
         is BvTabEntryFocusResolution.Ready -> TopNavEntryFocusResolution.Ready(
             TopNavEntryFocusReady(
-                target = resolution.target.toTopNavEntryFocusTarget(),
+                target = entryFocusTarget,
                 item = resolution.item,
                 itemKey = resolution.itemKey,
                 nodeId = resolution.nodeId
@@ -221,20 +223,22 @@ fun resolveTopNavEntryFocus(
         )
 
         is BvTabEntryFocusResolution.Pending -> TopNavEntryFocusResolution.Pending(
-            resolution.target.toTopNavEntryFocusTarget()
+            entryFocusTarget
         )
 
         is BvTabEntryFocusResolution.Reject -> TopNavEntryFocusResolution.Reject(
-            resolution.target.toTopNavEntryFocusTarget()
+            entryFocusTarget
         )
     }
 }
 
-private fun BvTabEntryFocusResolution<TopNavItem>.toTopNavEntryFocusResolution(): TopNavEntryFocusResolution {
+private fun BvTabEntryFocusResolution<TopNavItem>.toTopNavEntryFocusResolution(
+    entryFocusTarget: TopNavEntryFocusTarget
+): TopNavEntryFocusResolution {
     return when (this) {
         is BvTabEntryFocusResolution.Ready -> TopNavEntryFocusResolution.Ready(
             TopNavEntryFocusReady(
-                target = target.toTopNavEntryFocusTarget(),
+                target = entryFocusTarget,
                 item = item,
                 itemKey = itemKey,
                 nodeId = nodeId
@@ -242,11 +246,11 @@ private fun BvTabEntryFocusResolution<TopNavItem>.toTopNavEntryFocusResolution()
         )
 
         is BvTabEntryFocusResolution.Pending -> TopNavEntryFocusResolution.Pending(
-            target.toTopNavEntryFocusTarget()
+            entryFocusTarget
         )
 
         is BvTabEntryFocusResolution.Reject -> TopNavEntryFocusResolution.Reject(
-            target.toTopNavEntryFocusTarget()
+            entryFocusTarget
         )
     }
 }
@@ -254,16 +258,8 @@ private fun BvTabEntryFocusResolution<TopNavItem>.toTopNavEntryFocusResolution()
 private fun TopNavEntryFocusTarget.toBvTabEntryFocusTarget(): BvTabEntryFocusTarget {
     return when (this) {
         TopNavEntryFocusTarget.DefaultEntry -> BvTabEntryFocusTarget.DefaultEntry
-        TopNavEntryFocusTarget.LeftEntry -> BvTabEntryFocusTarget.LeftEntry
-        TopNavEntryFocusTarget.RightEntry -> BvTabEntryFocusTarget.RightEntry
-    }
-}
-
-private fun BvTabEntryFocusTarget.toTopNavEntryFocusTarget(): TopNavEntryFocusTarget {
-    return when (this) {
-        BvTabEntryFocusTarget.DefaultEntry -> TopNavEntryFocusTarget.DefaultEntry
-        BvTabEntryFocusTarget.LeftEntry -> TopNavEntryFocusTarget.LeftEntry
-        BvTabEntryFocusTarget.RightEntry -> TopNavEntryFocusTarget.RightEntry
+        TopNavEntryFocusTarget.LeftEntry -> BvTabEntryFocusTarget.DefaultEntry
+        TopNavEntryFocusTarget.RightEntry -> BvTabEntryFocusTarget.DefaultEntry
     }
 }
 

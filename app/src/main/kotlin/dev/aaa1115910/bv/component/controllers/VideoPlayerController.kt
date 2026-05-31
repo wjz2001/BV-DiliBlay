@@ -34,13 +34,19 @@ import dev.aaa1115910.biliapi.entity.video.Subtitle
 import dev.aaa1115910.bv.BuildConfig
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.down
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.comments.VideoCommentsDialog
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoFlip
 import dev.aaa1115910.bv.entity.VideoListItem
@@ -71,7 +77,20 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val PlayerControllerFocusScopeId = WjzFocusScopeId("player/controller")
+private const val PlayerControllerFocusComponentId = "playerController"
 private const val PlayerControllerRootFocusId = "root"
+private const val PlayerControllerUpPanelEntryLocalId = "upPanel"
+private const val PlayerControllerPlayerControlsEntryLocalId = "playerControls"
+private const val PlayerControllerInfoPanelEntryLocalId = "infoPanel"
+private const val PlayerControllerMenuEntryLocalId = "menu"
+private const val PlayerControllerUpPanelDefaultFocusId = "player/up-panel/nav/video"
+private const val PlayerControllerFirstActionFocusId = "player/controller/actions/danmaku"
+private val PlayerControllerUpPanelEntryId =
+    WjzFocusEntryId("$PlayerControllerFocusComponentId/$PlayerControllerUpPanelEntryLocalId")
+private val PlayerControllerPlayerControlsEntryId =
+    WjzFocusEntryId("$PlayerControllerFocusComponentId/$PlayerControllerPlayerControlsEntryLocalId")
+private val PlayerControllerMenuEntryId =
+    WjzFocusEntryId("$PlayerControllerFocusComponentId/$PlayerControllerMenuEntryLocalId")
 
 @Composable
 fun VideoPlayerController(
@@ -265,6 +284,18 @@ fun VideoPlayerController(
         }
     }
 
+    fun requestPlayerControllerEntryFocus(entryId: WjzFocusEntryId): Boolean {
+        if (playerSourceToken == null) {
+            playerSourceToken = focusCoordinator.activateLayer(
+                layer = WjzFocusLayer.Player,
+                recordSource = true
+            )
+        } else {
+            focusCoordinator.activateLayer(WjzFocusLayer.Player)
+        }
+        return focusCoordinator.requestEntryFocus(entryId)
+    }
+
     fun handleKeyEvent(event: KeyEvent): Boolean {
         // 确认键和下键都要区分短按/长按
         val isConfirmOrDown =
@@ -313,8 +344,11 @@ fun VideoPlayerController(
             }
 
             event.isMenuKey() -> {
-                showInfoSeekController = false
-                showMenuController = !showMenuController
+                if (showMenuController) {
+                    showMenuController = false
+                } else {
+                    requestPlayerControllerEntryFocus(PlayerControllerMenuEntryId)
+                }
                 return true
             }
 
@@ -367,7 +401,7 @@ fun VideoPlayerController(
 
         when (event.bvKeyDirection()) {
             BvKeyDirection.Up -> {
-                showUpPanelController = true
+                requestPlayerControllerEntryFocus(PlayerControllerUpPanelEntryId)
                 return true
             }
 
@@ -387,8 +421,7 @@ fun VideoPlayerController(
                     return true
                 }
 
-                focusInfoButtonsOnShow = true
-                showInfoSeekController = true
+                requestPlayerControllerEntryFocus(PlayerControllerPlayerControlsEntryId)
                 return true
             }
 
@@ -417,12 +450,75 @@ fun VideoPlayerController(
         layer = WjzFocusLayer.Player,
         scopeId = PlayerControllerFocusScopeId
     ) {
+        WjzFocusEntrySurface(
+            componentId = PlayerControllerFocusComponentId,
+            default = {
+                defaultEntry(
+                    nodeId = WjzFocusNodeId(PlayerControllerRootFocusId),
+                    layer = WjzFocusLayer.Player,
+                    scopeId = PlayerControllerFocusScopeId
+                )
+            },
+            entries = {
+                entry(PlayerControllerUpPanelEntryLocalId) {
+                    showMenuController = false
+                    showInfoSeekController = false
+                    showRelatedVideosController = false
+                    focusInfoButtonsOnShow = false
+                    showUpPanelController = true
+                    defaultEntry(
+                        nodeId = WjzFocusNodeId(PlayerControllerUpPanelDefaultFocusId),
+                        layer = WjzFocusLayer.Player,
+                        scopeId = PlayerControllerFocusScopeId
+                    )
+                }
+                entry(PlayerControllerPlayerControlsEntryLocalId) {
+                    showMenuController = false
+                    showUpPanelController = false
+                    showRelatedVideosController = false
+                    focusInfoButtonsOnShow = true
+                    showInfoSeekController = true
+                    defaultEntry(
+                        nodeId = WjzFocusNodeId(PlayerControllerFirstActionFocusId),
+                        layer = WjzFocusLayer.Player,
+                        scopeId = PlayerControllerFocusScopeId
+                    )
+                }
+                entry(PlayerControllerInfoPanelEntryLocalId) {
+                    showMenuController = false
+                    showUpPanelController = false
+                    showRelatedVideosController = false
+                    focusInfoButtonsOnShow = false
+                    showInfoSeekController = true
+                    defaultEntry(
+                        nodeId = WjzFocusNodeId(PlayerControllerRootFocusId),
+                        layer = WjzFocusLayer.Player,
+                        scopeId = PlayerControllerFocusScopeId
+                    )
+                }
+                entry(PlayerControllerMenuEntryLocalId) {
+                    showInfoSeekController = false
+                    showUpPanelController = false
+                    showRelatedVideosController = false
+                    focusInfoButtonsOnShow = false
+                    showMenuController = true
+                    defaultEntry(
+                        nodeId = WjzFocusNodeId(PlayerControllerRootFocusId),
+                        layer = WjzFocusLayer.Player,
+                        scopeId = PlayerControllerFocusScopeId
+                    )
+                }
+            }
+        )
         Box(
             modifier = Modifier
-                .wjzFocus(
+                .wjzFocusExits(
                     id = PlayerControllerRootFocusId,
                     layer = WjzFocusLayer.Player,
-                    fallback = true
+                    exits = {
+                        up move PlayerControllerUpPanelEntryId
+                        down move PlayerControllerPlayerControlsEntryId
+                    }
                 )
                 .onPreviewKeyEvent { event ->
                 // 重置 info 控制器的隐藏倒计时 (只要有按键活动就重置)

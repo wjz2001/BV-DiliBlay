@@ -40,12 +40,11 @@ import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
-import dev.aaa1115910.bv.wjzfocus.nodeKey
 import dev.aaa1115910.bv.wjzfocus.wjzDisabledFocus
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRestorerHost
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import androidx.tv.material3.ListItemDefaults
@@ -58,15 +57,12 @@ import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private val VideoListDefaultFocusScopeId = WjzFocusScopeId("__wjz_focus_sugar__")
-
 private fun videoListParentFocusId(cid: Long) = "video-list/parent/$cid"
 
 private fun videoListChildFocusId(parentCid: Long, childCid: Long) =
     "video-list/parent/$parentCid/child/$childCid"
 
-private fun videoListNodeId(scopeId: WjzFocusScopeId?, localId: String) =
-    WjzFocusNodeId((scopeId ?: VideoListDefaultFocusScopeId).nodeKey(localId))
+private const val VideoListRestorerId = "video-list/restorer"
 
 @Composable
 fun VideoListController(
@@ -118,9 +114,6 @@ fun VideoListController(
      * 打开时：
      * - 预取 pinnedParent 的子项数据（番剧集跳过）
      * - 初次定位到当前播放项
-     *
-     * 关键修复：两段式定位 + offset
-     * 因为你这里父项可能三行、且展开/收起会改变高度；只滚一次很容易“滚到旧布局位置”。
      */
     LaunchedEffect(show, active, videoList.size) {
         if (!show) return@LaunchedEffect
@@ -140,15 +133,7 @@ fun VideoListController(
                     (v.ugcPages?.any { p -> p.cid == currentCid } == true)
         }
         if (targetIndex != -1) {
-            // 第一段：瞬移到 item（避免大列表长动画）
             listState.scrollToItem(targetIndex)
-
-            // 等一帧，让首轮布局稳定（特别是三行标题 / animateContentSize 带来的变化）
-            kotlinx.coroutines.android.awaitFrame()
-
-            // 第二段：带 offset 再定位一次，让目标尽量不要贴边（尾部尤其需要）
-            // offset 取值你可以按实际屏幕再调：-80 / -120 等
-            listState.scrollToItem(targetIndex, scrollOffset = -80)
         }
 
         didInitialPosition = true
@@ -221,6 +206,12 @@ fun VideoListController(
                 contentAlignment = Alignment.Center
             ) {
                 LazyColumn(
+                    modifier = Modifier.wjzFocusRestorerHost(
+                        layer = WjzFocusLayer.Player,
+                        scopeId = focusScopeId,
+                        restorerId = VideoListRestorerId,
+                        listId = VideoListRestorerId
+                    ),
                     state = listState,
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(vertical = 60.dp)
@@ -288,7 +279,7 @@ fun VideoListController(
                              *
                              * 同时做强硬兜底：
                              * 1) 先把对应父项滚到可见位置（按 index）
-                             * 2) 再 requestFocus
+                             * 2) 再发起焦点定位
                              * 3) 再 bringIntoView
                              */
                             LaunchedEffect(show, pendingFocusCid) {
@@ -298,37 +289,24 @@ fun VideoListController(
                                 val wantCid = pendingFocusCid ?: return@LaunchedEffect
 
                                 // 只有当“当前要聚焦的 cid”确实属于这个父项（父项自身 cid 或者它的子项 cid）才处理
+                                val targetChildLoaded =
+                                    enableChildrenUi && (video.ugcPages?.any { it.cid == wantCid } == true)
+                                val targetChildOfCurrentParent =
+                                    enableChildrenUi && isCurrentParent && video.cid != wantCid
                                 val shouldHandleThisGroup =
-                                    (video.cid == wantCid) || (enableChildrenUi && (video.ugcPages?.any { it.cid == wantCid } == true))
+                                    (video.cid == wantCid) || targetChildLoaded || targetChildOfCurrentParent
 
                                 if (!shouldHandleThisGroup) return@LaunchedEffect
 
-                                // 如果想聚焦的是子项，但子项 UI 还没展开/还没加载，这里尽力让它出现
-                                val wantChild = enableChildrenUi && (video.ugcPages?.any { it.cid == wantCid } == true)
-
-                                if (wantChild) {
-                                    // 子项要存在：先展开
-                                    expanded = true
-                                }
-
-                                // 先滚父项到可见（即使最终焦点是子项，也先把父项滚进来，保证后续布局/测量稳定）
-                                val parentIndex = videoList.indexOfFirst { it.cid == video.cid }
-                                if (parentIndex != -1) {
-                                    listState.scrollToItem(parentIndex, scrollOffset = -80)
-                                    kotlinx.coroutines.android.awaitFrame()
-                                }
-
-                                // 如果 pendingFocusCid 指向父项自身：聚焦父项
                                 if (video.cid == wantCid) {
-                                    focusCoordinator?.enqueueRequestFocus(
-                                        nodeId = videoListNodeId(
-                                            focusScopeId,
-                                            videoListParentFocusId(video.cid)
-                                        ),
-                                        layer = WjzFocusLayer.Player
+                                    focusCoordinator?.enqueueGroupRestore(
+                                        nodeId = WjzFocusNodeId(videoListParentFocusId(video.cid)),
+                                        layer = WjzFocusLayer.Player,
+                                        scopeId = focusScopeId,
+                                        restorerId = VideoListRestorerId,
+                                        listId = VideoListRestorerId
                                     )
                                     kotlinx.coroutines.android.awaitFrame()
-                                    // bring into view 再兜底一次（只在这次消耗触发）
                                     kotlinx.coroutines.coroutineScope {
                                         launch { parentBringIntoViewRequester.bringIntoView() }
                                     }
@@ -336,39 +314,20 @@ fun VideoListController(
                                     return@LaunchedEffect
                                 }
 
-                                // 走到这里表示想聚焦子项
-                                // 但注意：如果 ugcPages 还没加载出来（pagesLoaded=false），此时子项节点不存在，无法 requestFocus
-                                // 这里策略：触发加载 + 先聚焦父项（保证焦点可见），等加载完成后你 currentCid 仍会对应子项，再由下面子项逻辑消费
-                                if (!pagesLoaded) {
-                                    onEnsureUgcPagesLoaded(video.aid)
-
-                                    // 先给父项焦点，至少不要“焦点在屏幕外”
-                                    focusCoordinator?.enqueueRequestFocus(
-                                        nodeId = videoListNodeId(
-                                            focusScopeId,
-                                            videoListParentFocusId(video.cid)
-                                        ),
-                                        layer = WjzFocusLayer.Player
-                                    )
-                                    kotlinx.coroutines.android.awaitFrame()
-                                    kotlinx.coroutines.coroutineScope {
-                                        launch { parentBringIntoViewRequester.bringIntoView() }
-                                    }
-                                    // 注意：这里不清 pendingFocusCid，让它等 pagesLoaded 后由子项消耗
+                                if (!targetChildLoaded) {
+                                    pendingFocusCid = null
                                     return@LaunchedEffect
                                 }
 
-                                // pagesLoaded=true 才能真正对子项 requestFocus（见下方子项 LaunchedEffect）
-                                // 这里不做任何事，让子项那边消费 pendingFocusCid
+                                expanded = true
                             }
 
                             DenseListItem(
                                 modifier = Modifier
                                     .padding(horizontal = 16.dp)
-                                    .wjzFocus(
+                                    .wjzFocusExits(
                                         id = videoListParentFocusId(video.cid),
                                         layer = WjzFocusLayer.Player,
-                                        fallback = isParentSelected && !isChildSelected,
                                         onFocusChanged = { focused ->
                                             if (focused) {
                                         groupHasFocus = true
@@ -516,39 +475,30 @@ fun VideoListController(
                                                 val wantCid = pendingFocusCid ?: return@LaunchedEffect
                                                 if (wantCid != page.cid) return@LaunchedEffect
 
-                                                // 强硬顺序：先把父项滚进来（上面父项 effect 已做过；这里再兜底一次也行）
-                                                val parentIndex = videoList.indexOfFirst { it.cid == video.cid }
-                                                if (parentIndex != -1) {
-                                                    listState.scrollToItem(parentIndex, scrollOffset = -80)
-                                                    kotlinx.coroutines.android.awaitFrame()
-                                                }
-
-                                                // 请求焦点到子项
-                                                focusCoordinator?.enqueueRequestFocus(
-                                                    nodeId = videoListNodeId(
-                                                        focusScopeId,
+                                                focusCoordinator?.enqueueGroupRestore(
+                                                    nodeId = WjzFocusNodeId(
                                                         videoListChildFocusId(video.cid, page.cid)
                                                     ),
-                                                    layer = WjzFocusLayer.Player
+                                                    layer = WjzFocusLayer.Player,
+                                                    scopeId = focusScopeId,
+                                                    restorerId = VideoListRestorerId,
+                                                    listId = VideoListRestorerId
                                                 )
                                                 kotlinx.coroutines.android.awaitFrame()
 
-                                                // bring into view 兜底（仅这一次）
                                                 kotlinx.coroutines.coroutineScope {
                                                     launch { childBringIntoViewRequester.bringIntoView() }
                                                 }
 
-                                                // 消耗掉 pendingFocusCid，防止后续 currentCid 变化抢焦点/重复滚动
                                                 pendingFocusCid = null
                                             }
 
                                             MenuListItem(
                                                 modifier = Modifier
                                                     .padding(horizontal = 16.dp)
-                                                    .wjzFocus(
+                                                    .wjzFocusExits(
                                                         id = videoListChildFocusId(video.cid, page.cid),
                                                         layer = WjzFocusLayer.Player,
-                                                        fallback = isPageSelected,
                                                         onFocusChanged = { focused ->
                                                             if (focused) groupHasFocus = true
                                                         }

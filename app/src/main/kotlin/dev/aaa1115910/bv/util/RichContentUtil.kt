@@ -115,8 +115,8 @@ private suspend fun resolveOpusToCvid(opusId: String, sessData: String?): Long {
     val ridStr = basic?.get("rid_str")?.jsonPrimitive?.contentOrNull?.toLongOrNull()
     if (ridStr != null && ridStr > 0L) return ridStr
 
-    val fallback = data["fallback"] as? JsonObject
-    val fallbackId = fallback?.get("id")?.jsonPrimitive?.contentOrNull?.toLongOrNull()
+    val fallbackPayload = data["fallback"] as? JsonObject
+    val fallbackId = fallbackPayload?.get("id")?.jsonPrimitive?.contentOrNull?.toLongOrNull()
     if (fallbackId != null && fallbackId > 0L) return fallbackId
 
     throw IllegalStateException("无法从 opus $opusId 解析出 cvid")

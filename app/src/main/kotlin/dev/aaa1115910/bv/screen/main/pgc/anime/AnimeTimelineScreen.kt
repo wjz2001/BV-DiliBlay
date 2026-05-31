@@ -32,9 +32,12 @@ import dev.aaa1115910.biliapi.entity.ApiType
 import dev.aaa1115910.biliapi.entity.season.Timeline
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.wjzfocus.wjzObserveFocusChanged
 import dev.aaa1115910.bv.component.videocard.SeasonCard
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
@@ -95,6 +98,19 @@ fun AnimeTimelineScreen(
         modifier = modifier,
         layer = WjzFocusLayer.Content
     ) {
+        val focusScopeId = LocalWjzFocusScopeId.current
+
+        WjzFocusEntrySurface(
+            componentId = "pgcAnimeTimeline",
+            default = {
+                defaultEntry(
+                    "pgc/anime/timeline/root",
+                    layer = WjzFocusLayer.Content,
+                    scopeId = focusScopeId
+                )
+            }
+        )
+
         Scaffold(
             topBar = {
                 Box(
@@ -111,10 +127,9 @@ fun AnimeTimelineScreen(
                 state = listState,
                 modifier = Modifier
                     .padding(innerPadding)
-                    .wjzFocus(
+                    .wjzFocusExits(
                         id = "pgc/anime/timeline/root",
-                        layer = WjzFocusLayer.Content,
-                        fallback = true
+                        layer = WjzFocusLayer.Content
                     ),
                 contentPadding = PaddingValues(bottom = 48.dp, start = 48.dp, end = 48.dp)
             ) {
@@ -197,10 +212,9 @@ fun TimelinePerDay(
                         modifier = Modifier
                             .weight(1f)
                             .padding(horizontal = 8.dp)
-                            .wjzFocus(
+                            .wjzFocusExits(
                                 id = "pgc/anime/timeline/${timeline.dateString}/${episode.seasonId}",
-                                layer = WjzFocusLayer.Content,
-                                fallback = index == 0 && episodeIndex == 0
+                                layer = WjzFocusLayer.Content
                             ),
                         data = SeasonCardData(
                             title = episode.title,

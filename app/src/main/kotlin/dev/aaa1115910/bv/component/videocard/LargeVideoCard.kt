@@ -44,7 +44,7 @@ import dev.aaa1115910.bv.ui.theme.ThemeMode
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.focusedBorder
 import dev.aaa1115910.bv.util.rememberTvImageRequest
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 
 @Composable
 fun LargeVideoCard(
@@ -75,7 +75,7 @@ fun LargeVideoCard(
                 scaleX = scale
                 scaleY = scale
             }
-            .wjzFocus(
+            .wjzFocusExits(
                 id = "large-video-card/${data.avid}_${data.cid ?: -1L}_${data.epId ?: -1}",
                 onFocused = onFocus,
                 onFocusChanged = { hasFocus = it }

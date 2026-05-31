@@ -27,7 +27,7 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.util.Partition
 import dev.aaa1115910.bv.util.PartitionUtil
@@ -91,7 +91,6 @@ fun SearchResultVideoFilter(
                                     row = SearchResultFilterRow.Order,
                                     key = orderType.name
                                 ),
-                                fallback = orderType == selectedOrder,
                                 selected = orderType == selectedOrder,
                                 onClick = { onSelectedOrderChange(orderType) },
                                 label = { Text(text = orderType.getDisplayName(context)) },
@@ -110,7 +109,6 @@ fun SearchResultVideoFilter(
                                     row = SearchResultFilterRow.Duration,
                                     key = duration.name
                                 ),
-                                fallback = duration == selectedDuration,
                                 selected = duration == selectedDuration,
                                 onClick = { onSelectedDurationChange(duration) },
                                 label = { Text(text = duration.getDisplayName(context)) }
@@ -126,7 +124,6 @@ fun SearchResultVideoFilter(
                                     row = SearchResultFilterRow.Partition,
                                     key = "all"
                                 ),
-                                fallback = selectedPartition == null,
                                 selected = null == selectedPartition,
                                 onClick = {
                                     onSelectedPartitionChange(null)
@@ -144,7 +141,6 @@ fun SearchResultVideoFilter(
                                     row = SearchResultFilterRow.Partition,
                                     key = partition.tid.toString()
                                 ),
-                                fallback = partition == selectedPartition,
                                 selected = partition == selectedPartition,
                                 onClick = {
                                     onSelectedPartitionChange(partition)
@@ -167,7 +163,6 @@ fun SearchResultVideoFilter(
                                         row = SearchResultFilterRow.ChildPartition,
                                         key = partition.tid.toString()
                                     ),
-                                    fallback = partition == selectedChildPartition,
                                     selected = partition == selectedChildPartition,
                                     onClick = {
                                         onSelectedChildPartitionChange(
@@ -197,7 +192,6 @@ fun SearchResultVideoFilter(
 private fun FilterDialogFilterChip(
     modifier: Modifier = Modifier,
     nodeId: WjzFocusNodeId,
-    fallback: Boolean = false,
     selected: Boolean,
     onClick: () -> Unit,
     label: @Composable () -> Unit,
@@ -206,10 +200,9 @@ private fun FilterDialogFilterChip(
 
     FilterChip(
         modifier = modifier
-            .wjzFocus(
+            .wjzFocusExits(
                 id = nodeId.toDialogLocalFocusId(),
                 layer = WjzFocusLayer.Dialog,
-                fallback = fallback,
                 onFocusChanged = { hasFocus = it }
             ),
         selected = selected,

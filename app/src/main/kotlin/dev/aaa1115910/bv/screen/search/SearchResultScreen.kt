@@ -30,7 +30,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -67,17 +66,20 @@ import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.SearchTypeTopNavItem
 import dev.aaa1115910.bv.component.TopNav
+import dev.aaa1115910.bv.screen.main.common.MainDrawerRightEntryId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
-import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
-import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryResolution
-import dev.aaa1115910.bv.wjzfocus.WjzFocusHostExit
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.component.BvLazyFocusItemTarget
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.left
+import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.up
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SeasonCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
@@ -109,7 +111,6 @@ import org.koin.androidx.compose.koinViewModel
 private const val SearchResultContentFocusId = "content"
 private val SearchResultTopNavNodeId = WjzFocusNodeId("search/result/top-nav")
 private val SearchResultRootScopeId = WjzFocusScopeId("search/result/root")
-private val SearchResultTopNavEntryId = WjzFocusEntryId("search/result/top-nav")
 
 @Composable
 fun SearchResultScreen(
@@ -123,7 +124,9 @@ fun SearchResultScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val focusCoordinator = LocalWjzFocusCoordinator.current
+    val parentFocusCoordinator = LocalWjzFocusCoordinator.current
+    val ownFocusCoordinator = rememberWjzFocusCoordinator()
+    val focusCoordinator = parentFocusCoordinator ?: ownFocusCoordinator
     val logger = KotlinLogging.logger { }
     var contentReadySearchType by remember { mutableStateOf<SearchTypeTopNavItem?>(null) }
 
@@ -193,9 +196,8 @@ fun SearchResultScreen(
     }
 
     fun requestTopNavFocus(): Boolean {
-        val coordinator = focusCoordinator ?: return false
-        coordinator.switchLayer(WjzFocusLayer.TopNav)
-        return coordinator.restoreActiveLayer(SearchResultRootScopeId)
+        focusCoordinator.switchLayer(WjzFocusLayer.TopNav)
+        return focusCoordinator.restoreActiveLayer(SearchResultRootScopeId)
     }
     val backToTabRow: () -> Unit = { requestTopNavFocus() }
 
@@ -287,25 +289,33 @@ fun SearchResultScreen(
 
     WjzFocusHost(
         modifier = modifier,
+        coordinator = focusCoordinator,
         layer = WjzFocusLayer.Content,
-        scopeId = SearchResultRootScopeId,
-        exits = listOf(
-            WjzFocusHostExit(FocusDirection.Up, SearchResultTopNavEntryId)
-        ),
-        onHostExit = { request ->
-            when (request.direction) {
-                FocusDirection.Up -> {
-                    if (requestTopNavFocus()) {
-                        WjzFocusEntryResolution.Cancel
-                    } else {
-                        WjzFocusEntryResolution.Reject
-                    }
-                }
-
-                else -> WjzFocusEntryResolution.Reject
-            }
-        }
+        scopeId = SearchResultRootScopeId
     ) {
+        WjzFocusEntrySurface(
+            componentId = "searchResult",
+            default = {
+                defaultEntry(
+                    nodeId = WjzFocusNodeId(SearchResultContentFocusId),
+                    layer = WjzFocusLayer.Content,
+                    scopeId = SearchResultRootScopeId
+                )
+            },
+            entries = {
+                entry("top") move defaultEntry(
+                    nodeId = SearchResultTopNavNodeId,
+                    layer = WjzFocusLayer.TopNav,
+                    scopeId = SearchResultRootScopeId
+                )
+                entry("left") move defaultEntry(
+                    nodeId = WjzFocusNodeId(SearchResultContentFocusId),
+                    layer = WjzFocusLayer.Content,
+                    scopeId = SearchResultRootScopeId
+                )
+            }
+        )
+
         Scaffold(
             modifier = Modifier.onKeyEvent {
                 if (it.isMenuKey()) {
@@ -386,10 +396,13 @@ fun SearchResultScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .wjzFocus(
+                            .wjzFocusExits(
                                 id = SearchResultContentFocusId,
                                 layer = WjzFocusLayer.Content,
-                                fallback = true,
+                                exits = {
+                                    up move "searchInput/default"
+                                    left move MainDrawerRightEntryId
+                                },
                                 onFocusChanged = { focusOnContent = it }
                             )
                             .onGloballyPositioned {
@@ -415,10 +428,13 @@ fun SearchResultScreen(
                 } else {
                     SmallVideoCardGridHost(
                         modifier = Modifier
-                            .wjzFocus(
+                            .wjzFocusExits(
                                 id = SearchResultContentFocusId,
                                 layer = WjzFocusLayer.Content,
-                                fallback = true,
+                                exits = {
+                                    up move "searchInput/default"
+                                    left move MainDrawerRightEntryId
+                                },
                                 onFocusChanged = { focusOnContent = it }
                             ),
                         state = gridState,
@@ -427,6 +443,7 @@ fun SearchResultScreen(
                         nodeIdPrefix = "search/${searchResult.type.toTopNavItem()}",
                         verticalArrangement = Arrangement.spacedBy(24.dp),
                         horizontalArrangement = Arrangement.spacedBy(24.dp),
+                        enableRowHorizontalWrap = false,
                         onEntryFocusReady = {
                             contentReadySearchType = searchResult.type.toTopNavItem()
                             onContentEntryReady()
@@ -472,23 +489,23 @@ fun SearchResultScreen(
                 }
             }
         }
-    }
 
-    SearchResultVideoFilter(
-        show = showFilter,
-        sourceScopeId = SearchResultRootScopeId,
-        onHideFilter = { showFilter = false },
-        selectedOrder = selectedOrder,
-        selectedDuration = selectedDuration,
-        selectedPartition = selectedPartition,
-        selectedChildPartition = selectedChildPartition,
-        onSelectedOrderChange = { searchResultViewModel.selectedOrder = it },
-        onSelectedDurationChange = { searchResultViewModel.selectedDuration = it },
-        onSelectedPartitionChange = { searchResultViewModel.selectedPartition = it },
-        onSelectedChildPartitionChange = {
-            searchResultViewModel.selectedChildPartition = it
-        }
-    )
+        SearchResultVideoFilter(
+            show = showFilter,
+            sourceScopeId = SearchResultRootScopeId,
+            onHideFilter = { showFilter = false },
+            selectedOrder = selectedOrder,
+            selectedDuration = selectedDuration,
+            selectedPartition = selectedPartition,
+            selectedChildPartition = selectedChildPartition,
+            onSelectedOrderChange = { searchResultViewModel.selectedOrder = it },
+            onSelectedDurationChange = { searchResultViewModel.selectedDuration = it },
+            onSelectedPartitionChange = { searchResultViewModel.selectedPartition = it },
+            onSelectedChildPartitionChange = {
+                searchResultViewModel.selectedChildPartition = it
+            }
+        )
+    }
 }
 
 @Composable

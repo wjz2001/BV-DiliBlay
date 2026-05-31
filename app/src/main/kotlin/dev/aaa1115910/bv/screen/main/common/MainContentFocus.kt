@@ -1,17 +1,25 @@
 package dev.aaa1115910.bv.screen.main.common
 
-import androidx.compose.ui.focus.FocusDirection
 import dev.aaa1115910.bv.component.TopNavEntryFocusConsumed
 import dev.aaa1115910.bv.component.TopNavEntryFocusResolution
 import dev.aaa1115910.bv.component.TopNavEntryFocusTarget
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
-import dev.aaa1115910.bv.wjzfocus.WjzFocusHostExit
 
 enum class MainContentEntryTarget {
-    DefaultEntry,
-    LeftEntry,
-    RightEntry
+    TopEntry,
+    LeftEntry
 }
+
+const val MainContentFocusComponentId = "main"
+const val MainTopNavFocusComponentId = "topNav"
+const val MainDrawerFocusComponentId = "drawer"
+
+val MainContentEntryId = WjzFocusEntryId("$MainContentFocusComponentId/content")
+val MainContentTopEntryId = WjzFocusEntryId("$MainContentFocusComponentId/top")
+val MainContentLeftEntryId = WjzFocusEntryId("$MainContentFocusComponentId/left")
+
+val MainTopNavDefaultEntryId = WjzFocusEntryId("$MainTopNavFocusComponentId/default")
+val MainDrawerRightEntryId = WjzFocusEntryId("$MainDrawerFocusComponentId/right")
 
 enum class MainContentEntryState {
     Pending,
@@ -34,17 +42,8 @@ data class MainContentEntryRequest(
 enum class MainContentNavigationExitEntry(
     val entryId: WjzFocusEntryId
 ) {
-    TopNavUser(WjzFocusEntryId("main/top-nav/user")),
-    DrawerCurrentItem(WjzFocusEntryId("main/drawer/current-item"))
-}
-
-fun mainContentNavigationExits(
-    targetEntry: MainContentNavigationExitEntry
-): List<WjzFocusHostExit> {
-    return listOf(
-        WjzFocusHostExit(FocusDirection.Left, targetEntry.entryId),
-        WjzFocusHostExit(FocusDirection.Right, targetEntry.entryId)
-    )
+    TopNavDefault(MainTopNavDefaultEntryId),
+    DrawerRight(MainDrawerRightEntryId)
 }
 
 data class MainContentEntryFocusRequest(
@@ -76,12 +75,6 @@ class MainContentEntryAdapter(
     fun onDefaultFocusReady(request: MainContentEntryFocusRequest? = topNavEntryFocusRequest) {
         if (!active) return
         onDefaultFocusReady?.invoke()
-        if (
-            request?.target == MainContentEntryTarget.DefaultEntry &&
-            request.matchesCurrentEntryRequest()
-        ) {
-            onEntryRequestReady(request.id)
-        }
     }
 
     fun onTopNavEntryFocusResolution(
@@ -147,9 +140,8 @@ fun mainContentEntryAdapter(
 
 private fun MainContentEntryTarget?.toTopNavEntryFocusTarget(): TopNavEntryFocusTarget {
     return when (this) {
+        MainContentEntryTarget.TopEntry -> TopNavEntryFocusTarget.DefaultEntry
         MainContentEntryTarget.LeftEntry -> TopNavEntryFocusTarget.LeftEntry
-        MainContentEntryTarget.RightEntry -> TopNavEntryFocusTarget.RightEntry
-        MainContentEntryTarget.DefaultEntry,
         null -> TopNavEntryFocusTarget.DefaultEntry
     }
 }
@@ -158,9 +150,8 @@ private fun MainContentEntryTarget?.toTopNavEntryFocusTarget(): TopNavEntryFocus
  * Content entry protocol for MainScreen.
  *
  * Entries:
- * - DefaultEntry: enter the current content container default focus.
+ * - TopEntry: enter the top side of the active content page public entry.
  * - LeftEntry: enter the left side of the active content page public entry.
- * - RightEntry: enter the right side of the active content page public entry.
  *
  * State machine:
  * - Pending: a request has been recorded, but the target entry is not confirmed ready.

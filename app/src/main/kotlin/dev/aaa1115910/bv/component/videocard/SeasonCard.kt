@@ -45,7 +45,7 @@ import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.ThemeMode
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.rememberTvImageRequest
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzClickableFocus
 
 @Composable
 fun SeasonCard(
@@ -66,8 +66,10 @@ fun SeasonCard(
     )
 
     Surface(
-        modifier = modifier.wjzFocus(
+        modifier = modifier.wjzClickableFocus(
             id = "season-card/${data.seasonId}",
+            onClick = onClick,
+            onLongClick = onLongClick,
             onFocused = onFocus
         ),
         onClick = onClick,

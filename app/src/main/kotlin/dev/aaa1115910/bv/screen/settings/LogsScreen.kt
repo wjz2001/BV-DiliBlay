@@ -48,7 +48,10 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRestorerHost
 import dev.aaa1115910.bv.network.HttpServer
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.C
@@ -66,6 +69,7 @@ import java.net.Inet4Address
 import java.net.NetworkInterface
 
 private val LogsScopeId = WjzFocusScopeId("settings/logs")
+private const val LogsRestorerId = "settings/logs/restorer"
 
 @Composable
 fun LogsScreen(
@@ -229,6 +233,19 @@ fun LogsScreenContent(
         layer = WjzFocusLayer.Content,
         scopeId = LogsScopeId
     ) {
+        val focusCoordinator = LocalWjzFocusCoordinator.current
+        LaunchedEffect(isCreateFocused, logs.size) {
+            val shouldFocusCreate = isCreateFocused || logs.isEmpty()
+            if (!shouldFocusCreate) return@LaunchedEffect
+            focusCoordinator?.enqueueGroupRestore(
+                nodeId = WjzFocusNodeId("create"),
+                layer = WjzFocusLayer.Content,
+                scopeId = LogsScopeId,
+                restorerId = LogsRestorerId,
+                listId = LogsRestorerId
+            )
+        }
+
         Scaffold(
             topBar = {
                 Box(
@@ -256,7 +273,14 @@ fun LogsScreenContent(
                     modifier = Modifier.weight(1f)
                 ) {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .wjzFocusRestorerHost(
+                                layer = WjzFocusLayer.Content,
+                                scopeId = LogsScopeId,
+                                restorerId = LogsRestorerId,
+                                listId = LogsRestorerId
+                            ),
                         contentPadding = PaddingValues(
                             horizontal = 36.dp,
                             vertical = 12.dp
@@ -264,21 +288,20 @@ fun LogsScreenContent(
                     ) {
                         item {
                             CreateLogItem(
-                                modifier = Modifier.wjzFocus(
+                                modifier = Modifier.wjzFocusExits(
                                     id = "create",
                                     layer = WjzFocusLayer.Content,
-                                    fallback = true,
-                                    onFocusChanged = { if (it) onFocusCreate() }
+                                    onFocused = onFocusCreate
                                 ),
                                 onClick = onClickCreateLog
                             )
                         }
                         items(items = logs) { logFile ->
                             LogItem(
-                                modifier = Modifier.wjzFocus(
+                                modifier = Modifier.wjzFocusExits(
                                     id = "file/${logFile.name}",
                                     layer = WjzFocusLayer.Content,
-                                    onFocusChanged = { if (it) onFocusLogFile(logFile) }
+                                    onFocused = { onFocusLogFile(logFile) }
                                 ),
                                 filename = logFile.name,
                                 size = logFile.length()

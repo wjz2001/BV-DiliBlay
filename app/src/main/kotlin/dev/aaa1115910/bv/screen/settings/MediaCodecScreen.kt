@@ -40,8 +40,11 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRestorerHost
 import dev.aaa1115910.bv.wjzfocus.wjzObserveFocusChanged
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.C
@@ -56,6 +59,7 @@ import dev.aaa1115910.bv.util.swapList
 import java.util.Locale
 
 private val MediaCodecScopeId = WjzFocusScopeId("settings/media-codec")
+private const val MediaCodecListRestorerId = "settings/media-codec/list-restorer"
 
 @Composable
 fun MediaCodecScreen(
@@ -74,7 +78,7 @@ fun MediaCodecScreen(
     LaunchedEffect(Unit) {
         val list = CodecUtil.parseCodecs().filter { it.type == CodecType.Decoder }
         decoderList.swapList(list)
-        currentCodecInfoData = list[0]
+        currentCodecInfoData = list.firstOrNull()
     }
 
     WjzFocusHost(
@@ -82,6 +86,42 @@ fun MediaCodecScreen(
         layer = WjzFocusLayer.Content,
         scopeId = MediaCodecScopeId
     ) {
+        val focusCoordinator = LocalWjzFocusCoordinator.current
+
+        LaunchedEffect(currentCodecInfoData, decoderList.size) {
+            when {
+                decoderList.isEmpty() -> {
+                    focusCoordinator?.enqueueGroupRestore(
+                        nodeId = WjzFocusNodeId("empty"),
+                        layer = WjzFocusLayer.Content,
+                        scopeId = MediaCodecScopeId,
+                        restorerId = MediaCodecListRestorerId,
+                        listId = MediaCodecListRestorerId
+                    )
+                }
+                currentCodecInfoData != null -> {
+                    val current = currentCodecInfoData ?: return@LaunchedEffect
+                    focusCoordinator?.enqueueGroupRestore(
+                        nodeId = WjzFocusNodeId("list/${current.name}/${current.mimeType}"),
+                        layer = WjzFocusLayer.Content,
+                        scopeId = MediaCodecScopeId,
+                        restorerId = MediaCodecListRestorerId,
+                        listId = MediaCodecListRestorerId
+                    )
+                }
+                else -> {
+                    val first = decoderList.firstOrNull() ?: return@LaunchedEffect
+                    focusCoordinator?.enqueueGroupRestore(
+                        nodeId = WjzFocusNodeId("list/${first.name}/${first.mimeType}"),
+                        layer = WjzFocusLayer.Content,
+                        scopeId = MediaCodecScopeId,
+                        restorerId = MediaCodecListRestorerId,
+                        listId = MediaCodecListRestorerId
+                    )
+                }
+            }
+        }
+
         Scaffold(
             topBar = {
                 Box(
@@ -115,6 +155,12 @@ fun MediaCodecScreen(
                 MediaCodecListItems(
                     modifier = Modifier
                         .wjzObserveFocusChanged { focusInNav = it }
+                        .wjzFocusRestorerHost(
+                            layer = WjzFocusLayer.Content,
+                            scopeId = MediaCodecScopeId,
+                            restorerId = MediaCodecListRestorerId,
+                            listId = MediaCodecListRestorerId
+                        )
                         .weight(3f)
                         .fillMaxHeight(),
                     codecInfoDataList = decoderList,
@@ -151,11 +197,9 @@ fun MediaCodecListItems(
             MediaCodecListItem(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .wjzFocus(
+                    .wjzFocusExits(
                         id = "list/${codecInfoData.name}/${codecInfoData.mimeType}",
-                        layer = WjzFocusLayer.Content,
-                        fallback = currentCodecInfoData == codecInfoData ||
-                            (currentCodecInfoData == null && codecInfoDataList.firstOrNull() == codecInfoData)
+                        layer = WjzFocusLayer.Content
                     ),
                 codecInfoData = codecInfoData,
                 onFocus = { onCodecInfoDataChanged(codecInfoData) },
@@ -343,10 +387,9 @@ fun MediaCodecDetails(
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .wjzFocus(
+                .wjzFocusExits(
                     id = "empty",
-                    layer = WjzFocusLayer.Content,
-                    fallback = true
+                    layer = WjzFocusLayer.Content
                 ),
             contentAlignment = Alignment.Center
         ) {

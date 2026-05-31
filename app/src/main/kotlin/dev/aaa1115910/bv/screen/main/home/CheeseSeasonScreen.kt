@@ -41,7 +41,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -55,9 +55,12 @@ import coil.compose.AsyncImage
 import dev.aaa1115910.biliapi.entity.cheese.CheeseEpisode
 import dev.aaa1115910.biliapi.entity.cheese.CheeseSeasonDetail
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.component.TvGridFocusHost
 import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
@@ -65,9 +68,7 @@ import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.component.videocard.VideoPartButton
 import dev.aaa1115910.bv.component.videocard.VideoPartButtonStyle
 import dev.aaa1115910.bv.ui.theme.C
-import dev.aaa1115910.bv.util.BvKeyDirection
 import dev.aaa1115910.bv.util.ImageSize
-import dev.aaa1115910.bv.util.bvKeyDirection
 import dev.aaa1115910.bv.util.focusedBorder
 import dev.aaa1115910.bv.util.isKeyDown
 import dev.aaa1115910.bv.util.launchPlayerActivity
@@ -156,18 +157,18 @@ private fun CheeseSeasonContent(
         modifier = Modifier
             .fillMaxSize()
             .padding(32.dp)
-            .onPreviewKeyEvent { event ->
+            .onKeyEvent { event ->
                 if (!event.isKeyDown() || !event.nativeKeyEvent.isLongPress) {
-                    return@onPreviewKeyEvent false
+                    return@onKeyEvent false
                 }
 
-                when (event.bvKeyDirection()) {
-                    BvKeyDirection.Left -> {
+                when (event.key) {
+                    Key.DirectionLeft -> {
                         episodeListExpanded = true
                         true
                     }
 
-                    BvKeyDirection.Right -> {
+                    Key.DirectionRight -> {
                         episodeListExpanded = false
                         true
                     }
@@ -233,6 +234,7 @@ private fun CheeseSeasonIntro(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val density = LocalDensity.current
+    val focusScopeId = LocalWjzFocusScopeId.current
     val scrollOffsetPx = remember(density) {
         with(density) { 60.dp.toPx() }
     }
@@ -244,26 +246,24 @@ private fun CheeseSeasonIntro(
     LazyColumn(
         modifier = modifier
             .graphicsLayer { this.alpha = alpha }
-            .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                when (event.bvKeyDirection()) {
-                    BvKeyDirection.Down -> {
+            .onKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                when (event.key) {
+                    Key.DirectionDown -> {
                         scope.launch {
                             listState.animateScrollBy(scrollOffsetPx)
                         }
                         true
                     }
 
-                    BvKeyDirection.Up -> {
+                    Key.DirectionUp -> {
                         scope.launch {
                             listState.animateScrollBy(-scrollOffsetPx)
                         }
                         true
                     }
 
-                    BvKeyDirection.Left,
-                    BvKeyDirection.Right,
-                    null -> false
+                    else -> false
                 }
             },
         state = listState,
@@ -291,12 +291,24 @@ private fun CheeseSeasonIntro(
                 )
                 val upMid = detail.upMid
                 if (upMid != null && detail.upName.isNotBlank()) {
+                    if (focusEnabled) {
+                        WjzFocusEntrySurface(
+                            componentId = "cheeseSeasonIntro${detail.seasonId}",
+                            default = {
+                                defaultEntry(
+                                    "cheese/${detail.seasonId}/up",
+                                    layer = WjzFocusLayer.Content,
+                                    scopeId = focusScopeId
+                                )
+                            }
+                        )
+                    }
+
                     CheeseUpButton(
                         modifier = Modifier
-                            .wjzFocus(
+                            .wjzFocusExits(
                                 id = "cheese/${detail.seasonId}/up",
                                 layer = WjzFocusLayer.Content,
-                                fallback = focusEnabled,
                                 enabled = focusEnabled
                             ),
                         name = detail.upName,

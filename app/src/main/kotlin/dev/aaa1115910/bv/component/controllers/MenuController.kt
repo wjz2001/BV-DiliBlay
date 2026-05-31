@@ -30,11 +30,6 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -47,16 +42,25 @@ import dev.aaa1115910.biliapi.entity.video.SubtitleAiStatus
 import dev.aaa1115910.biliapi.entity.video.SubtitleAiType
 import dev.aaa1115910.biliapi.entity.video.SubtitleType
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTransitionGuard
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.controllers.playermenu.ClosedCaptionMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.DanmakuMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.MenuNavList
 import dev.aaa1115910.bv.component.controllers.playermenu.PictureMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedItem
+import dev.aaa1115910.bv.component.controllers.playermenu.PlayerMenuClosedCaptionFocusIdPrefix
+import dev.aaa1115910.bv.component.controllers.playermenu.PlayerMenuDanmakuFocusIdPrefix
+import dev.aaa1115910.bv.component.controllers.playermenu.PlayerMenuNavFocusIdPrefix
+import dev.aaa1115910.bv.component.controllers.playermenu.PlayerMenuPictureFocusIdPrefix
+import dev.aaa1115910.bv.component.controllers.playermenu.PlayerMenuPlaySpeedFocusIdPrefix
 import dev.aaa1115910.bv.component.controllers.playermenu.PlayerMenuRootFocusId
 import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedMenuList
 import dev.aaa1115910.bv.entity.Audio
@@ -71,6 +75,30 @@ import dev.aaa1115910.bv.ui.theme.C
 
 import kotlinx.coroutines.delay
 import dev.aaa1115910.bv.util.swapList
+
+private const val PlayerMenuNavFocusComponentId = "playerMenuNav"
+private const val PlayerMenuMainFocusComponentId = "playerMenuMain"
+
+internal const val PlayerMenuPictureItemsFocusComponentId = "playerMenuPictureItems"
+internal const val PlayerMenuClosedCaptionItemsFocusComponentId = "playerMenuClosedCaptionItems"
+
+internal const val PlayerMenuNavEntryId = PlayerMenuNavFocusComponentId
+internal const val PlayerMenuMainEntryId = PlayerMenuMainFocusComponentId
+internal const val PlayerMenuPictureItemsEntryId = PlayerMenuPictureItemsFocusComponentId
+internal const val PlayerMenuClosedCaptionItemsEntryId = PlayerMenuClosedCaptionItemsFocusComponentId
+
+private fun playerMenuNavNodeId(item: VideoPlayerMenuNavItem): WjzFocusNodeId {
+    return WjzFocusNodeId("$PlayerMenuNavFocusIdPrefix/${item.ordinal}")
+}
+
+private fun playerMenuMainNodeId(item: VideoPlayerMenuNavItem): WjzFocusNodeId {
+    return when (item) {
+        VideoPlayerMenuNavItem.PlaySpeed -> WjzFocusNodeId("$PlayerMenuPlaySpeedFocusIdPrefix/step")
+        VideoPlayerMenuNavItem.Picture -> WjzFocusNodeId("$PlayerMenuPictureFocusIdPrefix/menu/0")
+        VideoPlayerMenuNavItem.Danmaku -> WjzFocusNodeId("$PlayerMenuDanmakuFocusIdPrefix/menu/0")
+        VideoPlayerMenuNavItem.ClosedCaption -> WjzFocusNodeId("$PlayerMenuClosedCaptionFocusIdPrefix/menu/0")
+    }
+}
 
 @Composable
 fun MenuController(
@@ -117,6 +145,12 @@ fun MenuController(
                     recordSource = true
                 )
                 overlaySourceToken = activatedToken
+                repeat(3) {
+                    focusCoordinator?.requestEntryFocus(
+                        WjzFocusEntryId.parse(PlayerMenuNavFocusComponentId)
+                    )
+                    delay(50)
+                }
             } else {
                 val token = overlaySourceToken
                 overlaySourceToken = null
@@ -145,10 +179,9 @@ fun MenuController(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .wjzFocus(
+            .wjzFocusExits(
                 id = PlayerMenuRootFocusId,
                 layer = WjzFocusLayer.Overlay,
-                fallback = true,
                 enabled = show
             ),
         contentAlignment = Alignment.CenterEnd
@@ -221,6 +254,25 @@ fun MenuController(
     var selectedNavItem by remember { mutableStateOf(VideoPlayerMenuNavItem.PlaySpeed) }
     var focusState by remember { mutableStateOf(MenuFocusState.MenuNav) }
 
+    WjzFocusEntrySurface(
+        componentId = PlayerMenuNavFocusComponentId,
+        default = {
+            defaultEntry(
+                nodeId = playerMenuNavNodeId(selectedNavItem),
+                layer = WjzFocusLayer.Overlay
+            )
+        }
+    )
+    WjzFocusEntrySurface(
+        componentId = PlayerMenuMainFocusComponentId,
+        default = {
+            defaultEntry(
+                nodeId = playerMenuMainNodeId(selectedNavItem),
+                layer = WjzFocusLayer.Overlay
+            )
+        }
+    )
+
     Surface(
         modifier = modifier
             .fillMaxHeight(),
@@ -267,16 +319,12 @@ fun MenuController(
                     onSubtitleBottomPadding = onSubtitleBottomPadding
                 )
                 MenuNavList(
-                    modifier = Modifier
-                        .onPreviewKeyEvent {
-                            if (it.type == KeyEventType.KeyUp) {
-                                return@onPreviewKeyEvent !listOf(Key.Enter, Key.DirectionCenter).contains(it.key)
-                            }
-                            if (it.key == Key.DirectionLeft) focusState = MenuFocusState.Menu
-                            false
-                        },
                     selectedMenu = selectedNavItem,
-                    onSelectedChanged = { selectedNavItem = it },
+                    menuEntryId = PlayerMenuMainEntryId,
+                    onSelectedChanged = {
+                        selectedNavItem = it
+                        focusState = MenuFocusState.MenuNav
+                    },
                     isFocusing = focusState == MenuFocusState.MenuNav
                 )
             }

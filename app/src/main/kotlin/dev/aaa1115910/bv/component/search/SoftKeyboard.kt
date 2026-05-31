@@ -26,7 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
@@ -46,8 +46,11 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTransitionGuard
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.ui.theme.BVTheme
@@ -62,6 +65,7 @@ enum class SoftKeyboardType {
 }
 
 private val SoftKeyboardScopeId = WjzFocusScopeId("search/keyboard")
+private const val SoftKeyboardFocusComponentId = "soft_keyboard"
 private const val SoftKeyboardFirstKeyFocusId = "key/first"
 private val SoftKeyboardFirstKeyNodeId =
     WjzFocusNodeId("${SoftKeyboardScopeId.value}/$SoftKeyboardFirstKeyFocusId")
@@ -101,10 +105,7 @@ fun SoftKeyboard(
             layer = WjzFocusLayer.Keyboard,
             recordSource = true
         )
-        coordinator.enqueueRequestFocus(
-            nodeId = SoftKeyboardFirstKeyNodeId,
-            layer = WjzFocusLayer.Keyboard
-        )
+        coordinator.requestEntryFocus(WjzFocusEntryId.parse(SoftKeyboardFocusComponentId))
     }
 
     DisposableEffect(coordinator) {
@@ -128,6 +129,16 @@ fun SoftKeyboard(
         layer = WjzFocusLayer.Keyboard,
         scopeId = SoftKeyboardScopeId
     ) {
+        WjzFocusEntrySurface(
+            componentId = SoftKeyboardFocusComponentId,
+            default = {
+                defaultEntry(
+                    nodeId = SoftKeyboardFirstKeyNodeId,
+                    layer = WjzFocusLayer.Keyboard,
+                    scopeId = SoftKeyboardScopeId
+                )
+            }
+        )
         WjzFocusTransitionGuard(locked = keyboardTransitionLocked)
         when (keyboardType) {
             SoftKeyboardType.English -> EnglishKeyboardLayout(
@@ -235,10 +246,9 @@ private fun EnglishKeyboardLayout(
                 rowKeys.forEachIndexed { index, key ->
                     val keyModifier = if (rowIndex == 0 && index == 0) {
                         Modifier
-                            .wjzFocus(
+                            .wjzFocusExits(
                                 id = SoftKeyboardFirstKeyFocusId,
-                                layer = WjzFocusLayer.Keyboard,
-                                fallback = true
+                                layer = WjzFocusLayer.Keyboard
                             )
                             .onGloballyPositioned {
                                 if (!firstButtonPlacedNotified) {
@@ -723,22 +733,22 @@ fun SoftKeyboardKey(
     val keyModifier = if (onLongClick == null) {
         modifier
     } else {
-        modifier.onPreviewKeyEvent { event ->
+        modifier.onKeyEvent { event ->
             if (!event.isConfirmKey()) {
-                return@onPreviewKeyEvent false
+                return@onKeyEvent false
             }
 
             if (longPressGuard) {
                 if (event.isKeyUp()) {
                     longPressGuard = false
                 }
-                return@onPreviewKeyEvent true
+                return@onKeyEvent true
             }
 
             if (event.isKeyDown() && event.nativeKeyEvent.isLongPress) {
                 onLongClick()
                 longPressGuard = true
-                return@onPreviewKeyEvent true
+                return@onKeyEvent true
             }
 
             false

@@ -16,24 +16,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.zIndex
-import dev.aaa1115910.bv.util.isKeyDown
-import dev.aaa1115910.bv.util.isMenuKey
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
+import dev.aaa1115910.bv.wjzfocus.up
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.UgcTopNavItem
 import dev.aaa1115910.bv.component.PersistLazyGridViewportEffect
@@ -52,6 +47,9 @@ import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import org.koin.androidx.compose.koinViewModel
 
 private val UgcTopNavNodeId = WjzFocusNodeId("main/ugc/top-nav")
+private val UgcTopNavEntryId = WjzFocusEntryId.parse(
+    "bv_tab_row_${UgcTopNavNodeId.value.hashCode()}"
+)
 
 @Composable
 fun UgcContent(
@@ -74,8 +72,6 @@ fun UgcContent(
     val ugcTopNavItems = UgcTopNavItem.entries
     var contentReadyTab by remember { mutableStateOf<UgcTopNavItem?>(null) }
     var previousActiveTab by remember { mutableStateOf<UgcTopNavItem?>(null) }
-    val focusCoordinator = LocalWjzFocusCoordinator.current
-    val focusScopeId = LocalWjzFocusScopeId.current
     val entryAdapter = mainContentEntryAdapter(
         entryRequest = entryRequest,
         active = active,
@@ -85,18 +81,6 @@ fun UgcContent(
         onEntryRequestRejected = onEntryRequestRejected
     )
     val entryFocusRequest = entryAdapter.topNavEntryFocusRequest
-
-    fun requestTopNavFocus(): Boolean {
-        val coordinator = focusCoordinator
-        if (coordinator != null) {
-            return coordinator.enqueueRequestFocus(
-                nodeId = UgcTopNavNodeId,
-                layer = WjzFocusLayer.Content,
-                scopeId = focusScopeId
-            )
-        }
-        return false
-    }
 
     val handleDefaultFocusReady: (Any) -> Unit = handleDefaultFocusReady@{ readyKey ->
         if (!active) return@handleDefaultFocusReady
@@ -195,15 +179,15 @@ fun UgcContent(
         Box(
             modifier = Modifier
                 .padding(innerPadding)
-                .onPreviewKeyEvent {
-                    if (it.isMenuKey()) {
-                        if (it.isKeyDown()) return@onPreviewKeyEvent true
-                        ugcViewModel.requestUserRefresh(activeTab)
-                        requestTopNavFocus()
-                        return@onPreviewKeyEvent true
+                .wjzFocusExits(
+                    id = "main/ugc/content",
+                    layer = WjzFocusLayer.Content,
+                    strategy = WjzFocusRestoreStrategy.Container,
+                    enabled = active,
+                    exits = {
+                        up move UgcTopNavEntryId
                     }
-                    false
-                },
+                ),
         ) {
             val mountedTabs = ugcTopNavItems.filter { tab ->
                 val runtimeState = ugcViewModel.runtimeStateOf(tab)

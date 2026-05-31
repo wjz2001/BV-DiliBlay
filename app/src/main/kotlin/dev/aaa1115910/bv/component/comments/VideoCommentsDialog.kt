@@ -49,7 +49,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -81,16 +80,18 @@ import dev.aaa1115910.biliapi.repositories.CommentRepository
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.wjzfocus.WjzDialogFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.richtext.RichText
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.C
-import dev.aaa1115910.bv.util.BvKeyDirection
 import dev.aaa1115910.bv.util.buildRichTextTokens
 import dev.aaa1115910.bv.util.countRichTextInteractiveTokens
 import dev.aaa1115910.bv.util.loadRichContentDocument
@@ -98,7 +99,6 @@ import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.launchPlayerActivity
 import dev.aaa1115910.bv.util.RichContentDocument
 import dev.aaa1115910.bv.util.ResolvedVideoLink
-import dev.aaa1115910.bv.util.bvKeyDirection
 import dev.aaa1115910.bv.util.isConfirmKey
 import dev.aaa1115910.bv.util.isKeyDown
 import dev.aaa1115910.bv.util.isKeyUp
@@ -110,6 +110,7 @@ import kotlin.math.ceil
 private enum class Page { Main, Replies, RichContent }
 
 private val CommentsDialogScopeId = WjzFocusScopeId("comments/dialog")
+private const val CommentsDialogFocusComponentId = "comments-dialog"
 private const val CommentsDialogRootKey = "comments/dialog/root"
 private const val CommentsDialogRootLocalId = "root"
 private fun mainCommentFocusKey(rpid: Long) = "comments/dialog/main/$rpid"
@@ -126,30 +127,31 @@ private fun richContentStableDocKey(document: RichContentDocument): String =
 private fun commentsDialogLocalFocusId(key: String): String =
     key.removePrefix("${CommentsDialogScopeId.value}/")
 
+private fun commentsDialogEntryLocalId(nodeId: String): String =
+    nodeId.replace('/', ':')
+
+private fun commentsDialogEntryId(nodeId: String): WjzFocusEntryId =
+    WjzFocusEntryId("$CommentsDialogFocusComponentId/${commentsDialogEntryLocalId(nodeId)}")
+
 private fun requestDialogNodeFocus(
     coordinator: WjzFocusCoordinator?,
     nodeId: String
 ): Boolean {
     coordinator ?: return false
     coordinator.switchLayer(WjzFocusLayer.Dialog)
-    return coordinator.enqueueRequestFocus(
-        nodeId = WjzFocusNodeId(nodeId),
-        layer = WjzFocusLayer.Dialog,
-        scopeId = CommentsDialogScopeId
-    )
+    return coordinator.requestEntryFocus(commentsDialogEntryId(nodeId))
 }
 
 private fun requestDialogFocus(
     coordinator: WjzFocusCoordinator?,
     key: String
 ): Boolean {
-    coordinator ?: return false
-    coordinator.switchLayer(WjzFocusLayer.Dialog)
-    return coordinator.enqueueRequestFocus(
-        nodeId = WjzFocusNodeId(key),
-        layer = WjzFocusLayer.Dialog,
-        scopeId = CommentsDialogScopeId
-    )
+    val nodeId = if (key == CommentsDialogRootKey) {
+        CommentsDialogRootLocalId
+    } else {
+        key
+    }
+    return requestDialogNodeFocus(coordinator, nodeId)
 }
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -565,6 +567,94 @@ fun VideoCommentsDialog(
                     pendingFocusRestoreKey = null
                 }
 
+                WjzFocusEntrySurface(
+                    componentId = CommentsDialogFocusComponentId,
+                    default = {
+                        defaultEntry(
+                            nodeId = WjzFocusNodeId(CommentsDialogRootLocalId),
+                            layer = WjzFocusLayer.Dialog,
+                            scopeId = CommentsDialogScopeId
+                        )
+                    },
+                    entries = {
+                    fun registerEntry(nodeId: String, targetNodeId: String = nodeId) {
+                        entry(commentsDialogEntryLocalId(nodeId)) move defaultEntry(
+                            nodeId = WjzFocusNodeId(targetNodeId),
+                            layer = WjzFocusLayer.Dialog,
+                            scopeId = CommentsDialogScopeId
+                        )
+                    }
+
+                    registerEntry(CommentsDialogRootLocalId)
+
+                    when (page) {
+                        Page.Main -> {
+                            comments.forEach { comment ->
+                                registerEntry(
+                                    commentsDialogLocalFocusId(mainCommentFocusKey(comment.rpid))
+                                )
+
+                                val interactiveCount = countRichTextInteractiveTokens(
+                                    tokens = buildRichTextTokens(comment.toRichTextContent()),
+                                    includeVideoLinks = true,
+                                    includeReferences = true,
+                                    includeMentions = true
+                                )
+                                repeat(interactiveCount) { index ->
+                                    registerEntry(commentInlineFocusKey(comment.rpid, index))
+                                }
+
+                                comment.pictures.forEachIndexed { index, _ ->
+                                    registerEntry(commentPictureFocusKey(comment.rpid.toString(), index))
+                                }
+                            }
+                        }
+
+                        Page.Replies -> {
+                            replies.forEach { reply ->
+                                registerEntry(
+                                    commentsDialogLocalFocusId(replyCommentFocusKey(reply.rpid))
+                                )
+
+                                val interactiveCount = countRichTextInteractiveTokens(
+                                    tokens = buildRichTextTokens(reply.toRichTextContent()),
+                                    includeVideoLinks = true,
+                                    includeReferences = true,
+                                    includeMentions = true
+                                )
+                                repeat(interactiveCount) { index ->
+                                    registerEntry(commentInlineFocusKey(reply.rpid, index))
+                                }
+
+                                reply.pictures.forEachIndexed { index, _ ->
+                                    registerEntry(commentPictureFocusKey(reply.rpid.toString(), index))
+                                }
+                            }
+                        }
+
+                        Page.RichContent -> {
+                            val document = richContentStack.lastOrNull() ?: richContent
+                            if (document != null) {
+                                val stableDocKey = richContentStableDocKey(document)
+                                val interactiveCount = countRichTextInteractiveTokens(
+                                    tokens = buildRichTextTokens(document.body),
+                                    includeVideoLinks = true,
+                                    includeReferences = true,
+                                    includeMentions = false
+                                )
+                                repeat(interactiveCount) { index ->
+                                    registerEntry(richInlineFocusKey(stableDocKey, index))
+                                }
+
+                                document.pictures.forEachIndexed { index, _ ->
+                                    registerEntry(commentPictureFocusKey("rich-$stableDocKey", index))
+                                }
+                            }
+                        }
+                    }
+                    }
+                )
+
                 CompositionLocalProvider(
                     LocalDensity provides dialogDensity,
                     LocalBringIntoViewSpec provides dialogBringIntoViewSpec
@@ -572,12 +662,11 @@ fun VideoCommentsDialog(
                     Surface(
                         modifier = Modifier
                             .fillMaxSize()
-                            .wjzFocus(
+                            .wjzFocusExits(
                                 id = "root",
-                                layer = WjzFocusLayer.Dialog,
-                                fallback = true
+                                layer = WjzFocusLayer.Dialog
                             )
-                            .onPreviewKeyEvent {
+                            .onKeyEvent {
                                 if (it.isKeyDown() && it.key == Key.Back) {
                                     goBackLayer()
                                     true
@@ -1133,7 +1222,7 @@ private fun LightCommentItem(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .wjzFocus(
+                .wjzFocusExits(
                     id = commentsDialogLocalFocusId(bodyNodeKey),
                     layer = WjzFocusLayer.Dialog
                 ) { hasFocus ->
@@ -1144,8 +1233,8 @@ private fun LightCommentItem(
                         activeNode = CommentFocusNode.Body
                     }
                 }
-                .onPreviewKeyEvent { event ->
-                    if (!bodyIsFocused || event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                .onKeyEvent { event ->
+                    if (!bodyIsFocused || event.type != KeyEventType.KeyDown) return@onKeyEvent false
                     when (event.key) {
                         Key.DirectionDown -> {
                             coroutineScope.launch { handleBodyNavDown() }
@@ -1501,7 +1590,7 @@ private fun RichContentPage(
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .wjzFocus(
+                        .wjzFocusExits(
                             id = CommentsDialogRootLocalId,
                             layer = WjzFocusLayer.Dialog,
                             onFocusChanged = { hasFocus ->
@@ -1512,17 +1601,17 @@ private fun RichContentPage(
                                 }
                             }
                         )
-                        .onPreviewKeyEvent { event ->
+                        .onKeyEvent { event ->
                             if (bodyIsFocused && event.isKeyDown()) {
                                 when (event.key) {
                                     Key.DirectionDown -> {
                                         coroutineScope.launch { handleBodyNavDown() }
-                                        return@onPreviewKeyEvent true
+                                        return@onKeyEvent true
                                     }
 
                                     Key.DirectionUp -> {
                                         coroutineScope.launch { handleBodyNavUp() }
-                                        return@onPreviewKeyEvent true
+                                        return@onKeyEvent true
                                     }
 
                                     else -> Unit
@@ -1617,8 +1706,8 @@ private fun FocusableCommentPictures(
                 modifier = Modifier
                     .width(184.dp)
                     .height(112.dp)
-                    .onPreviewKeyEvent { e ->
-                        if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    .onKeyEvent { e ->
+                        if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
                         when (e.key) {
                             Key.DirectionUp -> {
                                 onPictureNavUp(index)
@@ -1633,7 +1722,7 @@ private fun FocusableCommentPictures(
                             else -> false
                         }
                     }
-                    .wjzFocus(
+                    .wjzFocusExits(
                         id = commentPictureFocusKey(keyPrefix, index),
                         layer = WjzFocusLayer.Dialog,
                         onFocusChanged = {
@@ -1752,7 +1841,7 @@ private fun CommentImagePreviewDialog(
                         .fillMaxSize()
                         .background(C.commentsBackground)
                         .clipToBounds()
-                        .wjzFocus(
+                        .wjzFocusExits(
                             id = "comments/dialog/image-preview",
                             layer = WjzFocusLayer.Dialog
                         )
@@ -1770,19 +1859,19 @@ private fun CommentImagePreviewDialog(
                                     return@onKeyEvent true
                                 }
 
-                                e.bvKeyDirection() == BvKeyDirection.Left -> {
+                                e.key == Key.DirectionLeft -> {
                                     if (e.isKeyUp()) return@onKeyEvent true
                                     onSwitch(-1)
                                     return@onKeyEvent true
                                 }
 
-                                e.bvKeyDirection() == BvKeyDirection.Right -> {
+                                e.key == Key.DirectionRight -> {
                                     if (e.isKeyUp()) return@onKeyEvent true
                                     onSwitch(1)
                                     return@onKeyEvent true
                                 }
 
-                                e.bvKeyDirection() == BvKeyDirection.Up -> {
+                                e.key == Key.DirectionUp -> {
                                     if (e.isKeyUp()) return@onKeyEvent true
                                     if (widthFitEnabled) {
                                         coroutineScope.launch {
@@ -1792,7 +1881,7 @@ private fun CommentImagePreviewDialog(
                                     return@onKeyEvent true
                                 }
 
-                                e.bvKeyDirection() == BvKeyDirection.Down -> {
+                                e.key == Key.DirectionDown -> {
                                     if (e.isKeyUp()) return@onKeyEvent true
                                     if (widthFitEnabled) {
                                         coroutineScope.launch {

@@ -41,7 +41,7 @@ import dev.aaa1115910.bv.activities.settings.SettingsActivity
 import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.activities.user.UserSwitchActivity
 import dev.aaa1115910.bv.component.BlackoutSwitch
-import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryResolution
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
@@ -49,8 +49,11 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTransitionGuard
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
-import dev.aaa1115910.bv.wjzfocus.wjzFocusRouter
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.entry
+import dev.aaa1115910.bv.wjzfocus.left
+import dev.aaa1115910.bv.wjzfocus.up
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.rememberBlackoutSwitchTransitionState
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.repository.UserRepository
@@ -67,12 +70,19 @@ import dev.aaa1115910.bv.screen.main.MainTopNavEntryTarget
 import dev.aaa1115910.bv.screen.main.MainTopNavContentEntryTarget
 import dev.aaa1115910.bv.screen.main.PgcContent
 import dev.aaa1115910.bv.screen.main.UgcContent
+import dev.aaa1115910.bv.screen.main.leftNaviItemFocusNodeId
+import dev.aaa1115910.bv.screen.main.common.MainContentEntryId
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryState
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryTarget
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryTransition
-import dev.aaa1115910.bv.screen.main.common.MainContentNavigationExitEntry
-import dev.aaa1115910.bv.screen.main.common.mainContentNavigationExits
+import dev.aaa1115910.bv.screen.main.common.MainContentFocusComponentId
+import dev.aaa1115910.bv.screen.main.common.MainContentLeftEntryId
+import dev.aaa1115910.bv.screen.main.common.MainContentTopEntryId
+import dev.aaa1115910.bv.screen.main.common.MainDrawerFocusComponentId
+import dev.aaa1115910.bv.screen.main.common.MainDrawerRightEntryId
+import dev.aaa1115910.bv.screen.main.common.MainTopNavDefaultEntryId
+import dev.aaa1115910.bv.screen.main.common.MainTopNavFocusComponentId
 import dev.aaa1115910.bv.screen.main.runtime.runtimeContainerInputEnabled
 import dev.aaa1115910.bv.screen.main.toMainContentEntryTarget
 import dev.aaa1115910.bv.component.TvAlertDialog
@@ -87,13 +97,15 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 
-private val MainContentNodeId = WjzFocusNodeId("main/content/current")
+private val MainContentEntryNodeId = WjzFocusNodeId("main/content/entry")
+private const val MainFirstLaunchDialogComponentId = "mainFirstLaunchDialog"
 private val MainFirstLaunchDialogScopeId = WjzFocusScopeId("main/first-launch-dialog")
 private val MainFirstLaunchDialogContainerNodeId = WjzFocusNodeId("main/first-launch-dialog/container")
-private val MainDrawerScopeId = WjzFocusScopeId("main/drawer")
+private val MainFirstLaunchDialogTextNodeId = WjzFocusNodeId("main/first-launch-dialog/text")
+private val MainDrawerScopeId = WjzFocusScopeId("drawer")
 private val MainFocusScopeId = WjzFocusScopeId("main")
-private val MainRootNodeId = WjzFocusNodeId("main/root")
-private val MainTopNavScopeId = WjzFocusScopeId("main/top-nav")
+private val MainTopNavScopeId = WjzFocusScopeId("topNav")
+private val MainTopNavDefaultNodeId = WjzFocusNodeId("${MainTopNavFocusComponentId}/default")
 
 private data class PendingContentFocus(
     val item: LeftNaviItem,
@@ -118,6 +130,7 @@ fun rememberIsDarkFromPrefs(): Boolean {
 @Composable
 fun MainScreen(
     modifier: Modifier = Modifier,
+    allowFirstLaunchMainDialog: Boolean = true,
     userViewModel: UserViewModel = koinViewModel(),
     userRepository: UserRepository = koinInject()
 ) {
@@ -270,11 +283,7 @@ fun MainScreen(
         drawerSourceToken = null
         if (!restored && requestFallback) {
             focusCoordinator.switchLayer(WjzFocusLayer.Content)
-            focusCoordinator.enqueueRequestFocus(
-                nodeId = MainContentNodeId,
-                layer = WjzFocusLayer.Content,
-                scopeId = MainFocusScopeId
-            )
+            focusCoordinator.requestEntryFocus(MainContentLeftEntryId)
         }
     }
 
@@ -298,7 +307,7 @@ fun MainScreen(
         val entryTarget =
             when (target) {
                 MainDrawerContentEntryTarget.LeftEntry -> MainContentEntryTarget.LeftEntry
-                MainDrawerContentEntryTarget.RightEntry -> MainContentEntryTarget.RightEntry
+                MainDrawerContentEntryTarget.RightEntry -> MainContentEntryTarget.LeftEntry
             }
         pendingContentFocus = newPendingContentFocus(item, entryTarget)
         if (leftNaviExpanded) {
@@ -369,38 +378,6 @@ fun MainScreen(
         }
     }
 
-    fun resolveContentNavigationExit(target: String): WjzFocusEntryResolution {
-        return when (target) {
-            MainContentNavigationExitEntry.TopNavUser.entryId.value -> {
-                focusCoordinator.switchLayer(WjzFocusLayer.TopNav)
-                pendingTopNavEntryRequest = newTopNavEntryRequest(MainTopNavEntryTarget.User)
-                WjzFocusEntryResolution.Pending(
-                    entryId = MainContentNavigationExitEntry.TopNavUser.entryId,
-                    layer = WjzFocusLayer.TopNav,
-                    scopeId = MainTopNavScopeId
-                )
-            }
-
-            MainContentNavigationExitEntry.DrawerCurrentItem.entryId.value -> {
-                focusCoordinator.switchLayer(WjzFocusLayer.Drawer)
-                pendingDrawerEntryRequest = newDrawerEntryRequest(MainDrawerEntryTarget.CurrentItem)
-                WjzFocusEntryResolution.Pending(
-                    entryId = MainContentNavigationExitEntry.DrawerCurrentItem.entryId,
-                    layer = WjzFocusLayer.Drawer,
-                    scopeId = MainDrawerScopeId
-                )
-            }
-
-            else -> WjzFocusEntryResolution.Reject
-        }
-    }
-
-    val contentNavigationExitEntry = if (leftNaviExpanded) {
-        MainContentNavigationExitEntry.DrawerCurrentItem
-    } else {
-        MainContentNavigationExitEntry.TopNavUser
-    }
-
     fun expandLeftNavi() {
         if (leftNaviExpanded) return
         userButtonColorAnimationEnabled = false
@@ -409,7 +386,7 @@ fun MainScreen(
             recordSource = true
         )
         leftNaviExpanded = true
-        pendingDrawerEntryRequest = newDrawerEntryRequest(MainDrawerEntryTarget.User)
+        pendingDrawerEntryRequest = newDrawerEntryRequest(MainDrawerEntryTarget.CurrentItem)
     }
 
     fun openUserPage() {
@@ -430,258 +407,303 @@ fun MainScreen(
         }
     }
 
-    val topBarLeadingContent: @Composable () -> Unit = {
-        WjzFocusHost(
-            modifier = Modifier
-                .zIndex(1f)
-                .graphicsLayer {
-                    translationX = -drawerWidthPx * mainContentPushProgress -
-                            size.width * drawerSlideProgress
-                    alpha = 1f - drawerSlideProgress
-                },
-            coordinator = focusCoordinator,
-            layer = WjzFocusLayer.TopNav,
-            scopeId = MainTopNavScopeId
-        ) {
-            MainTopNavBlock(
-                modifier = Modifier,
-                userColorAnimationEnabled = userButtonColorAnimationEnabled,
-                userIsLogin = userViewModel.isLogin,
-                userAvatar = userViewModel.face,
-                username = userViewModel.username,
-                entryRequest = pendingTopNavEntryRequest,
-                onEntryRequestConsumed = { requestId ->
-                    if (pendingTopNavEntryRequest?.id == requestId) {
-                        pendingTopNavEntryRequest = null
-                    }
-                },
-                focusEnabled = !leftNaviExpanded,
-                userIsFocused = userIsFocused,
-                onUserFocusChanged = { userIsFocused = it },
-                onExpandDrawer = { expandLeftNavi() },
-                onOpenUser = { openUserPage() },
-                onContentEntryRequested = ::requestTopNavContentEntry
-            )
-        }
-    }
-
     WjzFocusHost(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
         coordinator = focusCoordinator,
         layer = WjzFocusLayer.Content,
-        scopeId = MainFocusScopeId,
-        exits = mainContentNavigationExits(contentNavigationExitEntry),
-        onHostExit = wjzFocusRouter(layer = WjzFocusLayer.Content) { target ->
-            resolveContentNavigationExit(target)
-        }
+        scopeId = MainFocusScopeId
     ) {
         WjzFocusTransitionGuard(locked = focusTransitionLocked)
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .wjzFocus(
-                    id = MainRootNodeId.value.removePrefix("${MainFocusScopeId.value}/"),
-                    layer = WjzFocusLayer.Content
+        Box(modifier = Modifier.fillMaxSize()) {
+            val topBarLeadingContent: @Composable () -> Unit = {
+                WjzFocusEntrySurface(
+                    componentId = MainTopNavFocusComponentId,
+                    default = {
+                        defaultEntry(
+                            nodeId = MainTopNavDefaultNodeId,
+                            layer = WjzFocusLayer.TopNav,
+                            scopeId = MainTopNavScopeId
+                        )
+                    },
+                    entries = {}
                 )
-        ) {
-        // ========== 主页内容区域 ==========
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .zIndex(0f)
-                .wjzFocus(
-                    id = MainContentNodeId.value.removePrefix("${MainFocusScopeId.value}/"),
-                    layer = WjzFocusLayer.Content,
-                    strategy = WjzFocusRestoreStrategy.Container,
-                    fallback = true,
-                    globalFallback = true,
-                    enabled = !leftNaviExpanded
-                )
-                .graphicsLayer {
-                    // 仅在 Draw 阶段读取 mainContentPushProgress，计算方式：将主页面向右侧"撞飞"，最大距离等于抽屉的确切像素宽度
-                    translationX = drawerWidthPx * mainContentPushProgress
+                WjzFocusHost(
+                    modifier = Modifier
+                        .zIndex(1f)
+                        .graphicsLayer {
+                            translationX = -drawerWidthPx * mainContentPushProgress -
+                                    size.width * drawerSlideProgress
+                            alpha = 1f - drawerSlideProgress
+                        },
+                    coordinator = focusCoordinator,
+                    layer = WjzFocusLayer.TopNav,
+                    scopeId = MainTopNavScopeId
+                ) {
+                    MainTopNavBlock(
+                        modifier = Modifier,
+                        userColorAnimationEnabled = userButtonColorAnimationEnabled,
+                        userIsLogin = userViewModel.isLogin,
+                        userAvatar = userViewModel.face,
+                        username = userViewModel.username,
+                        entryRequest = pendingTopNavEntryRequest,
+                        onEntryRequestConsumed = { requestId ->
+                            if (pendingTopNavEntryRequest?.id == requestId) {
+                                pendingTopNavEntryRequest = null
+                            }
+                        },
+                        focusEnabled = !leftNaviExpanded,
+                        userIsFocused = userIsFocused,
+                        onUserFocusChanged = { userIsFocused = it },
+                        onExpandDrawer = { expandLeftNavi() },
+                        onOpenUser = { openUserPage() },
+                        onContentEntryRequested = ::requestTopNavContentEntry
+                    )
                 }
-        ) {
-            BlackoutSwitch(
-                targetState = currentContentItem,
-                fadeInMillis = fade,
-                fadeOutMillis = fade,
-                transitionState = contentSwitchTransitionState
-            ) { currentItem ->
-                Box(modifier = Modifier.fillMaxSize()) {
-                    val mountedDrawerItems = listOfNotNull(
-                        lastActiveDrawerItem,
-                        activeDrawerItem,
-                        pendingContentItem,
-                        currentItem
-                    ).distinct()
-                    mountedDrawerItems.forEach { item ->
-                        val activeContent = item == currentItem
+            }
 
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .zIndex(if (activeContent) 1f else 0f)
-                                .graphicsLayer { alpha = if (activeContent) 1f else 0f }
-                                .runtimeContainerInputEnabled(activeContent)
-                        ) {
-                            val contentEntryRequest = contentEntryRequestFor(item, activeContent)
-                            when (item) {
-                                LeftNaviItem.Live -> LiveContent(
-                                    topBarLeadingContent = topBarLeadingContent,
-                                    entryRequest = contentEntryRequest,
-                                    onEntryRequestReady = { requestId ->
-                                        markContentEntryRequestReady(item, requestId)
-                                    },
-                                    onEntryRequestConsumed = { requestId ->
-                                        consumeContentEntryRequest(item, requestId)
-                                    },
-                                    onEntryRequestRejected = { requestId ->
-                                        rejectContentEntryRequest(item, requestId)
-                                    },
-                                    active = activeContent
-                                )
+            WjzFocusEntrySurface(
+                componentId = MainContentFocusComponentId,
+                default = {
+                    defaultEntry(
+                        nodeId = MainContentEntryNodeId,
+                        layer = WjzFocusLayer.Content,
+                        scopeId = MainFocusScopeId
+                    )
+                },
+                entries = {
+                    entry(MainContentEntryId.localEntryValue) {
+                        defaultEntry(
+                            nodeId = MainContentEntryNodeId,
+                            layer = WjzFocusLayer.Content,
+                            scopeId = MainFocusScopeId
+                        )
+                    }
+                    entry(MainContentTopEntryId.localEntryValue) {
+                        defaultEntry(
+                            nodeId = MainContentEntryNodeId,
+                            layer = WjzFocusLayer.Content,
+                            scopeId = MainFocusScopeId
+                        )
+                    }
+                    entry(MainContentLeftEntryId.localEntryValue) {
+                        defaultEntry(
+                            nodeId = MainContentEntryNodeId,
+                            layer = WjzFocusLayer.Content,
+                            scopeId = MainFocusScopeId
+                        )
+                    }
+                }
+            )
+            Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .zIndex(0f)
+                        .wjzFocusExits(
+                            id = MainContentEntryNodeId.value.removePrefix("${MainFocusScopeId.value}/"),
+                            layer = WjzFocusLayer.Content,
+                            strategy = WjzFocusRestoreStrategy.Container,
+                            enabled = !leftNaviExpanded,
+                            exits = {
+                                up move MainTopNavDefaultEntryId
+                                left move MainDrawerRightEntryId
+                            }
+                        )
+                        .graphicsLayer {
+                            translationX = drawerWidthPx * mainContentPushProgress
+                        }
+                ) {
+                    BlackoutSwitch(
+                        targetState = currentContentItem,
+                        fadeInMillis = fade,
+                        fadeOutMillis = fade,
+                        transitionState = contentSwitchTransitionState
+                    ) { currentItem ->
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            val mountedDrawerItems = listOfNotNull(
+                                lastActiveDrawerItem,
+                                activeDrawerItem,
+                                pendingContentItem,
+                                currentItem
+                            ).distinct()
+                            mountedDrawerItems.forEach { item ->
+                                val activeContent = item == currentItem
 
-                                LeftNaviItem.Home -> {
-                                    val homeContentViewModel: HomeContentViewModel =
-                                        koinViewModel<HomeContentViewModel>()
-                                    HomeContent(
-                                        topBarLeadingContent = topBarLeadingContent,
-                                        entryRequest = contentEntryRequest,
-                                        onEntryRequestReady = { requestId ->
-                                            markContentEntryRequestReady(item, requestId)
-                                        },
-                                        onEntryRequestConsumed = { requestId ->
-                                            consumeContentEntryRequest(item, requestId)
-                                        },
-                                        onEntryRequestRejected = { requestId ->
-                                            rejectContentEntryRequest(item, requestId)
-                                        },
-                                        homeContentViewModel = homeContentViewModel,
-                                        userViewModel = userViewModel,
-                                        active = activeContent
-                                    )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .zIndex(if (activeContent) 1f else 0f)
+                                        .graphicsLayer { alpha = if (activeContent) 1f else 0f }
+                                        .runtimeContainerInputEnabled(activeContent)
+                                ) {
+                                    val contentEntryRequest = contentEntryRequestFor(item, activeContent)
+                                    when (item) {
+                                        LeftNaviItem.Live -> LiveContent(
+                                            topBarLeadingContent = topBarLeadingContent,
+                                            entryRequest = contentEntryRequest,
+                                            onEntryRequestReady = { requestId ->
+                                                markContentEntryRequestReady(item, requestId)
+                                            },
+                                            onEntryRequestConsumed = { requestId ->
+                                                consumeContentEntryRequest(item, requestId)
+                                            },
+                                            onEntryRequestRejected = { requestId ->
+                                                rejectContentEntryRequest(item, requestId)
+                                            },
+                                            active = activeContent
+                                        )
+
+                                        LeftNaviItem.Home -> {
+                                            val homeContentViewModel: HomeContentViewModel =
+                                                koinViewModel<HomeContentViewModel>()
+                                            HomeContent(
+                                                topBarLeadingContent = topBarLeadingContent,
+                                                entryRequest = contentEntryRequest,
+                                                onEntryRequestReady = { requestId ->
+                                                    markContentEntryRequestReady(item, requestId)
+                                                },
+                                                onEntryRequestConsumed = { requestId ->
+                                                    consumeContentEntryRequest(item, requestId)
+                                                },
+                                                onEntryRequestRejected = { requestId ->
+                                                    rejectContentEntryRequest(item, requestId)
+                                                },
+                                                homeContentViewModel = homeContentViewModel,
+                                                userViewModel = userViewModel,
+                                                active = activeContent
+                                            )
+                                        }
+
+                                        LeftNaviItem.UGC -> UgcContent(
+                                            topBarLeadingContent = topBarLeadingContent,
+                                            entryRequest = contentEntryRequest,
+                                            onEntryRequestReady = { requestId ->
+                                                markContentEntryRequestReady(item, requestId)
+                                            },
+                                            onEntryRequestConsumed = { requestId ->
+                                                consumeContentEntryRequest(item, requestId)
+                                            },
+                                            onEntryRequestRejected = { requestId ->
+                                                rejectContentEntryRequest(item, requestId)
+                                            },
+                                            active = activeContent
+                                        )
+
+                                        LeftNaviItem.PGC -> PgcContent(
+                                            topBarLeadingContent = topBarLeadingContent,
+                                            entryRequest = contentEntryRequest,
+                                            onEntryRequestReady = { requestId ->
+                                                markContentEntryRequestReady(item, requestId)
+                                            },
+                                            onEntryRequestConsumed = { requestId ->
+                                                consumeContentEntryRequest(item, requestId)
+                                            },
+                                            onEntryRequestRejected = { requestId ->
+                                                rejectContentEntryRequest(item, requestId)
+                                            },
+                                            active = activeContent
+                                        )
+
+                                        else -> MainContentShell(item)
+                                    }
                                 }
-
-                                LeftNaviItem.UGC -> UgcContent(
-                                    topBarLeadingContent = topBarLeadingContent,
-                                    entryRequest = contentEntryRequest,
-                                    onEntryRequestReady = { requestId ->
-                                        markContentEntryRequestReady(item, requestId)
-                                    },
-                                    onEntryRequestConsumed = { requestId ->
-                                        consumeContentEntryRequest(item, requestId)
-                                    },
-                                    onEntryRequestRejected = { requestId ->
-                                        rejectContentEntryRequest(item, requestId)
-                                    },
-                                    active = activeContent
-                                )
-
-                                LeftNaviItem.PGC -> PgcContent(
-                                    topBarLeadingContent = topBarLeadingContent,
-                                    entryRequest = contentEntryRequest,
-                                    onEntryRequestReady = { requestId ->
-                                        markContentEntryRequestReady(item, requestId)
-                                    },
-                                    onEntryRequestConsumed = { requestId ->
-                                        consumeContentEntryRequest(item, requestId)
-                                    },
-                                    onEntryRequestRejected = { requestId ->
-                                        rejectContentEntryRequest(item, requestId)
-                                    },
-                                    active = activeContent
-                                )
-
-                                else -> MainContentShell(item)
                             }
                         }
                     }
                 }
+
+            val isDarkTheme = rememberIsDarkFromPrefs()
+            WjzFocusEntrySurface(
+                componentId = MainDrawerFocusComponentId,
+                default = {
+                    defaultEntry(
+                        nodeId = leftNaviItemFocusNodeId(activeDrawerItem),
+                        layer = WjzFocusLayer.Drawer,
+                        scopeId = MainDrawerScopeId
+                    )
+                },
+                entries = {
+                    entry(MainDrawerRightEntryId.localEntryValue) {
+                        defaultEntry(
+                            nodeId = leftNaviItemFocusNodeId(activeDrawerItem),
+                            layer = WjzFocusLayer.Drawer,
+                            scopeId = MainDrawerScopeId
+                        )
+                    }
+                }
+            )
+            WjzFocusHost(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .zIndex(2f)
+                        .onSizeChanged { drawerWidthPx = it.width.toFloat() }
+                        .graphicsLayer {
+                            translationX = -size.width * (1f - drawerSlideProgress)
+                            alpha = if (drawerSlideProgress == 0f) 0f else 1f
+                        }
+                        .shadow(elevation = 16.dp)
+                        .background(C.background)
+                        .drawWithContent {
+                            drawContent()
+
+                            val shadowWidth = 36.dp.toPx()
+                            val shadowAlpha = if (isDarkTheme) 0.55f else 0.06f
+                            val outlineColor = if (isDarkTheme) {
+                                Color.White.copy(alpha = 0.12f)
+                            } else {
+                                Color.Black.copy(alpha = 0.08f)
+                            }
+
+                            drawRect(
+                                brush = Brush.horizontalGradient(
+                                    colors = listOf(Color.Black.copy(alpha = shadowAlpha), Color.Transparent),
+                                    startX = size.width,
+                                    endX = size.width + shadowWidth
+                                ),
+                                topLeft = Offset(size.width, 0f),
+                                size = Size(shadowWidth, size.height)
+                            )
+
+                            drawLine(
+                                color = outlineColor,
+                                start = Offset(size.width, 0f),
+                                end = Offset(size.width, size.height),
+                                strokeWidth = 1.dp.toPx()
+                            )
+                        },
+                    coordinator = focusCoordinator,
+                    layer = WjzFocusLayer.Drawer,
+                    scopeId = MainDrawerScopeId
+            ) {
+                MainDrawerBlock(
+                        modifier = Modifier,
+                        selectedItem = activeDrawerItem,
+                        currentItem = focusedDrawerItem,
+                        entryRequest = pendingDrawerEntryRequest,
+                        onEntryRequestConsumed = { requestId ->
+                            if (pendingDrawerEntryRequest?.id == requestId) {
+                                pendingDrawerEntryRequest = null
+                            }
+                        },
+                        onItemActivated = { activateDrawerItem(it) },
+                        onItemFocused = { focusDrawerItem(it) },
+                        onOpenSettings = { context.startActivity(Intent(context, SettingsActivity::class.java)) },
+                        onContentEntryRequested = ::requestContentEntry,
+                        userColorAnimationEnabled = userButtonColorAnimationEnabled,
+                        userIsLogin = userViewModel.isLogin,
+                        userAvatar = userViewModel.face,
+                        username = userViewModel.username,
+                        userIsFocused = userIsFocused,
+                        onUserFocusChanged = { userIsFocused = it },
+                        onCollapse = { collapseLeftNavi() },
+                        onOpenUser = { openUserPage() }
+                )
             }
         }
 
-        // ========== 抽屉区域 ==========
-        val isDarkTheme = rememberIsDarkFromPrefs()
-        WjzFocusHost(
-            modifier = Modifier
-                .fillMaxHeight()
-                .zIndex(2f)
-                .onSizeChanged { drawerWidthPx = it.width.toFloat() } // 测量确切宽度给主页做撞击计算
-                .graphicsLayer {
-                    // 仅在 Draw 阶段读取 drawerSlideProgress
-                    translationX = -size.width * (1f - drawerSlideProgress)
-
-                    // 当抽屉完全在屏幕外时，跳过绘制以节省性能
-                    alpha = if (drawerSlideProgress == 0f) 0f else 1f
-                }
-                .shadow(elevation = 16.dp)
-                .background(C.background)
-                .drawWithContent {
-                    drawContent()
-
-                    val shadowWidth = 36.dp.toPx()
-                    // 浅色模式降低阴影浓度（避免显得脏），深色模式保持浓郁（提升立体感）
-                    val shadowAlpha = if (isDarkTheme) 0.55f else 0.06f
-                    // 深色模式用白线做边缘反光，浅色模式用极淡的黑线勾勒物理轮廓
-                    val outlineColor = if (isDarkTheme) {
-                        Color.White.copy(alpha = 0.12f)
-                    } else {
-                        Color.Black.copy(alpha = 0.08f)
-                    }
-
-                    // 绘制深邃环境阴影
-                    drawRect(
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(Color.Black.copy(alpha = shadowAlpha), Color.Transparent),
-                            startX = size.width,
-                            endX = size.width + shadowWidth
-                        ),
-                        topLeft = Offset(size.width, 0f),
-                        size = Size(shadowWidth, size.height)
-                    )
-
-                    // 绘制切开层次的 1dp 细线
-                    drawLine(
-                        color = outlineColor,
-                        start = Offset(size.width, 0f),
-                        end = Offset(size.width, size.height),
-                        strokeWidth = 1.dp.toPx()
-                    )
-                },
-            coordinator = focusCoordinator,
-            layer = WjzFocusLayer.Drawer,
-            scopeId = MainDrawerScopeId
-        ) {
-            MainDrawerBlock(
-                modifier = Modifier,
-                selectedItem = activeDrawerItem,
-                currentItem = focusedDrawerItem,
-                entryRequest = pendingDrawerEntryRequest,
-                onEntryRequestConsumed = { requestId ->
-                    if (pendingDrawerEntryRequest?.id == requestId) {
-                        pendingDrawerEntryRequest = null
-                    }
-                },
-                onItemActivated = { activateDrawerItem(it) },
-                onItemFocused = { focusDrawerItem(it) },
-                onOpenSettings = { context.startActivity(Intent(context, SettingsActivity::class.java)) },
-                onContentEntryRequested = ::requestContentEntry,
-                userColorAnimationEnabled = userButtonColorAnimationEnabled,
-                userIsLogin = userViewModel.isLogin,
-                userAvatar = userViewModel.face,
-                username = userViewModel.username,
-                userIsFocused = userIsFocused,
-                onUserFocusChanged = { userIsFocused = it },
-                onCollapse = { collapseLeftNavi() },
-                onOpenUser = { openUserPage() }
-            )
-        }
-
-        if (showFirstLaunchMainDialog) {
+        if (allowFirstLaunchMainDialog && showFirstLaunchMainDialog) {
             val closeFirstLaunchMainDialog = {
                 showFirstLaunchMainDialog = false
                 Prefs.showFirstLaunchMainDialog = false
@@ -702,7 +724,22 @@ fun MainScreen(
                         Text(text = "温馨提示")
                     },
                     text = {
+                        WjzFocusEntrySurface(
+                            componentId = MainFirstLaunchDialogComponentId,
+                            default = {
+                                defaultEntry(
+                                    nodeId = MainFirstLaunchDialogTextNodeId,
+                                    layer = WjzFocusLayer.Dialog,
+                                    scopeId = MainFirstLaunchDialogScopeId
+                                )
+                            }
+                        )
                         Text(
+                            modifier = Modifier.wjzFocusExits(
+                                id = MainFirstLaunchDialogTextNodeId.value
+                                    .removePrefix("${MainFirstLaunchDialogScopeId.value}/"),
+                                layer = WjzFocusLayer.Dialog
+                            ),
                             text = """
                             1.点击左上角头像按钮有惊喜（如果你已经登录了的话）；
                             2.常来设置这里看看；
@@ -714,7 +751,6 @@ fun MainScreen(
                     confirmButton = {}
                 )
             }
-        }
         }
     }
 }

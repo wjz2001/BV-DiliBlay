@@ -24,7 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -32,14 +32,16 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.db.UserDB
 import dev.aaa1115910.bv.screen.main.home.UserItem
-import dev.aaa1115910.bv.util.BvKeyDirection
-import dev.aaa1115910.bv.util.bvKeyDirection
 import dev.aaa1115910.bv.util.isConfirmKey
 import dev.aaa1115910.bv.util.isNativeActionDown
 import dev.aaa1115910.bv.util.toast
@@ -47,6 +49,9 @@ import dev.aaa1115910.bv.viewmodel.user.UserSwitchViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.collections.immutable.ImmutableList
 import org.koin.androidx.compose.koinViewModel
+
+private const val UnlockUserFocusComponentId = "unlock-user"
+private const val UnlockUserInputFocusId = "unlock-user/input"
 
 @Composable
 fun UnlockUserScreen(
@@ -110,25 +115,39 @@ private fun UnlockUserContent(
     }
 
     WjzFocusHost {
+        val focusScopeId = LocalWjzFocusScopeId.current
+
+        if (unlockState == UnlockState.InputPassword) {
+            WjzFocusEntrySurface(
+                componentId = UnlockUserFocusComponentId,
+                default = {
+                    defaultEntry(
+                        nodeId = WjzFocusNodeId(UnlockUserInputFocusId),
+                        layer = WjzFocusLayer.Content,
+                        scopeId = focusScopeId
+                    )
+                }
+            )
+        }
+
         Surface(
             modifier = modifier
                 .ifElse({ unlockState == UnlockState.InputPassword }, Modifier.clickable {})
-                .wjzFocus(
-                    id = "unlock-user/input",
-                    layer = WjzFocusLayer.Content,
-                    fallback = unlockState == UnlockState.InputPassword
+                .wjzFocusExits(
+                    id = UnlockUserInputFocusId,
+                    layer = WjzFocusLayer.Content
                 )
-                .onPreviewKeyEvent {
+                .onKeyEvent {
                     when (unlockState) {
-                        UnlockState.ChooseUser -> return@onPreviewKeyEvent false
+                        UnlockState.ChooseUser -> return@onKeyEvent false
                         UnlockState.InputPassword -> {
-                            if (it.isNativeActionDown()) return@onPreviewKeyEvent true
-                            when (it.bvKeyDirection()) {
-                                BvKeyDirection.Up -> inputPassword += "u"
-                                BvKeyDirection.Down -> inputPassword += "d"
-                                BvKeyDirection.Left -> inputPassword += "l"
-                                BvKeyDirection.Right -> inputPassword += "r"
-                                null -> Unit
+                            if (it.isNativeActionDown()) return@onKeyEvent true
+                            when (it.key) {
+                                Key.DirectionUp -> inputPassword += "u"
+                                Key.DirectionDown -> inputPassword += "d"
+                                Key.DirectionLeft -> inputPassword += "l"
+                                Key.DirectionRight -> inputPassword += "r"
+                                else -> Unit
                             }
                             when {
                                 it.isConfirmKey() -> {
@@ -148,7 +167,7 @@ private fun UnlockUserContent(
                                     }
                                 }
                             }
-                            return@onPreviewKeyEvent true
+                            return@onKeyEvent true
                         }
                     }
                 },

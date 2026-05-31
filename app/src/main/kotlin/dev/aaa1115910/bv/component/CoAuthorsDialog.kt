@@ -37,7 +37,7 @@ import coil.compose.AsyncImage
 import dev.aaa1115910.biliapi.entity.user.CoAuthor
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.wjzfocus.wjzFocusGroup
 
 @Stable
@@ -98,9 +98,6 @@ fun CoAuthorsDialogHost(
 
     val groups = remember(state.authors) { buildGroups(state.authors) }
 
-    // 找到弹窗里第一个可聚焦成员（UP主组已在 buildGroups 里置顶）
-    val firstMemberMid = remember(groups) { groups.firstOrNull()?.members?.firstOrNull()?.mid }
-
     TvAlertDialog(
         onDismissRequest = { state.dismiss() },
         properties = DialogProperties(
@@ -114,11 +111,10 @@ fun CoAuthorsDialogHost(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp)
-                    .wjzFocus(
+                    .wjzFocusExits(
                         id = "dialog/coauthors/root",
                         layer = WjzFocusLayer.Dialog,
-                        strategy = WjzFocusRestoreStrategy.Container,
-                        fallback = true
+                        strategy = WjzFocusRestoreStrategy.Container
                     )
                     .wjzFocusGroup(),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -137,10 +133,9 @@ fun CoAuthorsDialogHost(
                         ) {
                             items(items = group.members, key = { it.mid }) { member ->
                                 var focused by remember { mutableStateOf(false) }
-                                val itemModifier = Modifier.wjzFocus(
+                                val itemModifier = Modifier.wjzFocusExits(
                                     id = "dialog/coauthors/member/${member.mid}",
                                     layer = WjzFocusLayer.Dialog,
-                                    fallback = member.mid == firstMemberMid,
                                     onFocusChanged = { focused = it }
                                 )
 

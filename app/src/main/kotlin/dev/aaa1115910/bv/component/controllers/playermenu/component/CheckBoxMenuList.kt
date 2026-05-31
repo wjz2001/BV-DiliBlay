@@ -7,15 +7,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
+import dev.aaa1115910.bv.component.controllers.PlayerMenuMainEntryId
 import dev.aaa1115910.bv.component.controllers.playermenu.playerMenuFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.right
 import dev.aaa1115910.bv.wjzfocus.wjzFocusRestorerHost
 
 @Composable
@@ -24,6 +21,8 @@ fun CheckBoxMenuList(
     focusIdPrefix: String,
     items: List<String>,
     selected: List<Int> = listOf(),
+    parentFocusEntryId: String = PlayerMenuMainEntryId,
+    onItemFocused: () -> Unit = {},
     onSelectedChanged: (indexes: List<Int>) -> Unit,
     onFocusBackToParent: () -> Unit
 ) {
@@ -32,18 +31,6 @@ fun CheckBoxMenuList(
     val fallbackFocusId = fallbackIndex?.let { "$focusIdPrefix/$it" }
     LazyColumn(
         modifier = modifier
-            .onPreviewKeyEvent {
-                println(it)
-                if (it.type == KeyEventType.KeyUp) {
-                    if (listOf(Key.Enter, Key.DirectionCenter).contains(it.key)) {
-                        return@onPreviewKeyEvent false
-                    }
-                    return@onPreviewKeyEvent true
-                }
-                val result = it.key == Key.DirectionRight
-                if (result) onFocusBackToParent()
-                result
-            }
             .wjzFocusRestorerHost(
                 layer = WjzFocusLayer.Overlay,
                 scopeId = focusScopeId,
@@ -64,6 +51,10 @@ fun CheckBoxMenuList(
                 focusId = "$focusIdPrefix/$index",
                 text = item,
                 selected = selected.contains(index),
+                exits = {
+                    right move parentFocusEntryId
+                },
+                onFocus = onItemFocused,
                 onClick = {
                     val newSelectedIndexes = selected.toMutableList()
                     if (newSelectedIndexes.contains(index)) newSelectedIndexes.remove(index)

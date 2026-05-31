@@ -33,7 +33,7 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.block.BlockPage
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.ui.theme.C
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.graphics.RectangleShape
@@ -373,7 +373,7 @@ private fun <T, ID> SimpleMultiSelectDialog(
                 ?: WjzFocusNodeId("dialog/multi-select/item/$id")
 
             val itemModifier = Modifier
-                .wjzFocus(
+                .wjzFocusExits(
                     id = itemNode.toDialogLocalFocusId(dialogScopeId),
                     layer = WjzFocusLayer.Dialog
                 )

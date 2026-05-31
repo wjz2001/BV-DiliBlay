@@ -34,7 +34,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.DarkSurface
@@ -291,10 +291,9 @@ fun TimeJumpDialog(
                                         val keyModifier =
                                             if (rowIndex == 0 && colIndex == 0) {
                                                 Modifier
-                                                    .wjzFocus(
+                                                    .wjzFocusExits(
                                                         id = TimeJumpFirstKeyNodeId.value,
-                                                        layer = WjzFocusLayer.Dialog,
-                                                        fallback = true
+                                                        layer = WjzFocusLayer.Dialog
                                                     )
                                             } else {
                                                 Modifier

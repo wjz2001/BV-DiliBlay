@@ -23,7 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -31,20 +31,25 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.entity.db.UserDB
 import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.screen.main.home.UserItem
-import dev.aaa1115910.bv.util.BvKeyDirection
-import dev.aaa1115910.bv.util.bvKeyDirection
 import dev.aaa1115910.bv.util.isConfirmKey
 import dev.aaa1115910.bv.util.isNativeActionDown
 import dev.aaa1115910.bv.util.toast
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
+
+private const val UserLockSettingsFocusComponentId = "user-lock-settings"
+private const val UserLockSettingsInputFocusId = "user-lock-settings/input"
 
 @Composable
 fun UserLockSettingsScreen(
@@ -125,25 +130,37 @@ private fun UserLockSettingsContent(
     }
 
     WjzFocusHost {
+        val focusScopeId = LocalWjzFocusScopeId.current
+
+        WjzFocusEntrySurface(
+            componentId = UserLockSettingsFocusComponentId,
+            default = {
+                defaultEntry(
+                    nodeId = WjzFocusNodeId(UserLockSettingsInputFocusId),
+                    layer = WjzFocusLayer.Content,
+                    scopeId = focusScopeId
+                )
+            }
+        )
+
         Surface(
             modifier = modifier
                 .clickable {}
-                .wjzFocus(
-                    id = "user-lock-settings/input",
-                    layer = WjzFocusLayer.Content,
-                    fallback = true
+                .wjzFocusExits(
+                    id = UserLockSettingsInputFocusId,
+                    layer = WjzFocusLayer.Content
                 )
-                .onPreviewKeyEvent { keyEvent ->
+                .onKeyEvent { keyEvent ->
                     if (keyEvent.isNativeActionDown()) {
-                        return@onPreviewKeyEvent true
+                        return@onKeyEvent true
                     }
 
-                    when (keyEvent.bvKeyDirection()) {
-                        BvKeyDirection.Up -> inputPassword += "u"
-                        BvKeyDirection.Down -> inputPassword += "d"
-                        BvKeyDirection.Left -> inputPassword += "l"
-                        BvKeyDirection.Right -> inputPassword += "r"
-                        null -> Unit
+                    when (keyEvent.key) {
+                        Key.DirectionUp -> inputPassword += "u"
+                        Key.DirectionDown -> inputPassword += "d"
+                        Key.DirectionLeft -> inputPassword += "l"
+                        Key.DirectionRight -> inputPassword += "r"
+                        else -> Unit
                     }
 
                     when {

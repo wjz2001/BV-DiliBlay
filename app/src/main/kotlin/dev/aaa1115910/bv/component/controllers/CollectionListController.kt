@@ -51,10 +51,9 @@ import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.nodeKey
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRestorerHost
 import dev.aaa1115910.bv.wjzfocus.wjzDisabledFocus
 
 import kotlinx.coroutines.Job
@@ -76,15 +75,12 @@ data class CollectionChildItem(
     val extra: Any? = null
 )
 
-private val CollectionListFallbackFocusScopeId = WjzFocusScopeId("__wjz_focus_sugar__")
-
 private fun collectionParentFocusId(key: Long) = "player/collection-list/parent/$key"
 
 private fun collectionChildFocusId(parentKey: Long, childKey: Long) =
     "player/collection-list/parent/$parentKey/child/$childKey"
 
-private fun collectionNodeId(scopeId: WjzFocusScopeId, focusId: String) =
-    WjzFocusNodeId(scopeId.nodeKey(focusId))
+private const val CollectionListRestorerId = "player/collection-list/restorer"
 
 @Composable
 fun CollectionListController(
@@ -105,7 +101,7 @@ fun CollectionListController(
 ) {
     val listState = rememberLazyListState()
     val focusCoordinator = LocalWjzFocusCoordinator.current
-    val focusScopeId = LocalWjzFocusScopeId.current ?: CollectionListFallbackFocusScopeId
+    val focusScopeId = LocalWjzFocusScopeId.current
 
     // 宽度策略：
     // - “选择合集”（存在子项）固定 300.dp：与 VideoListController 完全一致，同时避免测量大量子项标题导致卡顿/闪屏
@@ -239,6 +235,12 @@ fun CollectionListController(
                 contentAlignment = Alignment.Center
             ) {
                 LazyColumn(
+                    modifier = Modifier.wjzFocusRestorerHost(
+                        layer = WjzFocusLayer.Player,
+                        scopeId = focusScopeId,
+                        restorerId = CollectionListRestorerId,
+                        listId = CollectionListRestorerId
+                    ),
                     state = listState,
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(vertical = 60.dp)
@@ -305,10 +307,12 @@ fun CollectionListController(
                                 }
 
                                 if (parent.key == wantKey) {
-                                    focusCoordinator?.enqueueRequestFocus(
-                                        nodeId = collectionNodeId(focusScopeId, collectionParentFocusId(parent.key)),
+                                    focusCoordinator?.enqueueGroupRestore(
+                                        nodeId = WjzFocusNodeId(collectionParentFocusId(parent.key)),
                                         layer = WjzFocusLayer.Player,
-                                        scopeId = focusScopeId
+                                        scopeId = focusScopeId,
+                                        restorerId = CollectionListRestorerId,
+                                        listId = CollectionListRestorerId
                                     )
                                     kotlinx.coroutines.android.awaitFrame()
                                     kotlinx.coroutines.coroutineScope {
@@ -320,10 +324,12 @@ fun CollectionListController(
 
                                 if (!childrenLoaded) {
                                     onEnsureChildrenLoaded(parent)
-                                    focusCoordinator?.enqueueRequestFocus(
-                                        nodeId = collectionNodeId(focusScopeId, collectionParentFocusId(parent.key)),
+                                    focusCoordinator?.enqueueGroupRestore(
+                                        nodeId = WjzFocusNodeId(collectionParentFocusId(parent.key)),
                                         layer = WjzFocusLayer.Player,
-                                        scopeId = focusScopeId
+                                        scopeId = focusScopeId,
+                                        restorerId = CollectionListRestorerId,
+                                        listId = CollectionListRestorerId
                                     )
                                     kotlinx.coroutines.android.awaitFrame()
                                     kotlinx.coroutines.coroutineScope {
@@ -336,10 +342,9 @@ fun CollectionListController(
                             DenseListItem(
                                 modifier = Modifier
                                     .padding(horizontal = 16.dp)
-                                    .wjzFocus(
+                                    .wjzFocusExits(
                                         id = collectionParentFocusId(parent.key),
                                         layer = WjzFocusLayer.Player,
-                                        fallback = isParentSelected,
                                         onFocusChanged = { focused ->
                                             if (focused) {
                                             groupHasFocus = true
@@ -467,13 +472,14 @@ fun CollectionListController(
                                                     kotlinx.coroutines.android.awaitFrame()
                                                 }
 
-                                                focusCoordinator?.enqueueRequestFocus(
-                                                    nodeId = collectionNodeId(
-                                                        focusScopeId,
+                                                focusCoordinator?.enqueueGroupRestore(
+                                                    nodeId = WjzFocusNodeId(
                                                         collectionChildFocusId(parent.key, child.key)
                                                     ),
                                                     layer = WjzFocusLayer.Player,
-                                                    scopeId = focusScopeId
+                                                    scopeId = focusScopeId,
+                                                    restorerId = CollectionListRestorerId,
+                                                    listId = CollectionListRestorerId
                                                 )
                                                 kotlinx.coroutines.android.awaitFrame()
 
@@ -487,10 +493,9 @@ fun CollectionListController(
                                             SimpleListItem(
                                                 modifier = Modifier
                                                     .padding(horizontal = 16.dp)
-                                                    .wjzFocus(
+                                                    .wjzFocusExits(
                                                         id = collectionChildFocusId(parent.key, child.key),
                                                         layer = WjzFocusLayer.Player,
-                                                        fallback = isChildSelected,
                                                         onFocusChanged = { focused ->
                                                             if (focused) groupHasFocus = true
                                                         }
@@ -511,10 +516,12 @@ fun CollectionListController(
                             LaunchedEffect(active, expanded, focusScopeId) {
                                 if (!active) return@LaunchedEffect
                                 if (!expanded && isParentSelected) {
-                                    focusCoordinator?.enqueueRequestFocus(
-                                        nodeId = collectionNodeId(focusScopeId, collectionParentFocusId(parent.key)),
+                                    focusCoordinator?.enqueueGroupRestore(
+                                        nodeId = WjzFocusNodeId(collectionParentFocusId(parent.key)),
                                         layer = WjzFocusLayer.Player,
-                                        scopeId = focusScopeId
+                                        scopeId = focusScopeId,
+                                        restorerId = CollectionListRestorerId,
+                                        listId = CollectionListRestorerId
                                     )
                                 }
                             }

@@ -17,16 +17,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
@@ -34,20 +29,41 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import dev.aaa1115910.bv.wjzfocus.WjzFocusDefaultTarget
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
+import dev.aaa1115910.bv.wjzfocus.WjzFocusExitsBuilder
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.component.BvLazyFocusItemTarget
+import dev.aaa1115910.bv.wjzfocus.WjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTargetEntry
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTargetResolution
+import dev.aaa1115910.bv.wjzfocus.WjzLinearFocusController
 import dev.aaa1115910.bv.wjzfocus.WjzLazyFocusRestorerHost
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.left
+import dev.aaa1115910.bv.wjzfocus.right
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.wjzfocus.wjzFocusGroup
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.ui.theme.C
 import kotlinx.collections.immutable.ImmutableList
-import kotlinx.coroutines.launch
+
+private fun videosRowEntryComponentIdFor(nodeIdPrefix: String): String {
+    val sanitized = nodeIdPrefix
+        .map { char ->
+            when (char) {
+                '/', '\\', '|' -> '-'
+                else -> char
+            }
+        }
+        .joinToString("")
+        .ifBlank { "videos-row" }
+    return "videos-row-$sanitized-${nodeIdPrefix.hashCode()}"
+}
 
 private class RowWrapController {
     var lastFocusedIndex by mutableIntStateOf(0)
@@ -55,14 +71,27 @@ private class RowWrapController {
     var itemCount: Int = 0
     var itemKeys: List<WjzFocusItemKey> = emptyList()
     var nodeIdPrefix: String = "videos-row"
+    var entryComponentId: String = "videos-row"
     var focusLayer: WjzFocusLayer = WjzFocusLayer.Content
     var focusScopeId: WjzFocusScopeId? = null
     var listState: LazyListState? = null
+    var focusCoordinator: WjzFocusCoordinator? = null
     var leadingSlotOffset: Int = 0
+    var enableHorizontalWrap: Boolean = true
     var onItemFocusChanged: (WjzFocusItemKey, Boolean) -> Unit = { _, _ -> }
+    private var linearControllerHorizontalWrap: Boolean? = null
+    private var linearFocusController = WjzLinearFocusController(wrap = false)
 
     private fun itemKeyFor(index: Int): WjzFocusItemKey {
         return itemKeys[index]
+    }
+
+    private fun itemEntryIdFor(index: Int): String {
+        return "item-${itemKeyFor(index).value}"
+    }
+
+    private fun itemEntryPathFor(index: Int): String {
+        return "$entryComponentId/${itemEntryIdFor(index)}"
     }
 
     private fun itemFocusIdFor(index: Int): String {
@@ -74,8 +103,142 @@ private class RowWrapController {
         return WjzFocusNodeId("${focusScopeId?.value ?: nodeIdPrefix}/$itemFocusId")
     }
 
+    private fun leadingFocusId(): String {
+        return "leading"
+    }
+
+    private fun leadingNodeId(): WjzFocusNodeId {
+        return WjzFocusNodeId("${focusScopeId?.value ?: nodeIdPrefix}/${leadingFocusId()}")
+    }
+
+    private fun leadingEntryPath(): String {
+        return "$entryComponentId/${leadingFocusId()}"
+    }
+
+    private fun lazyRestorerId(): String {
+        return "$nodeIdPrefix/lazy-restorer"
+    }
+
     private fun indexOfKey(key: WjzFocusItemKey): Int? {
         return itemKeys.indexOf(key).takeIf { it >= 0 }
+    }
+
+    private fun itemEntryTargetFor(index: Int): WjzFocusTargetEntry {
+        return WjzFocusTargetEntry(
+            id = itemEntryIdFor(index),
+            nodeId = nodeIdFor(index),
+            layer = focusLayer,
+            scopeId = focusScopeId
+        )
+    }
+
+    private fun adjacentEntryPathFor(
+        index: Int,
+        direction: FocusDirection
+    ): String? {
+        return when (val resolution = linearFocusController.resolve(itemEntryIdFor(index), direction)) {
+            is WjzFocusTargetResolution.Ready -> "$entryComponentId/${resolution.target.id}"
+            else -> null
+        }
+    }
+
+    private fun WjzFocusExitsBuilder.applyItemExits(index: Int) {
+        val leftTarget = if (index == 0 && leadingSlotOffset > 0) {
+            leadingEntryPath()
+        } else {
+            adjacentEntryPathFor(index, FocusDirection.Left)
+        }
+        if (leftTarget != null) {
+            left move leftTarget
+        } else {
+            cancel(left)
+        }
+
+        val rightTarget = adjacentEntryPathFor(index, FocusDirection.Right)
+        if (rightTarget != null) {
+            right move rightTarget
+        } else {
+            cancel(right)
+        }
+    }
+
+    fun syncLinearFocusController() {
+        val horizontalWrap = enableHorizontalWrap && itemCount > 1
+        if (linearControllerHorizontalWrap != horizontalWrap) {
+            linearFocusController = WjzLinearFocusController(wrap = horizontalWrap)
+            linearControllerHorizontalWrap = horizontalWrap
+        }
+        linearFocusController.updateEntries(
+            (0 until itemCount).map { index -> itemEntryTargetFor(index) }
+        )
+    }
+
+    fun hasEntryTargets(): Boolean {
+        return itemCount > 0
+    }
+
+    fun defaultEntryTarget(): WjzFocusDefaultTarget {
+        val index = lastFocusedIndex.coerceIn(0, itemCount - 1)
+        return WjzFocusDefaultTarget(
+            nodeId = nodeIdFor(index),
+            layer = focusLayer,
+            scopeId = focusScopeId
+        )
+    }
+
+    fun leadingEntryTarget(): WjzFocusTargetEntry {
+        return WjzFocusTargetEntry(
+            id = leadingFocusId(),
+            nodeId = leadingNodeId(),
+            layer = focusLayer,
+            scopeId = focusScopeId
+        )
+    }
+
+    fun itemEntryTargets(): List<WjzFocusTargetEntry> {
+        return (0 until itemCount).map { index -> itemEntryTargetFor(index) }
+    }
+
+    fun resolveItemEntryTarget(index: Int): WjzFocusTargetEntry? {
+        if (index !in 0 until itemCount) return null
+        val target = itemEntryTargetFor(index)
+        val itemKey = itemKeyFor(index)
+        if (!isKeyVisible(itemKey)) {
+            focusCoordinator?.enqueueLazyRestore(
+                nodeId = target.nodeId,
+                itemKey = itemKey,
+                layer = target.layer,
+                scopeId = target.scopeId,
+                restorerId = lazyRestorerId(),
+                listId = lazyRestorerId()
+            )
+        }
+        return target
+    }
+
+    fun firstItemEntryPath(): String? {
+        if (itemCount <= 0) return null
+        return itemEntryPathFor(0)
+    }
+
+    @Composable
+    fun leadingModifier(
+        onFocusChanged: (Boolean) -> Unit
+    ): Modifier {
+        return Modifier.wjzFocusExits(
+            id = leadingFocusId(),
+            layer = focusLayer,
+            exits = {
+                val firstItemEntryPath = firstItemEntryPath()
+                if (firstItemEntryPath != null) {
+                    right move firstItemEntryPath
+                } else {
+                    cancel(right)
+                }
+                cancel(left)
+            },
+            onFocusChanged = onFocusChanged
+        )
     }
 
     suspend fun scrollToKey(key: WjzFocusItemKey) {
@@ -90,12 +253,23 @@ private class RowWrapController {
         return state.layoutInfo.visibleItemsInfo.any { it.index == index + leadingSlotOffset }
     }
 
-    fun itemKeyAt(index: Int): WjzFocusItemKey {
-        return itemKeyFor(index)
+    fun restoreFocusToKey(key: WjzFocusItemKey): Boolean {
+        val index = indexOfKey(key) ?: return false
+        return restoreFocusToIndex(index)
     }
 
-    fun nodeIdAt(index: Int): WjzFocusNodeId {
-        return nodeIdFor(index)
+    private fun restoreFocusToIndex(index: Int): Boolean {
+        if (index !in 0 until itemCount) return false
+        val targetKey = itemKeyFor(index)
+        focusCoordinator?.enqueueLazyRestore(
+            nodeId = nodeIdFor(index),
+            itemKey = targetKey,
+            layer = focusLayer,
+            scopeId = focusScopeId,
+            restorerId = lazyRestorerId(),
+            listId = lazyRestorerId()
+        )
+        return true
     }
 
     fun restoreTargetKey(previousItemKeys: List<WjzFocusItemKey>): WjzFocusItemKey? {
@@ -121,7 +295,7 @@ private class RowWrapController {
         val nodeId = nodeIdFor(index)
         val itemFocusId = itemFocusIdFor(index)
         val itemKey = itemKeyFor(index)
-        val restorerId = "$nodeIdPrefix/lazy-restorer"
+        val restorerId = lazyRestorerId()
         val itemFocusChanged: (Boolean) -> Unit = { hasFocus ->
             if (hasFocus) {
                 lastFocusedIndex = index
@@ -131,9 +305,12 @@ private class RowWrapController {
         }
 
         val modifier = Modifier
-            .wjzFocus(
+            .wjzFocusExits(
                 id = itemFocusId,
                 layer = focusLayer,
+                exits = {
+                    applyItemExits(index)
+                },
                 onFocusChanged = itemFocusChanged
             )
         return BvLazyFocusItemTarget(
@@ -170,13 +347,15 @@ fun VideosRowCore(
     listState: LazyListState = rememberLazyListState(),
     manageRowFocusInternally: Boolean = true,
 ) {
-    val scope = rememberCoroutineScope()
     val focusCoordinator = LocalWjzFocusCoordinator.current
 
     var focusedItemKey by remember(rowStateKey) {
         mutableStateOf<WjzFocusItemKey?>(null)
     }
-    val hasFocus = focusedItemKey != null
+    var leadingItemHasFocus by remember(rowStateKey) {
+        mutableStateOf(false)
+    }
+    val hasFocus = focusedItemKey != null || leadingItemHasFocus
     val titleColor = if (hasFocus) {
         focusedHeaderColor ?: C.onSurface
     } else {
@@ -194,10 +373,14 @@ fun VideosRowCore(
         itemCount = videos.size
         this.itemKeys = itemKeys
         nodeIdPrefix = rowStateKey
+        entryComponentId = videosRowEntryComponentIdFor(rowStateKey)
         focusLayer = WjzFocusLayer.Content
         focusScopeId = rowFocusScopeId
         this.listState = listState
+        this.focusCoordinator = focusCoordinator
         this.leadingSlotOffset = if (leadingItem != null) 1 else 0
+        this.enableHorizontalWrap = enableHorizontalWrap
+        syncLinearFocusController()
     }
     var shouldRestoreFocusedItem by remember(rowStateKey) {
         mutableStateOf(false)
@@ -227,17 +410,7 @@ fun VideosRowCore(
                 targetKey != null &&
                 shouldRestoreFocusedItem
             ) {
-                val targetIndex = itemKeys.indexOf(targetKey)
-                if (targetIndex >= 0) {
-                    focusCoordinator?.enqueueLazyRestore(
-                        nodeId = rowWrapController.nodeIdAt(targetIndex),
-                        itemKey = targetKey,
-                        layer = WjzFocusLayer.Content,
-                        scopeId = rowFocusScopeId,
-                        restorerId = "$rowStateKey/lazy-restorer",
-                        listId = "$rowStateKey/lazy-restorer"
-                    )
-                }
+                rowWrapController.restoreFocusToKey(targetKey)
                 shouldRestoreFocusedItem = false
             } else if (
                 targetKey == null ||
@@ -287,6 +460,24 @@ fun VideosRowCore(
                     isItemVisible = { key -> rowWrapController.isKeyVisible(key) }
                 )
 
+                if (rowWrapController.hasEntryTargets()) {
+                    WjzFocusEntrySurface(
+                        componentId = rowWrapController.entryComponentId,
+                        default = { rowWrapController.defaultEntryTarget() },
+                        entries = {
+                            if (leadingItem != null) {
+                                val leadingTarget = rowWrapController.leadingEntryTarget()
+                                entry(leadingTarget.id, leadingTarget)
+                            }
+                            rowWrapController.itemEntryTargets().forEachIndexed { index, target ->
+                                entry(target.id) {
+                                    rowWrapController.resolveItemEntryTarget(index)
+                                }
+                            }
+                        }
+                    )
+                }
+
                 LazyRow(
                     state = listState,
                     modifier = Modifier.padding(top = 8.dp),
@@ -297,28 +488,9 @@ fun VideosRowCore(
                     if (leadingItem != null) {
                         item(key = "${rowStateKey}_leading_item") {
                             leadingItem(
-                                Modifier
-                                    .onPreviewKeyEvent { event ->
-                                        if (
-                                            event.type != KeyEventType.KeyDown ||
-                                            event.key != Key.DirectionRight ||
-                                            videos.isEmpty()
-                                        ) {
-                                            return@onPreviewKeyEvent false
-                                        }
-                                        scope.launch {
-                                            val targetKey = rowWrapController.itemKeyAt(0)
-                                            focusCoordinator?.enqueueLazyRestore(
-                                                nodeId = rowWrapController.nodeIdAt(0),
-                                                itemKey = targetKey,
-                                                layer = WjzFocusLayer.Content,
-                                                scopeId = rowFocusScopeId,
-                                                restorerId = "$rowStateKey/lazy-restorer",
-                                                listId = "$rowStateKey/lazy-restorer"
-                                            )
-                                        }
-                                        true
-                                    }
+                                rowWrapController.leadingModifier { hasFocus ->
+                                    leadingItemHasFocus = hasFocus
+                                }
                             )
                         }
                     }
@@ -328,62 +500,7 @@ fun VideosRowCore(
                         key = { _, item -> videoCardKey(item).value }
                     ) { index, videoData ->
                         CompositionLocalProvider(LocalWjzFocusScopeId provides rowFocusScopeId) {
-                            val lastIndex = videos.lastIndex
-                            val focusTarget = rowWrapController.targetFor(index)?.let { target ->
-                                target.copy(
-                                    modifier = target.modifier
-                                        .onPreviewKeyEvent { event ->
-                                            if (!enableHorizontalWrap) {
-                                                return@onPreviewKeyEvent false
-                                            }
-                                            if (videos.size <= 1) {
-                                                return@onPreviewKeyEvent false
-                                            }
-                                            if (event.type != KeyEventType.KeyDown) {
-                                                return@onPreviewKeyEvent false
-                                            }
-
-                                            when {
-                                                // 没有 leadingItem 时，第一个视频按左，循环到最后一个视频
-                                                event.key == Key.DirectionLeft &&
-                                                        index == 0 &&
-                                                        leadingItem == null -> {
-                                                    scope.launch {
-                                                        val targetKey = rowWrapController.itemKeyAt(lastIndex)
-                                                        focusCoordinator?.enqueueLazyRestore(
-                                                            nodeId = rowWrapController.nodeIdAt(lastIndex),
-                                                            itemKey = targetKey,
-                                                            layer = WjzFocusLayer.Content,
-                                                            scopeId = rowFocusScopeId,
-                                                            restorerId = "$rowStateKey/lazy-restorer",
-                                                            listId = "$rowStateKey/lazy-restorer"
-                                                        )
-                                                    }
-                                                    true
-                                                }
-
-                                                // 最后一个视频按右，循环到第一个视频
-                                                event.key == Key.DirectionRight &&
-                                                        index == lastIndex -> {
-                                                    scope.launch {
-                                                        val targetKey = rowWrapController.itemKeyAt(0)
-                                                        focusCoordinator?.enqueueLazyRestore(
-                                                            nodeId = rowWrapController.nodeIdAt(0),
-                                                            itemKey = targetKey,
-                                                            layer = WjzFocusLayer.Content,
-                                                            scopeId = rowFocusScopeId,
-                                                            restorerId = "$rowStateKey/lazy-restorer",
-                                                            listId = "$rowStateKey/lazy-restorer"
-                                                        )
-                                                    }
-                                                    true
-                                                }
-
-                                                else -> false
-                                            }
-                                        }
-                                )
-                            }
+                            val focusTarget = rowWrapController.targetFor(index)
 
                             SmallVideoCard(
                                 modifier = Modifier.width(200.dp),

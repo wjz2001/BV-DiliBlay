@@ -25,7 +25,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.layout.ContentScale
@@ -56,7 +56,7 @@ import dev.aaa1115910.bv.util.RichTextToken
 import dev.aaa1115910.bv.util.VideoLinkToken
 import dev.aaa1115910.bv.util.resolveVideoLink
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -339,8 +339,8 @@ private fun MentionInlineItem(
             .onGloballyPositioned { coords ->
                 if (index >= 0) onPositioned?.invoke(index, coords.boundsInWindow())
             }
-            .onPreviewKeyEvent { e ->
-                if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+            .onKeyEvent { e ->
+                if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (e.key) {
                     Key.DirectionDown -> {
                         if (onNavDown != null) {
@@ -361,7 +361,7 @@ private fun MentionInlineItem(
                     else -> false
                 }
             }
-            .wjzFocus(
+            .wjzFocusExits(
                 id = focusKey,
                 layer = WjzFocusLayer.Dialog,
                 onFocusChanged = { hasFocus ->
@@ -479,8 +479,8 @@ private fun VideoLinkInlineItem(
             .onGloballyPositioned { coords ->
                 if (index >= 0) onPositioned?.invoke(index, coords.boundsInWindow())
             }
-            .onPreviewKeyEvent { e ->
-                if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+            .onKeyEvent { e ->
+                if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (e.key) {
                     Key.DirectionDown -> {
                         if (onNavDown != null) {
@@ -501,7 +501,7 @@ private fun VideoLinkInlineItem(
                     else -> false
                 }
             }
-            .wjzFocus(
+            .wjzFocusExits(
                 id = focusKey,
                 layer = WjzFocusLayer.Dialog,
                 onFocusChanged = { hasFocus ->
@@ -627,8 +627,8 @@ private fun ReferenceInlineItem(
             .onGloballyPositioned { coords ->
                 if (index >= 0) onPositioned?.invoke(index, coords.boundsInWindow())
             }
-            .onPreviewKeyEvent { e ->
-                if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+            .onKeyEvent { e ->
+                if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (e.key) {
                     Key.DirectionDown -> {
                         if (onNavDown != null) {
@@ -649,7 +649,7 @@ private fun ReferenceInlineItem(
                     else -> false
                 }
             }
-            .wjzFocus(
+            .wjzFocusExits(
                 id = focusKey,
                 layer = WjzFocusLayer.Dialog,
                 onFocusChanged = { hasFocus ->

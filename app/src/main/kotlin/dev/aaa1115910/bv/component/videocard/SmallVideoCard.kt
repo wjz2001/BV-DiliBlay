@@ -1,5 +1,6 @@
 package dev.aaa1115910.bv.component.videocard
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -57,11 +58,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -91,18 +87,22 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.component.BvLazyFocusItemTarget
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.component.TvGridBringIntoViewMode
-import dev.aaa1115910.bv.component.TvLazyVerticalGrid
-import dev.aaa1115910.bv.component.UpIcon
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.down
 import dev.aaa1115910.bv.wjzfocus.left
 import dev.aaa1115910.bv.wjzfocus.right
 import dev.aaa1115910.bv.wjzfocus.up
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.component.TvGridBringIntoViewMode
+import dev.aaa1115910.bv.component.TvLazyVerticalGrid
+import dev.aaa1115910.bv.component.UpIcon
+import dev.aaa1115910.bv.wjzfocus.wjzClickableFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.wjzfocus.wjzDisabledFocus
 import dev.aaa1115910.bv.wjzfocus.wjzObserveFocusChanged
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
@@ -284,6 +284,9 @@ private fun SmallVideoCardCore(
     val actionNodeIdPrefix = remember(data.avid, data.cid, data.epId) {
         "small-video-card/${smallVideoCardFocusKey(data)}/action"
     }
+    val actionFocusComponentId = remember(data.avid, data.cid, data.epId) {
+        "small_video_card_actions_${smallVideoCardFocusKey(data)}"
+    }
     val historyActionNodeId = remember(actionNodeIdPrefix) { WjzFocusNodeId("$actionNodeIdPrefix/history") }
     val favoriteActionNodeId = remember(actionNodeIdPrefix) { WjzFocusNodeId("$actionNodeIdPrefix/favorite") }
     val upActionNodeId = remember(actionNodeIdPrefix) { WjzFocusNodeId("$actionNodeIdPrefix/up") }
@@ -344,6 +347,19 @@ private fun SmallVideoCardCore(
     } else {
         data.upMid != null || legacyOnGoToUpPage != null
     }
+    val historyActionAvailable = if (isPrivateFlavor) {
+        canUseHistory
+    } else {
+        canOpenVideoInfo && !upButtonOnly
+    }
+    val watchLaterActionAvailable = canUseWatchLater && !pendingRemoval
+    val actionDefaultNodeId = when {
+        historyActionAvailable -> historyActionNodeId
+        canUseFavorite -> favoriteActionNodeId
+        canGoToUpPage -> upActionNodeId
+        watchLaterActionAvailable -> watchLaterActionNodeId
+        else -> null
+    }
 
     val allowDismissActionsOnFocusLoss =
         !pendingRemoval &&
@@ -354,7 +370,7 @@ private fun SmallVideoCardCore(
         hostUiState.favoriteDialog.aid != data.avid &&
                 hostUiState.coAuthorsDialog.ownerAid != data.avid
 
-    val actionLayerVisible = showActions || pendingRemoval
+    val actionLayerVisible = (showActions || pendingRemoval) && actionDefaultNodeId != null
 
     LaunchedEffect(
         actionLayerVisible,
@@ -415,6 +431,7 @@ private fun SmallVideoCardCore(
     ) {
         if (actionLayerVisible) {
             focusCoordinator?.restoreActiveLayer()
+            focusCoordinator?.requestEntryFocus(WjzFocusEntryId.parse(actionFocusComponentId))
 
             hostVm?.onActionsShown(
                 aid = data.avid,
@@ -467,7 +484,7 @@ private fun SmallVideoCardCore(
             onCardHasFocusChanged = { cardHasFocus = it },
             onClick = onClickWithStartupCover,
             onLongClick = {
-                if (!pendingRemoval) {
+                if (!pendingRemoval && actionDefaultNodeId != null) {
                     showActions = true
                 }
             },
@@ -482,6 +499,7 @@ private fun SmallVideoCardCore(
         ) {
             if (actionLayerVisible) {
                 BvSmallVideoCardActions(
+                    actionFocusComponentId = actionFocusComponentId,
                     historyNodeId = historyActionNodeId,
                     favoriteNodeId = favoriteActionNodeId,
                     upNodeId = upActionNodeId,
@@ -490,7 +508,7 @@ private fun SmallVideoCardCore(
                     canHistory = canUseHistory,
                     canFavorite = canUseFavorite,
                     canGoToUpPage = canGoToUpPage,
-                    canWatchLater = canUseWatchLater && !pendingRemoval,
+                    canWatchLater = watchLaterActionAvailable,
                     canOpenVideoInfo = canOpenVideoInfo && !upButtonOnly,
                     isFavorite = isFavorite,
                     hasMultipleCoAuthors = hasMultipleCoAuthors,
@@ -722,20 +740,35 @@ private fun BvSmallVideoCardFrame(
                 }
         )
 
+        val cardFocusModifier = if (focusTarget != null) {
+            focusTarget.modifier.then(
+                Modifier.wjzClickableFocus(
+                    id = cardNodeId.value,
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                    layer = WjzFocusLayer.Content,
+                    enabled = interactive && !showActions && !pendingRemoval,
+                    onFocusChanged = handleCardFocusChanged
+                )
+            )
+        } else {
+            Modifier.wjzClickableFocus(
+                id = cardNodeId.value,
+                onClick = onClick,
+                onLongClick = onLongClick,
+                layer = WjzFocusLayer.Content,
+                enabled = interactive && !showActions && !pendingRemoval,
+                onFocusChanged = handleCardFocusChanged
+            )
+        }
+
         Card(
             onClick = { if (interactive && !showActions) onClick() },
             onLongClick = { if (interactive) onLongClick() },
             interactionSource = interactionSource,
             modifier = modifier
                 .wjzDisabledFocus(!interactive)
-                .then(
-                    focusTarget?.modifier ?: Modifier.wjzFocus(
-                        id = cardNodeId.value,
-                        layer = WjzFocusLayer.Content,
-                        enabled = interactive && !showActions && !pendingRemoval,
-                        onFocusChanged = handleCardFocusChanged
-                    )
-                )
+                .then(cardFocusModifier)
                 .wjzObserveFocusChanged(handleCardFocusChanged)
                 .fillMaxSize()
                 .graphicsLayer {
@@ -771,6 +804,7 @@ private fun BvSmallVideoCardFrame(
 
 @Composable
 private fun BvSmallVideoCardActions(
+    actionFocusComponentId: String,
     historyNodeId: WjzFocusNodeId,
     favoriteNodeId: WjzFocusNodeId,
     upNodeId: WjzFocusNodeId,
@@ -790,6 +824,64 @@ private fun BvSmallVideoCardActions(
     onUpClick: () -> Unit,
     onWatchLaterClick: () -> Unit
 ) {
+    val historyEntry = "history"
+    val favoriteEntry = "favorite"
+    val upEntry = "up"
+    val watchLaterEntry = "watch-later"
+
+    val historyAvailable = if (isPrivateFlavor) canHistory else canOpenVideoInfo
+
+    fun actionTarget(nodeId: WjzFocusNodeId) = defaultEntry(
+        nodeId = nodeId,
+        layer = WjzFocusLayer.Action
+    )
+
+    val fallbackActionTarget = when {
+        historyAvailable -> actionTarget(historyNodeId)
+        canFavorite -> actionTarget(favoriteNodeId)
+        canGoToUpPage -> actionTarget(upNodeId)
+        canWatchLater -> actionTarget(watchLaterNodeId)
+        else -> null
+    }
+
+    fun actionEntryTarget(available: Boolean, nodeId: WjzFocusNodeId) =
+        if (available) actionTarget(nodeId) else fallbackActionTarget
+
+    if (fallbackActionTarget != null) {
+        WjzFocusEntrySurface(
+            componentId = actionFocusComponentId,
+            default = {
+                fallbackActionTarget
+            },
+            entries = {
+                entry(historyEntry) {
+                    actionEntryTarget(
+                        available = historyAvailable,
+                        nodeId = historyNodeId
+                    )
+                }
+                entry(favoriteEntry) {
+                    actionEntryTarget(
+                        available = canFavorite,
+                        nodeId = favoriteNodeId
+                    )
+                }
+                entry(upEntry) {
+                    actionEntryTarget(
+                        available = canGoToUpPage,
+                        nodeId = upNodeId
+                    )
+                }
+                entry(watchLaterEntry) {
+                    actionEntryTarget(
+                        available = canWatchLater,
+                        nodeId = watchLaterNodeId
+                    )
+                }
+            }
+        )
+    }
+    BackHandler(onBack = onBack)
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -797,13 +889,6 @@ private fun BvSmallVideoCardActions(
                 color = C.selectedBorder,
                 strokeWidthDp = 3.dp
             )
-            .onPreviewKeyEvent {
-                if (it.key == Key.Back) {
-                    if (it.type == KeyEventType.KeyUp) onBack()
-                    return@onPreviewKeyEvent true
-                }
-                false
-            }
     ) {
         Column(
             modifier = Modifier
@@ -823,23 +908,18 @@ private fun BvSmallVideoCardActions(
                     contentAlignment = Alignment.Center
                 ) {
                     BvActionIconButton(
-                        modifier = Modifier.wjzFocus(
+                        modifier = Modifier.wjzFocusExits(
                             id = historyNodeId.value,
                             layer = WjzFocusLayer.Action,
-                            fallback = if (isPrivateFlavor) canHistory else canOpenVideoInfo,
-                            enabled = if (isPrivateFlavor) canHistory else canOpenVideoInfo,
+                            enabled = historyAvailable,
                             exits = {
-                                right move favoriteNodeId.value
-                                down move upNodeId.value
-                                cancel(left)
                                 cancel(up)
-                            },
-                            entries = {
-                                favoriteNodeId.value ready favoriteNodeId.value
-                                upNodeId.value ready upNodeId.value
+                                cancel(left)
+                                right move "$actionFocusComponentId/$favoriteEntry"
+                                down move "$actionFocusComponentId/$upEntry"
                             }
                         ),
-                        canClick = if (isPrivateFlavor) canHistory else canOpenVideoInfo,
+                        canClick = historyAvailable,
                         onClick = if (isPrivateFlavor) onHistoryClick else onInfoClick
                     ) {
                         Icon(
@@ -863,20 +943,15 @@ private fun BvSmallVideoCardActions(
                     contentAlignment = Alignment.Center
                 ) {
                     BvActionIconButton(
-                        modifier = Modifier.wjzFocus(
+                        modifier = Modifier.wjzFocusExits(
                             id = favoriteNodeId.value,
                             layer = WjzFocusLayer.Action,
-                            fallback = !canHistory && canFavorite,
                             enabled = canFavorite,
                             exits = {
-                                left move historyNodeId.value
-                                down move watchLaterNodeId.value
-                                cancel(right)
                                 cancel(up)
-                            },
-                            entries = {
-                                historyNodeId.value ready historyNodeId.value
-                                watchLaterNodeId.value ready watchLaterNodeId.value
+                                cancel(right)
+                                left move "$actionFocusComponentId/$historyEntry"
+                                down move "$actionFocusComponentId/$watchLaterEntry"
                             }
                         ),
                         canClick = canFavorite,
@@ -903,20 +978,15 @@ private fun BvSmallVideoCardActions(
                     contentAlignment = Alignment.Center
                 ) {
                     BvActionIconButton(
-                        modifier = Modifier.wjzFocus(
+                        modifier = Modifier.wjzFocusExits(
                             id = upNodeId.value,
                             layer = WjzFocusLayer.Action,
-                            fallback = !canHistory && !canFavorite && canGoToUpPage,
                             enabled = canGoToUpPage,
                             exits = {
-                                up move historyNodeId.value
-                                right move watchLaterNodeId.value
                                 cancel(left)
                                 cancel(down)
-                            },
-                            entries = {
-                                historyNodeId.value ready historyNodeId.value
-                                watchLaterNodeId.value ready watchLaterNodeId.value
+                                up move "$actionFocusComponentId/$historyEntry"
+                                right move "$actionFocusComponentId/$watchLaterEntry"
                             }
                         ),
                         canClick = canGoToUpPage,
@@ -945,20 +1015,15 @@ private fun BvSmallVideoCardActions(
                     contentAlignment = Alignment.Center
                 ) {
                     BvActionIconButton(
-                        modifier = Modifier.wjzFocus(
+                        modifier = Modifier.wjzFocusExits(
                             id = watchLaterNodeId.value,
                             layer = WjzFocusLayer.Action,
-                            fallback = !canHistory && !canFavorite && !canGoToUpPage && canWatchLater,
                             enabled = canWatchLater,
                             exits = {
-                                left move upNodeId.value
-                                up move favoriteNodeId.value
                                 cancel(right)
                                 cancel(down)
-                            },
-                            entries = {
-                                favoriteNodeId.value ready favoriteNodeId.value
-                                upNodeId.value ready upNodeId.value
+                                up move "$actionFocusComponentId/$favoriteEntry"
+                                left move "$actionFocusComponentId/$upEntry"
                             }
                         ),
                         canClick = canWatchLater,

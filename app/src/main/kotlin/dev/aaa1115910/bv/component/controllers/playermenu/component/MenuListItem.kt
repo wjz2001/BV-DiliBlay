@@ -39,8 +39,9 @@ import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppGray
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
+import dev.aaa1115910.bv.wjzfocus.WjzFocusExitsBuilder
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 
 @Composable
 fun MenuListItem(
@@ -51,9 +52,8 @@ fun MenuListItem(
     expanded: Boolean = true,
     selected: Boolean,
     focusEnabled: Boolean = true,
-    fallback: Boolean = false,
-    globalFallback: Boolean = false,
     textAlign: TextAlign = TextAlign.Center,
+    exits: WjzFocusExitsBuilder.() -> Unit = {},
     onFocus: () -> Unit = {},
     onClick: () -> Unit
 ) {
@@ -70,12 +70,11 @@ fun MenuListItem(
     DenseListItem(
         modifier = modifier
             .width(itemWidth)
-            .wjzFocus(
+            .wjzFocusExits(
                 id = focusId,
                 layer = WjzFocusLayer.Overlay,
                 enabled = focusEnabled,
-                fallback = fallback,
-                globalFallback = globalFallback,
+                exits = exits,
                 onFocused = onFocus,
                 onFocusChanged = { focused -> hasFocus = focused }
             )

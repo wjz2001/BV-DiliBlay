@@ -16,13 +16,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
+import dev.aaa1115910.bv.wjzfocus.up
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.PgcTopNavItem
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.PersistLazyListViewportEffect
@@ -37,8 +38,6 @@ import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
 import dev.aaa1115910.bv.screen.main.common.mainContentEntryAdapter
 import dev.aaa1115910.bv.screen.main.runtime.ContentRuntimeState
 import dev.aaa1115910.bv.screen.main.runtime.runtimeContainerInputEnabled
-import dev.aaa1115910.bv.util.isKeyDown
-import dev.aaa1115910.bv.util.isMenuKey
 import dev.aaa1115910.bv.viewmodel.main.PgcContentViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcAnimeViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcDocumentaryViewModel
@@ -50,6 +49,9 @@ import dev.aaa1115910.bv.viewmodel.pgc.PgcViewModel
 import org.koin.androidx.compose.koinViewModel
 
 private val PgcTopNavNodeId = WjzFocusNodeId("main/pgc/top-nav")
+private val PgcTopNavEntryId = WjzFocusEntryId.parse(
+    "bv_tab_row_${PgcTopNavNodeId.value.hashCode()}"
+)
 
 @Composable
 fun PgcContent(
@@ -66,8 +68,6 @@ fun PgcContent(
     val activeTab = pgcContentViewModel.activeTab
     var contentReadyTab by remember { mutableStateOf<PgcTopNavItem?>(null) }
     var previousActiveTab by remember { mutableStateOf<PgcTopNavItem?>(null) }
-    val focusCoordinator = LocalWjzFocusCoordinator.current
-    val focusScopeId = LocalWjzFocusScopeId.current
     val entryAdapter = mainContentEntryAdapter(
         entryRequest = entryRequest,
         active = active,
@@ -77,17 +77,6 @@ fun PgcContent(
         onEntryRequestRejected = onEntryRequestRejected
     )
     val entryFocusRequest = entryAdapter.topNavEntryFocusRequest
-
-    fun requestTopNavFocus(): Boolean {
-        if (focusCoordinator != null) {
-            return focusCoordinator.enqueueRequestFocus(
-                nodeId = PgcTopNavNodeId,
-                layer = WjzFocusLayer.Content,
-                scopeId = focusScopeId
-            )
-        }
-        return false
-    }
 
     val handleDefaultFocusReady: (Any) -> Unit = handleDefaultFocusReady@{ readyKey ->
         if (!active) return@handleDefaultFocusReady
@@ -166,15 +155,15 @@ fun PgcContent(
         Box(
             modifier = Modifier
                 .padding(innerPadding)
-                .onPreviewKeyEvent {
-                    if (it.isMenuKey()) {
-                        if (it.isKeyDown()) return@onPreviewKeyEvent true
-                        pgcContentViewModel.requestUserRefresh(activeTab)
-                        requestTopNavFocus()
-                        return@onPreviewKeyEvent true
+                .wjzFocusExits(
+                    id = "main/pgc/content",
+                    layer = WjzFocusLayer.Content,
+                    strategy = WjzFocusRestoreStrategy.Container,
+                    enabled = active,
+                    exits = {
+                        up move PgcTopNavEntryId
                     }
-                    false
-                }
+                )
         ) {
             val mountedTabs = PgcTopNavItem.entries.filter { tab ->
                 val runtimeState = pgcContentViewModel.runtimeStateOf(tab)

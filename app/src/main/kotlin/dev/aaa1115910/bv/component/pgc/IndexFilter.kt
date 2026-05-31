@@ -59,7 +59,7 @@ import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.getDisplayName
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 
 @Composable
 fun IndexFilter(
@@ -293,10 +293,9 @@ private fun <T> IndexFilterChipRow(
             items(items = filters) { filter ->
                 IndexFilterChip(
                     modifier = Modifier
-                        .wjzFocus(
+                        .wjzFocusExits(
                             id = "index-filter/${title.hashCode()}/${filter.hashCode()}",
-                            layer = WjzFocusLayer.Dialog,
-                            fallback = selectedFilter == filter
+                            layer = WjzFocusLayer.Dialog
                         ),
                     selected = selectedFilter == filter,
                     onClick = { onFilterChange(filter) },

@@ -29,20 +29,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.zIndex
-import dev.aaa1115910.bv.util.isKeyDown
-import dev.aaa1115910.bv.util.isMenuKey
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
+import dev.aaa1115910.bv.wjzfocus.up
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.PersistLazyGridViewportEffect
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.TopNavLeadingIcon
@@ -84,6 +80,9 @@ private enum class HomeSearchPage {
 }
 
 private val HomeTopNavNodeId = WjzFocusNodeId("main/home/top-nav")
+private val HomeTopNavEntryId = WjzFocusEntryId.parse(
+    "bv_tab_row_${HomeTopNavNodeId.value.hashCode()}"
+)
 
 @Composable
 fun HomeContent(
@@ -106,7 +105,6 @@ fun HomeContent(
     var searchEnableProxy by rememberSaveable { mutableStateOf(false) }
     var previousActiveTab by remember { mutableStateOf<HomeTopNavItem?>(null) }
     val focusCoordinator = LocalWjzFocusCoordinator.current
-    val focusScopeId = LocalWjzFocusScopeId.current
     val entryAdapter = mainContentEntryAdapter(
         entryRequest = entryRequest,
         active = active,
@@ -117,15 +115,12 @@ fun HomeContent(
     )
     val entryFocusRequest = entryAdapter.topNavEntryFocusRequest
 
+    fun requestTopNavFocus(): Boolean {
+        return focusCoordinator?.requestEntryFocus(HomeTopNavEntryId) == true
+    }
+
     val backToTopNav: () -> Unit = {
-        val coordinator = focusCoordinator
-        if (coordinator != null) {
-            coordinator.enqueueRequestFocus(
-                nodeId = HomeTopNavNodeId,
-                layer = WjzFocusLayer.Content,
-                scopeId = focusScopeId
-            )
-        }
+        requestTopNavFocus()
     }
 
     val reorderedItems = remember {
@@ -190,15 +185,6 @@ fun HomeContent(
     val handleDefaultFocusReady: (Any) -> Unit = handleDefaultFocusReady@{ readyKey ->
         if (!active) return@handleDefaultFocusReady
         entryAdapter.onDefaultFocusReady(entryFocusRequest)
-    }
-
-    fun requestTopNavFocus() {
-        val coordinator = focusCoordinator ?: return
-        coordinator.enqueueRequestFocus(
-            nodeId = HomeTopNavNodeId,
-            layer = WjzFocusLayer.Content,
-            scopeId = focusScopeId
-        )
     }
 
     fun handleTopNavConfirmLongPress(tab: HomeTopNavItem): Boolean {
@@ -267,16 +253,15 @@ fun HomeContent(
         Box(
             modifier = Modifier
                 .padding(innerPadding)
-                .onPreviewKeyEvent {
-                    if (it.isMenuKey()) {
-                        if (activeTab == HomeTopNavItem.Search) return@onPreviewKeyEvent false
-                        if (it.isKeyDown()) return@onPreviewKeyEvent true
-                        homeContentViewModel.requestUserRefresh(activeTab)
-                        requestTopNavFocus()
-                        return@onPreviewKeyEvent true
+                .wjzFocusExits(
+                    id = "main/home/content",
+                    layer = WjzFocusLayer.Content,
+                    strategy = WjzFocusRestoreStrategy.Container,
+                    enabled = active,
+                    exits = {
+                        up move HomeTopNavEntryId
                     }
-                    false
-                },
+                ),
         ) {
             val mountedTabs = reorderedItems.filter { tab ->
                 val runtimeState = homeContentViewModel.runtimeStateOf(tab)

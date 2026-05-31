@@ -27,11 +27,14 @@ import dev.aaa1115910.bv.block.BlockManager
 import dev.aaa1115910.bv.component.BlockGroupSelectDialog
 import dev.aaa1115910.bv.component.BlockPageSelectDialog
 import dev.aaa1115910.bv.component.BlockTagItem
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.relation.RelationGroupSnapshot
 import dev.aaa1115910.bv.relation.RelationGroupsDataSource
@@ -47,6 +50,8 @@ private val BlockSettingPagesNodeId =
     WjzFocusNodeId("settings/detail/block_settings/action/pages")
 private val BlockSettingUpdateNowNodeId =
     WjzFocusNodeId("settings/detail/block_settings/action/update_now")
+private const val BlockSettingComponentId = "blockSetting"
+private val BlockSettingDefaultEntryId = WjzFocusEntryId.parse(BlockSettingComponentId)
 private val BlockSettingGroupsDialogScopeId =
     WjzFocusScopeId("settings/dialog/block_settings/groups")
 private val BlockSettingGroupsDialogContainerNodeId =
@@ -109,8 +114,57 @@ fun BlockSetting(
                 layer = WjzFocusLayer.Content,
                 scopeId = BlockSettingDetailScopeId
             )
+            focusCoordinator?.requestEntryFocus(BlockSettingDefaultEntryId)
         }
     }
+
+    WjzFocusEntrySurface(
+        componentId = BlockSettingComponentId,
+        default = {
+            defaultEntry(
+                nodeId = BlockSettingUpdateNowNodeId,
+                layer = WjzFocusLayer.Content,
+                scopeId = BlockSettingDetailScopeId
+            )
+        },
+        entries = {
+            entry("groups") {
+                if (!updating && hasSnapshot) {
+                    defaultEntry(
+                        nodeId = BlockSettingGroupsNodeId,
+                        layer = WjzFocusLayer.Content,
+                        scopeId = BlockSettingDetailScopeId
+                    )
+                } else {
+                    defaultEntry(
+                        nodeId = BlockSettingUpdateNowNodeId,
+                        layer = WjzFocusLayer.Content,
+                        scopeId = BlockSettingDetailScopeId
+                    )
+                }
+            }
+            entry("pages") {
+                if (!updating && hasSnapshot) {
+                    defaultEntry(
+                        nodeId = BlockSettingPagesNodeId,
+                        layer = WjzFocusLayer.Content,
+                        scopeId = BlockSettingDetailScopeId
+                    )
+                } else {
+                    defaultEntry(
+                        nodeId = BlockSettingUpdateNowNodeId,
+                        layer = WjzFocusLayer.Content,
+                        scopeId = BlockSettingDetailScopeId
+                    )
+                }
+            }
+            entry("update") move defaultEntry(
+                nodeId = BlockSettingUpdateNowNodeId,
+                layer = WjzFocusLayer.Content,
+                scopeId = BlockSettingDetailScopeId
+            )
+        }
+    )
 
     Column(
         modifier = modifier
@@ -155,7 +209,6 @@ fun BlockSetting(
         val needLoginToastText = stringResource(R.string.block_setting_update_now_need_login)
         BlockSettingActionListItem(
             nodeId = BlockSettingUpdateNowNodeId,
-            fallback = true,
             enabled = true, // 更新中也保持可聚焦，避免焦点跳走
             title = stringResource(R.string.block_setting_update_now_title),
             supportText = when {
@@ -259,17 +312,15 @@ private fun BlockSettingActionListItem(
     supportText: String,
     enabled: Boolean,
     modifier: Modifier = Modifier,
-    fallback: Boolean = false,
     onClick: () -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
 
     SettingListItem(
         modifier = modifier
-            .wjzFocus(
+            .wjzFocusExits(
                 id = nodeId.toDetailLocalFocusId(),
                 layer = WjzFocusLayer.Content,
-                fallback = fallback,
                 enabled = enabled,
                 onFocusChanged = { focused = it }
             ),

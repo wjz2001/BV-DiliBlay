@@ -1,6 +1,5 @@
 package dev.aaa1115910.bv.component.controllers
 
-import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -44,18 +43,18 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.video.VideoShot
 import dev.aaa1115910.bv.R
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.down
 import dev.aaa1115910.bv.wjzfocus.left
-import dev.aaa1115910.bv.wjzfocus.nodeKey
-import dev.aaa1115910.bv.wjzfocus.requestWjzFocusKey
 import dev.aaa1115910.bv.wjzfocus.right
 import dev.aaa1115910.bv.wjzfocus.up
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
-import dev.aaa1115910.bv.wjzfocus.wjzFocusRouter
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.ui.state.SeekerState
 import dev.aaa1115910.bv.ui.theme.AppBlack
@@ -71,9 +70,13 @@ import dev.aaa1115910.bv.entity.VideoRotation
 import kotlinx.coroutines.delay
 import java.util.Calendar
 
+private const val PlayerControlsFocusComponentId = "playerControls"
 private const val PlayerControllerActionFocusIdPrefix = "player/controller/actions"
 private const val PlayerControllerFirstActionFocusId = "$PlayerControllerActionFocusIdPrefix/danmaku"
-private val PlayerControllerDefaultFocusScopeId = WjzFocusScopeId("__wjz_focus_sugar__")
+
+private fun playerControlsEntryId(id: String): WjzFocusEntryId {
+    return WjzFocusEntryId.parse("$PlayerControlsFocusComponentId/$id")
+}
 
 @Composable
 fun ControllerVideoInfo(
@@ -267,15 +270,7 @@ fun ControllerVideoInfoBottom(
         if (show) {
             delay(50)
             if (focusButtonsOnShow) {
-                val requested = focusCoordinator?.requestWjzFocusKey(
-                    key = (focusScopeId ?: PlayerControllerDefaultFocusScopeId)
-                        .nodeKey(PlayerControllerFirstActionFocusId),
-                    layer = WjzFocusLayer.Player,
-                    scopeId = focusScopeId
-                ) == true
-                if (!requested) {
-                    Log.d("ControllerVideoInfo", "requestFocus failed")
-                }
+                focusCoordinator?.requestEntryFocus(WjzFocusEntryId.parse(PlayerControlsFocusComponentId))
                 onConsumeFocusButtonsOnShow()
             }
         }
@@ -417,6 +412,26 @@ fun ControllerVideoInfoBottom(
                 ),
             )
 
+            WjzFocusEntrySurface(
+                componentId = PlayerControlsFocusComponentId,
+                default = {
+                    defaultEntry(
+                        nodeId = WjzFocusNodeId(icons.firstOrNull()?.focusId ?: PlayerControllerFirstActionFocusId),
+                        layer = WjzFocusLayer.Player,
+                        scopeId = focusScopeId
+                    )
+                },
+                entries = {
+                    icons.forEach { icon ->
+                        entry(icon.id) move defaultEntry(
+                            nodeId = WjzFocusNodeId(icon.focusId),
+                            layer = WjzFocusLayer.Player,
+                            scopeId = focusScopeId
+                        )
+                    }
+                }
+            )
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -424,27 +439,23 @@ fun ControllerVideoInfoBottom(
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start)
             ) {
                 icons.forEachIndexed { index, icon ->
-                    val previousFocusId = icons.getOrNull(index - 1)?.focusId ?: icons.last().focusId
-                    val nextFocusId = icons.getOrNull(index + 1)?.focusId ?: icons.first().focusId
+                    val previousEntryId = playerControlsEntryId(
+                        icons.getOrNull(index - 1)?.id ?: icons.last().id
+                    )
+                    val nextEntryId = playerControlsEntryId(
+                        icons.getOrNull(index + 1)?.id ?: icons.first().id
+                    )
                     Surface(
                         modifier = Modifier
-                            .wjzFocus(
+                            .wjzFocusExits(
                                 id = icon.focusId,
                                 layer = WjzFocusLayer.Player,
-                                fallback = index == 0,
                                 enabled = show,
                                 exits = {
-                                    left move previousFocusId
-                                    right move nextFocusId
+                                    left move previousEntryId
+                                    right move nextEntryId
                                     cancel(up)
                                     cancel(down)
-                                },
-                                onExit = wjzFocusRouter(layer = WjzFocusLayer.Player) { target ->
-                                    when (target) {
-                                        previousFocusId -> ready(previousFocusId)
-                                        nextFocusId -> ready(nextFocusId)
-                                        else -> reject()
-                                    }
                                 }
                             ),
                         onClick = icon.onClick,

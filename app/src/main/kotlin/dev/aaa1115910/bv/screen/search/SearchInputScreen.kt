@@ -39,7 +39,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -60,14 +59,12 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.search.Hotword
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryResolution
-import dev.aaa1115910.bv.wjzfocus.WjzFocusHostExit
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.component.search.SearchKeyword
 import dev.aaa1115910.bv.component.search.SoftKeyboard
@@ -77,7 +74,13 @@ import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.viewmodel.search.SearchInputViewModel
-import dev.aaa1115910.bv.screen.main.common.MainContentNavigationExitEntry
+import dev.aaa1115910.bv.screen.main.common.MainDrawerRightEntryId
+import dev.aaa1115910.bv.screen.main.common.MainTopNavDefaultEntryId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.down
+import dev.aaa1115910.bv.wjzfocus.left
+import dev.aaa1115910.bv.wjzfocus.right
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import org.koin.androidx.compose.koinViewModel
@@ -85,15 +88,7 @@ import org.koin.androidx.compose.koinViewModel
 private val SearchInputRootScopeId = WjzFocusScopeId("search/input/root")
 private val SearchInputDeleteAllDialogScopeId = WjzFocusScopeId("search/input/delete-all")
 private val SearchInputDeleteAllDialogContainerNodeId = WjzFocusNodeId("search/input/delete-all/container")
-private val SearchSubmitFocusNodeId = WjzFocusNodeId("main/content/current")
-private val SearchSubmitFocusScopeId = WjzFocusScopeId("main")
-
-private fun searchInputHostExits(): List<WjzFocusHostExit> {
-    return listOf(
-        WjzFocusHostExit(FocusDirection.Left, MainContentNavigationExitEntry.DrawerCurrentItem.entryId),
-        WjzFocusHostExit(FocusDirection.Right, MainContentNavigationExitEntry.TopNavUser.entryId)
-    )
-}
+private val SearchInputKeywordNodeId = WjzFocusNodeId("search/input/keyword")
 
 private fun SearchRightEntryToken.toFocusLocalId(): String {
     val slot = slot.name.lowercase()
@@ -231,11 +226,6 @@ private fun SearchInputRoute(
     val onSearch: (String) -> Unit = onSearch@{ keyword ->
         if (keyword.isBlank()) return@onSearch
         focusCoordinator.activateLayer(WjzFocusLayer.Content)
-        focusCoordinator.enqueueRequestFocus(
-            nodeId = SearchSubmitFocusNodeId,
-            layer = WjzFocusLayer.Content,
-            scopeId = SearchSubmitFocusScopeId
-        )
         onSearchSubmit?.invoke(keyword, searchInputViewModel.enableProxy)
         searchInputViewModel.keyword = keyword
         searchInputViewModel.addSearchHistory(keyword)
@@ -254,9 +244,17 @@ private fun SearchInputRoute(
         coordinator = focusCoordinator,
         layer = WjzFocusLayer.Content,
         scopeId = SearchInputRootScopeId,
-        exits = searchInputHostExits(),
-        onHostExit = { WjzFocusEntryResolution.Reject }
     ) {
+        WjzFocusEntrySurface(
+            componentId = "searchInput",
+            default = {
+                defaultEntry(
+                    nodeId = SearchInputKeywordNodeId,
+                    layer = WjzFocusLayer.Content,
+                    scopeId = SearchInputRootScopeId
+                )
+            }
+        )
         SearchInputScreenContent(
             onDefaultFocusReady = onDefaultFocusReady,
             onCurrentRightEntryTokenChanged = onCurrentRightEntryTokenChanged,
@@ -495,7 +493,19 @@ private fun SearchInput(
         ) {
             OutlinedTextField(
                 modifier = Modifier
-                    .width(258.dp),
+                    .width(258.dp)
+                    .wjzFocusExits(
+                        id = SearchInputKeywordNodeId.value,
+                        layer = WjzFocusLayer.Content,
+                        exits = {
+                            down move "searchResult/top"
+                            left move MainDrawerRightEntryId
+                            right move MainTopNavDefaultEntryId
+                        }
+                    )
+                    .onGloballyPositioned {
+                        onDefaultFocusReady?.invoke()
+                    },
                 value = fieldValue,
                 onValueChange = {
                     fieldValue = it
@@ -539,7 +549,7 @@ private fun SearchInput(
                     }
                 },
                 onEnableSearchWithProxyChange = onEnableProxyChange,
-                onFirstButtonPlaced = onDefaultFocusReady
+                onFirstButtonPlaced = null
             )
         }
     }
@@ -609,10 +619,9 @@ private fun SearchHotwords(
                     val itemModifier =
                         if (index == 0 && firstItemReadyToken != null) {
                             Modifier
-                                .wjzFocus(
+                                .wjzFocusExits(
                                     id = firstItemReadyToken.toFocusLocalId(),
-                                    layer = WjzFocusLayer.Content,
-                                    fallback = true
+                                    layer = WjzFocusLayer.Content
                                 )
                                 .onGloballyPositioned {
                                     onFirstItemPlaced?.invoke(firstItemReadyToken)
@@ -663,10 +672,9 @@ private fun SearchSuggestion(
                 val itemModifier =
                     if (index == 0 && firstItemReadyToken != null) {
                         Modifier
-                            .wjzFocus(
+                            .wjzFocusExits(
                                 id = firstItemReadyToken.toFocusLocalId(),
-                                layer = WjzFocusLayer.Content,
-                                fallback = true
+                                layer = WjzFocusLayer.Content
                             )
                             .onGloballyPositioned {
                                 onFirstItemPlaced?.invoke(firstItemReadyToken)
@@ -747,10 +755,9 @@ private fun SearchHistory(
                 val itemModifier =
                     if (index == 0 && firstItemReadyToken != null) {
                         Modifier
-                            .wjzFocus(
+                            .wjzFocusExits(
                                 id = firstItemReadyToken.toFocusLocalId(),
-                                layer = WjzFocusLayer.Content,
-                                fallback = true
+                                layer = WjzFocusLayer.Content
                             )
                             .onGloballyPositioned {
                                 onFirstItemPlaced?.invoke(firstItemReadyToken)

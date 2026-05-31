@@ -16,11 +16,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -28,16 +23,24 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.component.controllers.DanmakuType
 import dev.aaa1115910.bv.component.controllers.LocalMenuFocusStateData
 import dev.aaa1115910.bv.component.controllers.MenuFocusState
+import dev.aaa1115910.bv.component.controllers.PlayerMenuNavEntryId
 import dev.aaa1115910.bv.component.controllers.VideoPlayerDanmakuMenuItem
-import dev.aaa1115910.bv.component.controllers.playermenu.component.ActionMenuItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.CheckBoxMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.component.MenuListItem
 import dev.aaa1115910.bv.component.controllers.playermenu.component.StepLessMenuItem
-import dev.aaa1115910.bv.component.controllers.playermenu.component.ToggleMenuItem
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
+import dev.aaa1115910.bv.wjzfocus.WjzFocusExitsBuilder
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.wjzFocus
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.left
+import dev.aaa1115910.bv.wjzfocus.right
 import java.text.NumberFormat
 import kotlin.math.roundToInt
+
+private const val PlayerMenuDanmakuMenuEntryId = "playerMenuDanmakuMenu"
+private const val PlayerMenuDanmakuItemsEntryId = "playerMenuDanmakuItems"
 
 @Composable
 fun DanmakuMenuList(
@@ -66,7 +69,69 @@ fun DanmakuMenuList(
 ) {
     val context = LocalContext.current
     val focusState = LocalMenuFocusStateData.current
+    val focusScopeId = LocalWjzFocusScopeId.current
     var selectedDanmakuMenuItem by remember { mutableStateOf(VideoPlayerDanmakuMenuItem.Switch) }
+    val selectedMenuNodeId = remember(selectedDanmakuMenuItem) {
+        WjzFocusNodeId("$PlayerMenuDanmakuFocusIdPrefix/menu/${selectedDanmakuMenuItem.ordinal}")
+    }
+    val selectedItemNodeId = remember(
+        selectedDanmakuMenuItem,
+        currentEnabledTypes,
+        currentVodFilterLevel,
+        currentScale,
+        currentOpacity,
+        currentRollingDurationFactor,
+        currentArea
+    ) {
+        WjzFocusNodeId(
+            when (selectedDanmakuMenuItem) {
+                VideoPlayerDanmakuMenuItem.Switch -> {
+                    val index = currentEnabledTypes.firstOrNull()?.ordinal
+                        ?.takeIf { it in DanmakuType.entries.indices }
+                        ?: DanmakuType.entries.indices.first
+                    "$PlayerMenuDanmakuFocusIdPrefix/switch/$index"
+                }
+
+                VideoPlayerDanmakuMenuItem.FilterLevel ->
+                    "$PlayerMenuDanmakuFocusIdPrefix/filter-level"
+
+                VideoPlayerDanmakuMenuItem.Size ->
+                    "$PlayerMenuDanmakuFocusIdPrefix/size"
+
+                VideoPlayerDanmakuMenuItem.Opacity ->
+                    "$PlayerMenuDanmakuFocusIdPrefix/opacity"
+
+                VideoPlayerDanmakuMenuItem.Speed ->
+                    "$PlayerMenuDanmakuFocusIdPrefix/speed"
+
+                VideoPlayerDanmakuMenuItem.Area ->
+                    "$PlayerMenuDanmakuFocusIdPrefix/area"
+
+                else -> "$PlayerMenuDanmakuFocusIdPrefix/menu/${selectedDanmakuMenuItem.ordinal}"
+            }
+        )
+    }
+
+    WjzFocusEntrySurface(
+        componentId = PlayerMenuDanmakuMenuEntryId,
+        default = {
+            defaultEntry(
+                nodeId = selectedMenuNodeId,
+                layer = WjzFocusLayer.Overlay,
+                scopeId = focusScopeId
+            )
+        }
+    )
+    WjzFocusEntrySurface(
+        componentId = PlayerMenuDanmakuItemsEntryId,
+        default = {
+            defaultEntry(
+                nodeId = selectedItemNodeId,
+                layer = WjzFocusLayer.Overlay,
+                scopeId = focusScopeId
+            )
+        }
+    )
 
     Row(
         modifier = modifier.fillMaxHeight(),
@@ -82,6 +147,8 @@ fun DanmakuMenuList(
                     focusIdPrefix = "$PlayerMenuDanmakuFocusIdPrefix/switch",
                     items = DanmakuType.entries.map { it.getDisplayName(context) },
                     selected = currentEnabledTypes.map { it.ordinal },
+                    parentFocusEntryId = PlayerMenuDanmakuMenuEntryId,
+                    onItemFocused = { onFocusStateChange(MenuFocusState.Items) },
                     onSelectedChanged = { indices ->
                         val newSelection = indices
                             .map { index -> DanmakuType.entries[index] }
@@ -148,6 +215,8 @@ fun DanmakuMenuList(
                     step = 1,
                     range = 0..10,
                     text = currentVodFilterLevel.toString(),
+                    parentFocusEntryId = PlayerMenuDanmakuMenuEntryId,
+                    onItemFocused = { onFocusStateChange(MenuFocusState.Items) },
                     onValueChange = onVodFilterLevelChange,
                     onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
                 )
@@ -163,6 +232,8 @@ fun DanmakuMenuList(
                     text = NumberFormat.getPercentInstance()
                         .apply { maximumFractionDigits = 0 }
                         .format(currentScale),
+                    parentFocusEntryId = PlayerMenuDanmakuMenuEntryId,
+                    onItemFocused = { onFocusStateChange(MenuFocusState.Items) },
                     onValueChange = onDanmakuSizeChange,
                     onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
                 )
@@ -176,6 +247,8 @@ fun DanmakuMenuList(
                     text = NumberFormat.getPercentInstance()
                         .apply { maximumFractionDigits = 0 }
                         .format(currentOpacity),
+                    parentFocusEntryId = PlayerMenuDanmakuMenuEntryId,
+                    onItemFocused = { onFocusStateChange(MenuFocusState.Items) },
                     onValueChange = onDanmakuOpacityChange,
                     onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
                 )
@@ -189,6 +262,8 @@ fun DanmakuMenuList(
                     step = 0.1f,
                     range = 0.2f..1.8f,
                     text = "${((currentRollingDurationFactor * 10).roundToInt() / 10f)}x",
+                    parentFocusEntryId = PlayerMenuDanmakuMenuEntryId,
+                    onItemFocused = { onFocusStateChange(MenuFocusState.Items) },
                     onValueChange = onRollingDurationFactorChange,
                     onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
                 )
@@ -202,6 +277,8 @@ fun DanmakuMenuList(
                     text = NumberFormat.getPercentInstance()
                         .apply { maximumFractionDigits = 0 }
                         .format(currentArea),
+                    parentFocusEntryId = PlayerMenuDanmakuMenuEntryId,
+                    onItemFocused = { onFocusStateChange(MenuFocusState.Items) },
                     onValueChange = onDanmakuAreaChange,
                     onFocusBackToParent = { onFocusStateChange(MenuFocusState.Menu) }
                 )
@@ -213,49 +290,40 @@ fun DanmakuMenuList(
         }
         LazyColumn(
             modifier = Modifier
-                .padding(horizontal = 8.dp)
-                .onPreviewKeyEvent {
-                    if (it.type == KeyEventType.KeyUp) {
-                        if (listOf(Key.Enter, Key.DirectionCenter).contains(it.key)) {
-                            return@onPreviewKeyEvent false
-                        }
-                        return@onPreviewKeyEvent true
-                    }
-                    when (it.key) {
-                        Key.DirectionRight -> onFocusStateChange(MenuFocusState.MenuNav)
-                        Key.DirectionLeft -> onFocusStateChange(MenuFocusState.Items)
-                        else -> {}
-                    }
-                    false
-                }
-                .wjzFocus(
-                    id = "player/menu/danmaku",
-                    layer = WjzFocusLayer.Overlay
-                ),
+                .padding(horizontal = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(8.dp)
         ) {
             itemsIndexed(VideoPlayerDanmakuMenuItem.entries) { index, item ->
+                val exits = danmakuMenuItemExits(item)
                 when (item) {
-                    VideoPlayerDanmakuMenuItem.Colorful -> ToggleMenuItem(
+                    VideoPlayerDanmakuMenuItem.Colorful -> MenuListItem(
                         modifier = Modifier,
                         focusId = "$PlayerMenuDanmakuFocusIdPrefix/menu/$index",
                         text = item.getDisplayName(context),
-                        checked = currentColorful,
-                        onCheckedChange = onColorfulChange,
-                        onFocus = { selectedDanmakuMenuItem = item },
+                        selected = currentColorful,
+                        exits = exits,
+                        onFocus = {
+                            selectedDanmakuMenuItem = item
+                            onFocusStateChange(MenuFocusState.Menu)
+                        },
+                        onClick = { onColorfulChange(!currentColorful) },
                     )
 
-                    VideoPlayerDanmakuMenuItem.Mask -> ToggleMenuItem(
+                    VideoPlayerDanmakuMenuItem.Mask -> MenuListItem(
                         modifier = Modifier,
                         focusId = "$PlayerMenuDanmakuFocusIdPrefix/menu/$index",
                         text = item.getDisplayName(context),
-                        checked = currentMaskEnabled,
-                        onCheckedChange = onDanmakuMaskChange,
-                        onFocus = { selectedDanmakuMenuItem = item },
+                        selected = currentMaskEnabled,
+                        exits = exits,
+                        onFocus = {
+                            selectedDanmakuMenuItem = item
+                            onFocusStateChange(MenuFocusState.Menu)
+                        },
+                        onClick = { onDanmakuMaskChange(!currentMaskEnabled) },
                     )
 
-                    VideoPlayerDanmakuMenuItem.Refresh -> ActionMenuItem(
+                    VideoPlayerDanmakuMenuItem.Refresh -> MenuListItem(
                         modifier = Modifier,
                         focusId = "$PlayerMenuDanmakuFocusIdPrefix/menu/$index",
                         text = if (isDanmakuRefreshing) {
@@ -263,9 +331,13 @@ fun DanmakuMenuList(
                         } else {
                             item.getDisplayName(context)
                         },
-                        active = isDanmakuRefreshing,
+                        selected = isDanmakuRefreshing,
+                        exits = exits,
                         onClick = onDanmakuRefreshClick,
-                        onFocus = { selectedDanmakuMenuItem = item },
+                        onFocus = {
+                            selectedDanmakuMenuItem = item
+                            onFocusStateChange(MenuFocusState.Menu)
+                        },
                     )
 
                     else -> MenuListItem(
@@ -273,11 +345,40 @@ fun DanmakuMenuList(
                         focusId = "$PlayerMenuDanmakuFocusIdPrefix/menu/$index",
                         text = item.getDisplayName(context),
                         selected = selectedDanmakuMenuItem == item,
+                        exits = exits,
                         onClick = {},
-                        onFocus = { selectedDanmakuMenuItem = item },
+                        onFocus = {
+                            selectedDanmakuMenuItem = item
+                            onFocusStateChange(MenuFocusState.Menu)
+                        },
                     )
                 }
             }
         }
+    }
+}
+
+private fun danmakuMenuItemExits(
+    item: VideoPlayerDanmakuMenuItem
+): WjzFocusExitsBuilder.() -> Unit = {
+    if (item.hasDanmakuItems()) {
+        left move PlayerMenuDanmakuItemsEntryId
+    }
+    right move PlayerMenuNavEntryId
+}
+
+private fun VideoPlayerDanmakuMenuItem.hasDanmakuItems(): Boolean {
+    return when (this) {
+        VideoPlayerDanmakuMenuItem.Switch,
+        VideoPlayerDanmakuMenuItem.FilterLevel,
+        VideoPlayerDanmakuMenuItem.Size,
+        VideoPlayerDanmakuMenuItem.Opacity,
+        VideoPlayerDanmakuMenuItem.Speed,
+        VideoPlayerDanmakuMenuItem.Area -> true
+
+        VideoPlayerDanmakuMenuItem.BlockKeyword,
+        VideoPlayerDanmakuMenuItem.Colorful,
+        VideoPlayerDanmakuMenuItem.Mask,
+        VideoPlayerDanmakuMenuItem.Refresh -> false
     }
 }

@@ -18,6 +18,8 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
+import dev.aaa1115910.bv.component.controllers.PlayerMenuMainEntryId
+import dev.aaa1115910.bv.wjzfocus.right
 
 @Composable
 fun StepLessMenuItem(
@@ -27,18 +29,14 @@ fun StepLessMenuItem(
     text: String,
     step: Float = 0.01f,
     range: ClosedFloatingPointRange<Float> = 0f..1f,
+    parentFocusEntryId: String = PlayerMenuMainEntryId,
+    onItemFocused: () -> Unit = {},
     onValueChange: (Float) -> Unit,
     onFocusBackToParent: () -> Unit
 ) {
     Box(
         modifier = modifier
             .fillMaxHeight()
-            .onPreviewKeyEvent {
-                println(it)
-                if (it.type == KeyEventType.KeyUp) return@onPreviewKeyEvent true
-                if (it.key == Key.DirectionRight) onFocusBackToParent()
-                false
-            }
     ) {
         Column(
             modifier = Modifier
@@ -76,7 +74,11 @@ fun StepLessMenuItem(
                     },
                 focusId = focusId,
                 text = text,
-                selected = false
+                selected = false,
+                exits = {
+                    right move parentFocusEntryId
+                },
+                onFocus = onItemFocused
             ) { }
             Icon(imageVector = Icons.Rounded.ArrowDropDown, contentDescription = null)
         }
@@ -91,18 +93,14 @@ fun StepLessMenuItem(
     text: String,
     step: Int = 1,
     range: IntRange = 0..100,
+    parentFocusEntryId: String = PlayerMenuMainEntryId,
+    onItemFocused: () -> Unit = {},
     onValueChange: (Int) -> Unit,
     onFocusBackToParent: () -> Unit
 ) {
     Box(
         modifier = modifier
             .fillMaxHeight()
-            .onPreviewKeyEvent {
-                println(it)
-                if (it.type == KeyEventType.KeyUp) return@onPreviewKeyEvent true
-                if (it.key == Key.DirectionRight) onFocusBackToParent()
-                false
-            }
     ) {
         Column(
             modifier = Modifier
@@ -140,7 +138,11 @@ fun StepLessMenuItem(
                     },
                 focusId = focusId,
                 text = text,
-                selected = false
+                selected = false,
+                exits = {
+                    right move parentFocusEntryId
+                },
+                onFocus = onItemFocused
             ) { }
             Icon(imageVector = Icons.Rounded.ArrowDropDown, contentDescription = null)
         }
