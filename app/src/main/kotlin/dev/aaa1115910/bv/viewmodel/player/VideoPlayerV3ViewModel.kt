@@ -67,6 +67,7 @@ import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.fWarn
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.toast
+import dev.aaa1115910.bv.viewmodel.common.PlayerGlobalFreeze
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
@@ -87,6 +88,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
@@ -211,6 +213,9 @@ class VideoPlayerV3ViewModel(
     private val _danmakuHostState = MutableStateFlow(DanmakuHostViewModelState())
     val danmakuHostState = _danmakuHostState.asStateFlow()
 
+    private val _featureGate = MutableStateFlow(PlayerFeatureGateState())
+    val featureGate = _featureGate.asStateFlow()
+
     private val _danmakuHostCommands = MutableSharedFlow<DanmakuHostCommand>(extraBufferCapacity = 16)
     val danmakuHostCommands = _danmakuHostCommands.asSharedFlow()
 
@@ -225,6 +230,8 @@ class VideoPlayerV3ViewModel(
     private var previewTipCountdownJob: Job? = null
 
     private var ugcPagesPrefetchJob: Job? = null
+    private var playerExtrasReleaseJob: Job? = null
+    private var bottomBarDemandJob: Job? = null
     private var lastPrefetchCenterAid: Long = -1L
     private var lastPrefetchAidsHash: Int = 0
 
@@ -370,7 +377,9 @@ class VideoPlayerV3ViewModel(
                     }
                 }
                 logger.fInfo { "Sync video list from repo, size: ${newList.size}" }
-                restartUgcPagesPrefetchIfNeeded(newList)
+                if (_featureGate.value.playerExtrasOnline) {
+                    restartUgcPagesPrefetchIfNeeded(newList)
+                }
             }
             .launchIn(viewModelScope)
 
@@ -402,6 +411,7 @@ class VideoPlayerV3ViewModel(
                 if (aid == 0L || cid == 0L) return@mapLatest emptyList()
 
                 _uiState.update { it.copy(availableChapters = emptyList()) }
+                awaitPlayerExtrasOnline()
 
                 runCatching {
                     withContext(Dispatchers.IO) {
@@ -503,21 +513,7 @@ class VideoPlayerV3ViewModel(
         }
         syncDanmakuHostStateFromPlayerState()
 
-        viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
-                videoInfoRepository.ensureCoAuthorsLoaded(
-                    aid = aid,
-                    preferApiType = Prefs.apiType
-                )
-            }.onFailure { e ->
-                logger.fWarn {
-                    "Prefetch coAuthors in player failed: aid=$aid, apiType=${Prefs.apiType}, error=${e.stackTraceToString()}"
-                }
-            }
-        }
-
         startClockUpdater()
-        restartUgcPagesPrefetchIfNeeded(_uiState.value.availableVideoList)
     }
 
     private fun addUgcDetailHistory(aid: Long) {
@@ -576,6 +572,7 @@ class VideoPlayerV3ViewModel(
                 hasStartedPlayback = false
             )
         }
+        resetFeatureGateForVideoLoad()
 
         loadPlayUrl(
             avid = state.aid,
@@ -606,6 +603,90 @@ class VideoPlayerV3ViewModel(
         BvLog.i("BugDebug", "ViewModel setSuppressPlayerErrors=$suppress")
     }
 
+    fun onEnterPlayer() {
+        PlayerGlobalFreeze.enter()
+        _featureGate.update { it.copy(globalFreezeActive = true) }
+    }
+
+    fun onExitPlayer() {
+        playerExtrasReleaseJob?.cancel()
+        playerExtrasReleaseJob = null
+        bottomBarDemandJob?.cancel()
+        bottomBarDemandJob = null
+        _featureGate.value = PlayerFeatureGateState()
+        PlayerGlobalFreeze.exit()
+    }
+
+    fun onCoverGoneNextFrame() {
+        val state = _uiState.value
+        if (!state.hasRenderedFirstFrame || !state.hasStartedPlayback) return
+
+        _featureGate.update {
+            if (it.visualLayersOnline) it else it.copy(visualLayersOnline = true)
+        }
+
+        if (playerExtrasReleaseJob?.isActive == true || _featureGate.value.playerExtrasOnline) return
+        playerExtrasReleaseJob = viewModelScope.launch {
+            delay(1000)
+            _featureGate.update { it.copy(playerExtrasOnline = true) }
+            restartUgcPagesPrefetchIfNeeded(_uiState.value.availableVideoList)
+        }
+    }
+
+    fun onDemandFeatureRequested(feature: PlayerDemandFeature) {
+        when (feature) {
+            PlayerDemandFeature.BottomBar -> {
+                if (_featureGate.value.bottomBarDemandOnline) return
+                _featureGate.update { it.copy(bottomBarDemandOnline = true) }
+                startBottomBarDemandFeatures()
+            }
+        }
+    }
+
+    private fun resetFeatureGateForVideoLoad() {
+        playerExtrasReleaseJob?.cancel()
+        playerExtrasReleaseJob = null
+        _featureGate.update {
+            it.copy(
+                visualLayersOnline = false,
+                playerExtrasOnline = false
+            )
+        }
+    }
+
+    private suspend fun awaitPlayerExtrasOnline() {
+        featureGate.filter { it.playerExtrasOnline }.first()
+    }
+
+    private fun startBottomBarDemandFeatures() {
+        bottomBarDemandJob?.cancel()
+        bottomBarDemandJob = viewModelScope.launch(Dispatchers.IO) {
+            val aid = _uiState.value.aid
+            if (aid == 0L) return@launch
+
+            runCatching {
+                videoInfoRepository.loadVideoDetail(aid = aid, preferApiType = Prefs.apiType)
+            }.onFailure { e ->
+                if (e is CancellationException) throw e
+                logger.fWarn {
+                    "Load bottom bar demand detail failed: aid=$aid, apiType=${Prefs.apiType}, error=${e.stackTraceToString()}"
+                }
+            }
+
+            runCatching {
+                videoInfoRepository.ensureCoAuthorsLoaded(
+                    aid = aid,
+                    preferApiType = Prefs.apiType
+                )
+            }.onFailure { e ->
+                if (e is CancellationException) throw e
+                logger.fWarn {
+                    "Load bottom bar demand coAuthors failed: aid=$aid, apiType=${Prefs.apiType}, error=${e.stackTraceToString()}"
+                }
+            }
+        }
+    }
+
     fun onHostStopReleaseForRecreate() {
         val player = videoPlayer
         val pos = player?.currentPosition ?: 0L
@@ -613,6 +694,7 @@ class VideoPlayerV3ViewModel(
         needRecreateOnStart = true
 
         _uiState.update { it.copy(lastPlayed = pendingResumePositionMs) }
+        resetFeatureGateForVideoLoad()
 
         BvLog.i(
             "BugDebug",
@@ -643,6 +725,7 @@ class VideoPlayerV3ViewModel(
                 hasStartedPlayback = false
             )
         }
+        resetFeatureGateForVideoLoad()
 
         try {
             val player = videoPlayer
@@ -1666,8 +1749,6 @@ class VideoPlayerV3ViewModel(
         }
         syncDanmakuHostStateFromPlayerState()
 
-        restartUgcPagesPrefetchIfNeeded(_uiState.value.availableVideoList)
-
         loadPlayUrlJob?.cancel()
         loadPlayUrlJob = viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -1683,6 +1764,9 @@ class VideoPlayerV3ViewModel(
                 }
 
                 launch {
+                    awaitPlayerExtrasOnline()
+                    if (!isCurrentLoadRequest(generation, avid, cid, normalizedEpid)) return@launch
+
                     val danmakuEnabled = _uiState.value.danmakuState.danmakuEnabled
                     if (danmakuEnabled) {
                         if (_uiState.value.danmakuState.maskEnabled) {
@@ -1704,6 +1788,9 @@ class VideoPlayerV3ViewModel(
 
 
                 launch {
+                    awaitPlayerExtrasOnline()
+                    if (!isCurrentLoadRequest(generation, avid, cid, normalizedEpid)) return@launch
+
                     updateSubtitle(
                         aid = avid,
                         cid = cid,
@@ -1768,6 +1855,9 @@ class VideoPlayerV3ViewModel(
                 }
 
                 launch {
+                    awaitPlayerExtrasOnline()
+                    if (!isCurrentLoadRequest(generation, avid, cid, normalizedEpid)) return@launch
+
                     updateVideoShot(
                         aid = avid,
                         cid = cid,
@@ -1777,6 +1867,9 @@ class VideoPlayerV3ViewModel(
                 }
 
                 launch {
+                    awaitPlayerExtrasOnline()
+                    if (!isCurrentLoadRequest(generation, avid, cid, normalizedEpid)) return@launch
+
                     updateVideoPages(
                         aid = avid,
                         expectedEpid = normalizedEpid,
@@ -2753,6 +2846,8 @@ class VideoPlayerV3ViewModel(
         backToStartCountdownJob?.cancel()
         previewTipCountdownJob?.cancel()
         ugcPagesPrefetchJob?.cancel()
+        playerExtrasReleaseJob?.cancel()
+        bottomBarDemandJob?.cancel()
         bufferingHideJob?.cancel()
         detachedWorkScope.cancel()
 
@@ -2842,6 +2937,17 @@ sealed interface SubtitleSettingAction {
     data class SetOpacity(val value: Float) : SubtitleSettingAction
     data class SetBottomPadding(val value: Dp) : SubtitleSettingAction
 }
+
+enum class PlayerDemandFeature {
+    BottomBar
+}
+
+data class PlayerFeatureGateState(
+    val visualLayersOnline: Boolean = false,
+    val playerExtrasOnline: Boolean = false,
+    val bottomBarDemandOnline: Boolean = false,
+    val globalFreezeActive: Boolean = false,
+)
 
 sealed interface MediaProfileSettingAction {
     data class SetQuality(val value: Int) : MediaProfileSettingAction

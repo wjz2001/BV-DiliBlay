@@ -70,6 +70,7 @@ import dev.aaa1115910.bv.util.isKeyUp
 import dev.aaa1115910.bv.util.isMenuKey
 import dev.aaa1115910.bv.viewmodel.player.DanmakuSettingAction
 import dev.aaa1115910.bv.viewmodel.player.MediaProfileSettingAction
+import dev.aaa1115910.bv.viewmodel.player.PlayerDemandFeature
 import dev.aaa1115910.bv.viewmodel.player.SubtitleSettingAction
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Job
@@ -136,8 +137,7 @@ fun VideoPlayerController(
     onRelatedVideoClicked: (VideoCardData) -> Unit,
 
     onEnsureUgcPagesLoaded: (aid: Long) -> Unit,
-
-    content: @Composable () -> Unit
+    onDemandFeatureRequested: (PlayerDemandFeature) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -445,7 +445,7 @@ fun VideoPlayerController(
     }
 
     WjzFocusHost(
-        modifier = modifier.background(AppBlack),
+        modifier = modifier,
         coordinator = focusCoordinator,
         layer = WjzFocusLayer.Player,
         scopeId = PlayerControllerFocusScopeId
@@ -461,6 +461,7 @@ fun VideoPlayerController(
             },
             entries = {
                 entry(PlayerControllerUpPanelEntryLocalId) {
+                    onDemandFeatureRequested(PlayerDemandFeature.BottomBar)
                     showMenuController = false
                     showInfoSeekController = false
                     showRelatedVideosController = false
@@ -473,6 +474,7 @@ fun VideoPlayerController(
                     )
                 }
                 entry(PlayerControllerPlayerControlsEntryLocalId) {
+                    onDemandFeatureRequested(PlayerDemandFeature.BottomBar)
                     showMenuController = false
                     showUpPanelController = false
                     showRelatedVideosController = false
@@ -485,6 +487,7 @@ fun VideoPlayerController(
                     )
                 }
                 entry(PlayerControllerInfoPanelEntryLocalId) {
+                    onDemandFeatureRequested(PlayerDemandFeature.BottomBar)
                     showMenuController = false
                     showUpPanelController = false
                     showRelatedVideosController = false
@@ -533,7 +536,6 @@ fun VideoPlayerController(
                 handleKeyEvent(event)
             }
         ) {
-        content()
         if (BuildConfig.DEBUG) {
             Box(
                 modifier = Modifier
@@ -554,18 +556,6 @@ fun VideoPlayerController(
                 fontScale = LocalDensity.current.fontScale * 1.5f
             )
         ) {
-            if (uiState.subtitleId != -1L) {
-                val currentTime = seekerState.value.currentTime
-
-                BottomSubtitle(
-                    subtitleData = uiState.subtitleData,
-                    currentTime = currentTime,
-                    fontSize = uiState.subtitleState.fontSize,
-                    opacity = uiState.subtitleState.opacity,
-                    padding = uiState.subtitleState.bottomPadding,
-                )
-            }
-
             SkipTips(
                 showBackToStart = uiState.showBackToStart,
                 showSkipToNextEp = uiState.showSkipToNextEp,
@@ -623,6 +613,7 @@ fun VideoPlayerController(
                     showMenuController = true
                 },
                 onShowRelatedVideos = {
+                    onDemandFeatureRequested(PlayerDemandFeature.BottomBar)
                     if (isPlaying) onPause()
 
                     showInfoSeekController = false

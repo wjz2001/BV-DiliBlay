@@ -17,6 +17,7 @@ import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fDebug
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.fWarn
+import dev.aaa1115910.bv.viewmodel.common.awaitPlayerGlobalUnfrozen
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.Dispatchers
@@ -145,6 +146,7 @@ class VideoDetailViewModel(
         val userMid = _uiState.value.videoDetailState?.author?.mid ?: return
 
         viewModelScope.launch(Dispatchers.IO) {
+            awaitPlayerGlobalUnfrozen()
             logger.fInfo { "${if (follow) "Add" else "Del"} follow to user $userMid" }
 
             val result = if (follow) {
@@ -170,6 +172,7 @@ class VideoDetailViewModel(
         if (_uiState.value.followTags.isNotEmpty()) return
 
         viewModelScope.launch(Dispatchers.IO) {
+            awaitPlayerGlobalUnfrozen()
             runCatching {
                 userRepository.getFollowTags(preferApiType = Prefs.apiType)
             }.onSuccess { tags ->
@@ -190,6 +193,7 @@ class VideoDetailViewModel(
         if (_uiState.value.followTags.isNotEmpty()) return true
 
         val tags = withContext(Dispatchers.IO) {
+            awaitPlayerGlobalUnfrozen()
             userRepository.getFollowTags(preferApiType = Prefs.apiType)
         }
         _uiState.update { it.copy(followTags = tags.toPersistentList()) }
@@ -213,6 +217,7 @@ class VideoDetailViewModel(
         val upMid = _uiState.value.videoDetailState?.author?.mid ?: return
 
         viewModelScope.launch(Dispatchers.IO) {
+            awaitPlayerGlobalUnfrozen()
             runCatching {
                 val success = userRepository.submitFollowGroupSelection(
                     mid = upMid,
@@ -234,6 +239,7 @@ class VideoDetailViewModel(
 
     fun updateVideoFavoriteData(folderIds: List<Long>) {
         viewModelScope.launch(Dispatchers.IO) {
+            awaitPlayerGlobalUnfrozen()
             val videoDetail = _uiState.value.videoDetailState ?: return@launch
             val favoriteFolders = _uiState.value.favoriteFolders
             runCatching {
@@ -263,6 +269,7 @@ class VideoDetailViewModel(
 
     fun loadVideoDetail(aid: Long) {
         viewModelScope.launch(Dispatchers.IO) {
+            awaitPlayerGlobalUnfrozen()
             if (mProxyArea != ProxyArea.MainLand) {
                 val redirectSuccess = tryRedirectToSeason(aid, mProxyArea)
                 if (redirectSuccess) return@launch // 如果跳转成功，终止后续加载
@@ -288,6 +295,7 @@ class VideoDetailViewModel(
 
     fun updateVideoLiked(like: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
+            awaitPlayerGlobalUnfrozen()
             val currentDetail = _uiState.value.videoDetailState ?: run {
                 logger.warn { "updateVideoLiked failed: videoDetail is null" }
                 return@launch
@@ -314,6 +322,7 @@ class VideoDetailViewModel(
 
     fun sendVideoCoin() {
         viewModelScope.launch(Dispatchers.IO) {
+            awaitPlayerGlobalUnfrozen()
             val currentDetail = _uiState.value.videoDetailState ?: run {
                 logger.warn { "sendVideoCoin failed: videoDetail is null" }
                 return@launch
@@ -338,6 +347,7 @@ class VideoDetailViewModel(
 
     fun sendVideoOneClickTripleAction() {
         viewModelScope.launch(Dispatchers.IO) {
+            awaitPlayerGlobalUnfrozen()
             val currentDetail = _uiState.value.videoDetailState ?: run {
                 logger.warn { "sendVideoOneClickTripleAction failed: videoDetail is null" }
                 return@launch
@@ -429,6 +439,7 @@ class VideoDetailViewModel(
 
     private fun fetchFavoriteData(avid: Long) {
         viewModelScope.launch(Dispatchers.IO) {
+            awaitPlayerGlobalUnfrozen()
             runCatching {
                 favoriteRepository.getAllFavoriteFolderMetadataList(
                     mid = Prefs.uid,
@@ -453,6 +464,7 @@ class VideoDetailViewModel(
 
     private fun updateFollowingState() {
         viewModelScope.launch(Dispatchers.IO) {
+            awaitPlayerGlobalUnfrozen()
             val userMid = _uiState.value.videoDetailState?.author?.mid ?: -1
             logger.fInfo { "Checking is following user $userMid" }
             val isFollowing = userRepository.checkIsFollowing(

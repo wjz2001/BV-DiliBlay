@@ -75,6 +75,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
 
         currentInstance = this
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        playerViewModel.onEnterPlayer()
 
         setThemedContentWhenStartupReady(
             gate = StartupGate.Prefs,
@@ -108,7 +109,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
 
         lifecycleScope.launch {
             delay(500)
-            if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+            if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
                 playerViewModel.setSuppressPlayerErrors(false)
                 BvLog.i("BugDebug", "VideoPlayerV3Activity onStart: suppressPlayerErrors=false")
             }
@@ -164,6 +165,7 @@ class VideoPlayerV3Activity : ComponentActivity() {
         }
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (isFinishing) {
+            playerViewModel.onExitPlayer()
             playerViewModel.detachPlayer()
         }
     }

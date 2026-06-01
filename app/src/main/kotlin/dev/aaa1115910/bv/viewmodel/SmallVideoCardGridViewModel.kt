@@ -16,6 +16,7 @@ import dev.aaa1115910.biliapi.repositories.VideoDetailRepository
 import dev.aaa1115910.bv.component.videocard.CoAuthorCacheStore
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.util.Prefs
+import dev.aaa1115910.bv.viewmodel.common.awaitPlayerGlobalUnfrozen
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
@@ -300,6 +301,7 @@ class SmallVideoCardGridViewModel(
         if (metricsJobs[aid]?.isActive == true) return
 
         metricsJobs[aid] = viewModelScope.launch(Dispatchers.IO) {
+            awaitPlayerGlobalUnfrozen()
             runCatching {
                 videoMetricsFacade.load(
                     VideoMetricsRequest(
@@ -339,6 +341,7 @@ class SmallVideoCardGridViewModel(
         if (favoriteCheckJobs[aid]?.isActive == true) return
 
         favoriteCheckJobs[aid] = viewModelScope.launch(Dispatchers.IO) {
+            awaitPlayerGlobalUnfrozen()
             runCatching {
                 favoriteRepository.checkVideoFavoured(
                     aid = aid,
@@ -370,6 +373,7 @@ class SmallVideoCardGridViewModel(
         if (coAuthorPrefetchJobs[aid]?.isActive == true) return
 
         coAuthorPrefetchJobs[aid] = viewModelScope.launch(Dispatchers.IO) {
+            awaitPlayerGlobalUnfrozen()
             runCatching {
                 CoAuthorCacheStore.getOrFetch(
                     avid = aid,
@@ -401,6 +405,7 @@ class SmallVideoCardGridViewModel(
         if (!_uiState.value.capabilities.canHistory) return
 
         viewModelScope.launch(Dispatchers.IO) {
+            awaitPlayerGlobalUnfrozen()
             runCatching {
                 val resolvedCid = historyCidCache[aid]
                     ?: videoDetailRepository
@@ -440,6 +445,7 @@ class SmallVideoCardGridViewModel(
         if (!_uiState.value.capabilities.canFavorite) return
 
         viewModelScope.launch(Dispatchers.IO) {
+            awaitPlayerGlobalUnfrozen()
             runCatching {
                 val list = favoriteRepository.getAllFavoriteFolderMetadataList(
                     mid = Prefs.uid,
@@ -497,6 +503,7 @@ class SmallVideoCardGridViewModel(
         val allFolders = dialog.folders
 
         viewModelScope.launch(Dispatchers.IO) {
+            awaitPlayerGlobalUnfrozen()
             runCatching {
                 favoriteRepository.updateVideoToFavoriteFolder(
                     aid = aid,
@@ -540,6 +547,7 @@ class SmallVideoCardGridViewModel(
         }
 
         viewModelScope.launch(Dispatchers.IO) {
+            awaitPlayerGlobalUnfrozen()
             runCatching {
                 CoAuthorCacheStore.getOrFetch(
                     avid = aid,
