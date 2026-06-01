@@ -1,5 +1,8 @@
 # Load Control: Dedup + Concurrency
 
+变更记录：
+- `2026-06-02`：`resolveLoadKeys(request)` 现在会按 `includePlaybackAccessFlags` 附加 `:stat` / `:access` 后缀。默认轻模式请求不会和播放权限补齐请求共用同一个 in-flight。
+
 本文档同步 `VideoMetricsFacadeImpl` 当前已实现的负载控制行为，重点覆盖去重、缓存、SWR、并发限制、分批与 cooldown。
 
 ## 范围
@@ -31,6 +34,11 @@
 - 不触发网络；
 - 不进入 in-flight 注册；
 - 不进入全局 limiter。
+
+补充：
+
+- 当 `includePlaybackAccessFlags = true` 时，只有缓存中已经存在 `isVipVideo != null` 的结果才会被接受为 fresh/stale 命中；
+- 仅有轻模式统计结果的缓存，不会被重模式直接复用。
 
 这是当前实现的硬行为，不是优化建议。
 
@@ -65,12 +73,16 @@
 - 有 `bvid` 时：
   - 若 `aliasIndex` 已解析到 `aid`，再加入对应 `statKey(aid)`
   - 一定加入 `reqBvidKey(normalizedBvid)`
+- 最终每个 key 会再按访问模式附加后缀：
+  - `includePlaybackAccessFlags = false -> :stat`
+  - `includePlaybackAccessFlags = true -> :access`
 
 因此当前 in-flight 合并并不是只按一个 key：
 
 - 同 aid 请求会在 `statKey` 上合并；
 - 只带 bvid 的请求会在 `reqBvidKey` 上合并；
 - 当 alias 已建立后，aid / bvid 请求还能继续向同一个 `statKey` 收敛。
+- 但轻模式与播放权限补齐模式之间不会互相 join in-flight。
 
 ### 合并语义
 

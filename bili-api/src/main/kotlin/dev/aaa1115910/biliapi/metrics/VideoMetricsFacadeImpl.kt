@@ -1,7 +1,6 @@
 package dev.aaa1115910.biliapi.metrics
 
 import dev.aaa1115910.biliapi.http.BiliHttpApi
-import dev.aaa1115910.biliapi.http.entity.video.PlayUrlData
 import dev.aaa1115910.biliapi.http.entity.video.VideoInfo
 import dev.aaa1115910.biliapi.repositories.AuthRepository
 import io.ktor.client.plugins.HttpRequestTimeoutException
@@ -18,6 +17,8 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 import org.koin.core.annotation.Single
@@ -38,13 +39,7 @@ class VideoMetricsFacadeImpl(
             bv = bvid,
             sessData = sessionData ?: ""
         ).getResponseData()
-        val playbackAccessFlags = fetchPlaybackAccessFlags(
-            view = detail.view,
-            sessionData = sessionData,
-            dedeUserId = authRepository.mid,
-            buvid3 = authRepository.buvid3
-        )
-        CanonicalStatMapper.fromWebDetail(detail).withResolvedAccessFlags(playbackAccessFlags)
+        CanonicalStatMapper.fromWebDetail(detail)
     }
     private var config: VideoMetricsFacadeConfig = VideoMetricsFacadeConfig()
     private var timeProvider: () -> Long = System::currentTimeMillis
@@ -100,6 +95,7 @@ class VideoMetricsFacadeImpl(
                     nowMs = startedAt
                 )
             }
+            ?.takeIf { request.acceptsCachedEnvelope(it) }
         if (fresh != null) {
             debugLog("cache-hit-fresh", request, contextKey)
             return fresh.toFacadeEnvelope(
@@ -120,7 +116,7 @@ class VideoMetricsFacadeImpl(
         )?.takeIf {
             it.stat.cacheStatus == CanonicalCacheStatus.STALE &&
                     startedAt <= (it.stat.updatedAt + config.staleMaxAgeMs)
-        }
+        }?.takeIf { request.acceptsCachedEnvelope(it) }
 
         if (request.allowStale && stale?.stat?.cacheStatus == CanonicalCacheStatus.STALE) {
             debugLog("cache-hit-stale", request, contextKey)
@@ -286,10 +282,10 @@ class VideoMetricsFacadeImpl(
             globalLimiter.withPermit(request.priority) {
                 if (request.timeoutMs != null) {
                     withTimeout(request.timeoutMs) {
-                        remoteFetcher(request.aid, request.bvid)
+                        fetchRemote(request)
                     }
                 } else {
-                    remoteFetcher(request.aid, request.bvid)
+                    fetchRemote(request)
                 }
             }.asFreshNetworkEnvelope(
                 refreshReason = request.refreshReason,
@@ -509,14 +505,43 @@ class VideoMetricsFacadeImpl(
         }
 
         if (keys.isEmpty()) error("aid and bvid cannot both be empty")
-        return keys.toList()
+        return keys.map { it.withAccessMode(request) }
+    }
+
+    private fun String.withAccessMode(request: VideoMetricsRequest): String {
+        return if (request.includePlaybackAccessFlags) "$this:access" else "$this:stat"
+    }
+
+    private fun VideoMetricsRequest.acceptsCachedEnvelope(envelope: StatEnvelope): Boolean {
+        if (!includePlaybackAccessFlags) return true
+        return envelope.stat.isVipVideo != null
     }
 
     private fun removeInFlight(deferred: Deferred<LoadRecord>) {
         inFlightLoads.entries.removeAll { it.value === deferred }
     }
 
+    private suspend fun fetchRemote(request: VideoMetricsRequest): StatEnvelope {
+        val envelope = remoteFetcher(request.aid, request.bvid)
+        if (!request.includePlaybackAccessFlags) return envelope
+
+        val detail = BiliHttpApi.getVideoDetail(
+            av = envelope.aid.takeIf { it > 0L } ?: request.aid,
+            bv = envelope.bvid.takeIf { it.isNotBlank() } ?: request.bvid,
+            sessData = authRepository.sessionData ?: ""
+        ).getResponseData()
+        val playbackAccessFlags = fetchPlaybackAccessFlags(
+            envelope = envelope,
+            view = detail.view,
+            sessionData = authRepository.sessionData,
+            dedeUserId = authRepository.mid,
+            buvid3 = authRepository.buvid3
+        )
+        return envelope.withResolvedAccessFlags(playbackAccessFlags)
+    }
+
     private suspend fun fetchPlaybackAccessFlags(
+        envelope: StatEnvelope,
         view: VideoInfo,
         sessionData: String?,
         dedeUserId: Long?,
@@ -528,12 +553,12 @@ class VideoMetricsFacadeImpl(
             hasPaid = null,
             isPreview = null
         )
-        val cid = view.cid.takeIf { it > 0L } ?: return unknownFlags
+        val cid = envelope.cid.takeIf { it > 0L } ?: return unknownFlags
         return runCatching {
             if (view.isOgv || view.redirectUrl != null || view.rights.pay == 1) {
                 val playUrlV2Data = BiliHttpApi.getPgcVideoPlayUrlV2(
-                    av = view.aid,
-                    bv = view.bvid,
+                    av = envelope.aid,
+                    bv = envelope.bvid,
                     cid = cid,
                     qn = 127,
                     fnval = 4048,
@@ -552,8 +577,8 @@ class VideoMetricsFacadeImpl(
                 )
             } else {
                 val playUrlData = BiliHttpApi.getVideoPlayUrl(
-                    av = view.aid,
-                    bv = view.bvid,
+                    av = envelope.aid,
+                    bv = envelope.bvid,
                     cid = cid,
                     qn = 127,
                     fnval = 4048,
@@ -692,16 +717,15 @@ class VideoMetricsFacadeImpl(
         items: List<T>,
         maxParallelism: Int,
         block: suspend (T) -> R
-    ): List<R> {
-        if (items.isEmpty()) return emptyList()
-        val chunkSize = max(1, maxParallelism)
-        return items.chunked(chunkSize).flatMap { chunk ->
-            coroutineScope {
-                chunk.map { item ->
-                    async { block(item) }
-                }.awaitAll()
+    ): List<R> = coroutineScope {
+        val semaphore = Semaphore(max(1, maxParallelism))
+        items.map { item ->
+            async {
+                semaphore.withPermit {
+                    block(item)
+                }
             }
-        }
+        }.awaitAll()
     }
 
     private fun Throwable.toFailureCode(): String {

@@ -10,6 +10,7 @@ import dev.aaa1115910.biliapi.repositories.VideoDetailRepository
 import dev.aaa1115910.bv.component.videocard.CoAuthorCacheStore
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
+import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.formatHourMinSec
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.fWarn
@@ -148,7 +149,9 @@ class VideoInfoRepository(
                         bvid = videoDetail.bvid,
                         cid = videoDetail.cid,
                         allowStale = true,
-                        priority = VideoMetricsPriority.VISIBLE
+                        priority = VideoMetricsPriority.VISIBLE,
+                        includePlaybackAccessFlags =
+                            Prefs.showVipVideoArgueTip || Prefs.showPaidVideoArgueTip
                     )
                 )
             }.onSuccess { envelope ->

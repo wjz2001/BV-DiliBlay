@@ -1,5 +1,8 @@
 # Video Metrics Facade Design
 
+变更记录：
+- `2026-06-02`：`VideoMetricsRequest` 新增 `includePlaybackAccessFlags`，默认 `false`。默认 `load()` 只走 Web detail；只有显式开启时才额外请求 Web playurl 补齐播放权限。
+
 本文档不再描述“拟议方案”，而是同步当前仓库已经落地的 Facade 形态。
 
 ## 当前目标与边界
@@ -10,7 +13,8 @@
 - `runtime` 提供 `contextKey` / `statKey` / `aliasKey` / batch / degraded 等运行时信息
 - 统计与详情主数据源固定为 `SRC-WEB-DETAIL`
 - 不做 Web detail / gRPC detail 多源互备
-- 访问状态补齐会额外调用 Web 播放接口；当前只区分并处理 Web UGC / Web PGC，不接入 App 播放链路
+- 默认不补齐播放权限；仅在 `includePlaybackAccessFlags = true` 时才额外调用 Web 播放接口
+- 播放权限补齐当前只区分并处理 Web UGC / Web PGC，不接入 App 播放链路
 
 ## 已落地 Public API
 
@@ -41,6 +45,7 @@
 - `allowStale` 默认 `true`。
 - `priority` 默认 `VISIBLE`。
 - `refreshReason` 默认 `INITIAL_LOAD`。
+- `includePlaybackAccessFlags` 默认 `false`。
 
 ### key 体系
 
@@ -51,6 +56,13 @@
 - `reqBvidKey(normalizedBvid)`：仅带 `bvid` 请求的合并辅助 key
 - `aliasKey(normalizedBvid)`：`bvid -> aid` 的运行时别名 key
 - `deferredPrefetchKey(request)`：延迟预取队列去重 key，可含 `cid`
+
+当前 `resolveLoadKeys(request)` 还会按访问模式追加后缀：
+
+- 轻模式：`:stat`
+- 播放权限补齐模式：`:access`
+
+因此同一稿件的“只补统计”请求不会与“需要播放权限”的请求共用同一个 in-flight。
 
 ## 运行时元信息
 
@@ -94,8 +106,9 @@
 2. 若 `allowStale = true`，尝试 stale immediate return + 异步刷新
 3. 否则进入 singleflight
 4. 真正发网前先检查 cooldown
-5. 发网成功后回填 fresh 元信息并写入缓存
-6. 发网失败时返回 stale 或 empty 降级
+5. 发网时默认只拉 Web detail；若 `includePlaybackAccessFlags = true`，再额外拉 Web playurl 补齐播放权限
+6. 发网成功后回填 fresh 元信息并写入缓存
+7. 发网失败时返回 stale 或 empty 降级
 
 ### cooldown 作用域
 
@@ -121,8 +134,8 @@
 
 ## 稿件级属性规则
 
-- `isVipVideo` 由 Facade 在拿到 Web detail 后，最佳努力补一次播放权限并从 `supportFormats.needVip` 推导。
-- `isPaidVideo` 先沿用 Web detail 的原始付费标记，再按播放权限补齐结果收口：
+- `isVipVideo` 在默认轻模式下保持 `null`；仅在 `includePlaybackAccessFlags = true` 时，Facade 才会补一次播放权限并从 `supportFormats.needVip` 推导。
+- `isPaidVideo` 先沿用 Web detail 的原始付费标记；仅在播放权限补齐开启时，才按补齐结果继续收口：
   - `isVipVideo == true -> false`
   - `hasPaid == true -> false`
   - 其他情况保留 Web detail 的原始付费标记
@@ -131,7 +144,8 @@
   - Web PGC：`BiliHttpApi.getPgcVideoPlayUrlV2(...)`，读取 `videoInfo.hasPaid`、`payInfo.payPackPaid` 与 `videoInfo.supportFormats.needVip`
   - App UGC / App PGC：`PlaybackAccessSource` 已预留枚举值，但当前 Facade 未接入 App 播放接口
 - `isVerticalVideo` 由 Web detail 的 `View.dimension.width < View.dimension.height` 推导。
-- 这三个字段都跟随稿件级 `statKey(aid)` 缓存，不表达当前 `cid` 分P状态；其中 `isPaidVideo` 会受当前账号已购状态影响。
+- `isVerticalVideo` 在轻模式和重模式下都可由 Web detail 得出。
+- `isVipVideo` / `isPaidVideo` 在轻模式与重模式下共享同一缓存结构，但重模式不会接受缺少播放权限字段的 fresh/stale 缓存。
 
 ## Code References
 

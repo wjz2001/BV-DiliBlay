@@ -306,7 +306,9 @@ class SmallVideoCardGridViewModel(
                         aid = data.avid,
                         cid = data.cid,
                         allowStale = true,
-                        priority = VideoMetricsPriority.VISIBLE
+                        priority = VideoMetricsPriority.VISIBLE,
+                        includePlaybackAccessFlags =
+                            Prefs.showVipVideoArgueTip || Prefs.showPaidVideoArgueTip
                     )
                 )
             }.onSuccess { envelope ->

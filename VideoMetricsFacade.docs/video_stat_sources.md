@@ -1,5 +1,8 @@
 # 视频统计与详情数据源盘点
 
+变更记录：
+- `2026-06-02`：播放权限补齐不再是默认链路；只有 `includePlaybackAccessFlags = true` 时才会额外访问 Web 播放接口。
+
 本文档同步当前代码里与视频统计补齐直接相关的数据源事实，并明确当前 Canonical / Facade 使用的是哪一条链路。
 
 ## 当前结论
@@ -7,7 +10,8 @@
 - Canonical / Facade 当前统计与详情主数据源：`SRC-WEB-DETAIL`
 - 具体调用：`BiliHttpApi.getVideoDetail(av = ..., bv = ..., sessData = ...)`
 - 当前不会做 Web `view` / gRPC `View.view` 互备
-- 访问状态补齐会额外调用 Web 播放接口；当前只覆盖 UGC 付费、PGC 付费，不覆盖 PUGV/课程
+- 默认不会调用 Web 播放接口
+- 只有 `includePlaybackAccessFlags = true` 时，访问状态补齐才会额外调用 Web 播放接口；当前只覆盖 UGC 付费、PGC 付费，不覆盖 PUGV/课程
 
 ## 当前使用链路
 
@@ -15,8 +19,8 @@
 VideoMetricsFacadeImpl
   -> BiliHttpApi.getVideoDetail(av = aid, bv = bvid, sessData = ...)
   -> CanonicalStatMapper.fromWebDetail(detail)
-  -> BiliHttpApi.getVideoPlayUrl(...) 或 BiliHttpApi.getPgcVideoPlayUrlV2(...)
-  -> VideoAccessClassifier.resolveAccessFlags(...)
+  -> [optional] BiliHttpApi.getVideoPlayUrl(...) 或 BiliHttpApi.getPgcVideoPlayUrlV2(...)
+  -> [optional] VideoAccessClassifier.resolveAccessFlags(...)
   -> VideoStatCache.put(...)
 ```
 
@@ -39,7 +43,7 @@ Canonical 当前映射字段如下：
 
 ### 访问状态补齐字段
 
-Mapper 阶段只从 Web detail 计算原始付费标记；Facade 阶段会根据播放接口补齐 VIP 与已购状态。
+Mapper 阶段只从 Web detail 计算原始付费标记；Facade 只有在显式开启播放权限补齐时，才会根据播放接口补齐 VIP 与已购状态。
 
 | 字段 | 当前代码读取位置 | 说明 |
 | --- | --- | --- |

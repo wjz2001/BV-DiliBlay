@@ -7,7 +7,8 @@ data class VideoMetricsRequest(
     val refreshReason: CanonicalRefreshReason = CanonicalRefreshReason.INITIAL_LOAD,
     val allowStale: Boolean = true,
     val priority: VideoMetricsPriority = VideoMetricsPriority.VISIBLE,
-    val timeoutMs: Long? = 1_500L
+    val timeoutMs: Long? = 1_500L,
+    val includePlaybackAccessFlags: Boolean = false
 ) {
     init {
         require(aid != null || !bvid.isNullOrBlank()) {

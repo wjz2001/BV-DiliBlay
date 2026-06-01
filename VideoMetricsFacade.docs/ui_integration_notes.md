@@ -15,6 +15,7 @@
 - 列表接口先渲染基础卡片信息
 - 统计字段允许异步回填
 - 不要等待 `VideoMetricsFacade.load()` 成功才显示首屏
+- 默认优先使用轻模式请求，只补统计值与 `isVerticalVideo`
 
 ### 2. 可见项优先交给 `prefetch()`
 
@@ -37,12 +38,19 @@
 
 不建议为了统计补齐整体重建整页状态。
 
+### 5. 何时开启播放权限补齐
+
+- 只有页面确实要展示 VIP / 付费提示时，再设置 `includePlaybackAccessFlags = true`
+- 历史、收藏、推荐等“只缺播放/弹幕/时长”的列表，优先保持默认轻模式
+- 轻模式可以显著减少批量卡片场景下对 Web playurl 的访问
+
 ## UI 需要知道的运行时事实
 
 - `statKey` 不含 `cid`，因此同稿件不同 `cid` 默认共享统计快照
 - `contextKey` 可含 `cid`，用于运行时归因
 - fresh cache 命中不会触网
 - `allowStale = true` 时，stale 结果会先返回，刷新在后台进行
+- `includePlaybackAccessFlags = true` 的请求不会直接吃掉仅含轻模式统计字段的缓存
 
 ## 验证重点
 

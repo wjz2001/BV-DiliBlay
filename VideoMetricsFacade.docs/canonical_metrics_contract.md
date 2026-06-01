@@ -1,5 +1,8 @@
 # Canonical Metrics Contract
 
+变更记录：
+- `2026-06-02`：`isVipVideo` / `isPaidVideo` 的“最终收口”不再是每次 Facade 加载的默认行为；仅在 `includePlaybackAccessFlags = true` 时发生。
+
 本文档以当前代码实现为准，定义 `CanonicalStat` / `StatEnvelope` 的稳定契约，并明确“契约层字符串、实现层枚举”的边界。
 
 ## 契约级别声明
@@ -27,8 +30,8 @@
 | `share` | `Long?` | `number \| null` | 是 | 分享数。 |
 | `like` | `Long?` | `number \| null` | 是 | 点赞数。 |
 | `durationSec` | `Int?` | `number \| null` | 是 | 时长，单位秒。 |
-| `isVipVideo` | `Boolean?` | `boolean \| null` | 是 | 是否大会员视频；当前优先由播放权限中的 `supportFormats.needVip` 推导，拿不到播放权限时为 `null`。 |
-| `isPaidVideo` | `Boolean?` | `boolean \| null` | 是 | 当前用户视角下是否仍按非 VIP 付费视频处理；先由 Web detail 计算原始付费标记，再按 `isVipVideo == true` 或已购状态收口为 `false`。 |
+| `isVipVideo` | `Boolean?` | `boolean \| null` | 是 | 是否大会员视频；默认轻模式下保持 `null`，仅在显式开启播放权限补齐时才优先由 `supportFormats.needVip` 推导。 |
+| `isPaidVideo` | `Boolean?` | `boolean \| null` | 是 | 默认至少承载 Web detail 的原始付费标记；仅在显式开启播放权限补齐时，才继续按 `isVipVideo == true` 或已购状态收口为 `false`。 |
 | `isVerticalVideo` | `Boolean?` | `boolean \| null` | 是 | 稿件级是否竖屏视频；当前由 `View.dimension.width < View.dimension.height` 推导，不按 `cid` 区分分P。 |
 | `source` | `CanonicalSource` | `string` | 否 | 实现层为枚举，契约层输出稳定字符串。 |
 | `updatedAt` | `Long` | `number` | 否 | 当前快照生成时间。 |
@@ -107,7 +110,8 @@
 
 ## 访问状态布尔属性规则
 
-- `isVipVideo` 当前优先来自播放权限：
+- `isVipVideo` 默认轻模式下为 `null`。
+- 当 `includePlaybackAccessFlags = true` 时，`isVipVideo` 优先来自播放权限：
   - 通过播放接口返回的 `supportFormats.needVip`
   - 只要 `supportFormats` 非空且任一格式 `needVip == true`，则为 `true`
   - 若 `supportFormats` 非空且全部为 `false`，则为 `false`
@@ -118,7 +122,7 @@
     - 或 `View.rights.pay == 1`
     - 或 `View.rights.ugc_pay == 1`
     - 或 `View.rights.arc_pay == 1`
-  - Facade 阶段补齐播放权限后统一收口：
+  - Facade 阶段仅在 `includePlaybackAccessFlags = true` 时补齐播放权限并统一收口：
     - `isVipVideo == true -> isPaidVideo = false`
     - `hasPaid == true -> isPaidVideo = false`
     - 其他情况保留原始付费标记
@@ -129,6 +133,7 @@
 - `isVerticalVideo` 当前为稿件级属性，直接使用 `View.dimension` 判断宽高。
 - `isVerticalVideo` 不读取 `pages`，也不按 `cid` 判断当前分P方向。
 - 空降级快照中这三个字段为 `null`，表示未知。
+- `isVerticalVideo` 不依赖播放权限补齐，因此轻模式与重模式都可给出结果。
 
 ## 数值解析规则
 
