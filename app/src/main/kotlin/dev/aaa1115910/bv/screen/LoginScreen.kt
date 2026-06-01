@@ -1,4 +1,4 @@
-package dev.aaa1115910.bv.screen.login
+package dev.aaa1115910.bv.screen
 
 import android.Manifest
 import android.app.Activity
@@ -68,7 +68,7 @@ private const val AppQrLoginComponentId = "appQrLogin"
 private val AppQrLoginDefaultEntryId = WjzFocusEntryId.parse(AppQrLoginComponentId)
 
 @Composable
-fun AppQRLoginContent(
+fun LoginScreen(
     modifier: Modifier = Modifier,
     appQrLoginViewModel: AppQrLoginViewModel = koinViewModel()
 ) {
@@ -239,38 +239,39 @@ fun AppQRLoginContent(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         SideTwoCells(
-                            topText = "登",
+                            topText = "扫",
                             topColor = Color.Cyan,
-                            bottomText = "录",
+                            topBackground = Color(0xFFFF9900),
+                            bottomText = "码",
                             bottomColor = Color.Yellow,
+                            bottomBackground = Color(0xFFFF00FF),
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
                         )
 
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxHeight()
-                                    .aspectRatio(1f)
-                                    .background(Color.White),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Image(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(Color.White)
-                                        .then(Modifier)
-                                        .padding(56.dp),
-                                    bitmap = appQrLoginViewModel.qrImage,
-                                    contentDescription = null
-                                )
-                            }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .aspectRatio(1f)
+                                .background(Color.White)
+                                .padding(56.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Image(
+                                modifier = Modifier.fillMaxSize(),
+                                bitmap = appQrLoginViewModel.qrImage,
+                                contentDescription = null
+                            )
+                        }
 
                         SideTwoCells(
-                            topText = "扫",
+                            topText = "登",
                             topColor = AppRed,
-                            bottomText = "码",
+                            topBackground = Color(0xFF00FF66),
+                            bottomText = "录",
                             bottomColor = Color.Green,
+                            bottomBackground = Color(0xFF800080),
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
@@ -279,7 +280,7 @@ fun AppQRLoginContent(
                 }
                 AnimatedVisibility(
                     visible = BuildConfig.ENABLE_API_TEST_LOGIN_DUMP &&
-                        appQrLoginViewModel.state == QrLoginState.Success,
+                            appQrLoginViewModel.state == QrLoginState.Success,
                     modifier = Modifier
                         .align(Alignment.Center)
                         .padding(32.dp)
@@ -310,15 +311,18 @@ private val QrLoginFontFamily = FontFamily(
 @Composable
 private fun SideTwoCells(
     topText: String,
-    bottomText: String,
     topColor: Color,
+    topBackground: Color,
+    bottomText: String,
     bottomColor: Color,
+    bottomBackground: Color,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
         Box(
             modifier = Modifier
-                .padding(horizontal = 24.dp, vertical = 24.dp)
+                .background(topBackground)   // 先铺满背景
+                .padding(24.dp)
                 .weight(1f)
                 .fillMaxSize(),
             contentAlignment = Alignment.Center
@@ -333,7 +337,8 @@ private fun SideTwoCells(
 
         Box(
             modifier = Modifier
-                .padding(horizontal = 24.dp, vertical = 24.dp)
+                .background(bottomBackground)
+                .padding(24.dp)
                 .weight(1f)
                 .fillMaxSize(),
             contentAlignment = Alignment.Center
