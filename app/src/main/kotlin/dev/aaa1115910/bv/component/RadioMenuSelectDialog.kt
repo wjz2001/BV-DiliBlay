@@ -28,19 +28,54 @@ import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.RadioButton
 import androidx.tv.material3.RadioButtonDefaults
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import androidx.tv.material3.Text as TvText
 import dev.aaa1115910.bv.ui.theme.C
+import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusRequester
+import dev.aaa1115910.bv.wjzfocus.toLocalIdOrNull
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 
-private fun WjzFocusNodeId.toDialogLocalFocusId(dialogScopeId: WjzFocusScopeId?): String {
-    val scopePrefix = dialogScopeId?.value?.let { "$it/" }
-    return if (scopePrefix != null && value.startsWith(scopePrefix)) {
-        value.removePrefix(scopePrefix)
-    } else {
-        value
+private sealed interface RadioMenuDialogItemFocusId {
+    data class Local(val localId: WjzFocusLocalId) : RadioMenuDialogItemFocusId
+    data class Node(val nodeId: WjzFocusNodeId) : RadioMenuDialogItemFocusId
+}
+
+private fun WjzFocusNodeId.toRadioMenuDialogItemFocusId(
+    dialogScopeId: WjzFocusScopeId?
+): RadioMenuDialogItemFocusId {
+    return toLocalIdOrNull(dialogScopeId)
+        ?.let { RadioMenuDialogItemFocusId.Local(it) }
+        ?: RadioMenuDialogItemFocusId.Node(this)
+}
+
+private fun radioMenuItemFocusId(key: Any): RadioMenuDialogItemFocusId {
+    return RadioMenuDialogItemFocusId.Local(wjzFocusLocalId("item", key))
+}
+
+@Composable
+private fun Modifier.wjzDialogItemFocusExits(
+    focusId: RadioMenuDialogItemFocusId,
+    layer: WjzFocusLayer,
+    onFocusChanged: (Boolean) -> Unit
+): Modifier {
+    return when (focusId) {
+        is RadioMenuDialogItemFocusId.Local -> wjzFocusExits(
+            localId = focusId.localId,
+            layer = layer,
+            onFocusChanged = onFocusChanged
+        )
+
+        is RadioMenuDialogItemFocusId.Node -> wjzFocusExits(
+            nodeId = focusId.nodeId,
+            scopeId = null,
+            layer = layer,
+            requester = rememberWjzFocusRequester(),
+            onFocusChanged = onFocusChanged
+        )
     }
 }
 
@@ -152,11 +187,11 @@ internal fun <T> RadioMenuSelectListContent(
             items = items,
             key = itemKey?.let { k -> { _: Int, item: T -> k(item) } }
         ) { index, item ->
-            val itemNode = itemNodeId?.invoke(item)
-                ?: WjzFocusNodeId("dialog/radio-menu/item/${itemKey?.invoke(item) ?: index}")
+            val itemFocusId = itemNodeId?.invoke(item)?.toRadioMenuDialogItemFocusId(dialogScopeId)
+                ?: radioMenuItemFocusId(itemKey?.invoke(item) ?: index)
             var hasFocus by remember { mutableStateOf(false) }
-            val itemModifier = Modifier.wjzFocusExits(
-                id = itemNode.toDialogLocalFocusId(dialogScopeId),
+            val itemModifier = Modifier.wjzDialogItemFocusExits(
+                focusId = itemFocusId,
                 layer = WjzFocusLayer.Dialog,
                 onFocusChanged = { hasFocus = it }
             )

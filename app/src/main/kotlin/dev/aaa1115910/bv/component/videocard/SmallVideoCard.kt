@@ -743,7 +743,7 @@ private fun BvSmallVideoCardFrame(
         val cardFocusModifier = if (focusTarget != null) {
             focusTarget.modifier.then(
                 Modifier.wjzClickableFocus(
-                    id = cardNodeId.value,
+                    nodeId = cardNodeId,
                     onClick = onClick,
                     onLongClick = onLongClick,
                     layer = WjzFocusLayer.Content,
@@ -753,7 +753,7 @@ private fun BvSmallVideoCardFrame(
             )
         } else {
             Modifier.wjzClickableFocus(
-                id = cardNodeId.value,
+                nodeId = cardNodeId,
                 onClick = onClick,
                 onLongClick = onLongClick,
                 layer = WjzFocusLayer.Content,
@@ -909,7 +909,7 @@ private fun BvSmallVideoCardActions(
                 ) {
                     BvActionIconButton(
                         modifier = Modifier.wjzFocusExits(
-                            id = historyNodeId.value,
+                            nodeId = historyNodeId,
                             layer = WjzFocusLayer.Action,
                             enabled = historyAvailable,
                             exits = {
@@ -944,7 +944,7 @@ private fun BvSmallVideoCardActions(
                 ) {
                     BvActionIconButton(
                         modifier = Modifier.wjzFocusExits(
-                            id = favoriteNodeId.value,
+                            nodeId = favoriteNodeId,
                             layer = WjzFocusLayer.Action,
                             enabled = canFavorite,
                             exits = {
@@ -979,7 +979,7 @@ private fun BvSmallVideoCardActions(
                 ) {
                     BvActionIconButton(
                         modifier = Modifier.wjzFocusExits(
-                            id = upNodeId.value,
+                            nodeId = upNodeId,
                             layer = WjzFocusLayer.Action,
                             enabled = canGoToUpPage,
                             exits = {
@@ -1016,7 +1016,7 @@ private fun BvSmallVideoCardActions(
                 ) {
                     BvActionIconButton(
                         modifier = Modifier.wjzFocusExits(
-                            id = watchLaterNodeId.value,
+                            nodeId = watchLaterNodeId,
                             layer = WjzFocusLayer.Action,
                             enabled = canWatchLater,
                             exits = {

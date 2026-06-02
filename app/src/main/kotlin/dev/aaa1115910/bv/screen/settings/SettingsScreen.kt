@@ -90,6 +90,7 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzLazyFocusRestorerHost
@@ -109,9 +110,12 @@ import dev.aaa1115910.bv.component.settings.actionEntry
 import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.down
 import dev.aaa1115910.bv.wjzfocus.left
+import dev.aaa1115910.bv.wjzfocus.resolve
 import dev.aaa1115910.bv.wjzfocus.right
+import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoCodec
@@ -162,8 +166,10 @@ private val SettingsFocusScopeId = WjzFocusScopeId("settings/screen")
 private val SettingsCategoryScopeId = WjzFocusScopeId("settings/category")
 private val SettingsItemScopeId = WjzFocusScopeId("settings/item")
 private val SettingsDetailScopeId = WjzFocusScopeId("settings/detail")
-private val SettingsItemColumnNodeId = WjzFocusNodeId("settings/item/current")
-private val SettingsDetailColumnNodeId = WjzFocusNodeId("settings/detail/current")
+private val SettingsItemColumnLocalId = wjzFocusLocalId("current")
+private val SettingsDetailColumnLocalId = wjzFocusLocalId("current")
+private val SettingsItemColumnNodeId = SettingsItemScopeId.resolve(SettingsItemColumnLocalId)
+private val SettingsDetailColumnNodeId = SettingsDetailScopeId.resolve(SettingsDetailColumnLocalId)
 private val SettingsCategoryEntryId = WjzFocusEntryId("settings/category")
 private val SettingsItemEntryId = WjzFocusEntryId("settings/item")
 private val SettingsDetailEntryId = WjzFocusEntryId("settings/detail")
@@ -177,30 +183,24 @@ private const val SettingsCategoryEndEntry = "category-end"
 private val SettingsCategoryStartEntryId = WjzFocusEntryId("settings/$SettingsCategoryStartEntry")
 private val SettingsCategoryEndEntryId = WjzFocusEntryId("settings/$SettingsCategoryEndEntry")
 private const val SettingsItemEmptyKey = "settings/item/empty"
-private val SettingsStorageImageCacheNodeId =
-    WjzFocusNodeId("settings/detail/storage_management/action/image_cache")
-private val SettingsStorageOthersCacheNodeId =
-    WjzFocusNodeId("settings/detail/storage_management/action/others_cache")
-private val SettingsStorageCrashLogsNodeId =
-    WjzFocusNodeId("settings/detail/storage_management/action/crash_logs")
-private val SettingsCreateLogsOpenNodeId =
-    WjzFocusNodeId("settings/detail/create_logs/action/open")
+private val SettingsStorageImageCacheLocalId =
+    wjzFocusLocalId("storage_management", "action", "image_cache")
+private val SettingsStorageOthersCacheLocalId =
+    wjzFocusLocalId("storage_management", "action", "others_cache")
+private val SettingsStorageCrashLogsLocalId =
+    wjzFocusLocalId("storage_management", "action", "crash_logs")
+private val SettingsCreateLogsOpenLocalId =
+    wjzFocusLocalId("create_logs", "action", "open")
 private val SettingsProxyDialogScopeId = WjzFocusScopeId("settings/dialog/proxy_server")
-private val SettingsProxyDialogContainerNodeId =
-    WjzFocusNodeId("settings/dialog/proxy_server/container")
-private val SettingsProxyDialogInputNodeId =
-    WjzFocusNodeId("settings/dialog/proxy_server/input")
-private val SettingsProxyDialogConfirmNodeId =
-    WjzFocusNodeId("settings/dialog/proxy_server/confirm")
-private val SettingsProxyDialogCancelNodeId =
-    WjzFocusNodeId("settings/dialog/proxy_server/cancel")
+private val SettingsProxyDialogContainerLocalId = wjzFocusLocalId("container")
+private val SettingsProxyDialogInputLocalId = wjzFocusLocalId("input")
+private val SettingsProxyDialogConfirmLocalId = wjzFocusLocalId("confirm")
+private val SettingsProxyDialogCancelLocalId = wjzFocusLocalId("cancel")
 private val SettingsRadioDialogScopeId = WjzFocusScopeId("settings/dialog/radio_menu")
-private val SettingsRadioDialogContainerNodeId =
-    WjzFocusNodeId("settings/dialog/radio_menu/container")
+private val SettingsRadioDialogContainerLocalId = wjzFocusLocalId("container")
 private val SettingsHomeTopNavRefreshDialogScopeId =
     WjzFocusScopeId("settings/dialog/home_top_nav_refresh")
-private val SettingsHomeTopNavRefreshDialogContainerNodeId =
-    WjzFocusNodeId("settings/dialog/home_top_nav_refresh/container")
+private val SettingsHomeTopNavRefreshDialogContainerLocalId = wjzFocusLocalId("container")
 
 private val SettingsCategoryItems = SettingsMenuNavItem.entries
     .filterNot { it == SettingsMenuNavItem.Info }
@@ -498,33 +498,17 @@ private fun SettingsColumns(
     WjzFocusEntrySurface(
         componentId = SettingsFocusComponentId,
         default = {
-            defaultEntry(
-                nodeId = settingsCategoryNodeId(currentCategory),
-                layer = WjzFocusLayer.Content,
-                scopeId = SettingsCategoryScopeId
-            )
+            SettingsCategoryScopeId.target(settingsCategoryLocalId(currentCategory))
         },
         entries = {
             entry(SettingsCategoryEntryId.localEntryValue) {
-                defaultEntry(
-                    nodeId = settingsCategoryNodeId(currentCategory),
-                    layer = WjzFocusLayer.Content,
-                    scopeId = SettingsCategoryScopeId
-                )
+                SettingsCategoryScopeId.target(settingsCategoryLocalId(currentCategory))
             }
             entry(SettingsCategoryStartEntry) {
-                defaultEntry(
-                    nodeId = settingsCategoryNodeId(SettingsCategoryItems.first()),
-                    layer = WjzFocusLayer.Content,
-                    scopeId = SettingsCategoryScopeId
-                )
+                SettingsCategoryScopeId.target(settingsCategoryLocalId(SettingsCategoryItems.first()))
             }
             entry(SettingsCategoryEndEntry) {
-                defaultEntry(
-                    nodeId = settingsCategoryNodeId(SettingsCategoryItems.last()),
-                    layer = WjzFocusLayer.Content,
-                    scopeId = SettingsCategoryScopeId
-                )
+                SettingsCategoryScopeId.target(settingsCategoryLocalId(SettingsCategoryItems.last()))
             }
             entry(SettingsItemEntryId.localEntryValue) {
                 defaultEntry(
@@ -588,7 +572,7 @@ private fun SettingsColumns(
                 onUp = {
                     currentItems.lastOrNull()?.let { item ->
                         focusCoordinator?.enqueueLazyRestore(
-                            nodeId = settingsItemNodeId(item.id),
+                            nodeId = SettingsItemScopeId.resolve(settingsItemLocalId(item.id)),
                             itemKey = WjzFocusItemKey(item.id),
                             layer = WjzFocusLayer.Content,
                             scopeId = SettingsItemScopeId,
@@ -600,7 +584,7 @@ private fun SettingsColumns(
                 onDown = {
                     currentItems.firstOrNull()?.let { item ->
                         focusCoordinator?.enqueueLazyRestore(
-                            nodeId = settingsItemNodeId(item.id),
+                            nodeId = SettingsItemScopeId.resolve(settingsItemLocalId(item.id)),
                             itemKey = WjzFocusItemKey(item.id),
                             layer = WjzFocusLayer.Content,
                             scopeId = SettingsItemScopeId,
@@ -667,7 +651,7 @@ private fun SettingsItemBlock(
     val content: @Composable () -> Unit = {
         SettingsItemColumn(
             modifier = Modifier,
-            focusNodeId = SettingsItemColumnNodeId,
+            focusLocalId = SettingsItemColumnLocalId,
             focusScopeId = SettingsItemScopeId,
             items = items,
             selectedItem = selectedItem,
@@ -700,7 +684,7 @@ private fun SettingsDetailBlock(
     val content: @Composable () -> Unit = {
         SettingsDetailColumn(
             modifier = Modifier,
-            focusNodeId = SettingsDetailColumnNodeId,
+            focusLocalId = SettingsDetailColumnLocalId,
             item = item,
             focused = focused,
             onFocused = onFocused
@@ -739,7 +723,7 @@ private fun SettingsCategoryColumn(
                 val last = category == categories.last()
                 val itemModifier = Modifier
                     .wjzFocusExits(
-                        id = settingsCategoryFocusId(category),
+                        localId = settingsCategoryLocalId(category),
                         layer = WjzFocusLayer.Content,
                         exits = {
                             cancel(left)
@@ -770,7 +754,7 @@ private fun SettingsCategoryColumn(
 @Composable
 private fun SettingsItemColumn(
     modifier: Modifier = Modifier,
-    focusNodeId: WjzFocusNodeId,
+    focusLocalId: WjzFocusLocalId,
     focusScopeId: WjzFocusScopeId,
     items: List<SettingsEntry>,
     selectedItem: SettingsEntry?,
@@ -814,7 +798,7 @@ private fun SettingsItemColumn(
                     modifier = Modifier
                         .size(1.dp)
                         .wjzFocusExits(
-                            id = focusNodeId.value,
+                            localId = focusLocalId,
                             layer = WjzFocusLayer.Content
                         )
                 )
@@ -845,7 +829,7 @@ private fun SettingsItemColumn(
                         }
                     }
                     .wjzFocusExits(
-                        id = settingsItemFocusId(item.id),
+                        localId = settingsItemLocalId(item.id),
                         layer = WjzFocusLayer.Content,
                         exits = {
                             left move SettingsCategoryEntryId
@@ -875,23 +859,23 @@ private fun SettingsItemColumn(
     }
 }
 
-private fun settingsCategoryFocusId(category: SettingsMenuNavItem) =
-    settingsCategoryNodeId(category).value
+private fun settingsCategoryLocalId(category: SettingsMenuNavItem) =
+    wjzFocusLocalId(category.name)
 
 private fun settingsCategoryNodeId(category: SettingsMenuNavItem) =
-    WjzFocusNodeId("${SettingsCategoryScopeId.value}/${category.name}")
+    SettingsCategoryScopeId.resolve(settingsCategoryLocalId(category))
 
-private fun settingsItemFocusId(itemId: String) =
-    settingsItemNodeId(itemId).value
+private fun settingsItemLocalId(itemId: String) =
+    wjzFocusLocalId(itemId)
 
 private fun settingsItemNodeId(itemId: String) =
-    WjzFocusNodeId("${SettingsItemScopeId.value}/$itemId")
+    SettingsItemScopeId.resolve(settingsItemLocalId(itemId))
 
 private fun settingsRadioDialogItemNodeId(itemKey: Any) =
-    WjzFocusNodeId("settings/dialog/radio_menu/$itemKey")
+    SettingsRadioDialogScopeId.resolve(wjzFocusLocalId(itemKey))
 
 private fun settingsHomeTopNavRefreshDialogItemNodeId(item: HomeTopNavItem) =
-    WjzFocusNodeId("settings/dialog/home_top_nav_refresh/${item.name}")
+    SettingsHomeTopNavRefreshDialogScopeId.resolve(wjzFocusLocalId(item.name))
 
 @Composable
 private fun rememberSettingsDialogDismiss(
@@ -903,7 +887,7 @@ private fun rememberSettingsDialogDismiss(
 @Composable
 private fun SettingsDetailColumn(
     modifier: Modifier = Modifier,
-    focusNodeId: WjzFocusNodeId,
+    focusLocalId: WjzFocusLocalId,
     item: SettingsEntry,
     focused: Boolean,
     onFocused: () -> Unit
@@ -923,7 +907,7 @@ private fun SettingsDetailColumn(
                 if (canFocusDetail) {
                     Modifier
                         .wjzFocusExits(
-                            id = focusNodeId.value,
+                            localId = focusLocalId,
                             layer = WjzFocusLayer.Content,
                             exits = {
                                 left move SettingsListDefaultEntryId
@@ -1237,7 +1221,9 @@ private fun uiSettingsEntries(): List<SettingsEntry> {
         onHideDialog = dismissHomeAutoRefreshTopNavDialog,
         sourceScopeId = SettingsItemScopeId,
         dialogScopeId = SettingsHomeTopNavRefreshDialogScopeId,
-        containerNodeId = SettingsHomeTopNavRefreshDialogContainerNodeId,
+        containerNodeId = SettingsHomeTopNavRefreshDialogScopeId.resolve(
+            SettingsHomeTopNavRefreshDialogContainerLocalId
+        ),
         itemNodeId = { settingsHomeTopNavRefreshDialogItemNodeId(it) },
         onSubmit = {
             selectedHomeAutoRefreshTopNavItems = it
@@ -1425,7 +1411,7 @@ private fun otherSettingsEntries(): List<SettingsEntry> {
             supportText = logServerSupportText,
             actionText = "打开日志",
             serverQrImage = logsViewModel.serverQrImage,
-            actionNodeId = SettingsCreateLogsOpenNodeId,
+            actionLocalId = SettingsCreateLogsOpenLocalId,
             onClick = {
                 context.startActivity(Intent(context, LogsActivity::class.java))
             }
@@ -1652,7 +1638,7 @@ private fun StorageManagementDetail(focused: Boolean) {
     val titleOthersCache = stringResource(R.string.settings_storage_others_cache)
     val titleCrashLogs = stringResource(R.string.settings_storage_crash_logs)
 
-    val showClearDialog: (WjzFocusNodeId, String, () -> Unit) -> Unit = { _, title, clear ->
+    val showClearDialog: (String, () -> Unit) -> Unit = { title, clear ->
         clearFun = clear
         content = title
         showConfirmDialog = true
@@ -1689,7 +1675,7 @@ private fun StorageManagementDetail(focused: Boolean) {
         defaultFocusKey = "否",
         sourceScopeId = SettingsDetailScopeId,
         dialogScopeId = SettingsRadioDialogScopeId,
-        containerNodeId = SettingsRadioDialogContainerNodeId,
+        containerNodeId = SettingsRadioDialogScopeId.resolve(SettingsRadioDialogContainerLocalId),
         itemNodeId = { settingsRadioDialogItemNodeId(it) }
     )
 
@@ -1697,31 +1683,31 @@ private fun StorageManagementDetail(focused: Boolean) {
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         SettingsDetailActionListItem(
-            nodeId = SettingsStorageImageCacheNodeId,
+            localId = SettingsStorageImageCacheLocalId,
             title = titleImageCache,
             supportText = cacheSizeText(storageViewModel.loading, storageViewModel.imageCacheSize),
             onClick = {
-                showClearDialog(SettingsStorageImageCacheNodeId, titleImageCache) {
+                showClearDialog(titleImageCache) {
                     storageViewModel.clearImageCaches(context.cacheDir, context.filesDir)
                 }
             }
         )
         SettingsDetailActionListItem(
-            nodeId = SettingsStorageOthersCacheNodeId,
+            localId = SettingsStorageOthersCacheLocalId,
             title = titleOthersCache,
             supportText = cacheSizeText(storageViewModel.loading, storageViewModel.updateCacheSize),
             onClick = {
-                showClearDialog(SettingsStorageOthersCacheNodeId, titleOthersCache) {
+                showClearDialog(titleOthersCache) {
                     storageViewModel.clearOthersCaches(context.cacheDir, context.filesDir)
                 }
             }
         )
         SettingsDetailActionListItem(
-            nodeId = SettingsStorageCrashLogsNodeId,
+            localId = SettingsStorageCrashLogsLocalId,
             title = titleCrashLogs,
             supportText = cacheSizeText(storageViewModel.loading, storageViewModel.crashLogsSize),
             onClick = {
-                showClearDialog(SettingsStorageCrashLogsNodeId, titleCrashLogs) {
+                showClearDialog(titleCrashLogs) {
                     storageViewModel.clearCrashLogs(context.cacheDir, context.filesDir)
                 }
             }
@@ -1731,7 +1717,7 @@ private fun StorageManagementDetail(focused: Boolean) {
 
 @Composable
 private fun SettingsDetailActionListItem(
-    nodeId: WjzFocusNodeId,
+    localId: WjzFocusLocalId,
     title: String,
     supportText: String,
     onClick: () -> Unit
@@ -1741,7 +1727,7 @@ private fun SettingsDetailActionListItem(
     SettingListItem(
         modifier = Modifier
             .wjzFocusExits(
-                id = nodeId.value,
+                localId = localId,
                 layer = WjzFocusLayer.Content,
                 onFocusChanged = { focused = it }
             ),
@@ -1837,7 +1823,7 @@ private fun logEntry(
     supportText: String,
     actionText: String,
     serverQrImage: ImageBitmap?,
-    actionNodeId: WjzFocusNodeId? = null,
+    actionLocalId: WjzFocusLocalId? = null,
     onClick: () -> Unit
 ) = SettingsEntry(
     id = id,
@@ -1845,13 +1831,13 @@ private fun logEntry(
     supportText = supportText,
     autoScrollableDetail = false,
     detailContent = { focused ->
-        val actionModifier = if (actionNodeId == null) {
+        val actionModifier = if (actionLocalId == null) {
             Modifier.fillMaxWidth()
         } else {
             Modifier
                 .fillMaxWidth()
                 .wjzFocusExits(
-                    id = actionNodeId.value,
+                    localId = actionLocalId,
                     layer = WjzFocusLayer.Content
                 )
         }
@@ -2086,7 +2072,7 @@ private fun ProxyServerEditDialog(
                 OutlinedTextField(
                     modifier = Modifier
                         .wjzFocusExits(
-                            id = SettingsProxyDialogInputNodeId.value,
+                            localId = SettingsProxyDialogInputLocalId,
                             layer = WjzFocusLayer.Dialog
                         ),
                     value = proxyServerString,
@@ -2104,7 +2090,7 @@ private fun ProxyServerEditDialog(
                 Button(
                     modifier = Modifier
                         .wjzFocusExits(
-                            id = SettingsProxyDialogConfirmNodeId.value,
+                            localId = SettingsProxyDialogConfirmLocalId,
                             layer = WjzFocusLayer.Dialog
                         ),
                     onClick = {
@@ -2124,7 +2110,7 @@ private fun ProxyServerEditDialog(
                 OutlinedButton(
                     modifier = Modifier
                         .wjzFocusExits(
-                            id = SettingsProxyDialogCancelNodeId.value,
+                            localId = SettingsProxyDialogCancelLocalId,
                             layer = WjzFocusLayer.Dialog
                         ),
                     onClick = onHideDialog
@@ -2134,7 +2120,7 @@ private fun ProxyServerEditDialog(
             },
             sourceScopeId = SettingsItemScopeId,
             dialogScopeId = SettingsProxyDialogScopeId,
-            containerNodeId = SettingsProxyDialogContainerNodeId
+            containerNodeId = SettingsProxyDialogScopeId.resolve(SettingsProxyDialogContainerLocalId)
         )
     }
 }

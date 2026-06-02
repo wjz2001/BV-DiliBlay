@@ -10,12 +10,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.component.controllers.PlayerMenuMainEntryId
-import dev.aaa1115910.bv.component.controllers.playermenu.playerMenuFocusNodeId
+import dev.aaa1115910.bv.component.controllers.playermenu.playerMenuFocusPrefix
 import dev.aaa1115910.bv.entity.VideoFlip
 import dev.aaa1115910.bv.entity.VideoRotation
 import dev.aaa1115910.bv.entity.VideoTransformNormal
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.resolve
 import dev.aaa1115910.bv.wjzfocus.right
 import dev.aaa1115910.bv.wjzfocus.wjzFocusRestorerHost
 
@@ -40,6 +41,8 @@ fun VideoTransformMenuList(
 ) {
     val context = LocalContext.current
     val focusScopeId = LocalWjzFocusScopeId.current
+    val focusPrefix = playerMenuFocusPrefix(focusIdPrefix)
+    val listIds = focusPrefix.listIds()
     val actions = buildList {
         add(VideoTransformMenuAction.Normal)
         addAll(VideoRotation.entries.map { VideoTransformMenuAction.Rotate(it) })
@@ -52,23 +55,23 @@ fun VideoTransformMenuList(
             is VideoTransformMenuAction.Flip -> currentVideoFlip == action.flip
         }
     }.takeIf { it >= 0 } ?: 0
-    val fallbackFocusId = "$focusIdPrefix/$selectedIndex"
+    val fallbackLocalFocusId = focusPrefix.localId(selectedIndex)
 
     LazyColumn(
         modifier = modifier
             .wjzFocusRestorerHost(
                 layer = WjzFocusLayer.Overlay,
                 scopeId = focusScopeId,
-                restorerId = "$focusIdPrefix/restorer",
-                listId = "$focusIdPrefix/list",
-                fallbackNodeId = playerMenuFocusNodeId(focusScopeId, fallbackFocusId)
+                restorerId = listIds.restorerId,
+                listId = listIds.listId,
+                fallbackNodeId = focusScopeId?.resolve(fallbackLocalFocusId)
             ),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(vertical = 120.dp, horizontal = 8.dp)
     ) {
         itemsIndexed(
             items = actions,
-            key = { index, action -> "$focusIdPrefix/$index/${action::class.simpleName}" }
+            key = { index, action -> "${focusPrefix.child(index).value}/${action::class.simpleName}" }
         ) { index, action ->
             val text = when (action) {
                 VideoTransformMenuAction.Normal -> {
@@ -91,7 +94,7 @@ fun VideoTransformMenuList(
             MenuListItem(
                 modifier = Modifier
                     .width(200.dp),
-                focusId = "$focusIdPrefix/$index",
+                localFocusId = focusPrefix.localId(index),
                 text = text,
                 selected = selected,
                 exits = {

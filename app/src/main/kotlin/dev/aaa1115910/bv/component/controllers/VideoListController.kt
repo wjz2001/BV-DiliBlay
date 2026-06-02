@@ -39,12 +39,14 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.resolve
 import dev.aaa1115910.bv.wjzfocus.wjzDisabledFocus
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.wjzfocus.wjzFocusRestorerHost
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import androidx.tv.material3.ListItemDefaults
@@ -57,10 +59,11 @@ import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private fun videoListParentFocusId(cid: Long) = "video-list/parent/$cid"
+private fun videoListParentFocusLocalId(cid: Long): WjzFocusLocalId =
+    wjzFocusLocalId("video-list", "parent", cid)
 
-private fun videoListChildFocusId(parentCid: Long, childCid: Long) =
-    "video-list/parent/$parentCid/child/$childCid"
+private fun videoListChildFocusLocalId(parentCid: Long, childCid: Long): WjzFocusLocalId =
+    wjzFocusLocalId("video-list", "parent", parentCid, "child", childCid)
 
 private const val VideoListRestorerId = "video-list/restorer"
 
@@ -299,10 +302,11 @@ fun VideoListController(
                                 if (!shouldHandleThisGroup) return@LaunchedEffect
 
                                 if (video.cid == wantCid) {
+                                    val scopeId = focusScopeId ?: return@LaunchedEffect
                                     focusCoordinator?.enqueueGroupRestore(
-                                        nodeId = WjzFocusNodeId(videoListParentFocusId(video.cid)),
+                                        nodeId = scopeId.resolve(videoListParentFocusLocalId(video.cid)),
                                         layer = WjzFocusLayer.Player,
-                                        scopeId = focusScopeId,
+                                        scopeId = scopeId,
                                         restorerId = VideoListRestorerId,
                                         listId = VideoListRestorerId
                                     )
@@ -326,7 +330,7 @@ fun VideoListController(
                                 modifier = Modifier
                                     .padding(horizontal = 16.dp)
                                     .wjzFocusExits(
-                                        id = videoListParentFocusId(video.cid),
+                                        localId = videoListParentFocusLocalId(video.cid),
                                         layer = WjzFocusLayer.Player,
                                         onFocusChanged = { focused ->
                                             if (focused) {
@@ -475,12 +479,13 @@ fun VideoListController(
                                                 val wantCid = pendingFocusCid ?: return@LaunchedEffect
                                                 if (wantCid != page.cid) return@LaunchedEffect
 
+                                                val scopeId = focusScopeId ?: return@LaunchedEffect
                                                 focusCoordinator?.enqueueGroupRestore(
-                                                    nodeId = WjzFocusNodeId(
-                                                        videoListChildFocusId(video.cid, page.cid)
+                                                    nodeId = scopeId.resolve(
+                                                        videoListChildFocusLocalId(video.cid, page.cid)
                                                     ),
                                                     layer = WjzFocusLayer.Player,
-                                                    scopeId = focusScopeId,
+                                                    scopeId = scopeId,
                                                     restorerId = VideoListRestorerId,
                                                     listId = VideoListRestorerId
                                                 )
@@ -497,7 +502,7 @@ fun VideoListController(
                                                 modifier = Modifier
                                                     .padding(horizontal = 16.dp)
                                                     .wjzFocusExits(
-                                                        id = videoListChildFocusId(video.cid, page.cid),
+                                                        localId = videoListChildFocusLocalId(video.cid, page.cid),
                                                         layer = WjzFocusLayer.Player,
                                                         onFocusChanged = { focused ->
                                                             if (focused) groupHasFocus = true

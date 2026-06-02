@@ -62,7 +62,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.android.ext.android.inject
 import java.util.concurrent.atomic.AtomicBoolean
 
-private const val StoragePermissionConfirmFocusId = "storage-permission-confirm"
+private val StoragePermissionConfirmNodeId = WjzFocusNodeId("storage-permission-confirm")
 private val StoragePermissionDialogScopeId = WjzFocusScopeId("main/storage-permission")
 private val StoragePermissionDialogContainerNodeId =
     WjzFocusNodeId("main/storage-permission/container")
@@ -314,7 +314,7 @@ class MainActivity : ComponentActivity() {
                 confirmButton = {
                     Button(
                         modifier = Modifier.wjzFocusExits(
-                            id = StoragePermissionConfirmFocusId,
+                            nodeId = StoragePermissionConfirmNodeId,
                             layer = WjzFocusLayer.Dialog,
                             fallback = true,
                             exits = {

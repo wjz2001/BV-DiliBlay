@@ -59,7 +59,9 @@ import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.getDisplayName
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 
 @Composable
 fun IndexFilter(
@@ -294,7 +296,7 @@ private fun <T> IndexFilterChipRow(
                 IndexFilterChip(
                     modifier = Modifier
                         .wjzFocusExits(
-                            id = "index-filter/${title.hashCode()}/${filter.hashCode()}",
+                            localId = indexFilterChipLocalId(title, filter),
                             layer = WjzFocusLayer.Dialog
                         ),
                     selected = selectedFilter == filter,
@@ -305,6 +307,11 @@ private fun <T> IndexFilterChipRow(
         }
     }
 }
+
+private fun indexFilterChipLocalId(
+    title: String,
+    filter: Any?
+): WjzFocusLocalId = wjzFocusLocalId("index-filter", title.hashCode(), filter.hashCode())
 
 private class PgcTypeProvider : PreviewParameterProvider<PgcType> {
     override val values = PgcType.entries.asSequence()

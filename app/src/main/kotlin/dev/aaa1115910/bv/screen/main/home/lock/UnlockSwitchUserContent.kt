@@ -32,11 +32,11 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.db.UserDB
 import dev.aaa1115910.bv.screen.main.home.UserItem
@@ -46,7 +46,7 @@ import dev.aaa1115910.bv.util.toast
 import kotlinx.collections.immutable.ImmutableList
 
 private const val UnlockSwitchUserFocusComponentId = "unlock-switch-user"
-private const val UnlockSwitchUserInputFocusId = "unlock-switch-user/input"
+private val UnlockSwitchUserInputFocusId = wjzFocusLocalId("input")
 
 @Composable
 fun UnlockSwitchUserContent(
@@ -79,11 +79,7 @@ fun UnlockSwitchUserContent(
         WjzFocusEntrySurface(
             componentId = UnlockSwitchUserFocusComponentId,
             default = {
-                defaultEntry(
-                    nodeId = WjzFocusNodeId(UnlockSwitchUserInputFocusId),
-                    layer = WjzFocusLayer.Content,
-                    scopeId = focusScopeId
-                )
+                requireNotNull(focusScopeId).target(UnlockSwitchUserInputFocusId)
             }
         )
 
@@ -91,7 +87,7 @@ fun UnlockSwitchUserContent(
             modifier = modifier
                 .clickable {}
                 .wjzFocusExits(
-                    id = UnlockSwitchUserInputFocusId,
+                    localId = UnlockSwitchUserInputFocusId,
                     layer = WjzFocusLayer.Content
                 )
                 .onKeyEvent {

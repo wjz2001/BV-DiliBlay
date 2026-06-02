@@ -23,8 +23,10 @@ import androidx.tv.material3.Icon
 import dev.aaa1115910.biliapi.entity.pgc.PgcType
 import dev.aaa1115910.biliapi.entity.ugc.UgcType
 import dev.aaa1115910.bv.BVApp
+import dev.aaa1115910.bv.wjzfocus.WjzFocusComponentId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.util.getDisplayName
 
 @Composable
@@ -49,6 +51,8 @@ fun TopNav(
     onLeftBoundaryExit: (() -> Unit)? = null,
     onRightBoundaryExit: (() -> Unit)? = null,
     focusNodeId: WjzFocusNodeId? = null,
+    focusScopeId: WjzFocusScopeId? = null,
+    focusComponentId: WjzFocusComponentId? = null,
     focusLayer: WjzFocusLayer = WjzFocusLayer.TopNav,
     backFocusEnabled: Boolean = true,
     onContentFocusRequested: (TopNavItem) -> Unit = {},
@@ -151,6 +155,8 @@ fun TopNav(
                         contentFocusReadyKey = contentFocusReadyKey,
                         onContentFocusRequested = onContentFocusRequested,
                         focusNodeId = focusNodeId,
+                        focusScopeId = focusScopeId,
+                        focusComponentId = focusComponentId,
                         focusLayer = focusLayer,
                         backFocusEnabled = backFocusEnabled,
                         autoRequestEntryFocus = backFocusEnabled,
@@ -203,7 +209,8 @@ fun resolveTopNavEntryFocus(
     selectedItem: TopNavItem?,
     entryFocusItem: TopNavItem?,
     entryFocusTarget: TopNavEntryFocusTarget = TopNavEntryFocusTarget.DefaultEntry,
-    focusNodeId: WjzFocusNodeId? = null
+    focusNodeId: WjzFocusNodeId? = null,
+    focusScopeId: WjzFocusScopeId? = null
 ): TopNavEntryFocusResolution {
     return when (val resolution = resolveBvTabEntryFocus(
         items = items,
@@ -211,7 +218,8 @@ fun resolveTopNavEntryFocus(
         entryFocusItem = entryFocusItem,
         entryFocusTarget = entryFocusTarget.toBvTabEntryFocusTarget(),
         itemKey = { it },
-        focusNodeId = focusNodeId
+        focusNodeId = focusNodeId,
+        focusScopeId = focusScopeId
     )) {
         is BvTabEntryFocusResolution.Ready -> TopNavEntryFocusResolution.Ready(
             TopNavEntryFocusReady(

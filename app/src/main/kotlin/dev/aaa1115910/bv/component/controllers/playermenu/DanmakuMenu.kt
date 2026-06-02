@@ -42,6 +42,25 @@ import kotlin.math.roundToInt
 private const val PlayerMenuDanmakuMenuEntryId = "playerMenuDanmakuMenu"
 private const val PlayerMenuDanmakuItemsEntryId = "playerMenuDanmakuItems"
 
+private fun danmakuFocusPrefix(vararg parts: Any): PlayerMenuFocusPrefix {
+    return playerMenuFocusPrefix(PlayerMenuFocusRoot.Danmaku, *parts)
+}
+
+private fun danmakuMenuLocalFocusId(index: Int) = danmakuFocusPrefix("menu").localId(index)
+
+private fun danmakuMenuNodeId(index: Int) = danmakuFocusPrefix("menu").nodeId(index)
+
+private fun danmakuItemNodeId(item: VideoPlayerDanmakuMenuItem): WjzFocusNodeId {
+    return when (item) {
+        VideoPlayerDanmakuMenuItem.FilterLevel -> danmakuFocusPrefix("filter-level").nodeId()
+        VideoPlayerDanmakuMenuItem.Size -> danmakuFocusPrefix("size").nodeId()
+        VideoPlayerDanmakuMenuItem.Opacity -> danmakuFocusPrefix("opacity").nodeId()
+        VideoPlayerDanmakuMenuItem.Speed -> danmakuFocusPrefix("speed").nodeId()
+        VideoPlayerDanmakuMenuItem.Area -> danmakuFocusPrefix("area").nodeId()
+        else -> danmakuMenuNodeId(item.ordinal)
+    }
+}
+
 @Composable
 fun DanmakuMenuList(
     modifier: Modifier = Modifier,
@@ -72,7 +91,7 @@ fun DanmakuMenuList(
     val focusScopeId = LocalWjzFocusScopeId.current
     var selectedDanmakuMenuItem by remember { mutableStateOf(VideoPlayerDanmakuMenuItem.Switch) }
     val selectedMenuNodeId = remember(selectedDanmakuMenuItem) {
-        WjzFocusNodeId("$PlayerMenuDanmakuFocusIdPrefix/menu/${selectedDanmakuMenuItem.ordinal}")
+        danmakuMenuNodeId(selectedDanmakuMenuItem.ordinal)
     }
     val selectedItemNodeId = remember(
         selectedDanmakuMenuItem,
@@ -83,33 +102,16 @@ fun DanmakuMenuList(
         currentRollingDurationFactor,
         currentArea
     ) {
-        WjzFocusNodeId(
-            when (selectedDanmakuMenuItem) {
-                VideoPlayerDanmakuMenuItem.Switch -> {
-                    val index = currentEnabledTypes.firstOrNull()?.ordinal
-                        ?.takeIf { it in DanmakuType.entries.indices }
-                        ?: DanmakuType.entries.indices.first
-                    "$PlayerMenuDanmakuFocusIdPrefix/switch/$index"
-                }
-
-                VideoPlayerDanmakuMenuItem.FilterLevel ->
-                    "$PlayerMenuDanmakuFocusIdPrefix/filter-level"
-
-                VideoPlayerDanmakuMenuItem.Size ->
-                    "$PlayerMenuDanmakuFocusIdPrefix/size"
-
-                VideoPlayerDanmakuMenuItem.Opacity ->
-                    "$PlayerMenuDanmakuFocusIdPrefix/opacity"
-
-                VideoPlayerDanmakuMenuItem.Speed ->
-                    "$PlayerMenuDanmakuFocusIdPrefix/speed"
-
-                VideoPlayerDanmakuMenuItem.Area ->
-                    "$PlayerMenuDanmakuFocusIdPrefix/area"
-
-                else -> "$PlayerMenuDanmakuFocusIdPrefix/menu/${selectedDanmakuMenuItem.ordinal}"
+        when (selectedDanmakuMenuItem) {
+            VideoPlayerDanmakuMenuItem.Switch -> {
+                val index = currentEnabledTypes.firstOrNull()?.ordinal
+                    ?.takeIf { it in DanmakuType.entries.indices }
+                    ?: DanmakuType.entries.indices.first
+                danmakuFocusPrefix("switch").nodeId(index)
             }
-        )
+
+            else -> danmakuItemNodeId(selectedDanmakuMenuItem)
+        }
     }
 
     WjzFocusEntrySurface(
@@ -144,7 +146,7 @@ fun DanmakuMenuList(
             when (selectedDanmakuMenuItem) {
                 VideoPlayerDanmakuMenuItem.Switch -> CheckBoxMenuList(
                     modifier = menuItemsModifier,
-                    focusIdPrefix = "$PlayerMenuDanmakuFocusIdPrefix/switch",
+                    focusPrefix = danmakuFocusPrefix("switch"),
                     items = DanmakuType.entries.map { it.getDisplayName(context) },
                     selected = currentEnabledTypes.map { it.ordinal },
                     parentFocusEntryId = PlayerMenuDanmakuMenuEntryId,
@@ -210,7 +212,7 @@ fun DanmakuMenuList(
 
                 VideoPlayerDanmakuMenuItem.FilterLevel -> StepLessMenuItem(
                     modifier = menuItemsModifier,
-                    focusId = "$PlayerMenuDanmakuFocusIdPrefix/filter-level",
+                    localFocusId = danmakuFocusPrefix("filter-level").localId(),
                     value = currentVodFilterLevel,
                     step = 1,
                     range = 0..10,
@@ -225,7 +227,7 @@ fun DanmakuMenuList(
 
                 VideoPlayerDanmakuMenuItem.Size -> StepLessMenuItem(
                     modifier = menuItemsModifier,
-                    focusId = "$PlayerMenuDanmakuFocusIdPrefix/size",
+                    localFocusId = danmakuFocusPrefix("size").localId(),
                     value = currentScale,
                     step = 0.01f,
                     range = 0.5f..4f,
@@ -240,7 +242,7 @@ fun DanmakuMenuList(
 
                 VideoPlayerDanmakuMenuItem.Opacity -> StepLessMenuItem(
                     modifier = menuItemsModifier,
-                    focusId = "$PlayerMenuDanmakuFocusIdPrefix/opacity",
+                    localFocusId = danmakuFocusPrefix("opacity").localId(),
                     value = currentOpacity,
                     step = 0.01f,
                     range = 0f..1f,
@@ -257,7 +259,7 @@ fun DanmakuMenuList(
 
                 VideoPlayerDanmakuMenuItem.Speed -> StepLessMenuItem(
                     modifier = menuItemsModifier,
-                    focusId = "$PlayerMenuDanmakuFocusIdPrefix/speed",
+                    localFocusId = danmakuFocusPrefix("speed").localId(),
                     value = currentRollingDurationFactor,
                     step = 0.1f,
                     range = 0.2f..1.8f,
@@ -270,7 +272,7 @@ fun DanmakuMenuList(
 
                 VideoPlayerDanmakuMenuItem.Area -> StepLessMenuItem(
                     modifier = menuItemsModifier,
-                    focusId = "$PlayerMenuDanmakuFocusIdPrefix/area",
+                    localFocusId = danmakuFocusPrefix("area").localId(),
                     value = currentArea,
                     step = 0.01f,
                     range = 0f..1f,
@@ -299,7 +301,7 @@ fun DanmakuMenuList(
                 when (item) {
                     VideoPlayerDanmakuMenuItem.Colorful -> MenuListItem(
                         modifier = Modifier,
-                        focusId = "$PlayerMenuDanmakuFocusIdPrefix/menu/$index",
+                        localFocusId = danmakuMenuLocalFocusId(index),
                         text = item.getDisplayName(context),
                         selected = currentColorful,
                         exits = exits,
@@ -312,7 +314,7 @@ fun DanmakuMenuList(
 
                     VideoPlayerDanmakuMenuItem.Mask -> MenuListItem(
                         modifier = Modifier,
-                        focusId = "$PlayerMenuDanmakuFocusIdPrefix/menu/$index",
+                        localFocusId = danmakuMenuLocalFocusId(index),
                         text = item.getDisplayName(context),
                         selected = currentMaskEnabled,
                         exits = exits,
@@ -325,7 +327,7 @@ fun DanmakuMenuList(
 
                     VideoPlayerDanmakuMenuItem.Refresh -> MenuListItem(
                         modifier = Modifier,
-                        focusId = "$PlayerMenuDanmakuFocusIdPrefix/menu/$index",
+                        localFocusId = danmakuMenuLocalFocusId(index),
                         text = if (isDanmakuRefreshing) {
                             stringResource(R.string.video_player_menu_danmaku_refreshing)
                         } else {
@@ -342,7 +344,7 @@ fun DanmakuMenuList(
 
                     else -> MenuListItem(
                         modifier = Modifier,
-                        focusId = "$PlayerMenuDanmakuFocusIdPrefix/menu/$index",
+                        localFocusId = danmakuMenuLocalFocusId(index),
                         text = item.getDisplayName(context),
                         selected = selectedDanmakuMenuItem == item,
                         exits = exits,

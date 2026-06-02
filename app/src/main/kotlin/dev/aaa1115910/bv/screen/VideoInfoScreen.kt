@@ -141,8 +141,10 @@ import dev.aaa1115910.bv.component.BvLazyFocusItemTarget
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.down
+import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.component.BvUnderlineTabRow
 import dev.aaa1115910.bv.component.CoAuthorsDialogHost
 import dev.aaa1115910.bv.component.FollowGroupSelectDialog
@@ -165,6 +167,7 @@ import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.repository.StartupCoverRepository
+import dev.aaa1115910.bv.wjzfocus.resolve
 import dev.aaa1115910.bv.ui.effect.UiEffect
 import dev.aaa1115910.bv.ui.effect.VideoDetailUiEffect
 import dev.aaa1115910.bv.ui.theme.BVTheme
@@ -216,8 +219,18 @@ private const val VideoDescriptionRichContentComponentId = "videoDescriptionRich
 private const val VideoDescriptionRichContentImagePreviewComponentId =
     "videoDescriptionRichContentImagePreview"
 private val VideoInfoScopeId = WjzFocusScopeId("video-info")
-private val VideoInfoDefaultNodeId = WjzFocusNodeId("video-info/default")
-private val VideoInfoPartEntryNodeId = WjzFocusNodeId("video-info/part/entry")
+private val VideoInfoDefaultLocalId = wjzFocusLocalId("default")
+private val VideoInfoUpLocalId = wjzFocusLocalId("up")
+private val VideoInfoFavoriteLocalId = wjzFocusLocalId("action", "favorite")
+private val VideoInfoCommentLocalId = wjzFocusLocalId("action", "comment")
+private val VideoInfoLikeLocalId = wjzFocusLocalId("action", "like")
+private val VideoInfoCoinLocalId = wjzFocusLocalId("action", "coin")
+private val VideoInfoDescriptionLocalId = wjzFocusLocalId("description")
+private val VideoInfoPartEntryLocalId = wjzFocusLocalId("part", "entry")
+private val VideoInfoPartLeadingLocalId = wjzFocusLocalId("part", "leading")
+private fun videoInfoPartPageLocalId(index: Int) = wjzFocusLocalId("part", "page", index)
+private val VideoInfoDefaultNodeId = VideoInfoScopeId.resolve(VideoInfoDefaultLocalId)
+private val VideoInfoPartEntryNodeId = VideoInfoScopeId.resolve(VideoInfoPartEntryLocalId)
 private const val VideoDescriptionDialogBodyLocalId = "description-dialog/body"
 private const val VideoDescriptionRichContentImagePreviewBodyLocalId =
     "rich-content/image-preview"
@@ -992,11 +1005,13 @@ private fun VideoInfoData(
         },
         entries = {
             entry(VideoInfoCoverDownEntry) {
-                defaultEntry(
-                    nodeId = coverDownNodeId ?: VideoInfoDefaultNodeId,
-                    layer = WjzFocusLayer.Content,
-                    scopeId = VideoInfoScopeId
-                )
+                coverDownNodeId?.let {
+                    defaultEntry(
+                        nodeId = it,
+                        layer = WjzFocusLayer.Content,
+                        scopeId = VideoInfoScopeId
+                    )
+                } ?: VideoInfoScopeId.target(VideoInfoDefaultLocalId)
             }
         }
     )
@@ -1008,7 +1023,8 @@ private fun VideoInfoData(
         Surface(
             modifier = Modifier
                 .wjzFocusExits(
-                    id = VideoInfoDefaultNodeId.value,
+                    nodeId = VideoInfoDefaultNodeId,
+                    scopeId = VideoInfoScopeId,
                     exits = {
                         down move VideoInfoCoverDownEntryId
                     }
@@ -1127,7 +1143,10 @@ private fun VideoInfoData(
                             onClickUp = onClickUp,
                             onAddFollow = onAddFollow,
                             onDelFollow = onDelFollow,
-                            upInfoModifier = Modifier.wjzFocusExits(id = "up")
+                            upInfoModifier = Modifier.wjzFocusExits(
+                                nodeId = VideoInfoScopeId.resolve(VideoInfoUpLocalId),
+                                scopeId = VideoInfoScopeId
+                            )
                         )
                     }
                 }
@@ -1175,7 +1194,10 @@ private fun VideoInfoData(
             ) {
                 FavoriteButton(
                     modifier = Modifier
-                        .wjzFocusExits(id = "action/favorite"),
+                        .wjzFocusExits(
+                            nodeId = VideoInfoScopeId.resolve(VideoInfoFavoriteLocalId),
+                            scopeId = VideoInfoScopeId
+                        ),
                     isFavorite = isFavorite,
                     countText = (videoDetail.metrics?.snapshot?.favorite
                         ?: videoDetail.stat.favorite.toLong()).toWanString(),
@@ -1189,7 +1211,10 @@ private fun VideoInfoData(
 
                 CommentButton(
                     modifier = Modifier
-                        .wjzFocusExits(id = "action/comment"),
+                        .wjzFocusExits(
+                            nodeId = VideoInfoScopeId.resolve(VideoInfoCommentLocalId),
+                            scopeId = VideoInfoScopeId
+                        ),
                     countText = (videoDetail.metrics?.snapshot?.reply
                         ?: videoDetail.stat.reply.toLong()).toWanString(),
                     onClick = { showCommentsDialog = true }
@@ -1199,7 +1224,10 @@ private fun VideoInfoData(
 
                 LikeButton(
                     modifier = Modifier
-                        .wjzFocusExits(id = "action/like"),
+                        .wjzFocusExits(
+                            nodeId = VideoInfoScopeId.resolve(VideoInfoLikeLocalId),
+                            scopeId = VideoInfoScopeId
+                        ),
                     isLiked = isLiked,
                     countText = (videoDetail.metrics?.snapshot?.like
                         ?: videoDetail.stat.like.toLong()).toWanString(),
@@ -1211,7 +1239,10 @@ private fun VideoInfoData(
 
                 CoinButton(
                     modifier = Modifier
-                        .wjzFocusExits(id = "action/coin"),
+                        .wjzFocusExits(
+                            nodeId = VideoInfoScopeId.resolve(VideoInfoCoinLocalId),
+                            scopeId = VideoInfoScopeId
+                        ),
                     isCoined = isCoined,
                     countText = (videoDetail.metrics?.snapshot?.coin
                         ?: videoDetail.stat.coin.toLong()).toWanString(),
@@ -1248,7 +1279,10 @@ private fun VideoInfoData(
                     .weight(1f)
                     .then(
                         if (hasDescription) {
-                            Modifier.wjzFocusExits(id = "description")
+                            Modifier.wjzFocusExits(
+                                nodeId = VideoInfoScopeId.resolve(VideoInfoDescriptionLocalId),
+                                scopeId = VideoInfoScopeId
+                            )
                         } else {
                             Modifier
                         }
@@ -1576,7 +1610,7 @@ fun VideoDescriptionDialog(
                         modifier = Modifier
                             .fillMaxSize()
                             .wjzFocusExits(
-                                id = VideoDescriptionDialogBodyLocalId,
+                                nodeId = WjzFocusNodeId(VideoDescriptionDialogBodyLocalId),
                                 layer = WjzFocusLayer.Dialog,
                                 exits = {
                                     cancel(up)
@@ -1645,8 +1679,8 @@ fun VideoDescriptionDialog(
                             ),
                             maxLines = Int.MAX_VALUE,
                             interactiveFocusEnabled = true,
-                            interactiveNodeKey = { index ->
-                                videoDescriptionDialogInlineLocalId(index)
+                            interactiveFocusNodeId = { index ->
+                                WjzFocusNodeId(videoDescriptionDialogInlineLocalId(index))
                             },
                             onVideoLinkClick = { link ->
                                 if (Prefs.showVideoInfo) {
@@ -2018,7 +2052,7 @@ private fun VideoDescriptionRichContentContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .wjzFocusExits(
-                            id = videoDescriptionRichContentBodyLocalId(document.title),
+                            nodeId = WjzFocusNodeId(videoDescriptionRichContentBodyLocalId(document.title)),
                             layer = WjzFocusLayer.Dialog,
                             onFocusChanged = { hasFocus ->
                                 bodyIsFocused = hasFocus
@@ -2086,8 +2120,8 @@ private fun VideoDescriptionRichContentContent(
                             ),
                             maxLines = Int.MAX_VALUE,
                             interactiveFocusEnabled = true,
-                            interactiveNodeKey = { index ->
-                                videoDescriptionRichContentInlineLocalId(document.title, index)
+                            interactiveFocusNodeId = { index ->
+                                WjzFocusNodeId(videoDescriptionRichContentInlineLocalId(document.title, index))
                             },
                             onVideoLinkClick = onVideoLinkClick,
                             onReferenceClick = onReferenceClick,
@@ -2164,7 +2198,7 @@ private fun VideoDescriptionRichContentPictures(
                     .width(184.dp)
                     .height(112.dp)
                     .wjzFocusExits(
-                        id = videoDescriptionRichContentPictureLocalId(keyPrefix, index),
+                        nodeId = WjzFocusNodeId(videoDescriptionRichContentPictureLocalId(keyPrefix, index)),
                         layer = WjzFocusLayer.Dialog,
                         onFocusChanged = { pictureHasFocus = it }
                     )
@@ -2243,7 +2277,7 @@ private fun VideoDescriptionRichContentImagePreviewDialog(
                 modifier = Modifier
                     .fillMaxSize()
                     .wjzFocusExits(
-                        id = VideoDescriptionRichContentImagePreviewBodyLocalId,
+                        nodeId = WjzFocusNodeId(VideoDescriptionRichContentImagePreviewBodyLocalId),
                         layer = WjzFocusLayer.Dialog
                     )
                     .onKeyEvent {
@@ -2328,7 +2362,10 @@ fun VideoPartRow(
 
     LazyRow(
         modifier = modifier
-            .wjzFocusExits(id = "part/entry")
+            .wjzFocusExits(
+                nodeId = VideoInfoPartEntryNodeId,
+                scopeId = VideoInfoScopeId
+            )
             .padding(top = 8.dp),
         contentPadding = PaddingValues(horizontal = 58.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp)
@@ -2367,7 +2404,10 @@ fun VideoPartRow(
             item {
                 VideoPartRowButton(
                     modifier = Modifier
-                        .wjzFocusExits(id = "part/leading"),
+                        .wjzFocusExits(
+                            nodeId = VideoInfoScopeId.resolve(VideoInfoPartLeadingLocalId),
+                            scopeId = VideoInfoScopeId
+                        ),
                     onClick = { showPartListDialog = true }
                 ) {
                     Icon(
@@ -2382,7 +2422,10 @@ fun VideoPartRow(
         itemsIndexed(items = pages, key = { _, page -> page.cid }) { index, page ->
             VideoPartButton(
                 modifier = Modifier
-                    .wjzFocusExits(id = "part/page/$index")
+                    .wjzFocusExits(
+                        nodeId = VideoInfoScopeId.resolve(videoInfoPartPageLocalId(index)),
+                        scopeId = VideoInfoScopeId
+                    )
                     .width(380.dp),
                 index = index + 1,
                 title = page.title,
@@ -2928,7 +2971,7 @@ fun <T> PagedVideoInfinityListDialog(
                 modifier = modifier
                     .fillMaxSize()
                     .wjzFocusExits(
-                        id = pagedVideoDialogBodyKey(title),
+                        nodeId = WjzFocusNodeId(pagedVideoDialogBodyKey(title)),
                         layer = WjzFocusLayer.Dialog
                     )
                     .background(Color.Black),
@@ -2959,7 +3002,7 @@ fun <T> PagedVideoInfinityListDialog(
                     if (tabCount > 1) {
                         BvUnderlineTabRow(
                             modifier = Modifier.wjzFocusExits(
-                                id = pagedVideoDialogTabKey(title),
+                                nodeId = WjzFocusNodeId(pagedVideoDialogTabKey(title)),
                                 layer = WjzFocusLayer.Dialog
                             ),
                             items = tabItems,
@@ -3045,7 +3088,7 @@ fun <T> PagedVideoInfinityListDialog(
                             val itemModifier = Modifier
                                     .fillMaxWidth()
                                     .wjzFocusExits(
-                                        id = itemKey,
+                                        nodeId = WjzFocusNodeId(itemKey),
                                         layer = WjzFocusLayer.Dialog,
                                         onFocusChanged = { hasFocus ->
                                             if (hasFocus) {
@@ -3120,6 +3163,7 @@ fun <T> PagedVideoInfinityListDialog(
                             val focusTarget = BvLazyFocusItemTarget(
                                 modifier = itemModifier,
                                 nodeId = WjzFocusNodeId(itemKey),
+                                localId = wjzFocusLocalId(itemKey),
                                 layer = WjzFocusLayer.Dialog,
                                 scopeId = null,
                                 itemKey = WjzFocusItemKey(itemKey(item).toString()),

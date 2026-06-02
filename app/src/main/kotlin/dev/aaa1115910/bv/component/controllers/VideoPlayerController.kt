@@ -38,15 +38,16 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
-import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.down
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.comments.VideoCommentsDialog
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.up
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoFlip
 import dev.aaa1115910.bv.entity.VideoListItem
@@ -79,19 +80,22 @@ import kotlinx.coroutines.launch
 
 private val PlayerControllerFocusScopeId = WjzFocusScopeId("player/controller")
 private const val PlayerControllerFocusComponentId = "playerController"
-private const val PlayerControllerRootFocusId = "root"
+private val PlayerControllerRootFocusLocalId = wjzFocusLocalId("root")
 private const val PlayerControllerUpPanelEntryLocalId = "upPanel"
 private const val PlayerControllerPlayerControlsEntryLocalId = "playerControls"
 private const val PlayerControllerInfoPanelEntryLocalId = "infoPanel"
 private const val PlayerControllerMenuEntryLocalId = "menu"
-private const val PlayerControllerUpPanelDefaultFocusId = "player/up-panel/nav/video"
-private const val PlayerControllerFirstActionFocusId = "player/controller/actions/danmaku"
+private val PlayerControllerUpPanelDefaultFocusLocalId = wjzFocusLocalId("up-panel", "nav", "video")
+private val PlayerControllerFirstActionFocusLocalId = wjzFocusLocalId("actions", "danmaku")
 private val PlayerControllerUpPanelEntryId =
     WjzFocusEntryId("$PlayerControllerFocusComponentId/$PlayerControllerUpPanelEntryLocalId")
 private val PlayerControllerPlayerControlsEntryId =
     WjzFocusEntryId("$PlayerControllerFocusComponentId/$PlayerControllerPlayerControlsEntryLocalId")
 private val PlayerControllerMenuEntryId =
     WjzFocusEntryId("$PlayerControllerFocusComponentId/$PlayerControllerMenuEntryLocalId")
+
+private fun playerControllerTarget(localId: WjzFocusLocalId) =
+    PlayerControllerFocusScopeId.target(localId).copy(layer = WjzFocusLayer.Player)
 
 @Composable
 fun VideoPlayerController(
@@ -453,11 +457,7 @@ fun VideoPlayerController(
         WjzFocusEntrySurface(
             componentId = PlayerControllerFocusComponentId,
             default = {
-                defaultEntry(
-                    nodeId = WjzFocusNodeId(PlayerControllerRootFocusId),
-                    layer = WjzFocusLayer.Player,
-                    scopeId = PlayerControllerFocusScopeId
-                )
+                playerControllerTarget(PlayerControllerRootFocusLocalId)
             },
             entries = {
                 entry(PlayerControllerUpPanelEntryLocalId) {
@@ -467,11 +467,7 @@ fun VideoPlayerController(
                     showRelatedVideosController = false
                     focusInfoButtonsOnShow = false
                     showUpPanelController = true
-                    defaultEntry(
-                        nodeId = WjzFocusNodeId(PlayerControllerUpPanelDefaultFocusId),
-                        layer = WjzFocusLayer.Player,
-                        scopeId = PlayerControllerFocusScopeId
-                    )
+                    playerControllerTarget(PlayerControllerUpPanelDefaultFocusLocalId)
                 }
                 entry(PlayerControllerPlayerControlsEntryLocalId) {
                     onDemandFeatureRequested(PlayerDemandFeature.BottomBar)
@@ -480,11 +476,7 @@ fun VideoPlayerController(
                     showRelatedVideosController = false
                     focusInfoButtonsOnShow = true
                     showInfoSeekController = true
-                    defaultEntry(
-                        nodeId = WjzFocusNodeId(PlayerControllerFirstActionFocusId),
-                        layer = WjzFocusLayer.Player,
-                        scopeId = PlayerControllerFocusScopeId
-                    )
+                    playerControllerTarget(PlayerControllerFirstActionFocusLocalId)
                 }
                 entry(PlayerControllerInfoPanelEntryLocalId) {
                     onDemandFeatureRequested(PlayerDemandFeature.BottomBar)
@@ -493,11 +485,7 @@ fun VideoPlayerController(
                     showRelatedVideosController = false
                     focusInfoButtonsOnShow = false
                     showInfoSeekController = true
-                    defaultEntry(
-                        nodeId = WjzFocusNodeId(PlayerControllerRootFocusId),
-                        layer = WjzFocusLayer.Player,
-                        scopeId = PlayerControllerFocusScopeId
-                    )
+                    playerControllerTarget(PlayerControllerRootFocusLocalId)
                 }
                 entry(PlayerControllerMenuEntryLocalId) {
                     showInfoSeekController = false
@@ -505,18 +493,14 @@ fun VideoPlayerController(
                     showRelatedVideosController = false
                     focusInfoButtonsOnShow = false
                     showMenuController = true
-                    defaultEntry(
-                        nodeId = WjzFocusNodeId(PlayerControllerRootFocusId),
-                        layer = WjzFocusLayer.Player,
-                        scopeId = PlayerControllerFocusScopeId
-                    )
+                    playerControllerTarget(PlayerControllerRootFocusLocalId)
                 }
             }
         )
         Box(
             modifier = Modifier
                 .wjzFocusExits(
-                    id = PlayerControllerRootFocusId,
+                    localId = PlayerControllerRootFocusLocalId,
                     layer = WjzFocusLayer.Player,
                     exits = {
                         up move PlayerControllerUpPanelEntryId

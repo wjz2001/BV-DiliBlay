@@ -227,7 +227,7 @@ fun ClosedCaptionMenuList(
 
                 VideoPlayerClosedCaptionMenuItem.Size -> StepLessMenuItem(
                     modifier = menuItemsModifier,
-                    focusId = "$PlayerMenuClosedCaptionFocusIdPrefix/size",
+                    localFocusId = playerMenuLocalFocusId(PlayerMenuClosedCaptionFocusIdPrefix, "size"),
                     value = currentFontSize.value.toInt(),
                     step = 1,
                     range = 12..48,
@@ -238,7 +238,7 @@ fun ClosedCaptionMenuList(
 
                 VideoPlayerClosedCaptionMenuItem.Opacity -> StepLessMenuItem(
                     modifier = menuItemsModifier,
-                    focusId = "$PlayerMenuClosedCaptionFocusIdPrefix/opacity",
+                    localFocusId = playerMenuLocalFocusId(PlayerMenuClosedCaptionFocusIdPrefix, "opacity"),
                     value = currentOpacity,
                     step = 0.01f,
                     range = 0f..1f,
@@ -251,7 +251,7 @@ fun ClosedCaptionMenuList(
 
                 VideoPlayerClosedCaptionMenuItem.Padding -> StepLessMenuItem(
                     modifier = menuItemsModifier,
-                    focusId = "$PlayerMenuClosedCaptionFocusIdPrefix/padding",
+                    localFocusId = playerMenuLocalFocusId(PlayerMenuClosedCaptionFocusIdPrefix, "padding"),
                     value = currentPadding.value.toInt(),
                     step = 1,
                     range = 0..48,

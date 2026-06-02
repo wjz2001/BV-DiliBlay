@@ -59,8 +59,9 @@ import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.component.UpIcon
 import dev.aaa1115910.bv.component.TvGridFocusHost
 import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
@@ -79,6 +80,8 @@ import dev.aaa1115910.bv.viewmodel.video.CheeseSeasonViewModel
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import kotlin.math.floor
+
+private fun cheeseSeasonUpFocusId(seasonId: Long) = wjzFocusLocalId("up", seasonId)
 
 @Composable
 fun CheeseSeasonScreen(
@@ -235,6 +238,7 @@ private fun CheeseSeasonIntro(
     val context = LocalContext.current
     val density = LocalDensity.current
     val focusScopeId = LocalWjzFocusScopeId.current
+    val upFocusId = remember(detail.seasonId) { cheeseSeasonUpFocusId(detail.seasonId) }
     val scrollOffsetPx = remember(density) {
         with(density) { 60.dp.toPx() }
     }
@@ -295,11 +299,9 @@ private fun CheeseSeasonIntro(
                         WjzFocusEntrySurface(
                             componentId = "cheeseSeasonIntro${detail.seasonId}",
                             default = {
-                                defaultEntry(
-                                    "cheese/${detail.seasonId}/up",
-                                    layer = WjzFocusLayer.Content,
-                                    scopeId = focusScopeId
-                                )
+                                requireNotNull(focusScopeId)
+                                    .target(upFocusId)
+                                    .copy(layer = WjzFocusLayer.Content)
                             }
                         )
                     }
@@ -307,7 +309,7 @@ private fun CheeseSeasonIntro(
                     CheeseUpButton(
                         modifier = Modifier
                             .wjzFocusExits(
-                                id = "cheese/${detail.seasonId}/up",
+                                localId = upFocusId,
                                 layer = WjzFocusLayer.Content,
                                 enabled = focusEnabled
                             ),
@@ -387,6 +389,7 @@ private fun CheeseEpisodeList(
     onEpisodeClick: (CheeseEpisode) -> Unit
 ) {
     val gridState = rememberLazyGridState()
+    val focusScopeId = LocalWjzFocusScopeId.current
 
     LaunchedEffect(episodes, targetEpisodeIndex, expanded) {
         if (episodes.isNotEmpty()) {
@@ -401,6 +404,7 @@ private fun CheeseEpisodeList(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalArrangement = Arrangement.spacedBy(horizontalSpacing),
         nodeIdPrefix = "cheese/$seasonId/episodes",
+        focusScopeId = focusScopeId,
         contentPadding = PaddingValues(bottom = 32.dp),
         focusItemCount = episodes.size,
         itemKeys = episodes.map { WjzFocusItemKey("Long:${it.epId}") },

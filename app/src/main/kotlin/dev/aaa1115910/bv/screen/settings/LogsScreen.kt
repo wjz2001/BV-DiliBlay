@@ -48,9 +48,10 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.resolve
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.wjzFocusRestorerHost
 import dev.aaa1115910.bv.network.HttpServer
 import dev.aaa1115910.bv.ui.theme.BVTheme
@@ -70,6 +71,9 @@ import java.net.NetworkInterface
 
 private val LogsScopeId = WjzFocusScopeId("settings/logs")
 private const val LogsRestorerId = "settings/logs/restorer"
+private val LogsCreateLocalId = wjzFocusLocalId("create")
+
+private fun logsFileLocalId(file: File) = wjzFocusLocalId("file", file.name)
 
 @Composable
 fun LogsScreen(
@@ -238,7 +242,7 @@ fun LogsScreenContent(
             val shouldFocusCreate = isCreateFocused || logs.isEmpty()
             if (!shouldFocusCreate) return@LaunchedEffect
             focusCoordinator?.enqueueGroupRestore(
-                nodeId = WjzFocusNodeId("create"),
+                nodeId = LogsScopeId.resolve(LogsCreateLocalId),
                 layer = WjzFocusLayer.Content,
                 scopeId = LogsScopeId,
                 restorerId = LogsRestorerId,
@@ -289,7 +293,7 @@ fun LogsScreenContent(
                         item {
                             CreateLogItem(
                                 modifier = Modifier.wjzFocusExits(
-                                    id = "create",
+                                    localId = LogsCreateLocalId,
                                     layer = WjzFocusLayer.Content,
                                     onFocused = onFocusCreate
                                 ),
@@ -299,7 +303,7 @@ fun LogsScreenContent(
                         items(items = logs) { logFile ->
                             LogItem(
                                 modifier = Modifier.wjzFocusExits(
-                                    id = "file/${logFile.name}",
+                                    localId = logsFileLocalId(logFile),
                                     layer = WjzFocusLayer.Content,
                                     onFocused = { onFocusLogFile(logFile) }
                                 ),

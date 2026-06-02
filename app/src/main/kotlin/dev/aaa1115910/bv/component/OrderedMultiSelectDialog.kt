@@ -52,13 +52,17 @@ import androidx.tv.material3.MaterialTheme
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusRequester
+import dev.aaa1115910.bv.wjzfocus.resolve
 import dev.aaa1115910.bv.wjzfocus.wjzFocusGroup
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import androidx.tv.material3.Text as TvText
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.toast
@@ -213,7 +217,8 @@ internal fun <T, ID> OrderedMultiSelectListContent(
 ) {
     val context = LocalContext.current
     val focusCoordinator = LocalWjzFocusCoordinator.current
-    val focusScopeId = LocalWjzFocusScopeId.current ?: OrderedMultiSelectDialogScopeId
+    val currentFocusScopeId = LocalWjzFocusScopeId.current
+    val focusScopeId = currentFocusScopeId ?: OrderedMultiSelectDialogScopeId
     val listState = rememberLazyListState()
     var pendingLoopTargetIndex by remember { mutableStateOf<Int?>(null) }
 
@@ -245,24 +250,26 @@ internal fun <T, ID> OrderedMultiSelectListContent(
     val focusHostTargetIndex = pendingLoopTargetIndex ?: targetIndex
     val focusHostTargetNodeId = when {
         focusHostTargetIndex != null && focusHostTargetIndex in items.indices -> {
-            orderedMultiSelectNodeId(
-                index = focusHostTargetIndex,
-                item = items[focusHostTargetIndex],
-                targetIndex = targetIndex,
-                scopeId = focusScopeId,
-                itemId = itemId,
-                itemKey = itemKey
+            focusScopeId.resolve(
+                orderedMultiSelectLocalId(
+                    index = focusHostTargetIndex,
+                    item = items[focusHostTargetIndex],
+                    targetIndex = targetIndex,
+                    itemId = itemId,
+                    itemKey = itemKey
+                )
             )
         }
 
         items.isNotEmpty() -> {
-            orderedMultiSelectNodeId(
-                index = 0,
-                item = items.first(),
-                targetIndex = targetIndex,
-                scopeId = focusScopeId,
-                itemId = itemId,
-                itemKey = itemKey
+            focusScopeId.resolve(
+                orderedMultiSelectLocalId(
+                    index = 0,
+                    item = items.first(),
+                    targetIndex = targetIndex,
+                    itemId = itemId,
+                    itemKey = itemKey
+                )
             )
         }
 
@@ -328,17 +335,18 @@ internal fun <T, ID> OrderedMultiSelectListContent(
             key = itemKey?.let { k -> { _: Int, item: T -> k(item) } }
         ) { index, item ->
             var hasFocus by remember { mutableStateOf(false) }
-            val nodeId = orderedMultiSelectNodeId(
+            val localId = orderedMultiSelectLocalId(
                 index = index,
                 item = item,
                 targetIndex = targetIndex,
-                scopeId = focusScopeId,
                 itemId = itemId,
                 itemKey = itemKey
             )
+            val nodeId = focusScopeId.resolve(localId)
             val itemModifier =
                 Modifier.wjzFocusExits(
-                    id = nodeId.value.removePrefix("${focusScopeId.value}/"),
+                    localId = localId.takeIf { currentFocusScopeId != null },
+                    nodeId = nodeId.takeIf { currentFocusScopeId == null },
                     layer = WjzFocusLayer.Dialog,
                     onFocusChanged = { hasFocus = it }
                 )
@@ -519,19 +527,41 @@ private fun <ID> Collection<ID>.hasMissingSelection(selectedOrders: Map<ID, Int>
     return any { id -> selectedOrders[id] == null }
 }
 
-private fun <T, ID> orderedMultiSelectNodeId(
+private fun <T, ID> orderedMultiSelectLocalId(
     index: Int,
     item: T,
     targetIndex: Int?,
-    scopeId: WjzFocusScopeId,
     itemId: (T) -> ID,
     itemKey: ((T) -> Any)?
-): WjzFocusNodeId {
+): WjzFocusLocalId {
     return if (index == targetIndex) {
-        WjzFocusNodeId("${scopeId.value}/$OrderedMultiSelectTargetFocusId")
+        wjzFocusLocalId(OrderedMultiSelectTargetFocusId)
     } else {
-        WjzFocusNodeId(
-            "${scopeId.value}/item/${itemKey?.invoke(item) ?: itemId(item)}"
+        wjzFocusLocalId("item", itemKey?.invoke(item) ?: itemId(item) ?: "null")
+    }
+}
+
+@Composable
+private fun Modifier.wjzFocusExits(
+    localId: WjzFocusLocalId?,
+    nodeId: WjzFocusNodeId?,
+    layer: WjzFocusLayer,
+    onFocusChanged: (Boolean) -> Unit
+): Modifier {
+    return if (localId != null) {
+        wjzFocusExits(
+            localId = localId,
+            layer = layer,
+            onFocusChanged = onFocusChanged
+        )
+    } else {
+        require(nodeId != null) { "ordered multi select focus nodeId must not be null" }
+        wjzFocusExits(
+            nodeId = nodeId,
+            scopeId = null,
+            layer = layer,
+            requester = rememberWjzFocusRequester(),
+            onFocusChanged = onFocusChanged
         )
     }
 }

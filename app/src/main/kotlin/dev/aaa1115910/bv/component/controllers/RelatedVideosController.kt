@@ -132,7 +132,7 @@ fun RelatedVideosController(
             modifier = Modifier
                 .fillMaxSize()
                 .wjzFocusExits(
-                    id = RelatedVideosRootNodeId.value,
+                    nodeId = RelatedVideosRootNodeId,
                     layer = WjzFocusLayer.Overlay,
                     enabled = show
                 ),

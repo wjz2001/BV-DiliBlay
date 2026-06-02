@@ -29,14 +29,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.zIndex
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusComponentId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.WjzFocusRequestResult
 import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.PersistLazyGridViewportEffect
@@ -79,10 +83,10 @@ private enum class HomeSearchPage {
     Result
 }
 
-private val HomeTopNavNodeId = WjzFocusNodeId("main/home/top-nav")
-private val HomeTopNavEntryId = WjzFocusEntryId.parse(
-    "bv_tab_row_${HomeTopNavNodeId.value.hashCode()}"
-)
+private val HomeTopNavScopeId = WjzFocusScopeId("main/home/top-nav")
+private val HomeTopNavComponentId = WjzFocusComponentId("homeTopNav")
+private val HomeTopNavEntryId = HomeTopNavComponentId.defaultEntry()
+private val HomeContentNodeId = WjzFocusNodeId("main/home/content")
 
 @Composable
 fun HomeContent(
@@ -105,6 +109,10 @@ fun HomeContent(
     var searchEnableProxy by rememberSaveable { mutableStateOf(false) }
     var previousActiveTab by remember { mutableStateOf<HomeTopNavItem?>(null) }
     val focusCoordinator = LocalWjzFocusCoordinator.current
+    val isWindowFocused = LocalWindowInfo.current.isWindowFocused
+    var initialTopNavReady by remember { mutableStateOf(false) }
+    var didInitialDefaultFocus by remember { mutableStateOf(false) }
+    var firstFocusConfirmed by remember { mutableStateOf(false) }
     val entryAdapter = mainContentEntryAdapter(
         entryRequest = entryRequest,
         active = active,
@@ -115,8 +123,9 @@ fun HomeContent(
     )
     val entryFocusRequest = entryAdapter.topNavEntryFocusRequest
 
-    fun requestTopNavFocus(): Boolean {
-        return focusCoordinator?.requestEntryFocus(HomeTopNavEntryId) == true
+    fun requestTopNavFocus(): WjzFocusRequestResult {
+        return focusCoordinator?.requestEntryFocusDetailed(HomeTopNavEntryId)
+            ?: WjzFocusRequestResult.Failed
     }
 
     val backToTopNav: () -> Unit = {
@@ -142,6 +151,12 @@ fun HomeContent(
                 HomeTopNavItem.SubscribedCollection -> TopNavLeadingIcon.Vector(Icons.Rounded.Subscriptions)
                 null -> null
             }
+        }
+    }
+
+    LaunchedEffect(isWindowFocused) {
+        if (!isWindowFocused && !firstFocusConfirmed) {
+            didInitialDefaultFocus = false
         }
     }
 
@@ -185,6 +200,30 @@ fun HomeContent(
     val handleDefaultFocusReady: (Any) -> Unit = handleDefaultFocusReady@{ readyKey ->
         if (!active) return@handleDefaultFocusReady
         entryAdapter.onDefaultFocusReady(entryFocusRequest)
+        initialTopNavReady = true
+    }
+
+    LaunchedEffect(active, entryRequest, initialTopNavReady, focusCoordinator, isWindowFocused) {
+        if (!active || !isWindowFocused || entryRequest != null || !initialTopNavReady || didInitialDefaultFocus) {
+            return@LaunchedEffect
+        }
+
+        for (attempt in 0 until 8) {
+            val result = requestTopNavFocus()
+            when (result) {
+                WjzFocusRequestResult.Focused -> {
+                    firstFocusConfirmed = true           // ← 真落焦才永久关闸
+                    didInitialDefaultFocus = true
+                    return@LaunchedEffect
+                }
+                WjzFocusRequestResult.Enqueued -> {
+                    didInitialDefaultFocus = true       // 本轮关闸，等失焦复位重试
+                    return@LaunchedEffect
+                }
+                WjzFocusRequestResult.Failed -> Unit
+            }
+            withFrameNanos { }
+        }
     }
 
     fun handleTopNavConfirmLongPress(tab: HomeTopNavItem): Boolean {
@@ -225,7 +264,8 @@ fun HomeContent(
                     onTabConfirmLongPress = { nav -> handleTopNavConfirmLongPress(nav as HomeTopNavItem) },
                     contentFocusEnabled = true,
                     contentFocusReadyKey = contentReadyTab,
-                    focusNodeId = HomeTopNavNodeId,
+                    focusScopeId = HomeTopNavScopeId,
+                    focusComponentId = HomeTopNavComponentId,
                     onContentFocusRequested = { nav ->
                         val target = nav as HomeTopNavItem
                         if (target != activeTab) {
@@ -254,7 +294,7 @@ fun HomeContent(
             modifier = Modifier
                 .padding(innerPadding)
                 .wjzFocusExits(
-                    id = "main/home/content",
+                    nodeId = HomeContentNodeId,
                     layer = WjzFocusLayer.Content,
                     strategy = WjzFocusRestoreStrategy.Container,
                     enabled = active,

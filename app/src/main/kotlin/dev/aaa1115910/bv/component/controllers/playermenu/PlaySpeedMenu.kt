@@ -30,7 +30,7 @@ fun PlaySpeedMenuList(
             modifier = Modifier
                 .width(216.dp)
                 .padding(horizontal = 8.dp),
-            focusId = "$PlayerMenuPlaySpeedFocusIdPrefix/step",
+            localFocusId = playerMenuLocalFocusId(PlayerMenuPlaySpeedFocusIdPrefix, "step"),
             value = currentSelectedPlaySpeedItem.speed,
             step = 0.25f,
             range = 0.25f..5f,

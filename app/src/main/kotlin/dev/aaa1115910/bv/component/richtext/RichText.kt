@@ -55,7 +55,9 @@ import dev.aaa1115910.bv.util.ResolvedVideoLink
 import dev.aaa1115910.bv.util.RichTextToken
 import dev.aaa1115910.bv.util.VideoLinkToken
 import dev.aaa1115910.bv.util.resolveVideoLink
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
@@ -70,7 +72,8 @@ fun RichText(
     textStyle: TextStyle,
     maxLines: Int = Int.MAX_VALUE,
     interactiveFocusEnabled: Boolean,
-    interactiveNodeKey: ((index: Int) -> String)? = null,
+    interactiveFocusLocalId: ((index: Int) -> WjzFocusLocalId)? = null,
+    interactiveFocusNodeId: ((index: Int) -> WjzFocusNodeId)? = null,
     onVideoLinkClick: ((ResolvedVideoLink) -> Unit)?,
     onReferenceClick: ((RichTextReference) -> Unit)?,
     onMentionClick: ((Long, String) -> Unit)?,
@@ -93,6 +96,9 @@ fun RichText(
     val accentColor = C.mentionAndLink
     val fontSize = textStyle.fontSize
     val baseTextColor = textStyle.color
+    require(interactiveFocusLocalId == null || interactiveFocusNodeId == null) {
+        "RichText interactive focus id must be either local or node id, not both"
+    }
 
     val text = buildAnnotatedString {
         tokens.forEach { token ->
@@ -108,7 +114,9 @@ fun RichText(
                         inlineIndex += 1
 
                         val idx = focusableIndex
-                        val focusKey = interactiveNodeKey?.invoke(idx) ?: "$inlineKeyPrefix/mention/$idx"
+                        val focusLocalId = interactiveFocusLocalId?.invoke(idx)
+                        val focusNodeId = interactiveFocusNodeId?.invoke(idx)
+                            ?: if (focusLocalId == null) WjzFocusNodeId("$inlineKeyPrefix/mention/$idx") else null
 
                         appendInlineContent(id, "@${token.name}")
                         inlineContent[id] = InlineTextContent(
@@ -121,7 +129,8 @@ fun RichText(
                             MentionInlineItem(
                                 mention = token,
                                 enableFocus = true,
-                                focusKey = focusKey,
+                                focusLocalId = focusLocalId,
+                                focusNodeId = focusNodeId,
                                 fontSize = fontSize,
                                 accentColor = accentColor,
                                 onMentionClick = onMentionClick,
@@ -198,12 +207,15 @@ fun RichText(
                             )
                         } else {
                             val idx = focusableIndex
-                            val focusKey = interactiveNodeKey?.invoke(idx) ?: "$inlineKeyPrefix/video/$idx"
+                            val focusLocalId = interactiveFocusLocalId?.invoke(idx)
+                            val focusNodeId = interactiveFocusNodeId?.invoke(idx)
+                                ?: if (focusLocalId == null) WjzFocusNodeId("$inlineKeyPrefix/video/$idx") else null
 
                             VideoLinkInlineItem(
                                 token = token.data,
                                 enableFocus = true,
-                                focusKey = focusKey,
+                                focusLocalId = focusLocalId,
+                                focusNodeId = focusNodeId,
                                 fontSize = fontSize,
                                 accentColor = accentColor,
                                 baseTextColor = baseTextColor,
@@ -251,12 +263,15 @@ fun RichText(
                             )
                         } else {
                             val idx = focusableIndex
-                            val focusKey = interactiveNodeKey?.invoke(idx) ?: "$inlineKeyPrefix/reference/$idx"
+                            val focusLocalId = interactiveFocusLocalId?.invoke(idx)
+                            val focusNodeId = interactiveFocusNodeId?.invoke(idx)
+                                ?: if (focusLocalId == null) WjzFocusNodeId("$inlineKeyPrefix/reference/$idx") else null
 
                             ReferenceInlineItem(
                                 reference = token.reference,
                                 enableFocus = true,
-                                focusKey = focusKey,
+                                focusLocalId = focusLocalId,
+                                focusNodeId = focusNodeId,
                                 fontSize = fontSize,
                                 accentColor = accentColor,
                                 onReferenceClick = onReferenceClick,
@@ -304,10 +319,38 @@ private fun estimateInlineWidthEm(
 }
 
 @Composable
+private fun typedFocusModifier(
+    focusLocalId: WjzFocusLocalId?,
+    focusNodeId: WjzFocusNodeId?,
+    onFocusChanged: (Boolean) -> Unit
+): Modifier {
+    require(focusLocalId != null || focusNodeId != null) {
+        "RichText inline focus id must not be null"
+    }
+    require(focusLocalId == null || focusNodeId == null) {
+        "RichText inline focus id must be either local or node id, not both"
+    }
+    return if (focusNodeId != null) {
+        Modifier.wjzFocusExits(
+            nodeId = focusNodeId,
+            layer = WjzFocusLayer.Dialog,
+            onFocusChanged = onFocusChanged
+        )
+    } else {
+        Modifier.wjzFocusExits(
+            localId = focusLocalId!!,
+            layer = WjzFocusLayer.Dialog,
+            onFocusChanged = onFocusChanged
+        )
+    }
+}
+
+@Composable
 private fun MentionInlineItem(
     mention: RichTextToken.Mention,
     enableFocus: Boolean,
-    focusKey: String,
+    focusLocalId: WjzFocusLocalId? = null,
+    focusNodeId: WjzFocusNodeId? = null,
     fontSize: TextUnit,
     accentColor: Color,
     onMentionClick: ((Long, String) -> Unit)?,
@@ -361,13 +404,15 @@ private fun MentionInlineItem(
                     else -> false
                 }
             }
-            .wjzFocusExits(
-                id = focusKey,
-                layer = WjzFocusLayer.Dialog,
-                onFocusChanged = { hasFocus ->
-                    focused = hasFocus
-                    if (hasFocus && index >= 0) onFocused?.invoke(index)
-                }
+            .then(
+                typedFocusModifier(
+                    focusLocalId = focusLocalId,
+                    focusNodeId = focusNodeId,
+                    onFocusChanged = { hasFocus ->
+                        focused = hasFocus
+                        if (hasFocus && index >= 0) onFocused?.invoke(index)
+                    }
+                )
             )
             .border(
                 width = if (focused) 3.dp else 0.dp,
@@ -404,7 +449,8 @@ private fun MentionInlineItem(
 private fun VideoLinkInlineItem(
     token: VideoLinkToken,
     enableFocus: Boolean,
-    focusKey: String = token.cleanedUrl,
+    focusLocalId: WjzFocusLocalId? = null,
+    focusNodeId: WjzFocusNodeId? = null,
     fontSize: TextUnit,
     accentColor: Color,
     baseTextColor: Color,
@@ -501,13 +547,15 @@ private fun VideoLinkInlineItem(
                     else -> false
                 }
             }
-            .wjzFocusExits(
-                id = focusKey,
-                layer = WjzFocusLayer.Dialog,
-                onFocusChanged = { hasFocus ->
-                    focused = hasFocus
-                    if (hasFocus && index >= 0) onFocused?.invoke(index)
-                }
+            .then(
+                typedFocusModifier(
+                    focusLocalId = focusLocalId,
+                    focusNodeId = focusNodeId,
+                    onFocusChanged = { hasFocus ->
+                        focused = hasFocus
+                        if (hasFocus && index >= 0) onFocused?.invoke(index)
+                    }
+                )
             )
             .border(
                 width = if (focused) 3.dp else 0.dp,
@@ -564,7 +612,8 @@ private fun VideoLinkInlineItem(
 private fun ReferenceInlineItem(
     reference: RichTextReference,
     enableFocus: Boolean,
-    focusKey: String = reference.displayText,
+    focusLocalId: WjzFocusLocalId? = null,
+    focusNodeId: WjzFocusNodeId? = null,
     fontSize: TextUnit,
     accentColor: Color,
     onReferenceClick: ((RichTextReference) -> Unit)?,
@@ -649,13 +698,15 @@ private fun ReferenceInlineItem(
                     else -> false
                 }
             }
-            .wjzFocusExits(
-                id = focusKey,
-                layer = WjzFocusLayer.Dialog,
-                onFocusChanged = { hasFocus ->
-                    focused = hasFocus
-                    if (hasFocus && index >= 0) onFocused?.invoke(index)
-                }
+            .then(
+                typedFocusModifier(
+                    focusLocalId = focusLocalId,
+                    focusNodeId = focusNodeId,
+                    onFocusChanged = { hasFocus ->
+                        focused = hasFocus
+                        if (hasFocus && index >= 0) onFocused?.invoke(index)
+                    }
+                )
             )
             .border(
                 width = if (focused) 3.dp else 0.dp,

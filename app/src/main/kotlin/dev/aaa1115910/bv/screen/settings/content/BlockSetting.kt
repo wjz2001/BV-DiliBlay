@@ -30,11 +30,13 @@ import dev.aaa1115910.bv.component.BlockTagItem
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.relation.RelationGroupSnapshot
 import dev.aaa1115910.bv.relation.RelationGroupsDataSource
@@ -44,12 +46,9 @@ import dev.aaa1115910.bv.viewmodel.settings.BlockSettingViewModel
 import org.koin.androidx.compose.koinViewModel
 
 private val BlockSettingDetailScopeId = WjzFocusScopeId("settings/detail")
-private val BlockSettingGroupsNodeId =
-    WjzFocusNodeId("settings/detail/block_settings/action/groups")
-private val BlockSettingPagesNodeId =
-    WjzFocusNodeId("settings/detail/block_settings/action/pages")
-private val BlockSettingUpdateNowNodeId =
-    WjzFocusNodeId("settings/detail/block_settings/action/update_now")
+private val BlockSettingGroupsLocalFocusId = blockSettingActionLocalFocusId("groups")
+private val BlockSettingPagesLocalFocusId = blockSettingActionLocalFocusId("pages")
+private val BlockSettingUpdateNowLocalFocusId = blockSettingActionLocalFocusId("update_now")
 private const val BlockSettingComponentId = "blockSetting"
 private val BlockSettingDefaultEntryId = WjzFocusEntryId.parse(BlockSettingComponentId)
 private val BlockSettingGroupsDialogScopeId =
@@ -66,6 +65,9 @@ private fun blockSettingGroupDialogItemNodeId(tag: BlockTagItem) =
 
 private fun blockSettingPageDialogItemNodeId(page: dev.aaa1115910.bv.block.BlockPage) =
     WjzFocusNodeId("settings/dialog/block_settings/pages/${page.name}")
+
+private fun blockSettingActionLocalFocusId(action: String) =
+    wjzFocusLocalId("block_settings", "action", action)
 
 @Composable
 fun BlockSetting(
@@ -121,48 +123,24 @@ fun BlockSetting(
     WjzFocusEntrySurface(
         componentId = BlockSettingComponentId,
         default = {
-            defaultEntry(
-                nodeId = BlockSettingUpdateNowNodeId,
-                layer = WjzFocusLayer.Content,
-                scopeId = BlockSettingDetailScopeId
-            )
+            BlockSettingDetailScopeId.target(BlockSettingUpdateNowLocalFocusId)
         },
         entries = {
             entry("groups") {
                 if (!updating && hasSnapshot) {
-                    defaultEntry(
-                        nodeId = BlockSettingGroupsNodeId,
-                        layer = WjzFocusLayer.Content,
-                        scopeId = BlockSettingDetailScopeId
-                    )
+                    BlockSettingDetailScopeId.target(BlockSettingGroupsLocalFocusId)
                 } else {
-                    defaultEntry(
-                        nodeId = BlockSettingUpdateNowNodeId,
-                        layer = WjzFocusLayer.Content,
-                        scopeId = BlockSettingDetailScopeId
-                    )
+                    BlockSettingDetailScopeId.target(BlockSettingUpdateNowLocalFocusId)
                 }
             }
             entry("pages") {
                 if (!updating && hasSnapshot) {
-                    defaultEntry(
-                        nodeId = BlockSettingPagesNodeId,
-                        layer = WjzFocusLayer.Content,
-                        scopeId = BlockSettingDetailScopeId
-                    )
+                    BlockSettingDetailScopeId.target(BlockSettingPagesLocalFocusId)
                 } else {
-                    defaultEntry(
-                        nodeId = BlockSettingUpdateNowNodeId,
-                        layer = WjzFocusLayer.Content,
-                        scopeId = BlockSettingDetailScopeId
-                    )
+                    BlockSettingDetailScopeId.target(BlockSettingUpdateNowLocalFocusId)
                 }
             }
-            entry("update") move defaultEntry(
-                nodeId = BlockSettingUpdateNowNodeId,
-                layer = WjzFocusLayer.Content,
-                scopeId = BlockSettingDetailScopeId
-            )
+            entry("update") move BlockSettingDetailScopeId.target(BlockSettingUpdateNowLocalFocusId)
         }
     )
 
@@ -181,7 +159,7 @@ fun BlockSetting(
         Spacer(modifier = Modifier.height(12.dp))
 
         BlockSettingActionListItem(
-            nodeId = BlockSettingGroupsNodeId,
+            localFocusId = BlockSettingGroupsLocalFocusId,
             enabled = !updating && hasSnapshot,
             title = stringResource(R.string.block_setting_groups_title),
             supportText = when {
@@ -192,7 +170,7 @@ fun BlockSetting(
         )
 
         BlockSettingActionListItem(
-            nodeId = BlockSettingPagesNodeId,
+            localFocusId = BlockSettingPagesLocalFocusId,
             enabled = !updating && hasSnapshot,
             title = stringResource(R.string.block_setting_pages_title),
             supportText = when {
@@ -208,7 +186,7 @@ fun BlockSetting(
 
         val needLoginToastText = stringResource(R.string.block_setting_update_now_need_login)
         BlockSettingActionListItem(
-            nodeId = BlockSettingUpdateNowNodeId,
+            localFocusId = BlockSettingUpdateNowLocalFocusId,
             enabled = true, // 更新中也保持可聚焦，避免焦点跳走
             title = stringResource(R.string.block_setting_update_now_title),
             supportText = when {
@@ -307,7 +285,7 @@ private fun rememberBlockSettingDialogDismiss(
 
 @Composable
 private fun BlockSettingActionListItem(
-    nodeId: WjzFocusNodeId,
+    localFocusId: WjzFocusLocalId,
     title: String,
     supportText: String,
     enabled: Boolean,
@@ -319,7 +297,7 @@ private fun BlockSettingActionListItem(
     SettingListItem(
         modifier = modifier
             .wjzFocusExits(
-                id = nodeId.toDetailLocalFocusId(),
+                localId = localFocusId,
                 layer = WjzFocusLayer.Content,
                 enabled = enabled,
                 onFocusChanged = { focused = it }
@@ -330,15 +308,6 @@ private fun BlockSettingActionListItem(
         supportText = supportText,
         onClick = onClick
     )
-}
-
-private fun WjzFocusNodeId.toDetailLocalFocusId(): String {
-    val scopePrefix = "${BlockSettingDetailScopeId.value}/"
-    return if (value.startsWith(scopePrefix)) {
-        value.removePrefix(scopePrefix)
-    } else {
-        value
-    }
 }
 
 @Composable

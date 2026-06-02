@@ -23,10 +23,12 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
-import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusComponentId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.TopNav
@@ -46,10 +48,10 @@ import dev.aaa1115910.bv.viewmodel.ugc.UgcViewModel
 import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import org.koin.androidx.compose.koinViewModel
 
-private val UgcTopNavNodeId = WjzFocusNodeId("main/ugc/top-nav")
-private val UgcTopNavEntryId = WjzFocusEntryId.parse(
-    "bv_tab_row_${UgcTopNavNodeId.value.hashCode()}"
-)
+private val UgcTopNavScopeId = WjzFocusScopeId("main/ugc/top-nav")
+private val UgcTopNavComponentId = WjzFocusComponentId("ugcTopNav")
+private val UgcTopNavEntryId = UgcTopNavComponentId.defaultEntry()
+private val UgcContentNodeId = WjzFocusNodeId("main/ugc/content")
 
 @Composable
 fun UgcContent(
@@ -152,7 +154,8 @@ fun UgcContent(
                     },
                     contentFocusEnabled = true,
                     contentFocusReadyKey = contentReadyTab,
-                    focusNodeId = UgcTopNavNodeId,
+                    focusScopeId = UgcTopNavScopeId,
+                    focusComponentId = UgcTopNavComponentId,
                     onContentFocusRequested = { nav ->
                         val target = nav as UgcTopNavItem
                         if (target != activeTab) {
@@ -180,7 +183,7 @@ fun UgcContent(
             modifier = Modifier
                 .padding(innerPadding)
                 .wjzFocusExits(
-                    id = "main/ugc/content",
+                    nodeId = UgcContentNodeId,
                     layer = WjzFocusLayer.Content,
                     strategy = WjzFocusRestoreStrategy.Container,
                     enabled = active,

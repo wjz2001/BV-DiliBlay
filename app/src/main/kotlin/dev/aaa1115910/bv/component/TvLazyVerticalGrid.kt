@@ -28,9 +28,9 @@ enum class TvGridBringIntoViewMode {
     Pivot,
 
     /**
-     * 只保证可见：
+     * 尽量主轴居中：
      * 只要 item 还在安全区内，就完全不滚；
-     * 越界时只滚最小距离让它回到安全区。
+     * 越界时把 item 中心往安全区中心拉。
      */
     KeepVisible
 }
@@ -40,7 +40,7 @@ enum class TvGridBringIntoViewMode {
  *
  * 支持两种模式：
  * 1. Pivot：保留 TV 定轴感，但按 item 中心算，并带 safe zone / hysteresis
- * 2. KeepVisible：不追求固定位置，只保证 item 保持在安全区内
+ * 2. KeepVisible：在 item 越过安全区时，尽量让 focused item 在主轴居中
  *
 
  */
@@ -94,14 +94,14 @@ fun TvLazyVerticalGrid(
                 return when (mode) {
                     TvGridBringIntoViewMode.KeepVisible -> {
                         when {
-                            // 顶部越界：最小距离推回 topSafe
-                            itemStart < topSafe - hysteresisPx -> {
-                                itemStart - topSafe
-                            }
+                            // 越过安全区时，按 item 中心与安全区中心对齐
+                            itemStart < topSafe - hysteresisPx ||
+                                    itemEnd > bottomSafe + hysteresisPx -> {
+                                val itemCenter = itemStart + size * 0.5f
+                                val safeCenter = (topSafe + bottomSafe) * 0.5f
+                                val delta = itemCenter - safeCenter
 
-                            // 底部越界：最小距离推回 bottomSafe
-                            itemEnd > bottomSafe + hysteresisPx -> {
-                                itemEnd - bottomSafe
+                                if (abs(delta) <= hysteresisPx) 0f else delta
                             }
 
                             // 在安全区内：不滚

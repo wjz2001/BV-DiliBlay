@@ -3,21 +3,21 @@ package dev.aaa1115910.bv.screen.main
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import dev.aaa1115910.bv.screen.main.common.MainContentEntryTarget
+import dev.aaa1115910.bv.screen.main.common.MainContentTopEntryId
+import dev.aaa1115910.bv.screen.main.common.MainTopNavDefaultEntryId
+import dev.aaa1115910.bv.screen.main.common.MainTopNavFocusComponentId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
-import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.down
 import dev.aaa1115910.bv.wjzfocus.left
 import dev.aaa1115910.bv.wjzfocus.right
+import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
-import dev.aaa1115910.bv.screen.main.common.MainContentEntryTarget
-import dev.aaa1115910.bv.screen.main.common.MainContentTopEntryId
-import dev.aaa1115910.bv.screen.main.common.MainTopNavFocusComponentId
-import dev.aaa1115910.bv.screen.main.common.MainTopNavDefaultEntryId
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 
 internal data class MainTopNavEntryRequest(
     val id: Long,
@@ -33,7 +33,7 @@ internal enum class MainTopNavContentEntryTarget {
     RightEntry
 }
 
-private val MainTopNavDefaultNodeId = WjzFocusNodeId("${MainTopNavFocusComponentId}/default")
+internal val MainTopNavDefaultLocalId = wjzFocusLocalId("default")
 
 @Composable
 internal fun MainTopNavBlock(
@@ -67,17 +67,15 @@ internal fun MainTopNavBlock(
     WjzFocusEntrySurface(
         componentId = MainTopNavFocusComponentId,
         default = {
-            defaultEntry(
-                nodeId = MainTopNavDefaultNodeId,
-                layer = WjzFocusLayer.TopNav,
-                scopeId = focusScopeId
-            )
+            requireNotNull(focusScopeId) {
+                "MainTopNavBlock requires LocalWjzFocusScopeId.current"
+            }.target(MainTopNavDefaultLocalId).copy(layer = WjzFocusLayer.TopNav)
         }
     )
 
     LeftNaviUserButton(
         modifier = modifier.wjzFocusExits(
-            id = "default",
+            localId = MainTopNavDefaultLocalId,
             layer = WjzFocusLayer.TopNav,
             enabled = focusEnabled,
             exits = {

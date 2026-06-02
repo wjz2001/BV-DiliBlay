@@ -6,8 +6,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
+import dev.aaa1115910.bv.wjzfocus.WjzFocusComponentId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.TopNavItem
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
@@ -21,7 +22,8 @@ private enum class LiveTopNavItem : TopNavItem {
     }
 }
 
-private val LiveTopNavNodeId = WjzFocusNodeId("main/live/top-nav")
+private val LiveTopNavScopeId = WjzFocusScopeId("main/live/top-nav")
+private val LiveTopNavComponentId = WjzFocusComponentId("liveTopNav")
 
 @Composable
 fun LiveContent(
@@ -57,7 +59,8 @@ fun LiveContent(
                 onEntryFocusConsumed = { consumed ->
                     entryAdapter.onTopNavEntryFocusConsumed(entryFocusRequest, consumed)
                 },
-                focusNodeId = LiveTopNavNodeId,
+                focusScopeId = LiveTopNavScopeId,
+                focusComponentId = LiveTopNavComponentId,
                 focusLayer = WjzFocusLayer.Content,
                 backFocusEnabled = active
             )

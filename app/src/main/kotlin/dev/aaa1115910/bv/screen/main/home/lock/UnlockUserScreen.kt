@@ -36,9 +36,9 @@ import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.db.UserDB
 import dev.aaa1115910.bv.screen.main.home.UserItem
@@ -51,7 +51,7 @@ import kotlinx.collections.immutable.ImmutableList
 import org.koin.androidx.compose.koinViewModel
 
 private const val UnlockUserFocusComponentId = "unlock-user"
-private const val UnlockUserInputFocusId = "unlock-user/input"
+private val UnlockUserInputFocusId = wjzFocusLocalId("input")
 
 @Composable
 fun UnlockUserScreen(
@@ -121,11 +121,7 @@ private fun UnlockUserContent(
             WjzFocusEntrySurface(
                 componentId = UnlockUserFocusComponentId,
                 default = {
-                    defaultEntry(
-                        nodeId = WjzFocusNodeId(UnlockUserInputFocusId),
-                        layer = WjzFocusLayer.Content,
-                        scopeId = focusScopeId
-                    )
+                    requireNotNull(focusScopeId).target(UnlockUserInputFocusId)
                 }
             )
         }
@@ -134,7 +130,7 @@ private fun UnlockUserContent(
             modifier = modifier
                 .ifElse({ unlockState == UnlockState.InputPassword }, Modifier.clickable {})
                 .wjzFocusExits(
-                    id = UnlockUserInputFocusId,
+                    localId = UnlockUserInputFocusId,
                     layer = WjzFocusLayer.Content
                 )
                 .onKeyEvent {

@@ -50,11 +50,13 @@ import dev.aaa1115910.bv.ui.theme.AppGray
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.resolve
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.wjzfocus.wjzFocusRestorerHost
 import dev.aaa1115910.bv.wjzfocus.wjzDisabledFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.android.awaitFrame
@@ -75,10 +77,11 @@ data class CollectionChildItem(
     val extra: Any? = null
 )
 
-private fun collectionParentFocusId(key: Long) = "player/collection-list/parent/$key"
+private fun collectionParentFocusLocalId(key: Long): WjzFocusLocalId =
+    wjzFocusLocalId("collection-list", "parent", key)
 
-private fun collectionChildFocusId(parentKey: Long, childKey: Long) =
-    "player/collection-list/parent/$parentKey/child/$childKey"
+private fun collectionChildFocusLocalId(parentKey: Long, childKey: Long): WjzFocusLocalId =
+    wjzFocusLocalId("collection-list", "parent", parentKey, "child", childKey)
 
 private const val CollectionListRestorerId = "player/collection-list/restorer"
 
@@ -307,10 +310,11 @@ fun CollectionListController(
                                 }
 
                                 if (parent.key == wantKey) {
+                                    val scopeId = focusScopeId ?: return@LaunchedEffect
                                     focusCoordinator?.enqueueGroupRestore(
-                                        nodeId = WjzFocusNodeId(collectionParentFocusId(parent.key)),
+                                        nodeId = scopeId.resolve(collectionParentFocusLocalId(parent.key)),
                                         layer = WjzFocusLayer.Player,
-                                        scopeId = focusScopeId,
+                                        scopeId = scopeId,
                                         restorerId = CollectionListRestorerId,
                                         listId = CollectionListRestorerId
                                     )
@@ -324,10 +328,11 @@ fun CollectionListController(
 
                                 if (!childrenLoaded) {
                                     onEnsureChildrenLoaded(parent)
+                                    val scopeId = focusScopeId ?: return@LaunchedEffect
                                     focusCoordinator?.enqueueGroupRestore(
-                                        nodeId = WjzFocusNodeId(collectionParentFocusId(parent.key)),
+                                        nodeId = scopeId.resolve(collectionParentFocusLocalId(parent.key)),
                                         layer = WjzFocusLayer.Player,
-                                        scopeId = focusScopeId,
+                                        scopeId = scopeId,
                                         restorerId = CollectionListRestorerId,
                                         listId = CollectionListRestorerId
                                     )
@@ -343,7 +348,7 @@ fun CollectionListController(
                                 modifier = Modifier
                                     .padding(horizontal = 16.dp)
                                     .wjzFocusExits(
-                                        id = collectionParentFocusId(parent.key),
+                                        localId = collectionParentFocusLocalId(parent.key),
                                         layer = WjzFocusLayer.Player,
                                         onFocusChanged = { focused ->
                                             if (focused) {
@@ -472,12 +477,13 @@ fun CollectionListController(
                                                     kotlinx.coroutines.android.awaitFrame()
                                                 }
 
+                                                val scopeId = focusScopeId ?: return@LaunchedEffect
                                                 focusCoordinator?.enqueueGroupRestore(
-                                                    nodeId = WjzFocusNodeId(
-                                                        collectionChildFocusId(parent.key, child.key)
+                                                    nodeId = scopeId.resolve(
+                                                        collectionChildFocusLocalId(parent.key, child.key)
                                                     ),
                                                     layer = WjzFocusLayer.Player,
-                                                    scopeId = focusScopeId,
+                                                    scopeId = scopeId,
                                                     restorerId = CollectionListRestorerId,
                                                     listId = CollectionListRestorerId
                                                 )
@@ -494,7 +500,7 @@ fun CollectionListController(
                                                 modifier = Modifier
                                                     .padding(horizontal = 16.dp)
                                                     .wjzFocusExits(
-                                                        id = collectionChildFocusId(parent.key, child.key),
+                                                        localId = collectionChildFocusLocalId(parent.key, child.key),
                                                         layer = WjzFocusLayer.Player,
                                                         onFocusChanged = { focused ->
                                                             if (focused) groupHasFocus = true
@@ -516,10 +522,11 @@ fun CollectionListController(
                             LaunchedEffect(active, expanded, focusScopeId) {
                                 if (!active) return@LaunchedEffect
                                 if (!expanded && isParentSelected) {
+                                    val scopeId = focusScopeId ?: return@LaunchedEffect
                                     focusCoordinator?.enqueueGroupRestore(
-                                        nodeId = WjzFocusNodeId(collectionParentFocusId(parent.key)),
+                                        nodeId = scopeId.resolve(collectionParentFocusLocalId(parent.key)),
                                         layer = WjzFocusLayer.Player,
-                                        scopeId = focusScopeId,
+                                        scopeId = scopeId,
                                         restorerId = CollectionListRestorerId,
                                         listId = CollectionListRestorerId
                                     )

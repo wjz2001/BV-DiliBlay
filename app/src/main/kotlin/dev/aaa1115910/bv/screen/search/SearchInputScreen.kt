@@ -60,6 +60,7 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.search.Hotword
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
@@ -77,23 +78,25 @@ import dev.aaa1115910.bv.viewmodel.search.SearchInputViewModel
 import dev.aaa1115910.bv.screen.main.common.MainDrawerRightEntryId
 import dev.aaa1115910.bv.screen.main.common.MainTopNavDefaultEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
-import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.down
 import dev.aaa1115910.bv.wjzfocus.left
 import dev.aaa1115910.bv.wjzfocus.right
+import dev.aaa1115910.bv.wjzfocus.resolve
+import dev.aaa1115910.bv.wjzfocus.target
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import org.koin.androidx.compose.koinViewModel
 
 private val SearchInputRootScopeId = WjzFocusScopeId("search/input/root")
 private val SearchInputDeleteAllDialogScopeId = WjzFocusScopeId("search/input/delete-all")
-private val SearchInputDeleteAllDialogContainerNodeId = WjzFocusNodeId("search/input/delete-all/container")
-private val SearchInputKeywordNodeId = WjzFocusNodeId("search/input/keyword")
+private val SearchInputDeleteAllDialogContainerLocalId = wjzFocusLocalId("container")
+private val SearchInputKeywordLocalId = wjzFocusLocalId("keyword")
 
-private fun SearchRightEntryToken.toFocusLocalId(): String {
+private fun SearchRightEntryToken.toFocusLocalId(): WjzFocusLocalId {
     val slot = slot.name.lowercase()
     val key = firstItemIdentity.replace("/", "_")
-    return "right-entry/$slot/$key"
+    return wjzFocusLocalId("right-entry", slot, key)
 }
 
 @Composable
@@ -248,11 +251,7 @@ private fun SearchInputRoute(
         WjzFocusEntrySurface(
             componentId = "searchInput",
             default = {
-                defaultEntry(
-                    nodeId = SearchInputKeywordNodeId,
-                    layer = WjzFocusLayer.Content,
-                    scopeId = SearchInputRootScopeId
-                )
+                SearchInputRootScopeId.target(SearchInputKeywordLocalId)
             }
         )
         SearchInputScreenContent(
@@ -495,7 +494,7 @@ private fun SearchInput(
                 modifier = Modifier
                     .width(258.dp)
                     .wjzFocusExits(
-                        id = SearchInputKeywordNodeId.value,
+                        localId = SearchInputKeywordLocalId,
                         layer = WjzFocusLayer.Content,
                         exits = {
                             down move "searchResult/top"
@@ -620,7 +619,7 @@ private fun SearchHotwords(
                         if (index == 0 && firstItemReadyToken != null) {
                             Modifier
                                 .wjzFocusExits(
-                                    id = firstItemReadyToken.toFocusLocalId(),
+                                    localId = firstItemReadyToken.toFocusLocalId(),
                                     layer = WjzFocusLayer.Content
                                 )
                                 .onGloballyPositioned {
@@ -673,7 +672,7 @@ private fun SearchSuggestion(
                     if (index == 0 && firstItemReadyToken != null) {
                         Modifier
                             .wjzFocusExits(
-                                id = firstItemReadyToken.toFocusLocalId(),
+                                localId = firstItemReadyToken.toFocusLocalId(),
                                 layer = WjzFocusLayer.Content
                             )
                             .onGloballyPositioned {
@@ -756,7 +755,7 @@ private fun SearchHistory(
                     if (index == 0 && firstItemReadyToken != null) {
                         Modifier
                             .wjzFocusExits(
-                                id = firstItemReadyToken.toFocusLocalId(),
+                                localId = firstItemReadyToken.toFocusLocalId(),
                                 layer = WjzFocusLayer.Content
                             )
                             .onGloballyPositioned {
@@ -794,7 +793,9 @@ private fun SearchHistory(
             onDismissRequest = { showDeleteAllConfirmDialog = false },
             sourceScopeId = SearchInputRootScopeId,
             dialogScopeId = SearchInputDeleteAllDialogScopeId,
-            containerNodeId = SearchInputDeleteAllDialogContainerNodeId,
+            containerNodeId = SearchInputDeleteAllDialogScopeId.resolve(
+                SearchInputDeleteAllDialogContainerLocalId
+            ),
             title = {
                 Text(text = stringResource(R.string.search_input_history_delete_all_confirm_dialog_title))
             },

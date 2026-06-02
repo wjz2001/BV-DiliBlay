@@ -48,13 +48,15 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
+import dev.aaa1115910.bv.wjzfocus.resolve
+import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.down
 import dev.aaa1115910.bv.wjzfocus.left
 import dev.aaa1115910.bv.wjzfocus.right
 import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.ui.state.SeekerState
 import dev.aaa1115910.bv.ui.theme.AppBlack
@@ -71,8 +73,10 @@ import kotlinx.coroutines.delay
 import java.util.Calendar
 
 private const val PlayerControlsFocusComponentId = "playerControls"
-private const val PlayerControllerActionFocusIdPrefix = "player/controller/actions"
-private const val PlayerControllerFirstActionFocusId = "$PlayerControllerActionFocusIdPrefix/danmaku"
+private val PlayerControllerFirstActionFocusLocalId = playerControllerActionFocusLocalId("danmaku")
+
+private fun playerControllerActionFocusLocalId(id: String): WjzFocusLocalId =
+    wjzFocusLocalId("actions", id)
 
 private fun playerControlsEntryId(id: String): WjzFocusEntryId {
     return WjzFocusEntryId.parse("$PlayerControlsFocusComponentId/$id")
@@ -415,19 +419,20 @@ fun ControllerVideoInfoBottom(
             WjzFocusEntrySurface(
                 componentId = PlayerControlsFocusComponentId,
                 default = {
-                    defaultEntry(
-                        nodeId = WjzFocusNodeId(icons.firstOrNull()?.focusId ?: PlayerControllerFirstActionFocusId),
-                        layer = WjzFocusLayer.Player,
-                        scopeId = focusScopeId
-                    )
+                    val scopeId = requireNotNull(focusScopeId) {
+                        "PlayerControls entry requires WjzFocus scope"
+                    }
+                    scopeId.target(
+                        icons.firstOrNull()?.focusLocalId ?: PlayerControllerFirstActionFocusLocalId
+                    ).copy(layer = WjzFocusLayer.Player)
                 },
                 entries = {
                     icons.forEach { icon ->
-                        entry(icon.id) move defaultEntry(
-                            nodeId = WjzFocusNodeId(icon.focusId),
-                            layer = WjzFocusLayer.Player,
-                            scopeId = focusScopeId
-                        )
+                        val scopeId = requireNotNull(focusScopeId) {
+                            "PlayerControls entry requires WjzFocus scope"
+                        }
+                        entry(icon.id) move scopeId.target(icon.focusLocalId)
+                            .copy(layer = WjzFocusLayer.Player)
                     }
                 }
             )
@@ -447,15 +452,22 @@ fun ControllerVideoInfoBottom(
                     )
                     Surface(
                         modifier = Modifier
-                            .wjzFocusExits(
-                                id = icon.focusId,
-                                layer = WjzFocusLayer.Player,
-                                enabled = show,
-                                exits = {
-                                    left move previousEntryId
-                                    right move nextEntryId
-                                    cancel(up)
-                                    cancel(down)
+                            .then(
+                                if (focusScopeId != null) {
+                                    Modifier.wjzFocusExits(
+                                        nodeId = focusScopeId.resolve(icon.focusLocalId),
+                                        scopeId = focusScopeId,
+                                        layer = WjzFocusLayer.Player,
+                                        enabled = show,
+                                        exits = {
+                                            left move previousEntryId
+                                            right move nextEntryId
+                                            cancel(up)
+                                            cancel(down)
+                                        }
+                                    )
+                                } else {
+                                    Modifier
                                 }
                             ),
                         onClick = icon.onClick,
@@ -500,8 +512,8 @@ private sealed interface ControllerActionIcon {
     val id: String
     val description: String
     val onClick: () -> Unit
-    val focusId: String
-        get() = "$PlayerControllerActionFocusIdPrefix/$id"
+    val focusLocalId: WjzFocusLocalId
+        get() = playerControllerActionFocusLocalId(id)
 
     data class Resource(
         override val id: String,

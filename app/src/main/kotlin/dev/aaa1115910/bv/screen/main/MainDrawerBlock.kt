@@ -3,20 +3,26 @@ package dev.aaa1115910.bv.screen.main
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import dev.aaa1115910.bv.wjzfocus.WjzFocusDefaultTarget
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
-import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.down
 import dev.aaa1115910.bv.wjzfocus.left
 import dev.aaa1115910.bv.wjzfocus.right
+import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.screen.main.common.MainContentLeftEntryId
 import dev.aaa1115910.bv.screen.main.common.MainDrawerFocusComponentId
 import dev.aaa1115910.bv.screen.main.common.MainDrawerRightEntryId
+
+internal val MainDrawerSettingsLocalId = wjzFocusLocalId("settings")
+internal val MainDrawerUserLocalId = wjzFocusLocalId("user")
 
 internal data class MainDrawerEntryRequest(
     val id: Long,
@@ -54,6 +60,9 @@ internal fun MainDrawerBlock(
 ) {
     val focusCoordinator = LocalWjzFocusCoordinator.current
     val focusScopeId = LocalWjzFocusScopeId.current
+    val drawerScopeId = requireNotNull(focusScopeId) {
+        "MainDrawerBlock requires LocalWjzFocusScopeId.current"
+    }
 
     LaunchedEffect(entryRequest, focusCoordinator, focusScopeId, currentItem) {
         val request = entryRequest ?: return@LaunchedEffect
@@ -68,18 +77,10 @@ internal fun MainDrawerBlock(
     WjzFocusEntrySurface(
         componentId = MainDrawerFocusComponentId,
         default = {
-            defaultEntry(
-                nodeId = currentItem.drawerContentNodeId(),
-                layer = WjzFocusLayer.Drawer,
-                scopeId = focusScopeId
-            )
+            drawerScopeId.mainDrawerItemTarget(currentItem)
         },
         entries = {
-            "right" move defaultEntry(
-                nodeId = currentItem.drawerContentNodeId(),
-                layer = WjzFocusLayer.Drawer,
-                scopeId = focusScopeId
-            )
+            "right" move drawerScopeId.mainDrawerItemTarget(currentItem)
         }
     )
 
@@ -91,7 +92,7 @@ internal fun MainDrawerBlock(
         onOpenSettings = onOpenSettings,
         drawerItemFocusModifier = { item, itemModifier, onFocusChanged ->
             itemModifier.wjzFocusExits(
-                id = "item/${item.name}",
+                localId = mainDrawerItemLocalId(item),
                 layer = WjzFocusLayer.Drawer,
                 exits = {
                     right move MainContentLeftEntryId
@@ -108,7 +109,7 @@ internal fun MainDrawerBlock(
         },
         settingsFocusModifier = { settingsModifier, onFocusChanged ->
             settingsModifier.wjzFocusExits(
-                id = "right/top",
+                localId = MainDrawerSettingsLocalId,
                 layer = WjzFocusLayer.Drawer,
                 exits = {
                     up move MainDrawerRightEntryId
@@ -122,7 +123,7 @@ internal fun MainDrawerBlock(
         userContent = {
             LeftNaviUserButton(
                 Modifier.wjzFocusExits(
-                    id = "right/bottom",
+                    localId = MainDrawerUserLocalId,
                     layer = WjzFocusLayer.Drawer,
                     exits = {
                         up move MainDrawerRightEntryId
@@ -150,13 +151,17 @@ internal fun MainDrawerBlock(
     )
 }
 
-private fun LeftNaviItem.drawerContentNodeId(): WjzFocusNodeId {
-    return when (this) {
+internal fun WjzFocusScopeId.mainDrawerItemTarget(item: LeftNaviItem): WjzFocusDefaultTarget {
+    return target(mainDrawerItemLocalId(item)).copy(layer = WjzFocusLayer.Drawer)
+}
+
+internal fun mainDrawerItemLocalId(item: LeftNaviItem): WjzFocusLocalId {
+    return when (item) {
         LeftNaviItem.Home,
         LeftNaviItem.Live,
         LeftNaviItem.UGC,
-        LeftNaviItem.PGC -> leftNaviItemFocusNodeId(this)
+        LeftNaviItem.PGC -> wjzFocusLocalId("item", item.name)
 
-        else -> leftNaviItemFocusNodeId(LeftNaviItem.Home)
+        else -> wjzFocusLocalId("item", LeftNaviItem.Home.name)
     }
 }

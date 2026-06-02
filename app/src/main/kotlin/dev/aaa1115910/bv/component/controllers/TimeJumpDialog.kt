@@ -292,7 +292,7 @@ fun TimeJumpDialog(
                                             if (rowIndex == 0 && colIndex == 0) {
                                                 Modifier
                                                     .wjzFocusExits(
-                                                        id = TimeJumpFirstKeyNodeId.value,
+                                                        nodeId = TimeJumpFirstKeyNodeId,
                                                         layer = WjzFocusLayer.Dialog
                                                     )
                                             } else {

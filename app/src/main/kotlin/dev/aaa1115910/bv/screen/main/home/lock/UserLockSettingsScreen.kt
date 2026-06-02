@@ -35,9 +35,9 @@ import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.entity.db.UserDB
 import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.screen.main.home.UserItem
@@ -49,7 +49,7 @@ import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
 private const val UserLockSettingsFocusComponentId = "user-lock-settings"
-private const val UserLockSettingsInputFocusId = "user-lock-settings/input"
+private val UserLockSettingsInputFocusId = wjzFocusLocalId("input")
 
 @Composable
 fun UserLockSettingsScreen(
@@ -135,11 +135,7 @@ private fun UserLockSettingsContent(
         WjzFocusEntrySurface(
             componentId = UserLockSettingsFocusComponentId,
             default = {
-                defaultEntry(
-                    nodeId = WjzFocusNodeId(UserLockSettingsInputFocusId),
-                    layer = WjzFocusLayer.Content,
-                    scopeId = focusScopeId
-                )
+                requireNotNull(focusScopeId).target(UserLockSettingsInputFocusId)
             }
         )
 
@@ -147,7 +143,7 @@ private fun UserLockSettingsContent(
             modifier = modifier
                 .clickable {}
                 .wjzFocusExits(
-                    id = UserLockSettingsInputFocusId,
+                    localId = UserLockSettingsInputFocusId,
                     layer = WjzFocusLayer.Content
                 )
                 .onKeyEvent { keyEvent ->

@@ -19,12 +19,13 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
 import dev.aaa1115910.bv.component.controllers.PlayerMenuMainEntryId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.right
 
 @Composable
 fun StepLessMenuItem(
     modifier: Modifier = Modifier,
-    focusId: String,
+    localFocusId: WjzFocusLocalId,
     value: Float = 1f,
     text: String,
     step: Float = 0.01f,
@@ -72,7 +73,7 @@ fun StepLessMenuItem(
                         }
                         false
                     },
-                focusId = focusId,
+                localFocusId = localFocusId,
                 text = text,
                 selected = false,
                 exits = {
@@ -88,7 +89,7 @@ fun StepLessMenuItem(
 @Composable
 fun StepLessMenuItem(
     modifier: Modifier = Modifier,
-    focusId: String,
+    localFocusId: WjzFocusLocalId,
     value: Int = 100,
     text: String,
     step: Int = 1,
@@ -136,7 +137,7 @@ fun StepLessMenuItem(
                         }
                         false
                     },
-                focusId = focusId,
+                localFocusId = localFocusId,
                 text = text,
                 selected = false,
                 exits = {

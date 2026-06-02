@@ -108,7 +108,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import org.koin.androidx.compose.koinViewModel
 
-private const val SearchResultContentFocusId = "content"
+private val SearchResultContentNodeId = WjzFocusNodeId("content")
 private val SearchResultTopNavNodeId = WjzFocusNodeId("search/result/top-nav")
 private val SearchResultRootScopeId = WjzFocusScopeId("search/result/root")
 
@@ -297,7 +297,7 @@ fun SearchResultScreen(
             componentId = "searchResult",
             default = {
                 defaultEntry(
-                    nodeId = WjzFocusNodeId(SearchResultContentFocusId),
+                    nodeId = SearchResultContentNodeId,
                     layer = WjzFocusLayer.Content,
                     scopeId = SearchResultRootScopeId
                 )
@@ -309,7 +309,7 @@ fun SearchResultScreen(
                     scopeId = SearchResultRootScopeId
                 )
                 entry("left") move defaultEntry(
-                    nodeId = WjzFocusNodeId(SearchResultContentFocusId),
+                    nodeId = SearchResultContentNodeId,
                     layer = WjzFocusLayer.Content,
                     scopeId = SearchResultRootScopeId
                 )
@@ -397,7 +397,7 @@ fun SearchResultScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .wjzFocusExits(
-                                id = SearchResultContentFocusId,
+                                nodeId = SearchResultContentNodeId,
                                 layer = WjzFocusLayer.Content,
                                 exits = {
                                     up move "searchInput/default"
@@ -429,7 +429,7 @@ fun SearchResultScreen(
                     SmallVideoCardGridHost(
                         modifier = Modifier
                             .wjzFocusExits(
-                                id = SearchResultContentFocusId,
+                                nodeId = SearchResultContentNodeId,
                                 layer = WjzFocusLayer.Content,
                                 exits = {
                                     up move "searchInput/default"

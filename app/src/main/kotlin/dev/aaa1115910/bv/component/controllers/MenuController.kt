@@ -56,13 +56,10 @@ import dev.aaa1115910.bv.component.controllers.playermenu.DanmakuMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.MenuNavList
 import dev.aaa1115910.bv.component.controllers.playermenu.PictureMenuList
 import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedItem
-import dev.aaa1115910.bv.component.controllers.playermenu.PlayerMenuClosedCaptionFocusIdPrefix
-import dev.aaa1115910.bv.component.controllers.playermenu.PlayerMenuDanmakuFocusIdPrefix
-import dev.aaa1115910.bv.component.controllers.playermenu.PlayerMenuNavFocusIdPrefix
-import dev.aaa1115910.bv.component.controllers.playermenu.PlayerMenuPictureFocusIdPrefix
-import dev.aaa1115910.bv.component.controllers.playermenu.PlayerMenuPlaySpeedFocusIdPrefix
-import dev.aaa1115910.bv.component.controllers.playermenu.PlayerMenuRootFocusId
+import dev.aaa1115910.bv.component.controllers.playermenu.PlayerMenuFocusRoot
+import dev.aaa1115910.bv.component.controllers.playermenu.PlayerMenuRootNodeId
 import dev.aaa1115910.bv.component.controllers.playermenu.PlaySpeedMenuList
+import dev.aaa1115910.bv.component.controllers.playermenu.playerMenuFocusPrefix
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.VideoAspectRatio
 import dev.aaa1115910.bv.entity.VideoCodec
@@ -88,15 +85,22 @@ internal const val PlayerMenuPictureItemsEntryId = PlayerMenuPictureItemsFocusCo
 internal const val PlayerMenuClosedCaptionItemsEntryId = PlayerMenuClosedCaptionItemsFocusComponentId
 
 private fun playerMenuNavNodeId(item: VideoPlayerMenuNavItem): WjzFocusNodeId {
-    return WjzFocusNodeId("$PlayerMenuNavFocusIdPrefix/${item.ordinal}")
+    return playerMenuFocusPrefix(PlayerMenuFocusRoot.Nav).nodeId(item.ordinal)
 }
 
 private fun playerMenuMainNodeId(item: VideoPlayerMenuNavItem): WjzFocusNodeId {
     return when (item) {
-        VideoPlayerMenuNavItem.PlaySpeed -> WjzFocusNodeId("$PlayerMenuPlaySpeedFocusIdPrefix/step")
-        VideoPlayerMenuNavItem.Picture -> WjzFocusNodeId("$PlayerMenuPictureFocusIdPrefix/menu/0")
-        VideoPlayerMenuNavItem.Danmaku -> WjzFocusNodeId("$PlayerMenuDanmakuFocusIdPrefix/menu/0")
-        VideoPlayerMenuNavItem.ClosedCaption -> WjzFocusNodeId("$PlayerMenuClosedCaptionFocusIdPrefix/menu/0")
+        VideoPlayerMenuNavItem.PlaySpeed ->
+            playerMenuFocusPrefix(PlayerMenuFocusRoot.PlaySpeed, "step").nodeId()
+
+        VideoPlayerMenuNavItem.Picture ->
+            playerMenuFocusPrefix(PlayerMenuFocusRoot.Picture, "menu").nodeId(0)
+
+        VideoPlayerMenuNavItem.Danmaku ->
+            playerMenuFocusPrefix(PlayerMenuFocusRoot.Danmaku, "menu").nodeId(0)
+
+        VideoPlayerMenuNavItem.ClosedCaption ->
+            playerMenuFocusPrefix(PlayerMenuFocusRoot.ClosedCaption, "menu").nodeId(0)
     }
 }
 
@@ -180,7 +184,7 @@ fun MenuController(
         modifier = modifier
             .fillMaxSize()
             .wjzFocusExits(
-                id = PlayerMenuRootFocusId,
+                nodeId = PlayerMenuRootNodeId,
                 layer = WjzFocusLayer.Overlay,
                 enabled = show
             ),

@@ -18,10 +18,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import dev.aaa1115910.bv.wjzfocus.WjzFocusComponentId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.PgcTopNavItem
@@ -48,10 +50,10 @@ import dev.aaa1115910.bv.viewmodel.pgc.PgcVarietyViewModel
 import dev.aaa1115910.bv.viewmodel.pgc.PgcViewModel
 import org.koin.androidx.compose.koinViewModel
 
-private val PgcTopNavNodeId = WjzFocusNodeId("main/pgc/top-nav")
-private val PgcTopNavEntryId = WjzFocusEntryId.parse(
-    "bv_tab_row_${PgcTopNavNodeId.value.hashCode()}"
-)
+private val PgcTopNavScopeId = WjzFocusScopeId("main/pgc/top-nav")
+private val PgcTopNavComponentId = WjzFocusComponentId("pgcTopNav")
+private val PgcTopNavEntryId = PgcTopNavComponentId.defaultEntry()
+private val PgcContentNodeId = WjzFocusNodeId("main/pgc/content")
 
 @Composable
 fun PgcContent(
@@ -128,7 +130,8 @@ fun PgcContent(
                     },
                     contentFocusEnabled = true,
                     contentFocusReadyKey = contentReadyTab,
-                    focusNodeId = PgcTopNavNodeId,
+                    focusScopeId = PgcTopNavScopeId,
+                    focusComponentId = PgcTopNavComponentId,
                     onContentFocusRequested = { nav ->
                         val target = nav as PgcTopNavItem
                         if (target != activeTab) {
@@ -156,7 +159,7 @@ fun PgcContent(
             modifier = Modifier
                 .padding(innerPadding)
                 .wjzFocusExits(
-                    id = "main/pgc/content",
+                    nodeId = PgcContentNodeId,
                     layer = WjzFocusLayer.Content,
                     strategy = WjzFocusRestoreStrategy.Container,
                     enabled = active,

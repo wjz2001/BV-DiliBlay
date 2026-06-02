@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -32,6 +33,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
@@ -49,11 +51,12 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTransitionGuard
-import dev.aaa1115910.bv.wjzfocus.defaultEntry
-import dev.aaa1115910.bv.wjzfocus.entry
 import dev.aaa1115910.bv.wjzfocus.left
+import dev.aaa1115910.bv.wjzfocus.resolve
+import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.component.rememberBlackoutSwitchTransitionState
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.repository.UserRepository
@@ -65,12 +68,13 @@ import dev.aaa1115910.bv.screen.main.MainDrawerContentEntryTarget
 import dev.aaa1115910.bv.screen.main.MainDrawerEntryRequest
 import dev.aaa1115910.bv.screen.main.MainDrawerEntryTarget
 import dev.aaa1115910.bv.screen.main.MainTopNavBlock
+import dev.aaa1115910.bv.screen.main.MainTopNavDefaultLocalId
 import dev.aaa1115910.bv.screen.main.MainTopNavEntryRequest
 import dev.aaa1115910.bv.screen.main.MainTopNavEntryTarget
 import dev.aaa1115910.bv.screen.main.MainTopNavContentEntryTarget
 import dev.aaa1115910.bv.screen.main.PgcContent
 import dev.aaa1115910.bv.screen.main.UgcContent
-import dev.aaa1115910.bv.screen.main.leftNaviItemFocusNodeId
+import dev.aaa1115910.bv.screen.main.mainDrawerItemTarget
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryId
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryState
@@ -82,7 +86,6 @@ import dev.aaa1115910.bv.screen.main.common.MainContentTopEntryId
 import dev.aaa1115910.bv.screen.main.common.MainDrawerFocusComponentId
 import dev.aaa1115910.bv.screen.main.common.MainDrawerRightEntryId
 import dev.aaa1115910.bv.screen.main.common.MainTopNavDefaultEntryId
-import dev.aaa1115910.bv.screen.main.common.MainTopNavFocusComponentId
 import dev.aaa1115910.bv.screen.main.runtime.runtimeContainerInputEnabled
 import dev.aaa1115910.bv.screen.main.toMainContentEntryTarget
 import dev.aaa1115910.bv.component.TvAlertDialog
@@ -97,15 +100,15 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 
-private val MainContentEntryNodeId = WjzFocusNodeId("main/content/entry")
 private const val MainFirstLaunchDialogComponentId = "mainFirstLaunchDialog"
 private val MainFirstLaunchDialogScopeId = WjzFocusScopeId("main/first-launch-dialog")
 private val MainFirstLaunchDialogContainerNodeId = WjzFocusNodeId("main/first-launch-dialog/container")
-private val MainFirstLaunchDialogTextNodeId = WjzFocusNodeId("main/first-launch-dialog/text")
+private val MainFirstLaunchDialogTextLocalId = wjzFocusLocalId("text")
 private val MainDrawerScopeId = WjzFocusScopeId("drawer")
 private val MainFocusScopeId = WjzFocusScopeId("main")
+private val MainContentEntryLocalId = wjzFocusLocalId("content", "entry")
 private val MainTopNavScopeId = WjzFocusScopeId("topNav")
-private val MainTopNavDefaultNodeId = WjzFocusNodeId("${MainTopNavFocusComponentId}/default")
+private val MainTopNavDefaultNodeId = MainTopNavScopeId.resolve(MainTopNavDefaultLocalId)
 
 private data class PendingContentFocus(
     val item: LeftNaviItem,
@@ -419,17 +422,6 @@ fun MainScreen(
 
         Box(modifier = Modifier.fillMaxSize()) {
             val topBarLeadingContent: @Composable () -> Unit = {
-                WjzFocusEntrySurface(
-                    componentId = MainTopNavFocusComponentId,
-                    default = {
-                        defaultEntry(
-                            nodeId = MainTopNavDefaultNodeId,
-                            layer = WjzFocusLayer.TopNav,
-                            scopeId = MainTopNavScopeId
-                        )
-                    },
-                    entries = {}
-                )
                 WjzFocusHost(
                     modifier = Modifier
                         .zIndex(1f)
@@ -467,33 +459,17 @@ fun MainScreen(
             WjzFocusEntrySurface(
                 componentId = MainContentFocusComponentId,
                 default = {
-                    defaultEntry(
-                        nodeId = MainContentEntryNodeId,
-                        layer = WjzFocusLayer.Content,
-                        scopeId = MainFocusScopeId
-                    )
+                    MainFocusScopeId.target(MainContentEntryLocalId)
                 },
                 entries = {
                     entry(MainContentEntryId.localEntryValue) {
-                        defaultEntry(
-                            nodeId = MainContentEntryNodeId,
-                            layer = WjzFocusLayer.Content,
-                            scopeId = MainFocusScopeId
-                        )
+                        MainFocusScopeId.target(MainContentEntryLocalId)
                     }
                     entry(MainContentTopEntryId.localEntryValue) {
-                        defaultEntry(
-                            nodeId = MainContentEntryNodeId,
-                            layer = WjzFocusLayer.Content,
-                            scopeId = MainFocusScopeId
-                        )
+                        MainFocusScopeId.target(MainContentEntryLocalId)
                     }
                     entry(MainContentLeftEntryId.localEntryValue) {
-                        defaultEntry(
-                            nodeId = MainContentEntryNodeId,
-                            layer = WjzFocusLayer.Content,
-                            scopeId = MainFocusScopeId
-                        )
+                        MainFocusScopeId.target(MainContentEntryLocalId)
                     }
                 }
             )
@@ -502,7 +478,7 @@ fun MainScreen(
                         .fillMaxSize()
                         .zIndex(0f)
                         .wjzFocusExits(
-                            id = MainContentEntryNodeId.value.removePrefix("${MainFocusScopeId.value}/"),
+                            localId = MainContentEntryLocalId,
                             layer = WjzFocusLayer.Content,
                             strategy = WjzFocusRestoreStrategy.Container,
                             enabled = !leftNaviExpanded,
@@ -618,19 +594,11 @@ fun MainScreen(
             WjzFocusEntrySurface(
                 componentId = MainDrawerFocusComponentId,
                 default = {
-                    defaultEntry(
-                        nodeId = leftNaviItemFocusNodeId(activeDrawerItem),
-                        layer = WjzFocusLayer.Drawer,
-                        scopeId = MainDrawerScopeId
-                    )
+                    MainDrawerScopeId.mainDrawerItemTarget(activeDrawerItem)
                 },
                 entries = {
                     entry(MainDrawerRightEntryId.localEntryValue) {
-                        defaultEntry(
-                            nodeId = leftNaviItemFocusNodeId(activeDrawerItem),
-                            layer = WjzFocusLayer.Drawer,
-                            scopeId = MainDrawerScopeId
-                        )
+                        MainDrawerScopeId.mainDrawerItemTarget(activeDrawerItem)
                     }
                 }
             )
@@ -715,41 +683,49 @@ fun MainScreen(
                     fontScale = LocalDensity.current.fontScale * 1.5f
                 )
             ) {
-                TvAlertDialog(
-                    onDismissRequest = closeFirstLaunchMainDialog,
-                    sourceScopeId = MainFocusScopeId,
-                    dialogScopeId = MainFirstLaunchDialogScopeId,
-                    containerNodeId = MainFirstLaunchDialogContainerNodeId,
-                    title = {
-                        Text(text = "温馨提示")
-                    },
-                    text = {
-                        WjzFocusEntrySurface(
-                            componentId = MainFirstLaunchDialogComponentId,
-                            default = {
-                                defaultEntry(
-                                    nodeId = MainFirstLaunchDialogTextNodeId,
+                CompositionLocalProvider(
+                    LocalDensity provides Density(
+                        density = LocalDensity.current.density * 1.25f,
+                        fontScale = LocalDensity.current.fontScale * 1.25f
+                    )
+                ) {
+                    TvAlertDialog(
+                        modifier = Modifier.scale(1.25f),
+                        // 禁用系统默认的弹窗宽度限制
+                        properties = DialogProperties(usePlatformDefaultWidth = false),
+                        onDismissRequest = closeFirstLaunchMainDialog,
+                        sourceScopeId = MainFocusScopeId,
+                        dialogScopeId = MainFirstLaunchDialogScopeId,
+                        containerNodeId = MainFirstLaunchDialogContainerNodeId,
+                        title = { Text(text = "温馨提示") },
+                        titleContentColor = C.onSurface,
+                        text = {
+                            WjzFocusEntrySurface(
+                                componentId = MainFirstLaunchDialogComponentId,
+                                default = {
+                                    MainFirstLaunchDialogScopeId
+                                        .target(MainFirstLaunchDialogTextLocalId)
+                                        .copy(layer = WjzFocusLayer.Dialog)
+                                }
+                            )
+                            Text(
+                                modifier = Modifier.wjzFocusExits(
+                                    localId = MainFirstLaunchDialogTextLocalId,
                                     layer = WjzFocusLayer.Dialog,
-                                    scopeId = MainFirstLaunchDialogScopeId
-                                )
-                            }
-                        )
-                        Text(
-                            modifier = Modifier.wjzFocusExits(
-                                id = MainFirstLaunchDialogTextNodeId.value
-                                    .removePrefix("${MainFirstLaunchDialogScopeId.value}/"),
-                                layer = WjzFocusLayer.Dialog
-                            ),
-                            text = """
+                                    fallback = true
+                                ),
+                                text = """
                             1.点击左上角头像按钮有惊喜（如果你已经登录了的话）；
                             2.常来设置这里看看；
                             3.某些地方长按会有不一样的东西出现；
                             4.■■■■亡■■■■■■■■否■■■■要■■■■■。
                         """.trimIndent()
-                        )
-                    },
-                    confirmButton = {}
-                )
+                            )
+                        },
+                        textContentColor = C.onSurface,
+                        confirmButton = {}
+                    )
+                }
             }
         }
     }

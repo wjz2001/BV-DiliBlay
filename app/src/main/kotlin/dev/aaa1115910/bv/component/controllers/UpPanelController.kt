@@ -51,11 +51,15 @@ import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.resolve
 import dev.aaa1115910.bv.wjzfocus.right
+import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.wjzfocus.wjzDisabledFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.component.sidebarFocusUnderlineIndicator
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.ui.state.PlayerChapter
@@ -79,18 +83,22 @@ private enum class UpPanelFocusState { Nav, Content }
 
 private const val UpPanelNavFocusComponentId = "upPanelNav"
 private const val UpPanelContentFocusComponentId = "upPanelContent"
-private val UpPanelNavVideoNodeId = WjzFocusNodeId("player/up-panel/nav/video")
+private val UpPanelNavVideoFocusLocalId = wjzFocusLocalId("up-panel", "nav", "video")
 
-private fun upPanelNavNodeId(tab: UpPanelTab) = when (tab) {
-    UpPanelTab.Chapter -> WjzFocusNodeId("player/up-panel/nav/chapter")
-    UpPanelTab.Video -> UpPanelNavVideoNodeId
-    UpPanelTab.Collection -> WjzFocusNodeId("player/up-panel/nav/collection")
+private fun upPanelNavFocusLocalId(tab: UpPanelTab) = when (tab) {
+    UpPanelTab.Chapter -> wjzFocusLocalId("up-panel", "nav", "chapter")
+    UpPanelTab.Video -> UpPanelNavVideoFocusLocalId
+    UpPanelTab.Collection -> wjzFocusLocalId("up-panel", "nav", "collection")
 }
 
-private fun videoListParentNodeId(cid: Long) = WjzFocusNodeId("video-list/parent/$cid")
+private fun videoListParentFocusLocalId(cid: Long): WjzFocusLocalId =
+    wjzFocusLocalId("video-list", "parent", cid)
 
-private fun collectionListParentNodeId(key: Long) =
-    WjzFocusNodeId("player/collection-list/parent/$key")
+private fun collectionListParentFocusLocalId(key: Long): WjzFocusLocalId =
+    wjzFocusLocalId("collection-list", "parent", key)
+
+private fun WjzFocusScopeId.playerTarget(localId: WjzFocusLocalId) =
+    target(localId).copy(layer = WjzFocusLayer.Player)
 
 @Composable
 fun UpPanelController(
@@ -105,6 +113,7 @@ fun UpPanelController(
     onPlayNewVideo: (VideoListItem) -> Unit,
     onEnsureUgcPagesLoaded: (aid: Long) -> Unit,
 ) {
+    val focusScopeId = LocalWjzFocusScopeId.current
     val chaptersEnabled = uiState.availableChapters.isNotEmpty()
     val collectionsEnabled = (uiState.ugcSeason?.sections?.size ?: 0) > 1 // 严格按 sections.size
 
@@ -162,10 +171,8 @@ fun UpPanelController(
     WjzFocusEntrySurface(
         componentId = UpPanelNavFocusComponentId,
         default = {
-            defaultEntry(
-                nodeId = upPanelNavNodeId(selectedTab),
-                layer = WjzFocusLayer.Player
-            )
+            requireNotNull(focusScopeId) { "UpPanelNav entry requires WjzFocus scope" }
+                .playerTarget(upPanelNavFocusLocalId(selectedTab))
         }
     )
     WjzFocusEntrySurface(
@@ -173,8 +180,7 @@ fun UpPanelController(
         default = {
             focusState = UpPanelFocusState.Content
             forceNavExpandedOnOpen = false
-            defaultEntry(
-                nodeId = when (selectedTab) {
+            val targetLocalId = when (selectedTab) {
                     UpPanelTab.Video -> {
                         val target = uiState.availableVideoList.firstOrNull { it.aid == uiState.aid }
                             ?: uiState.availableVideoList.firstOrNull { it.cid == uiState.cid }
@@ -182,19 +188,19 @@ fun UpPanelController(
                                 video.ugcPages?.any { page -> page.cid == uiState.cid } == true
                             }
                             ?: uiState.availableVideoList.firstOrNull()
-                        videoListParentNodeId(target?.cid ?: uiState.cid)
+                        videoListParentFocusLocalId(target?.cid ?: uiState.cid)
                     }
 
                     UpPanelTab.Chapter -> {
-                        collectionListParentNodeId(chapterBuilt.selectedParentKey ?: 0L)
+                        collectionListParentFocusLocalId(chapterBuilt.selectedParentKey ?: 0L)
                     }
 
                     UpPanelTab.Collection -> {
-                        collectionListParentNodeId(collectionBuilt.selectedParentKey ?: 0L)
+                        collectionListParentFocusLocalId(collectionBuilt.selectedParentKey ?: 0L)
                     }
-                },
-                layer = WjzFocusLayer.Player
-            )
+                }
+            requireNotNull(focusScopeId) { "UpPanelContent entry requires WjzFocus scope" }
+                .playerTarget(targetLocalId)
         }
     )
 
@@ -224,6 +230,7 @@ fun UpPanelController(
                     UpPanelNavList(
                         selectedTab = selectedTab,
                         isExpanded = forceNavExpandedOnOpen || focusState == UpPanelFocusState.Nav,
+                        focusScopeId = focusScopeId,
                         chaptersEnabled = chaptersEnabled,
                         collectionsEnabled = collectionsEnabled,
                         chapterProgressText = chapterProgressText,
@@ -326,7 +333,8 @@ private fun UpPanelNavItem(
     expandedWidth: Dp,
     selected: Boolean,
     enabled: Boolean,
-    nodeId: WjzFocusNodeId,
+    focusScopeId: WjzFocusScopeId?,
+    localId: WjzFocusLocalId,
     onFocus: () -> Unit = {},
     onClick: () -> Unit
 ) {
@@ -343,15 +351,22 @@ private fun UpPanelNavItem(
     DenseListItem(
         modifier = modifier
             .width(itemWidth)
-            .wjzFocusExits(
-                id = nodeId.value,
-                layer = WjzFocusLayer.Player,
-                enabled = enabled,
-                exits = {
-                    right move UpPanelContentFocusComponentId
-                },
-                onFocused = onFocus,
-                onFocusChanged = { hasFocus = it }
+            .then(
+                if (focusScopeId != null) {
+                    Modifier.wjzFocusExits(
+                        nodeId = focusScopeId.resolve(localId),
+                        scopeId = focusScopeId,
+                        layer = WjzFocusLayer.Player,
+                        enabled = enabled,
+                        exits = {
+                            right move UpPanelContentFocusComponentId
+                        },
+                        onFocused = onFocus,
+                        onFocusChanged = { hasFocus = it }
+                    )
+                } else {
+                    Modifier
+                }
             )
             .wjzDisabledFocus(!enabled)
             .sidebarFocusUnderlineIndicator(
@@ -431,6 +446,7 @@ private fun UpPanelNavList(
     modifier: Modifier = Modifier,
     selectedTab: UpPanelTab,
     isExpanded: Boolean,
+    focusScopeId: WjzFocusScopeId?,
     chaptersEnabled: Boolean,
     collectionsEnabled: Boolean,
     chapterProgressText: String?,
@@ -475,7 +491,8 @@ private fun UpPanelNavList(
                 expandedWidth = if (hasAnyProgress) 260.dp else 200.dp,
                 selected = selectedTab == tab,
                 enabled = enabled,
-                nodeId = upPanelNavNodeId(tab),
+                focusScopeId = focusScopeId,
+                localId = upPanelNavFocusLocalId(tab),
                 onClick = {},
                 onFocus = { if (enabled) onSelectedChanged(tab) }
             )

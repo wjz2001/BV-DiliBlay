@@ -181,7 +181,7 @@ class VideoPlayerV3ViewModel(
     private var continuePlayPending: ContinuePlayPending? = null
 
     @Volatile
-    private var suppressPlayerErrors: Boolean = false
+    private var shouldSuppressPlayerErrors: Boolean = false
 
     @Volatile
     private var needRecreateOnStart: Boolean = false
@@ -253,7 +253,7 @@ class VideoPlayerV3ViewModel(
         override fun onError(error: Exception) {
             if (tryAutoSwitchToWebForApp302(error)) return
 
-            if (suppressPlayerErrors) {
+            if (shouldSuppressPlayerErrors) {
                 val isDetachTimeoutByType = hasDetachSurfaceTimeout(error)
                 val msg = if (!isDetachTimeoutByType) error.message.orEmpty() else ""
                 val st = if (!isDetachTimeoutByType) error.stackTraceToString() else ""
@@ -599,7 +599,7 @@ class VideoPlayerV3ViewModel(
     }
 
     fun setSuppressPlayerErrors(suppress: Boolean) {
-        suppressPlayerErrors = suppress
+        shouldSuppressPlayerErrors = suppress
         BvLog.i("BugDebug", "ViewModel setSuppressPlayerErrors=$suppress")
     }
 

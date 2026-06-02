@@ -36,6 +36,7 @@ import androidx.tv.material3.Surface
 import coil.compose.AsyncImage
 import dev.aaa1115910.biliapi.entity.user.CoAuthor
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.wjzfocus.wjzFocusGroup
@@ -112,7 +113,7 @@ fun CoAuthorsDialogHost(
                     .fillMaxWidth()
                     .padding(top = 8.dp)
                     .wjzFocusExits(
-                        id = "dialog/coauthors/root",
+                        nodeId = WjzFocusNodeId("dialog/coauthors/root"),
                         layer = WjzFocusLayer.Dialog,
                         strategy = WjzFocusRestoreStrategy.Container
                     )
@@ -134,7 +135,7 @@ fun CoAuthorsDialogHost(
                             items(items = group.members, key = { it.mid }) { member ->
                                 var focused by remember { mutableStateOf(false) }
                                 val itemModifier = Modifier.wjzFocusExits(
-                                    id = "dialog/coauthors/member/${member.mid}",
+                                    nodeId = WjzFocusNodeId("dialog/coauthors/member/${member.mid}"),
                                     layer = WjzFocusLayer.Dialog,
                                     onFocusChanged = { focused = it }
                                 )

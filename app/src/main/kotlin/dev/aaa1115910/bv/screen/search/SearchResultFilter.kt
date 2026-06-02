@@ -24,14 +24,16 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.repositories.SearchFilterDuration
 import dev.aaa1115910.biliapi.repositories.SearchFilterOrderType
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
-import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.TvAlertDialog
+import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.Partition
 import dev.aaa1115910.bv.util.PartitionUtil
-import dev.aaa1115910.bv.ui.theme.C
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.target
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 
 private enum class SearchResultFilterRow {
     Order,
@@ -40,13 +42,15 @@ private enum class SearchResultFilterRow {
     ChildPartition
 }
 
-private fun searchResultFilterNodeId(
+private fun searchResultFilterLocalId(
     row: SearchResultFilterRow,
     key: String
-) = WjzFocusNodeId("search/result/filter/${row.name.lowercase()}/$key")
+): WjzFocusLocalId = wjzFocusLocalId(row.name.lowercase(), key)
 
 private val SearchResultFilterDialogScopeId = WjzFocusScopeId("search/result/filter")
-private val SearchResultFilterDialogContainerNodeId = WjzFocusNodeId("search/result/filter/container")
+private val SearchResultFilterDialogContainerLocalId = wjzFocusLocalId("container")
+private val SearchResultFilterDialogContainerNodeId =
+    SearchResultFilterDialogScopeId.target(SearchResultFilterDialogContainerLocalId).nodeId
 
 @Composable
 fun SearchResultVideoFilter(
@@ -87,7 +91,7 @@ fun SearchResultVideoFilter(
                             key = { orderType -> orderType.name }
                         ) { orderType ->
                             FilterDialogFilterChip(
-                                nodeId = searchResultFilterNodeId(
+                                localId = searchResultFilterLocalId(
                                     row = SearchResultFilterRow.Order,
                                     key = orderType.name
                                 ),
@@ -105,7 +109,7 @@ fun SearchResultVideoFilter(
                             key = { duration -> duration.name }
                         ) { duration ->
                             FilterDialogFilterChip(
-                                nodeId = searchResultFilterNodeId(
+                                localId = searchResultFilterLocalId(
                                     row = SearchResultFilterRow.Duration,
                                     key = duration.name
                                 ),
@@ -120,7 +124,7 @@ fun SearchResultVideoFilter(
                     ) {
                         item {
                             FilterDialogFilterChip(
-                                nodeId = searchResultFilterNodeId(
+                                localId = searchResultFilterLocalId(
                                     row = SearchResultFilterRow.Partition,
                                     key = "all"
                                 ),
@@ -137,7 +141,7 @@ fun SearchResultVideoFilter(
                             key = { partition -> partition.tid }
                         ) { partition ->
                             FilterDialogFilterChip(
-                                nodeId = searchResultFilterNodeId(
+                                localId = searchResultFilterLocalId(
                                     row = SearchResultFilterRow.Partition,
                                     key = partition.tid.toString()
                                 ),
@@ -159,7 +163,7 @@ fun SearchResultVideoFilter(
                                 key = { partition -> partition.tid }
                             ) { partition ->
                                 FilterDialogFilterChip(
-                                    nodeId = searchResultFilterNodeId(
+                                    localId = searchResultFilterLocalId(
                                         row = SearchResultFilterRow.ChildPartition,
                                         key = partition.tid.toString()
                                     ),
@@ -191,7 +195,7 @@ fun SearchResultVideoFilter(
 @Composable
 private fun FilterDialogFilterChip(
     modifier: Modifier = Modifier,
-    nodeId: WjzFocusNodeId,
+    localId: WjzFocusLocalId,
     selected: Boolean,
     onClick: () -> Unit,
     label: @Composable () -> Unit,
@@ -201,7 +205,7 @@ private fun FilterDialogFilterChip(
     FilterChip(
         modifier = modifier
             .wjzFocusExits(
-                id = nodeId.toDialogLocalFocusId(),
+                localId = localId,
                 layer = WjzFocusLayer.Dialog,
                 onFocusChanged = { hasFocus = it }
             ),
@@ -221,15 +225,6 @@ private fun FilterDialogFilterChip(
             selected = selected
         )
     )
-}
-
-private fun WjzFocusNodeId.toDialogLocalFocusId(): String {
-    val scopePrefix = "${SearchResultFilterDialogScopeId.value}/"
-    return if (value.startsWith(scopePrefix)) {
-        value.removePrefix(scopePrefix)
-    } else {
-        value
-    }
 }
 
 fun SearchFilterOrderType.getDisplayName(context: Context) = when (this) {

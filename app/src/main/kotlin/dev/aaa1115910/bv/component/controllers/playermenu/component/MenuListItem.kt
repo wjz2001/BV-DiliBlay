@@ -41,8 +41,14 @@ import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.wjzfocus.WjzFocusExitsBuilder
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 
+@Deprecated(
+    message = "Use localFocusId for scope-local registration or focusNodeId for full node registration. String focusId is only kept for legacy full player-menu node ids.",
+    replaceWith = ReplaceWith("MenuListItem(modifier, WjzFocusNodeId(focusId), text, icon, expanded, selected, focusEnabled, textAlign, exits, onFocus, onClick)")
+)
 @Composable
 fun MenuListItem(
     modifier: Modifier = Modifier,
@@ -55,6 +61,105 @@ fun MenuListItem(
     textAlign: TextAlign = TextAlign.Center,
     exits: WjzFocusExitsBuilder.() -> Unit = {},
     onFocus: () -> Unit = {},
+    onClick: () -> Unit
+) {
+    require(focusId.startsWith("player-menu/")) {
+        "MenuListItem String focusId only accepts full player-menu node ids. Use localFocusId for scope-local ids."
+    }
+    MenuListItem(
+        modifier = modifier,
+        focusNodeId = WjzFocusNodeId(focusId),
+        text = text,
+        icon = icon,
+        expanded = expanded,
+        selected = selected,
+        focusEnabled = focusEnabled,
+        textAlign = textAlign,
+        exits = exits,
+        onFocus = onFocus,
+        onClick = onClick
+    )
+}
+
+@Composable
+fun MenuListItem(
+    modifier: Modifier = Modifier,
+    focusNodeId: WjzFocusNodeId,
+    text: String,
+    icon: ImageVector? = null,
+    expanded: Boolean = true,
+    selected: Boolean,
+    focusEnabled: Boolean = true,
+    textAlign: TextAlign = TextAlign.Center,
+    exits: WjzFocusExitsBuilder.() -> Unit = {},
+    onFocus: () -> Unit = {},
+    onClick: () -> Unit
+) {
+    MenuListItemContent(
+        modifier = modifier,
+        focusModifier = { onFocusChanged ->
+            Modifier.wjzFocusExits(
+                nodeId = focusNodeId,
+                layer = WjzFocusLayer.Overlay,
+                enabled = focusEnabled,
+                exits = exits,
+                onFocused = onFocus,
+                onFocusChanged = onFocusChanged
+            )
+        },
+        text = text,
+        icon = icon,
+        expanded = expanded,
+        selected = selected,
+        textAlign = textAlign,
+        onClick = onClick
+    )
+}
+
+@Composable
+fun MenuListItem(
+    modifier: Modifier = Modifier,
+    localFocusId: WjzFocusLocalId,
+    text: String,
+    icon: ImageVector? = null,
+    expanded: Boolean = true,
+    selected: Boolean,
+    focusEnabled: Boolean = true,
+    textAlign: TextAlign = TextAlign.Center,
+    exits: WjzFocusExitsBuilder.() -> Unit = {},
+    onFocus: () -> Unit = {},
+    onClick: () -> Unit
+) {
+    MenuListItemContent(
+        modifier = modifier,
+        focusModifier = { onFocusChanged ->
+            Modifier.wjzFocusExits(
+                localId = localFocusId,
+                layer = WjzFocusLayer.Overlay,
+                enabled = focusEnabled,
+                exits = exits,
+                onFocused = onFocus,
+                onFocusChanged = onFocusChanged
+            )
+        },
+        text = text,
+        icon = icon,
+        expanded = expanded,
+        selected = selected,
+        textAlign = textAlign,
+        onClick = onClick
+    )
+}
+
+@Composable
+private fun MenuListItemContent(
+    modifier: Modifier,
+    focusModifier: @Composable ((Boolean) -> Unit) -> Modifier,
+    text: String,
+    icon: ImageVector?,
+    expanded: Boolean,
+    selected: Boolean,
+    textAlign: TextAlign,
     onClick: () -> Unit
 ) {
     var hasFocus by remember { mutableStateOf(false) }
@@ -70,14 +175,7 @@ fun MenuListItem(
     DenseListItem(
         modifier = modifier
             .width(itemWidth)
-            .wjzFocusExits(
-                id = focusId,
-                layer = WjzFocusLayer.Overlay,
-                enabled = focusEnabled,
-                exits = exits,
-                onFocused = onFocus,
-                onFocusChanged = { focused -> hasFocus = focused }
-            )
+            .then(focusModifier { focused -> hasFocus = focused })
             .sidebarFocusUnderlineIndicator(
                 animatedSelected = hasFocus && !selected,
                 color = AppWhite
@@ -155,7 +253,7 @@ fun MenuListItemPreview() {
     var expanded by remember { mutableStateOf(true) }
     BVTheme {
         MenuListItem(
-            focusId = "preview/menu-list-item",
+            focusNodeId = WjzFocusNodeId("preview/menu-list-item"),
             text = "MenuListItemAAAAAAAAAAAAA",
             icon = Icons.Default.Home,
             expanded = expanded,

@@ -46,11 +46,11 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppRed
 import dev.aaa1115910.bv.ui.theme.AppWhite
@@ -63,7 +63,7 @@ import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
 
 private val AppQrLoginScopeId = WjzFocusScopeId("login/qr")
-private val AppQrLoginRootNodeId = WjzFocusNodeId("login/qr/root")
+private val AppQrLoginRootLocalId = wjzFocusLocalId("root")
 private const val AppQrLoginComponentId = "appQrLogin"
 private val AppQrLoginDefaultEntryId = WjzFocusEntryId.parse(AppQrLoginComponentId)
 
@@ -189,11 +189,7 @@ fun LoginScreen(
         WjzFocusEntrySurface(
             componentId = AppQrLoginComponentId,
             default = {
-                defaultEntry(
-                    nodeId = AppQrLoginRootNodeId,
-                    layer = WjzFocusLayer.Content,
-                    scopeId = AppQrLoginScopeId
-                )
+                AppQrLoginScopeId.target(AppQrLoginRootLocalId)
             }
         )
 
@@ -211,7 +207,7 @@ fun LoginScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .wjzFocusExits(
-                        id = AppQrLoginRootNodeId.value,
+                        localId = AppQrLoginRootLocalId,
                         layer = WjzFocusLayer.Content
                     )
                     .onKeyEvent {

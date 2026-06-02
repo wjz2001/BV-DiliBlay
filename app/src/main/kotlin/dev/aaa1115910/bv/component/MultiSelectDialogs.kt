@@ -38,9 +38,13 @@ import dev.aaa1115910.bv.ui.theme.C
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.tv.material3.Border
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusRequester
+import dev.aaa1115910.bv.wjzfocus.toLocalIdOrNull
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 
 /**
  * 简单多选弹框的“提交时机”：
@@ -74,12 +78,40 @@ private enum class DismissOrder {
     HideThenSubmit
 }
 
-private fun WjzFocusNodeId.toDialogLocalFocusId(dialogScopeId: WjzFocusScopeId?): String {
-    val scopePrefix = dialogScopeId?.value?.let { "$it/" }
-    return if (scopePrefix != null && value.startsWith(scopePrefix)) {
-        value.removePrefix(scopePrefix)
-    } else {
-        value
+private sealed interface MultiSelectDialogItemFocusId {
+    data class Local(val localId: WjzFocusLocalId) : MultiSelectDialogItemFocusId
+    data class Node(val nodeId: WjzFocusNodeId) : MultiSelectDialogItemFocusId
+}
+
+private fun WjzFocusNodeId.toMultiSelectDialogItemFocusId(
+    dialogScopeId: WjzFocusScopeId?
+): MultiSelectDialogItemFocusId {
+    return toLocalIdOrNull(dialogScopeId)
+        ?.let { MultiSelectDialogItemFocusId.Local(it) }
+        ?: MultiSelectDialogItemFocusId.Node(this)
+}
+
+private fun multiSelectItemFocusId(id: Any?): MultiSelectDialogItemFocusId {
+    return MultiSelectDialogItemFocusId.Local(wjzFocusLocalId("item", id ?: "null"))
+}
+
+@Composable
+private fun Modifier.wjzDialogItemFocusExits(
+    focusId: MultiSelectDialogItemFocusId,
+    layer: WjzFocusLayer
+): Modifier {
+    return when (focusId) {
+        is MultiSelectDialogItemFocusId.Local -> wjzFocusExits(
+            localId = focusId.localId,
+            layer = layer
+        )
+
+        is MultiSelectDialogItemFocusId.Node -> wjzFocusExits(
+            nodeId = focusId.nodeId,
+            scopeId = null,
+            layer = layer,
+            requester = rememberWjzFocusRequester()
+        )
     }
 }
 
@@ -369,12 +401,12 @@ private fun <T, ID> SimpleMultiSelectDialog(
             val selected = selectedIds.contains(id)
             val reachedMaxSelectedCount = isMaxSelectedCountReached && !selected
             val enabled = itemEnabled(item) && !reachedMaxSelectedCount
-            val itemNode = itemNodeId?.invoke(item)
-                ?: WjzFocusNodeId("dialog/multi-select/item/$id")
+            val itemFocusId = itemNodeId?.invoke(item)?.toMultiSelectDialogItemFocusId(dialogScopeId)
+                ?: multiSelectItemFocusId(id)
 
             val itemModifier = Modifier
-                .wjzFocusExits(
-                    id = itemNode.toDialogLocalFocusId(dialogScopeId),
+                .wjzDialogItemFocusExits(
+                    focusId = itemFocusId,
                     layer = WjzFocusLayer.Dialog
                 )
 

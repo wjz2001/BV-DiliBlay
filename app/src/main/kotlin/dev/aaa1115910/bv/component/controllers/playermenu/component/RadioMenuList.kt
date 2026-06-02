@@ -9,9 +9,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.component.controllers.PlayerMenuMainEntryId
-import dev.aaa1115910.bv.component.controllers.playermenu.playerMenuFocusNodeId
+import dev.aaa1115910.bv.component.controllers.playermenu.playerMenuFocusPrefix
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.resolve
 import dev.aaa1115910.bv.wjzfocus.right
 import dev.aaa1115910.bv.wjzfocus.wjzFocusRestorerHost
 
@@ -27,28 +28,30 @@ fun RadioMenuList(
     onFocusBackToParent: () -> Unit
 ) {
     val focusScopeId = LocalWjzFocusScopeId.current
+    val focusPrefix = playerMenuFocusPrefix(focusIdPrefix)
+    val listIds = focusPrefix.listIds()
     val fallbackIndex = selected.takeIf { it in items.indices } ?: items.indices.firstOrNull()
-    val fallbackFocusId = fallbackIndex?.let { "$focusIdPrefix/$it" }
+    val fallbackLocalFocusId = fallbackIndex?.let { focusPrefix.localId(it) }
     LazyColumn(
         modifier = modifier
             .wjzFocusRestorerHost(
                 layer = WjzFocusLayer.Overlay,
                 scopeId = focusScopeId,
-                restorerId = "$focusIdPrefix/restorer",
-                listId = "$focusIdPrefix/list",
-                fallbackNodeId = fallbackFocusId?.let { playerMenuFocusNodeId(focusScopeId, it) }
+                restorerId = listIds.restorerId,
+                listId = listIds.listId,
+                fallbackNodeId = fallbackLocalFocusId?.let { focusScopeId?.resolve(it) }
             ),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(vertical = 120.dp, horizontal = 8.dp)
     ) {
         itemsIndexed(
             items = items,
-            key = { index, _ -> "$focusIdPrefix/$index" }
+            key = { index, _ -> focusPrefix.child(index).value }
         ) { index, item ->
             MenuListItem(
                 modifier = Modifier
                     .width(200.dp),
-                focusId = "$focusIdPrefix/$index",
+                localFocusId = focusPrefix.localId(index),
                 text = item,
                 selected = selected == index,
                 exits = {

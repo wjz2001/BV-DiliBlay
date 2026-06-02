@@ -36,8 +36,9 @@ import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.wjzObserveFocusChanged
 import dev.aaa1115910.bv.component.videocard.SeasonCard
 import dev.aaa1115910.bv.entity.carddata.SeasonCardData
@@ -52,6 +53,10 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
+
+private val AnimeTimelineRootFocusId = wjzFocusLocalId("root")
+private fun animeTimelineEpisodeFocusId(dateString: String, seasonId: Int) =
+    wjzFocusLocalId("episode", dateString, seasonId)
 
 @Composable
 fun AnimeTimelineScreen(
@@ -103,11 +108,9 @@ fun AnimeTimelineScreen(
         WjzFocusEntrySurface(
             componentId = "pgcAnimeTimeline",
             default = {
-                defaultEntry(
-                    "pgc/anime/timeline/root",
-                    layer = WjzFocusLayer.Content,
-                    scopeId = focusScopeId
-                )
+                requireNotNull(focusScopeId)
+                    .target(AnimeTimelineRootFocusId)
+                    .copy(layer = WjzFocusLayer.Content)
             }
         )
 
@@ -128,7 +131,7 @@ fun AnimeTimelineScreen(
                 modifier = Modifier
                     .padding(innerPadding)
                     .wjzFocusExits(
-                        id = "pgc/anime/timeline/root",
+                        localId = AnimeTimelineRootFocusId,
                         layer = WjzFocusLayer.Content
                     ),
                 contentPadding = PaddingValues(bottom = 48.dp, start = 48.dp, end = 48.dp)
@@ -213,7 +216,10 @@ fun TimelinePerDay(
                             .weight(1f)
                             .padding(horizontal = 8.dp)
                             .wjzFocusExits(
-                                id = "pgc/anime/timeline/${timeline.dateString}/${episode.seasonId}",
+                                localId = animeTimelineEpisodeFocusId(
+                                    dateString = timeline.dateString,
+                                    seasonId = episode.seasonId
+                                ),
                                 layer = WjzFocusLayer.Content
                             ),
                         data = SeasonCardData(

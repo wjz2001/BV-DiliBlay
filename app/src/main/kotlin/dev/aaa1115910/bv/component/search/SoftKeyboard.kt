@@ -42,7 +42,6 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTransitionGuard
@@ -50,7 +49,9 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.resolve
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.ui.theme.BVTheme
@@ -66,9 +67,7 @@ enum class SoftKeyboardType {
 
 private val SoftKeyboardScopeId = WjzFocusScopeId("search/keyboard")
 private const val SoftKeyboardFocusComponentId = "soft_keyboard"
-private const val SoftKeyboardFirstKeyFocusId = "key/first"
-private val SoftKeyboardFirstKeyNodeId =
-    WjzFocusNodeId("${SoftKeyboardScopeId.value}/$SoftKeyboardFirstKeyFocusId")
+private val SoftKeyboardFirstKeyLocalId = wjzFocusLocalId("key", "first")
 
 private data class JapaneseKey(
     val label: String,
@@ -133,7 +132,7 @@ fun SoftKeyboard(
             componentId = SoftKeyboardFocusComponentId,
             default = {
                 defaultEntry(
-                    nodeId = SoftKeyboardFirstKeyNodeId,
+                    nodeId = SoftKeyboardScopeId.resolve(SoftKeyboardFirstKeyLocalId),
                     layer = WjzFocusLayer.Keyboard,
                     scopeId = SoftKeyboardScopeId
                 )
@@ -247,7 +246,7 @@ private fun EnglishKeyboardLayout(
                     val keyModifier = if (rowIndex == 0 && index == 0) {
                         Modifier
                             .wjzFocusExits(
-                                id = SoftKeyboardFirstKeyFocusId,
+                                localId = SoftKeyboardFirstKeyLocalId,
                                 layer = WjzFocusLayer.Keyboard
                             )
                             .onGloballyPositioned {
