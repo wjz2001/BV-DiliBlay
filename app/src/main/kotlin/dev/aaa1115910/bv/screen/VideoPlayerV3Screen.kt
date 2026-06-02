@@ -1,7 +1,11 @@
 package dev.aaa1115910.bv.screen
 
 import android.app.Activity
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -21,10 +25,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -56,6 +66,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import org.koin.androidx.compose.koinViewModel
+import kotlin.random.Random
 
 @Composable
 fun VideoPlayerV3Screen(
@@ -72,14 +83,9 @@ fun VideoPlayerV3Screen(
     val danmakuHostViewModelState by playerViewModel.danmakuHostState.collectAsStateWithLifecycle()
     val featureGate by playerViewModel.featureGate.collectAsStateWithLifecycle()
     val latestPlayerState by rememberUpdatedState(uiState.playerState)
-    val startupCoverAlpha by animateFloatAsState(
-        targetValue = if (
-            uiState.startupCover.isNotBlank() &&
+    val showStartupCover =
+        uiState.startupCover.isNotBlank() &&
             !(uiState.hasRenderedFirstFrame && uiState.hasStartedPlayback)
-        ) 1f else 0f,
-        animationSpec = tween(durationMillis = 180),
-        label = "startupCoverAlpha"
-    )
 
     val coAuthorsDialogState = rememberCoAuthorsDialogState()
     var lastCoAuthorsDialogVisible by remember { mutableStateOf(false) }
@@ -158,7 +164,7 @@ fun VideoPlayerV3Screen(
         modifier = modifier,
         uiState = uiState,
         videoPlayer = videoPlayer,
-        startupCoverAlpha = startupCoverAlpha
+        showStartupCover = showStartupCover
     ) { displayAspectRatio ->
         if (featureGate.visualLayersOnline && danmakuHostViewModelState.config.enabled) {
             DanmakuSurface(
@@ -309,7 +315,7 @@ private fun PlayerVideoStage(
     modifier: Modifier,
     uiState: dev.aaa1115910.bv.ui.state.PlayerUiState,
     videoPlayer: AbstractVideoPlayer,
-    startupCoverAlpha: Float,
+    showStartupCover: Boolean,
     visualLayer: @Composable BoxScope.(displayAspectRatio: Float) -> Unit
 ) {
     BoxWithConstraints(
@@ -375,24 +381,103 @@ private fun PlayerVideoStage(
             )
         }
 
-        if (startupCoverAlpha > 0f) {
+        val edgeGlowStartProgress = remember { Random.nextFloat() }
+
+        if (showStartupCover) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(AppBlack.copy(alpha = startupCoverAlpha))
+                    .background(AppBlack)
+                    .edgeGlowingBall(
+                        ballColor = Color(0xFFFFFDD0),
+                        startProgress = edgeGlowStartProgress
+                    )
             ) {
                 AsyncImage(
                     model = uiState.startupCover,
                     contentDescription = null,
                     modifier = Modifier
                         .fillMaxSize()
-                        .align(Alignment.Center)
-                        .graphicsLayer(alpha = startupCoverAlpha),
+                        .align(Alignment.Center),
                     contentScale = ContentScale.Fit
                 )
             }
         }
 
         visualLayer(displayAspectRatio)
+    }
+}
+
+private fun Modifier.edgeGlowingBall(
+    durationMillis: Int = 4000,
+    ballRadius: Dp = 12.dp,
+    ballColor: Color = Color(0xFFFFFDD0),
+    startProgress: Float = 0f
+): Modifier = composed {
+    val infiniteTransition = rememberInfiniteTransition(label = "EdgeGlowTransition")
+    val progress by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "EdgeGlowProgress"
+    )
+
+    drawWithCache {
+        val radiusPx = ballRadius.toPx()
+        val glowBrush = Brush.radialGradient(
+            colors = listOf(
+                Color.White,
+                ballColor.copy(alpha = 0.8f),
+                Color.Transparent
+            ),
+            center = Offset.Zero,
+            radius = radiusPx
+        )
+
+        onDrawWithContent {
+            drawContent()
+
+            val w = size.width
+            val h = size.height
+            val perimeter = 2 * w + 2 * h
+            if (perimeter == 0f) return@onDrawWithContent
+
+            val d = ((progress + startProgress) % 1f) * perimeter
+            val cx: Float
+            val cy: Float
+
+            when {
+                d <= w -> {
+                    cx = d
+                    cy = 0f
+                }
+
+                d <= w + h -> {
+                    cx = w
+                    cy = d - w
+                }
+
+                d <= 2 * w + h -> {
+                    cx = w - (d - (w + h))
+                    cy = h
+                }
+
+                else -> {
+                    cx = 0f
+                    cy = h - (d - (2 * w + h))
+                }
+            }
+
+            translate(left = cx, top = cy) {
+                drawCircle(
+                    brush = glowBrush,
+                    radius = radiusPx,
+                    center = Offset.Zero
+                )
+            }
+        }
     }
 }
