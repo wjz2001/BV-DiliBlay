@@ -53,9 +53,19 @@ import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.util.ApiTestLoginExportUtil
 import dev.aaa1115910.bv.util.LogCatcherUtil
 import dev.aaa1115910.bv.util.Prefs
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.all
+import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.android.ext.android.inject
 import java.util.concurrent.atomic.AtomicBoolean
+
+private const val StoragePermissionConfirmFocusId = "storage-permission-confirm"
+private val StoragePermissionDialogScopeId = WjzFocusScopeId("main/storage-permission")
+private val StoragePermissionDialogContainerNodeId =
+    WjzFocusNodeId("main/storage-permission/container")
 
 class MainActivity : ComponentActivity() {
 
@@ -293,6 +303,8 @@ class MainActivity : ComponentActivity() {
         ) {
             TvAlertDialog(
                 onDismissRequest = onDismiss,
+                dialogScopeId = StoragePermissionDialogScopeId,
+                containerNodeId = StoragePermissionDialogContainerNodeId,
                 title = {
                     Text(text = "日志管理")
                 },
@@ -300,7 +312,17 @@ class MainActivity : ComponentActivity() {
                     Text(text = "本应用需要获取存储权限才能把日志导出到用户目录下的 Download 文件夹内，这在特殊情况下很有用。如果你选择不给存储权限，可以直接按返回键，不会影响正常使用。")
                 },
                 confirmButton = {
-                    Button(onClick = onConfirm) {
+                    Button(
+                        modifier = Modifier.wjzFocusExits(
+                            id = StoragePermissionConfirmFocusId,
+                            layer = WjzFocusLayer.Dialog,
+                            fallback = true,
+                            exits = {
+                                cancel(all)
+                            }
+                        ),
+                        onClick = onConfirm
+                    ) {
                         Text(text = "同意")
                     }
                 }
