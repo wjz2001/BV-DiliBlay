@@ -325,7 +325,7 @@ object Prefs {
 
     var themeMode by pref(
         PrefKeys.prefThemeModeKey,
-        ThemeMode.DARK,
+        ThemeMode.LIGHT,
         save = { it.ordinal },
         restore = { ThemeMode.fromOrdinal(it) }
     )
