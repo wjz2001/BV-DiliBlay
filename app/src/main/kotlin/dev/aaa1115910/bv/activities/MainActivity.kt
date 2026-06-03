@@ -1,12 +1,13 @@
 package dev.aaa1115910.bv.activities
 
 import android.Manifest
-import android.content.Intent
 import android.os.Bundle
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -18,7 +19,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -29,21 +29,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.tv.material3.Button
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.R
-import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.repository.UserRepository
+import dev.aaa1115910.bv.screen.LoginScreen
 import dev.aaa1115910.bv.screen.MainScreen
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppWhite
@@ -59,6 +59,8 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.all
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -101,16 +103,18 @@ class MainActivity : ComponentActivity() {
             var showStoragePermissionDialog by remember { mutableStateOf(false) }
             var retryNonce by remember { mutableIntStateOf(0) }
             var hasTriggeredAutoLogin by remember { mutableStateOf(false) }
-            var waitingAutoLoginReturn by remember { mutableStateOf(false) }
             var allowFirstLaunchMainDialog by remember { mutableStateOf(false) }
+            var showInitialLoginOverlay by remember { mutableStateOf(false) }
+            var initialLoginOverlayClosing by remember { mutableStateOf(false) }
 
             LaunchedEffect(retryNonce) {
                 phase = MainStartupPhase.Shell
                 showStartupShell = true
                 startupError = false
                 startupErrorMessage = "启动失败"
-                waitingAutoLoginReturn = false
                 allowFirstLaunchMainDialog = false
+                showInitialLoginOverlay = false
+                initialLoginOverlayClosing = false
 
                 runCatching {
                     val app = BVApp.instance
@@ -134,25 +138,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            val lifecycleOwner = LocalLifecycleOwner.current
-            DisposableEffect(lifecycleOwner) {
-                val observer = LifecycleEventObserver { _, event ->
-                    if (event == Lifecycle.Event.ON_RESUME && waitingAutoLoginReturn) {
-                        waitingAutoLoginReturn = false
-                        allowFirstLaunchMainDialog = true
-                    }
-                }
-
-                lifecycleOwner.lifecycle.addObserver(observer)
-                onDispose {
-                    lifecycleOwner.lifecycle.removeObserver(observer)
-                }
-            }
-
             LaunchedEffect(phase) {
                 if (phase != MainStartupPhase.RealUi) return@LaunchedEffect
                 if (hasTriggeredAutoLogin) {
-                    if (!waitingAutoLoginReturn) {
+                    if (!showInitialLoginOverlay && !initialLoginOverlayClosing) {
                         allowFirstLaunchMainDialog = true
                     }
                     return@LaunchedEffect
@@ -166,9 +155,9 @@ class MainActivity : ComponentActivity() {
                     hasTriggeredAutoLogin = true
                     Prefs.autoOpenLoginOnFirstLaunch = false
                     if (!userRepository.isLogin) {
-                        waitingAutoLoginReturn = true
                         allowFirstLaunchMainDialog = false
-                        startActivity(Intent(this@MainActivity, LoginActivity::class.java))
+                        showInitialLoginOverlay = true
+                        initialLoginOverlayClosing = false
                     } else {
                         allowFirstLaunchMainDialog = true
                     }
@@ -234,6 +223,20 @@ class MainActivity : ComponentActivity() {
                             }
                         )
                     }
+
+                    if (showInitialLoginOverlay) {
+                        InitialLoginOverlay(
+                            closing = initialLoginOverlayClosing,
+                            onClose = {
+                                initialLoginOverlayClosing = true
+                            },
+                            onClosed = {
+                                showInitialLoginOverlay = false
+                                initialLoginOverlayClosing = false
+                                allowFirstLaunchMainDialog = true
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -265,6 +268,61 @@ class MainActivity : ComponentActivity() {
         val onReady = pendingStartMainContent
         pendingStartMainContent = null
         onReady?.invoke()
+    }
+
+    @Composable
+    private fun InitialLoginOverlay(
+        closing: Boolean,
+        onClose: () -> Unit,
+        onClosed: () -> Unit
+    ) {
+        val scale = remember { Animatable(1f) }
+        val alpha = remember { Animatable(1f) }
+
+        LaunchedEffect(closing) {
+            if (!closing) return@LaunchedEffect
+            coroutineScope {
+                launch {
+                    scale.animateTo(
+                        targetValue = 0f,
+                        animationSpec = tween(
+                            durationMillis = 420,
+                            easing = FastOutSlowInEasing
+                        )
+                    )
+                }
+                launch {
+                    alpha.animateTo(
+                        targetValue = 0f,
+                        animationSpec = tween(
+                            durationMillis = 420,
+                            easing = FastOutSlowInEasing
+                        )
+                    )
+                }
+            }
+            onClosed()
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(10f)
+                .graphicsLayer {
+                    transformOrigin = TransformOrigin(
+                        pivotFractionX = 0.04f,
+                        pivotFractionY = 0.06f
+                    )
+                    scaleX = scale.value
+                    scaleY = scale.value
+                    this.alpha = alpha.value
+                }
+        ) {
+            LoginScreen(
+                modifier = Modifier.fillMaxSize(),
+                onClose = onClose
+            )
+        }
     }
 
     @Composable

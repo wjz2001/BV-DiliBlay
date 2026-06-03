@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.pm.PackageManager
 import android.widget.Toast.LENGTH_LONG
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -70,9 +71,11 @@ private val AppQrLoginDefaultEntryId = WjzFocusEntryId.parse(AppQrLoginComponent
 @Composable
 fun LoginScreen(
     modifier: Modifier = Modifier,
-    appQrLoginViewModel: AppQrLoginViewModel = koinViewModel()
+    appQrLoginViewModel: AppQrLoginViewModel = koinViewModel(),
+    onClose: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val closeLogin = onClose ?: { (context as? Activity)?.finish() }
     var exportResultText by remember { mutableStateOf<String?>(null) }
     var permissionPendingPayload by remember { mutableStateOf<ApiTestLoginExportPayload?>(null) }
     val loginSuccessText = stringResource(R.string.login_success)
@@ -167,7 +170,7 @@ fun LoginScreen(
                 if (BuildConfig.ENABLE_API_TEST_LOGIN_DUMP) {
                     loginSuccessText.toast(context, LENGTH_LONG)
                 } else {
-                    (context as? Activity)?.finish()
+                    closeLogin()
                 }
             }
 
@@ -179,6 +182,10 @@ fun LoginScreen(
         onDispose {
             appQrLoginViewModel.cancelCheckLoginResultTimer()
         }
+    }
+
+    BackHandler {
+        closeLogin()
     }
 
     WjzFocusHost(
