@@ -51,12 +51,10 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTransitionGuard
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.left
-import dev.aaa1115910.bv.wjzfocus.resolve
-import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
-import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.component.rememberBlackoutSwitchTransitionState
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.repository.UserRepository
@@ -68,13 +66,12 @@ import dev.aaa1115910.bv.screen.main.MainDrawerContentEntryTarget
 import dev.aaa1115910.bv.screen.main.MainDrawerEntryRequest
 import dev.aaa1115910.bv.screen.main.MainDrawerEntryTarget
 import dev.aaa1115910.bv.screen.main.MainTopNavBlock
-import dev.aaa1115910.bv.screen.main.MainTopNavDefaultLocalId
 import dev.aaa1115910.bv.screen.main.MainTopNavEntryRequest
 import dev.aaa1115910.bv.screen.main.MainTopNavEntryTarget
 import dev.aaa1115910.bv.screen.main.MainTopNavContentEntryTarget
 import dev.aaa1115910.bv.screen.main.PgcContent
 import dev.aaa1115910.bv.screen.main.UgcContent
-import dev.aaa1115910.bv.screen.main.mainDrawerItemTarget
+import dev.aaa1115910.bv.screen.main.leftNaviItemFocusNodeId
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryId
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryState
@@ -86,6 +83,7 @@ import dev.aaa1115910.bv.screen.main.common.MainContentTopEntryId
 import dev.aaa1115910.bv.screen.main.common.MainDrawerFocusComponentId
 import dev.aaa1115910.bv.screen.main.common.MainDrawerRightEntryId
 import dev.aaa1115910.bv.screen.main.common.MainTopNavDefaultEntryId
+import dev.aaa1115910.bv.screen.main.common.MainTopNavFocusComponentId
 import dev.aaa1115910.bv.screen.main.runtime.runtimeContainerInputEnabled
 import dev.aaa1115910.bv.screen.main.toMainContentEntryTarget
 import dev.aaa1115910.bv.component.TvAlertDialog
@@ -100,15 +98,15 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 
+private val MainContentEntryNodeId = WjzFocusNodeId("main/content/entry")
 private const val MainFirstLaunchDialogComponentId = "mainFirstLaunchDialog"
 private val MainFirstLaunchDialogScopeId = WjzFocusScopeId("main/first-launch-dialog")
 private val MainFirstLaunchDialogContainerNodeId = WjzFocusNodeId("main/first-launch-dialog/container")
-private val MainFirstLaunchDialogTextLocalId = wjzFocusLocalId("text")
+private val MainFirstLaunchDialogTextNodeId = WjzFocusNodeId("main/first-launch-dialog/text")
 private val MainDrawerScopeId = WjzFocusScopeId("drawer")
 private val MainFocusScopeId = WjzFocusScopeId("main")
-private val MainContentEntryLocalId = wjzFocusLocalId("content", "entry")
 private val MainTopNavScopeId = WjzFocusScopeId("topNav")
-private val MainTopNavDefaultNodeId = MainTopNavScopeId.resolve(MainTopNavDefaultLocalId)
+private val MainTopNavDefaultNodeId = WjzFocusNodeId("${MainTopNavFocusComponentId}/default")
 
 private data class PendingContentFocus(
     val item: LeftNaviItem,
@@ -422,6 +420,17 @@ fun MainScreen(
 
         Box(modifier = Modifier.fillMaxSize()) {
             val topBarLeadingContent: @Composable () -> Unit = {
+                WjzFocusEntrySurface(
+                    componentId = MainTopNavFocusComponentId,
+                    default = {
+                        defaultEntry(
+                            nodeId = MainTopNavDefaultNodeId,
+                            layer = WjzFocusLayer.TopNav,
+                            scopeId = MainTopNavScopeId
+                        )
+                    },
+                    entries = {}
+                )
                 WjzFocusHost(
                     modifier = Modifier
                         .zIndex(1f)
@@ -459,17 +468,33 @@ fun MainScreen(
             WjzFocusEntrySurface(
                 componentId = MainContentFocusComponentId,
                 default = {
-                    MainFocusScopeId.target(MainContentEntryLocalId)
+                    defaultEntry(
+                        nodeId = MainContentEntryNodeId,
+                        layer = WjzFocusLayer.Content,
+                        scopeId = MainFocusScopeId
+                    )
                 },
                 entries = {
                     entry(MainContentEntryId.localEntryValue) {
-                        MainFocusScopeId.target(MainContentEntryLocalId)
+                        defaultEntry(
+                            nodeId = MainContentEntryNodeId,
+                            layer = WjzFocusLayer.Content,
+                            scopeId = MainFocusScopeId
+                        )
                     }
                     entry(MainContentTopEntryId.localEntryValue) {
-                        MainFocusScopeId.target(MainContentEntryLocalId)
+                        defaultEntry(
+                            nodeId = MainContentEntryNodeId,
+                            layer = WjzFocusLayer.Content,
+                            scopeId = MainFocusScopeId
+                        )
                     }
                     entry(MainContentLeftEntryId.localEntryValue) {
-                        MainFocusScopeId.target(MainContentEntryLocalId)
+                        defaultEntry(
+                            nodeId = MainContentEntryNodeId,
+                            layer = WjzFocusLayer.Content,
+                            scopeId = MainFocusScopeId
+                        )
                     }
                 }
             )
@@ -478,7 +503,7 @@ fun MainScreen(
                         .fillMaxSize()
                         .zIndex(0f)
                         .wjzFocusExits(
-                            localId = MainContentEntryLocalId,
+                            id = MainContentEntryNodeId.value.removePrefix("${MainFocusScopeId.value}/"),
                             layer = WjzFocusLayer.Content,
                             strategy = WjzFocusRestoreStrategy.Container,
                             enabled = !leftNaviExpanded,
@@ -594,11 +619,19 @@ fun MainScreen(
             WjzFocusEntrySurface(
                 componentId = MainDrawerFocusComponentId,
                 default = {
-                    MainDrawerScopeId.mainDrawerItemTarget(activeDrawerItem)
+                    defaultEntry(
+                        nodeId = leftNaviItemFocusNodeId(activeDrawerItem),
+                        layer = WjzFocusLayer.Drawer,
+                        scopeId = MainDrawerScopeId
+                    )
                 },
                 entries = {
                     entry(MainDrawerRightEntryId.localEntryValue) {
-                        MainDrawerScopeId.mainDrawerItemTarget(activeDrawerItem)
+                        defaultEntry(
+                            nodeId = leftNaviItemFocusNodeId(activeDrawerItem),
+                            layer = WjzFocusLayer.Drawer,
+                            scopeId = MainDrawerScopeId
+                        )
                     }
                 }
             )
@@ -685,12 +718,11 @@ fun MainScreen(
             ) {
                 CompositionLocalProvider(
                     LocalDensity provides Density(
-                        density = LocalDensity.current.density * 1.25f,
-                        fontScale = LocalDensity.current.fontScale * 1.25f
+                        density = LocalDensity.current.density * 1.5f,
+                        fontScale = LocalDensity.current.fontScale * 1.5f
                     )
                 ) {
                     TvAlertDialog(
-                        modifier = Modifier.scale(1.25f),
                         // 禁用系统默认的弹窗宽度限制
                         properties = DialogProperties(usePlatformDefaultWidth = false),
                         onDismissRequest = closeFirstLaunchMainDialog,
@@ -703,14 +735,17 @@ fun MainScreen(
                             WjzFocusEntrySurface(
                                 componentId = MainFirstLaunchDialogComponentId,
                                 default = {
-                                    MainFirstLaunchDialogScopeId
-                                        .target(MainFirstLaunchDialogTextLocalId)
-                                        .copy(layer = WjzFocusLayer.Dialog)
+                                    defaultEntry(
+                                        nodeId = MainFirstLaunchDialogTextNodeId,
+                                        layer = WjzFocusLayer.Dialog,
+                                        scopeId = MainFirstLaunchDialogScopeId
+                                    )
                                 }
                             )
                             Text(
                                 modifier = Modifier.wjzFocusExits(
-                                    localId = MainFirstLaunchDialogTextLocalId,
+                                    id = MainFirstLaunchDialogTextNodeId.value
+                                        .removePrefix("${MainFirstLaunchDialogScopeId.value}/"),
                                     layer = WjzFocusLayer.Dialog,
                                     fallback = true
                                 ),

@@ -36,9 +36,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.tv.material3.Button
+import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.R
@@ -50,6 +52,9 @@ import dev.aaa1115910.bv.ui.theme.AppWhite
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.ThemeMode
 import dev.aaa1115910.bv.component.TvAlertDialog
+import dev.aaa1115910.bv.ui.theme.AppRed
+import dev.aaa1115910.bv.ui.theme.AppRedDark
+import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.ApiTestLoginExportUtil
 import dev.aaa1115910.bv.util.LogCatcherUtil
 import dev.aaa1115910.bv.util.Prefs
@@ -360,16 +365,20 @@ class MainActivity : ComponentActivity() {
             )
         ) {
             TvAlertDialog(
+                // 禁用系统默认的弹窗宽度限制
+                properties = DialogProperties(usePlatformDefaultWidth = false),
                 onDismissRequest = onDismiss,
                 dialogScopeId = StoragePermissionDialogScopeId,
                 containerNodeId = StoragePermissionDialogContainerNodeId,
-                title = {
-                    Text(text = "日志管理")
-                },
+                title = { Text(text = "日志管理") },
+                titleContentColor = C.onSurface,
                 text = {
                     Text(text = "本应用需要获取存储权限才能把日志导出到用户目录下的 Download 文件夹内，这在特殊情况下很有用。如果你选择不给存储权限，可以直接按返回键，不会影响正常使用。")
                 },
+                textContentColor = C.onSurface,
                 confirmButton = {
+                    var hasFocus by remember { mutableStateOf(false) }
+
                     Button(
                         modifier = Modifier.wjzFocusExits(
                             nodeId = StoragePermissionConfirmNodeId,
@@ -377,16 +386,25 @@ class MainActivity : ComponentActivity() {
                             fallback = true,
                             exits = {
                                 cancel(all)
-                            }
+                            },
+                            onFocusChanged = { hasFocus = it }
                         ),
-                        onClick = onConfirm
+                        onClick = onConfirm,
+                        colors = ButtonDefaults.colors(
+                            containerColor = AppRed,
+                            contentColor = AppWhite,
+                            focusedContainerColor = AppRed,
+                            focusedContentColor = AppWhite,
+                            pressedContainerColor = AppRedDark,
+                            pressedContentColor = AppWhite
+                        )
                     ) {
                         Text(text = "同意")
                     }
                 }
             )
         }
-    }
+        }
 
     @Composable
     private fun MainScreenReady(
