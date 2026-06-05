@@ -12,8 +12,11 @@ plugins {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        google()
+        // 添加阿里云镜像
         mavenCentral()
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
+        google()
         maven("https://jitpack.io")
         maven("https://androidx.dev/storage/compose-compiler/repository/")
     }

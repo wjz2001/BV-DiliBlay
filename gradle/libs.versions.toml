@@ -7,18 +7,18 @@ grpc-kotlin = "1.5.0"
 jsoup = "1.22.2"
 koin-bom = "4.2.1"
 koin = "4.2.1"
-kotlinx-coroutines = "1.10.2"
+kotlinx-coroutines = "1.11.0"
 kotlinxCollectionsImmutable = "0.4.0"
 kotlinx-serialization = "1.11.0"
-ktor = "3.4.3"
-logging = "8.0.02"
+ktor = "3.5.0"
+logging = "8.0.4"
 lottie = "6.7.1"
-material = "1.13.0"
-protobuf = "4.34.1"
+material = "1.14.0"
+protobuf = "4.35.0"
 qrcode = "4.5.0"
 rememberPreference = "1.1.1"
 slf4j-android-mvysny = "2.0.13"
-slf4j-simple = "2.0.17"
+slf4j-simple = "2.0.18"
 re2j = "1.8"
 
 [libraries]
@@ -98,5 +98,7 @@ runtime = { group = "androidx.compose.runtime", name = "runtime" }
 re2j = { module = "com.google.re2j:re2j", version.ref = "re2j" }
 
 [plugins]
-stability-analyzer = { id = "com.github.skydoves.compose.stability.analyzer", version = "0.7.4" }
-#hotswan-compiler = { id = "com.github.skydoves.compose.hotswan.compiler", version = "1.3.2" }
+#skydoves:
+#noinspection NewerVersionAvailable
+stability-analyzer = { id = "com.github.skydoves.compose.stability.analyzer", version = "0.7.5" }
+hotswan-compiler = { id = "com.github.skydoves.compose.hotswan.compiler", version = "1.3.4" }

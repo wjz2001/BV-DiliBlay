@@ -10,9 +10,9 @@ plugins {
     alias(gradleLibs.plugins.kotlin.android) apply false
     alias(gradleLibs.plugins.kotlin.jvm) apply false
     alias(gradleLibs.plugins.kotlin.serialization) apply false
-    alias(libs.plugins.stability.analyzer) apply false
-//    alias(libs.plugins.hotswan.compiler) apply false
     alias(gradleLibs.plugins.versions)
+    alias(libs.plugins.stability.analyzer) apply false
+    alias(libs.plugins.hotswan.compiler) apply false
 }
 
 subprojects {
