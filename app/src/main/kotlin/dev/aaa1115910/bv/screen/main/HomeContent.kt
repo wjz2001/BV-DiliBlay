@@ -29,7 +29,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.zIndex
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusComponentId
@@ -38,9 +37,11 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.WjzFocusRequestResult
 import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
+import dev.aaa1115910.bv.wjzfocus.WjzFocusSubmitIntent
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
 import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.enabledIf
 import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.PersistLazyGridViewportEffect
@@ -64,7 +65,9 @@ import dev.aaa1115910.bv.screen.main.home.MyClassroomScreen
 import dev.aaa1115910.bv.screen.main.home.SubscribedCollectionScreen
 import dev.aaa1115910.bv.screen.main.home.ToViewScreen
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
+import dev.aaa1115910.bv.screen.main.common.MainTopNavDefaultEntryId
 import dev.aaa1115910.bv.screen.main.common.mainContentEntryAdapter
+import dev.aaa1115910.bv.screen.main.common.toTopNavFocusRequest
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.viewmodel.UserViewModel
 import dev.aaa1115910.bv.viewmodel.main.HomeContentViewModel
@@ -91,6 +94,8 @@ private val HomeContentNodeId = WjzFocusNodeId("main/home/content")
 @Composable
 fun HomeContent(
     topBarLeadingContent: @Composable () -> Unit,
+    topNavTopologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     entryRequest: MainContentEntryRequest? = null,
     onEntryRequestReady: (Long) -> Unit = {},
     onEntryRequestConsumed: (Long) -> Unit = {},
@@ -109,10 +114,6 @@ fun HomeContent(
     var searchEnableProxy by rememberSaveable { mutableStateOf(false) }
     var previousActiveTab by remember { mutableStateOf<HomeTopNavItem?>(null) }
     val focusCoordinator = LocalWjzFocusCoordinator.current
-    val isWindowFocused = LocalWindowInfo.current.isWindowFocused
-    var initialTopNavReady by remember { mutableStateOf(false) }
-    var didInitialDefaultFocus by remember { mutableStateOf(false) }
-    var firstFocusConfirmed by remember { mutableStateOf(false) }
     val entryAdapter = mainContentEntryAdapter(
         entryRequest = entryRequest,
         active = active,
@@ -123,13 +124,13 @@ fun HomeContent(
     )
     val entryFocusRequest = entryAdapter.topNavEntryFocusRequest
 
-    fun requestTopNavFocus(): WjzFocusRequestResult {
-        return focusCoordinator?.requestEntryFocusDetailed(HomeTopNavEntryId)
-            ?: WjzFocusRequestResult.Failed
-    }
-
     val backToTopNav: () -> Unit = {
-        requestTopNavFocus()
+        focusCoordinator?.submitEntryFocusIntent(
+            entryId = HomeTopNavEntryId,
+            intent = WjzFocusSubmitIntent.ExternalEntry(
+                dedupeKey = "home-back-to-top"
+            )
+        )
     }
 
     val reorderedItems = remember {
@@ -151,12 +152,6 @@ fun HomeContent(
                 HomeTopNavItem.SubscribedCollection -> TopNavLeadingIcon.Vector(Icons.Rounded.Subscriptions)
                 null -> null
             }
-        }
-    }
-
-    LaunchedEffect(isWindowFocused) {
-        if (!isWindowFocused && !firstFocusConfirmed) {
-            didInitialDefaultFocus = false
         }
     }
 
@@ -200,30 +195,6 @@ fun HomeContent(
     val handleDefaultFocusReady: (Any) -> Unit = handleDefaultFocusReady@{ readyKey ->
         if (!active) return@handleDefaultFocusReady
         entryAdapter.onDefaultFocusReady(entryFocusRequest)
-        initialTopNavReady = true
-    }
-
-    LaunchedEffect(active, entryRequest, initialTopNavReady, focusCoordinator, isWindowFocused) {
-        if (!active || !isWindowFocused || entryRequest != null || !initialTopNavReady || didInitialDefaultFocus) {
-            return@LaunchedEffect
-        }
-
-        for (attempt in 0 until 8) {
-            val result = requestTopNavFocus()
-            when (result) {
-                WjzFocusRequestResult.Focused -> {
-                    firstFocusConfirmed = true           // ← 真落焦才永久关闸
-                    didInitialDefaultFocus = true
-                    return@LaunchedEffect
-                }
-                WjzFocusRequestResult.Enqueued -> {
-                    didInitialDefaultFocus = true       // 本轮关闸，等失焦复位重试
-                    return@LaunchedEffect
-                }
-                WjzFocusRequestResult.Failed -> Unit
-            }
-            withFrameNanos { }
-        }
     }
 
     fun handleTopNavConfirmLongPress(tab: HomeTopNavItem): Boolean {
@@ -251,7 +222,11 @@ fun HomeContent(
                     selectedItem = focusedTab,
                     activeItem = activeTab,
                     autoRefreshItems = Prefs.homeAutoRefreshTopNavItems,
+                    entryFocusRequest = entryFocusRequest?.toTopNavFocusRequest(),
                     entryFocusTarget = entryAdapter.topNavEntryFocusTarget,
+                    initialFocusEnabled = active && entryRequest == null,
+                    leadingContentEntryId = MainTopNavDefaultEntryId,
+                    topologyRegion = topNavTopologyRegion,
                     onDefaultFocusReady = handleDefaultFocusReady,
                     onEntryFocusResolution = { resolution ->
                         entryAdapter.onTopNavEntryFocusResolution(entryFocusRequest, resolution)
@@ -349,6 +324,7 @@ fun HomeContent(
                                                 searchEnableProxy = enableProxy
                                                 searchPage = HomeSearchPage.Result
                                             },
+                                            topologyRegion = topologyRegion,
                                             searchInputViewModel = searchInputViewModel
                                         )
                                     }
@@ -363,6 +339,7 @@ fun HomeContent(
                                                 if (tabActive) contentReadyTab = tab
                                             },
                                             onBackToInput = { searchPage = HomeSearchPage.Input },
+                                            topologyRegion = topologyRegion,
                                             searchResultViewModel = searchResultViewModel
                                         )
                                     }
@@ -377,7 +354,8 @@ fun HomeContent(
                                     onContentEntryReady = {
                                         if (tabActive) contentReadyTab = tab
                                     },
-                                    active = tabActive
+                                    active = tabActive,
+                                    topologyRegion = topologyRegion
                                 )
                             }
                         }
@@ -412,7 +390,8 @@ private fun HomeActiveTabContent(
     homeContentViewModel: HomeContentViewModel,
     backToTopNav: () -> Unit,
     onContentEntryReady: () -> Unit,
-    active: Boolean
+    active: Boolean,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone
 ) {
     val gridState = rememberHomeGridState(tab, homeContentViewModel)
     val activationSerial = homeContentViewModel.activationSerialOf(tab)
@@ -445,7 +424,8 @@ private fun HomeActiveTabContent(
                 active = active,
                 activationSerial = activationSerial,
                 refreshSerial = consumedRefreshSerial,
-                onContentEntryReady = onContentEntryReady
+                onContentEntryReady = onContentEntryReady,
+                topologyRegion = topologyRegion
             )
         }
         HomeTopNavItem.Popular -> {
@@ -454,7 +434,8 @@ private fun HomeActiveTabContent(
                 active = active,
                 activationSerial = activationSerial,
                 refreshSerial = consumedRefreshSerial,
-                onContentEntryReady = onContentEntryReady
+                onContentEntryReady = onContentEntryReady,
+                topologyRegion = topologyRegion
             )
         }
         HomeTopNavItem.Dynamics -> {
@@ -464,7 +445,8 @@ private fun HomeActiveTabContent(
                 activationSerial = activationSerial,
                 refreshSerial = consumedRefreshSerial,
                 longPressSerial = consumedLongPressSerial,
-                onContentEntryReady = onContentEntryReady
+                onContentEntryReady = onContentEntryReady,
+                topologyRegion = topologyRegion
             )
         }
         HomeTopNavItem.ToView -> {
@@ -476,7 +458,8 @@ private fun HomeActiveTabContent(
                 refreshSerial = consumedRefreshSerial,
                 toViewViewModel = toViewViewModel,
                 onContentEntryReady = onContentEntryReady,
-                onBack = backToTopNav
+                onBack = backToTopNav,
+                topologyRegion = topologyRegion
             )
         }
         HomeTopNavItem.History -> {
@@ -491,7 +474,8 @@ private fun HomeActiveTabContent(
                 historyViewModel = historyViewModel,
                 toViewViewModel = toViewViewModel,
                 onContentEntryReady = onContentEntryReady,
-                onSearchStateChanged = homeContentViewModel::updateHistorySearching
+                onSearchStateChanged = homeContentViewModel::updateHistorySearching,
+                topologyRegion = topologyRegion
             )
         }
         HomeTopNavItem.Favorite -> {
@@ -505,7 +489,8 @@ private fun HomeActiveTabContent(
                 favoriteViewModel = favoriteViewModel,
                 toViewViewModel = toViewViewModel,
                 onContentEntryReady = onContentEntryReady,
-                onBack = backToTopNav
+                onBack = backToTopNav,
+                topologyRegion = topologyRegion
             )
         }
         HomeTopNavItem.Follow -> {
@@ -517,7 +502,8 @@ private fun HomeActiveTabContent(
                 refreshSerial = consumedRefreshSerial,
                 followViewModel = followViewModel,
                 onContentEntryReady = onContentEntryReady,
-                onBack = backToTopNav
+                onBack = backToTopNav,
+                topologyRegion = topologyRegion
             )
         }
         HomeTopNavItem.FollowingSeason -> {
@@ -529,14 +515,16 @@ private fun HomeActiveTabContent(
                 activationSerial = activationSerial,
                 refreshSerial = consumedRefreshSerial,
                 onContentEntryReady = onContentEntryReady,
-                followingSeasonViewModel = followingSeasonViewModel
+                followingSeasonViewModel = followingSeasonViewModel,
+                topologyRegion = topologyRegion
             )
         }
         HomeTopNavItem.MyClassroom -> MyClassroomScreen(
             gridState = gridState,
             activationSerial = activationSerial,
             refreshSerial = consumedRefreshSerial,
-            onContentEntryReady = onContentEntryReady
+            onContentEntryReady = onContentEntryReady,
+            topologyRegion = topologyRegion.enabledIf(active)
         )
         HomeTopNavItem.SubscribedCollection -> {
             val subscribedCollectionViewModel: SubscribedCollectionViewModel =
@@ -550,7 +538,8 @@ private fun HomeActiveTabContent(
                 favoriteViewModel = subscribedCollectionViewModel,
                 toViewViewModel = toViewViewModel,
                 onContentEntryReady = onContentEntryReady,
-                onBack = backToTopNav
+                onBack = backToTopNav,
+                topologyRegion = topologyRegion
             )
         }
     }

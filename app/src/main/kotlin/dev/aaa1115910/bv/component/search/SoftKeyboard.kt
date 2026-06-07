@@ -44,6 +44,7 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
+import dev.aaa1115910.bv.wjzfocus.WjzFocusSubmitIntent
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTransitionGuard
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
@@ -104,7 +105,12 @@ fun SoftKeyboard(
             layer = WjzFocusLayer.Keyboard,
             recordSource = true
         )
-        coordinator.requestEntryFocus(WjzFocusEntryId.parse(SoftKeyboardFocusComponentId))
+        coordinator.submitEntryFocusIntent(
+            entryId = WjzFocusEntryId.parse(SoftKeyboardFocusComponentId),
+            intent = WjzFocusSubmitIntent.ExternalEntry(
+                dedupeKey = SoftKeyboardFocusComponentId
+            )
+        )
     }
 
     DisposableEffect(coordinator) {

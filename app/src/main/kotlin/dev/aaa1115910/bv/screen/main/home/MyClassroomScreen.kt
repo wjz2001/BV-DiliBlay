@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import dev.aaa1115910.biliapi.entity.cheese.PurchasedCourse
 import dev.aaa1115910.bv.activities.video.CheeseSeasonActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.rememberTvGridFocusTarget
@@ -35,7 +36,8 @@ fun MyClassroomScreen(
     activationSerial: Long = 0L,
     refreshSerial: Long = 0L,
     onContentEntryReady: () -> Unit = {},
-    myClassroomViewModel: MyClassroomViewModel = koinViewModel()
+    myClassroomViewModel: MyClassroomViewModel = koinViewModel(),
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone
 ) {
     val context = LocalContext.current
     val courses by myClassroomViewModel.courses.collectAsStateWithLifecycle()
@@ -70,7 +72,8 @@ fun MyClassroomScreen(
         focusItemCount = courses.size,
         focusItemKeys = courses.map { WjzFocusItemKey("Long:${it.seasonId}") },
         focusColumnCount = 4,
-        onEntryFocusReady = onContentEntryReady
+        onEntryFocusReady = onContentEntryReady,
+        topologyRegion = topologyRegion
     ) { cardUiStateFor ->
         if (courses.isNotEmpty()) {
             itemsIndexed(courses, key = { _, course -> course.seasonId }) { index, course ->

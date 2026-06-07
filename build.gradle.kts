@@ -15,6 +15,12 @@ plugins {
     alias(libs.plugins.hotswan.compiler) apply false
 }
 
+val wjzFocusStaticAnalysis by tasks.registering(WjzFocusStaticAnalysisTask::class) {
+    group = "verification"
+    description = "Checks WjzFocus focus API usage boundaries."
+    sourceRoots.from(layout.projectDirectory.dir("app/src/main/kotlin"))
+}
+
 subprojects {
     // --- 统一所有纯 JVM(Java) 模块的 Java 编译版本 ---
     plugins.withId("java") {
@@ -40,5 +46,9 @@ subprojects {
         extensions.configure<KotlinAndroidProjectExtension> {
             jvmToolchain(17)
         }
+    }
+
+    tasks.matching { it.name == "check" }.configureEach {
+        dependsOn(rootProject.tasks.named("wjzFocusStaticAnalysis"))
     }
 }

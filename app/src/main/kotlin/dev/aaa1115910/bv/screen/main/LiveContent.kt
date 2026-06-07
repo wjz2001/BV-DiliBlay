@@ -9,10 +9,13 @@ import androidx.compose.ui.Modifier
 import dev.aaa1115910.bv.wjzfocus.WjzFocusComponentId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.TopNavItem
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
+import dev.aaa1115910.bv.screen.main.common.MainTopNavDefaultEntryId
 import dev.aaa1115910.bv.screen.main.common.mainContentEntryAdapter
+import dev.aaa1115910.bv.screen.main.common.toTopNavFocusRequest
 
 private enum class LiveTopNavItem : TopNavItem {
     Live;
@@ -28,6 +31,7 @@ private val LiveTopNavComponentId = WjzFocusComponentId("liveTopNav")
 @Composable
 fun LiveContent(
     topBarLeadingContent: @Composable () -> Unit,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     entryRequest: MainContentEntryRequest? = null,
     onEntryRequestReady: (Long) -> Unit = {},
     onEntryRequestConsumed: (Long) -> Unit = {},
@@ -51,7 +55,11 @@ fun LiveContent(
                 leadingContent = topBarLeadingContent,
                 items = LiveTopNavItem.entries,
                 selectedItem = LiveTopNavItem.Live,
+                entryFocusRequest = entryFocusRequest?.toTopNavFocusRequest(),
                 entryFocusTarget = entryAdapter.topNavEntryFocusTarget,
+                initialFocusEnabled = active && entryRequest == null,
+                leadingContentEntryId = MainTopNavDefaultEntryId,
+                topologyRegion = topologyRegion,
                 onDefaultFocusReady = { entryAdapter.onDefaultFocusReady(entryFocusRequest) },
                 onEntryFocusResolution = { resolution ->
                     entryAdapter.onTopNavEntryFocusResolution(entryFocusRequest, resolution)

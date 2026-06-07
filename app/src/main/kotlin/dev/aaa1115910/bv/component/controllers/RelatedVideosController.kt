@@ -29,6 +29,7 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
+import dev.aaa1115910.bv.wjzfocus.WjzFocusSubmitIntent
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
@@ -80,7 +81,12 @@ fun RelatedVideosController(
                 layer = WjzFocusLayer.Overlay,
                 recordSource = true
             )
-            focusCoordinator?.requestEntryFocus(WjzFocusEntryId.parse(RelatedVideosFocusComponentId))
+            focusCoordinator?.submitEntryFocusIntent(
+                entryId = WjzFocusEntryId.parse(RelatedVideosFocusComponentId),
+                intent = WjzFocusSubmitIntent.ExternalEntry(
+                    dedupeKey = RelatedVideosFocusComponentId
+                )
+            )
         } else if (overlaySourceToken != null) {
             focusCoordinator?.restoreSourceLayer(
                 expectedActiveLayer = WjzFocusLayer.Overlay,

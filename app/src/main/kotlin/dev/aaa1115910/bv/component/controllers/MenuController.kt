@@ -47,6 +47,7 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
+import dev.aaa1115910.bv.wjzfocus.WjzFocusSubmitIntent
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTransitionGuard
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.defaultEntry
@@ -149,12 +150,12 @@ fun MenuController(
                     recordSource = true
                 )
                 overlaySourceToken = activatedToken
-                repeat(3) {
-                    focusCoordinator?.requestEntryFocus(
-                        WjzFocusEntryId.parse(PlayerMenuNavFocusComponentId)
+                focusCoordinator?.submitEntryFocusIntent(
+                    entryId = WjzFocusEntryId.parse(PlayerMenuNavFocusComponentId),
+                    intent = WjzFocusSubmitIntent.ExternalEntry(
+                        dedupeKey = PlayerMenuNavFocusComponentId
                     )
-                    delay(50)
-                }
+                )
             } else {
                 val token = overlaySourceToken
                 overlaySourceToken = null

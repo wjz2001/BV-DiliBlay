@@ -28,7 +28,9 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
 import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.enabledIf
 import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.TopNav
@@ -39,7 +41,9 @@ import dev.aaa1115910.bv.entity.state.GridViewportState
 import dev.aaa1115910.bv.screen.main.ugc.UgcRegionScaffold
 import dev.aaa1115910.bv.screen.main.ugc.UgcScaffoldState
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
+import dev.aaa1115910.bv.screen.main.common.MainTopNavDefaultEntryId
 import dev.aaa1115910.bv.screen.main.common.mainContentEntryAdapter
+import dev.aaa1115910.bv.screen.main.common.toTopNavFocusRequest
 import dev.aaa1115910.bv.screen.main.runtime.ContentRuntimeState
 import dev.aaa1115910.bv.screen.main.runtime.runtimeContainerInputEnabled
 import dev.aaa1115910.bv.ui.effect.UiEffect
@@ -56,6 +60,8 @@ private val UgcContentNodeId = WjzFocusNodeId("main/ugc/content")
 @Composable
 fun UgcContent(
     topBarLeadingContent: @Composable () -> Unit,
+    topNavTopologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     entryRequest: MainContentEntryRequest? = null,
     onEntryRequestReady: (Long) -> Unit = {},
     onEntryRequestConsumed: (Long) -> Unit = {},
@@ -144,7 +150,11 @@ fun UgcContent(
                     leadingContent = topBarLeadingContent,
                     items = ugcTopNavItems,
                     selectedItem = focusedTab,
+                    entryFocusRequest = entryFocusRequest?.toTopNavFocusRequest(),
                     entryFocusTarget = entryAdapter.topNavEntryFocusTarget,
+                    initialFocusEnabled = active && entryRequest == null,
+                    leadingContentEntryId = MainTopNavDefaultEntryId,
+                    topologyRegion = topNavTopologyRegion,
                     onDefaultFocusReady = handleDefaultFocusReady,
                     onEntryFocusResolution = { resolution ->
                         entryAdapter.onTopNavEntryFocusResolution(entryFocusRequest, resolution)
@@ -231,7 +241,8 @@ fun UgcContent(
                                 onContentEntryReady = {
                                     if (tabActive) contentReadyTab = tab
                                 },
-                                active = tabActive
+                                active = tabActive,
+                                topologyRegion = topologyRegion
                             )
                         }
                     }
@@ -252,7 +263,8 @@ private fun UgcActiveTabContent(
     ugcViewModel: UgcViewModel,
     toViewViewModel: ToViewViewModel,
     onContentEntryReady: () -> Unit,
-    active: Boolean
+    active: Boolean,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone
 ) {
     val context = LocalContext.current
     val screenState = ugcScaffoldStateMap[screen]
@@ -289,7 +301,8 @@ private fun UgcActiveTabContent(
             },
             onGoToUpPage = { mid, upName ->
                 UpInfoActivity.actionStart(context, mid, upName)
-            }
+            },
+            topologyRegion = topologyRegion.enabledIf(active)
         )
     }
 }

@@ -73,6 +73,7 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusSubmitIntent
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.resolve
 import dev.aaa1115910.bv.wjzfocus.target
@@ -297,7 +298,12 @@ private fun UserSwitchContent(
                 else -> userSwitchEntryId(UserSwitchAddUserFocusId.value)
             }
             focusCoordinator?.switchLayer(WjzFocusLayer.Content)
-            focusCoordinator?.requestEntryFocus(targetEntryId)
+            focusCoordinator?.submitEntryFocusIntent(
+                entryId = targetEntryId,
+                intent = WjzFocusSubmitIntent.ContentFallback(
+                    dedupeKey = "user-switch-removed-$removedFocusedUid"
+                )
+            )
         }
         previousUserUids = currentUserUids
     }

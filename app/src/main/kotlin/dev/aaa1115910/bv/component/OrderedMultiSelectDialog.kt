@@ -55,6 +55,7 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusSubmitIntent
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.defaultEntry
@@ -66,7 +67,6 @@ import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import androidx.tv.material3.Text as TvText
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.util.toast
-import kotlinx.coroutines.delay
 
 private val OrderedMultiSelectDialogScopeId = WjzFocusScopeId("dialog/ordered-multi-select")
 private val OrderedMultiSelectDialogContainerNodeId =
@@ -296,10 +296,12 @@ internal fun <T, ID> OrderedMultiSelectListContent(
             runCatching { listState.scrollToItem(targetIndex) }
         }
 
-        repeat(5) {
-            focusCoordinator?.requestEntryFocus(focusEntryId)
-            delay(50L)
-        }
+        focusCoordinator?.submitEntryFocusIntent(
+            entryId = focusEntryId,
+            intent = WjzFocusSubmitIntent.ExternalEntry(
+                dedupeKey = focusEntryId.value
+            )
+        )
     }
 
     LaunchedEffect(pendingLoopTargetIndex, items, targetIndex) {
@@ -314,10 +316,12 @@ internal fun <T, ID> OrderedMultiSelectListContent(
             runCatching { listState.scrollToItem(loopTargetIndex) }
         }
 
-        repeat(5) {
-            focusCoordinator?.requestEntryFocus(focusEntryId)
-            delay(50L)
-        }
+        focusCoordinator?.submitEntryFocusIntent(
+            entryId = focusEntryId,
+            intent = WjzFocusSubmitIntent.ExternalEntry(
+                dedupeKey = focusEntryId.value
+            )
+        )
 
         pendingLoopTargetIndex = null
     }

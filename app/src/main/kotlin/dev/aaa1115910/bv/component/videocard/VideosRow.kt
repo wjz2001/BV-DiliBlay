@@ -32,6 +32,7 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.bv.wjzfocus.WjzFocusDefaultTarget
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusExitsBuilder
+import dev.aaa1115910.bv.wjzfocus.WjzFocusHostExits
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalEntryId
@@ -41,7 +42,7 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTargetEntry
-import dev.aaa1115910.bv.wjzfocus.WjzLazyFocusRestorerHost
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.left
@@ -50,6 +51,8 @@ import dev.aaa1115910.bv.wjzfocus.right
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.wjzfocus.wjzFocusGroup
 import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRememberTopologyRegion
+import dev.aaa1115910.bv.wjzfocus.wjzLazyFocusSingleListRestorerComponent
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
 import dev.aaa1115910.bv.ui.theme.C
 import kotlinx.collections.immutable.ImmutableList
@@ -128,6 +131,13 @@ private class RowWrapController {
     private fun lazyRestorerId(): String {
         return "$nodeIdPrefix/lazy-restorer"
     }
+
+    fun lazyRestorerComponent() =
+        wjzLazyFocusSingleListRestorerComponent(
+            componentId = lazyRestorerId(),
+            layer = focusLayer,
+            scopeId = focusScopeId
+        )
 
     private fun indexOfKey(key: WjzFocusItemKey): Int? {
         return itemKeys.indexOf(key).takeIf { it >= 0 }
@@ -215,14 +225,14 @@ private class RowWrapController {
         val target = itemEntryTargetFor(index)
         val itemKey = itemKeyFor(index)
         if (!isKeyVisible(itemKey)) {
-            focusCoordinator?.enqueueLazyRestore(
-                nodeId = target.nodeId,
-                itemKey = itemKey,
-                layer = target.layer,
-                scopeId = target.scopeId,
-                restorerId = lazyRestorerId(),
-                listId = lazyRestorerId()
-            )
+            focusCoordinator?.let { coordinator ->
+                lazyRestorerComponent()
+                    .target(
+                        nodeId = target.nodeId,
+                        itemKey = itemKey
+                    )
+                    .restoreFocus(coordinator)
+            }
         }
         return target
     }
@@ -272,14 +282,14 @@ private class RowWrapController {
     private fun restoreFocusToIndex(index: Int): Boolean {
         if (index !in 0 until itemCount) return false
         val targetKey = itemKeyFor(index)
-        focusCoordinator?.enqueueLazyRestore(
-            nodeId = nodeIdFor(index),
-            itemKey = targetKey,
-            layer = focusLayer,
-            scopeId = focusScopeId,
-            restorerId = lazyRestorerId(),
-            listId = lazyRestorerId()
-        )
+        focusCoordinator?.let { coordinator ->
+            lazyRestorerComponent()
+                .target(
+                    nodeId = nodeIdFor(index),
+                    itemKey = targetKey
+                )
+                .restoreFocus(coordinator)
+        }
         return true
     }
 
@@ -306,7 +316,10 @@ private class RowWrapController {
         val nodeId = nodeIdFor(index)
         val itemLocalId = itemLocalIdFor(index)
         val itemKey = itemKeyFor(index)
-        val restorerId = lazyRestorerId()
+        val restoreTarget = lazyRestorerComponent().target(
+            nodeId = nodeId,
+            itemKey = itemKey
+        )
         val itemFocusChanged: (Boolean) -> Unit = { hasFocus ->
             if (hasFocus) {
                 lastFocusedIndex = index
@@ -328,11 +341,10 @@ private class RowWrapController {
             modifier = modifier,
             nodeId = nodeId,
             localId = itemLocalId,
+            restoreTarget = restoreTarget,
             layer = focusLayer,
             scopeId = focusScopeId,
             itemKey = itemKey,
-            restorerId = restorerId,
-            listId = restorerId,
             onFocusChanged = itemFocusChanged
         )
     }
@@ -358,8 +370,11 @@ fun VideosRowCore(
     leadingItem: (@Composable (Modifier) -> Unit)? = null,
     listState: LazyListState = rememberLazyListState(),
     manageRowFocusInternally: Boolean = true,
+    entryComponentId: String? = null,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
 ) {
     val focusCoordinator = LocalWjzFocusCoordinator.current
+    val topology = wjzFocusRememberTopologyRegion(topologyRegion)
 
     var focusedItemKey by remember(rowStateKey) {
         mutableStateOf<WjzFocusItemKey?>(null)
@@ -385,7 +400,7 @@ fun VideosRowCore(
         itemCount = videos.size
         this.itemKeys = itemKeys
         nodeIdPrefix = rowStateKey
-        entryComponentId = videosRowEntryComponentIdFor(rowStateKey)
+        this.entryComponentId = entryComponentId ?: videosRowEntryComponentIdFor(rowStateKey)
         focusLayer = WjzFocusLayer.Content
         focusScopeId = rowFocusScopeId
         this.listState = listState
@@ -463,11 +478,7 @@ fun VideosRowCore(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                WjzLazyFocusRestorerHost(
-                    layer = WjzFocusLayer.Content,
-                    scopeId = rowFocusScopeId,
-                    restorerId = "$rowStateKey/lazy-restorer",
-                    listId = "$rowStateKey/lazy-restorer",
+                rowWrapController.lazyRestorerComponent().InstallRestorerHost(
                     scrollToItem = { key -> rowWrapController.scrollToKey(key) },
                     isItemVisible = { key -> rowWrapController.isKeyVisible(key) }
                 )
@@ -475,7 +486,14 @@ fun VideosRowCore(
                 if (rowWrapController.hasEntryTargets()) {
                     WjzFocusEntrySurface(
                         componentId = rowWrapController.entryComponentId,
-                        default = { rowWrapController.defaultEntryTarget() },
+                        default = {
+                            topology.resolveInitialTarget(
+                                componentId = rowWrapController.entryComponentId,
+                                targets = rowWrapController.itemEntryTargets()
+                            ) {
+                                rowWrapController.defaultEntryTarget()
+                            }
+                        },
                         entries = {
                             if (leadingItem != null) {
                                 val leadingTarget = rowWrapController.leadingEntryTarget()
@@ -487,6 +505,18 @@ fun VideosRowCore(
                                 }
                             }
                         }
+                    )
+                }
+                if (topology.isBound) {
+                    WjzFocusHostExits(
+                        token = requireNotNull(
+                            topology.hostExitToken(
+                                prefix = "videos-row-topology",
+                                ownerKey = rowWrapController.entryComponentId
+                            )
+                        ),
+                        scopeId = rowFocusScopeId,
+                        exits = topology.hostExits
                     )
                 }
 
@@ -557,6 +587,8 @@ fun VideosRow(
     enableHorizontalWrap: Boolean = true,
     rowStateKey: String? = null,
     manageRowFocusInternally: Boolean = true,
+    entryComponentId: String? = null,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
 ) {
     val resolvedRowStateKey = rowStateKey ?: remember(header, videos) {
         val firstAid = videos.firstOrNull()?.avid ?: 0L
@@ -575,6 +607,8 @@ fun VideosRow(
         enableHorizontalWrap = enableHorizontalWrap,
         rowStateKey = resolvedRowStateKey,
         leadingItem = null,
-        manageRowFocusInternally = manageRowFocusInternally
+        manageRowFocusInternally = manageRowFocusInternally,
+        entryComponentId = entryComponentId,
+        topologyRegion = topologyRegion
     )
 }

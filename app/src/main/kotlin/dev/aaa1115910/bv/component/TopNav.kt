@@ -24,9 +24,15 @@ import dev.aaa1115910.biliapi.entity.pgc.PgcType
 import dev.aaa1115910.biliapi.entity.ugc.UgcType
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.wjzfocus.WjzFocusComponentId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.left
+import dev.aaa1115910.bv.wjzfocus.right
+import dev.aaa1115910.bv.wjzfocus.up
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRememberTopologyRegion
 import dev.aaa1115910.bv.util.getDisplayName
 
 @Composable
@@ -38,7 +44,10 @@ fun TopNav(
     activeItem: TopNavItem? = null,
     autoRefreshItems: Collection<TopNavItem> = emptySet<TopNavItem>(),
     entryFocusItem: TopNavItem? = null,
+    entryFocusRequest: BvTabFocusRequest<TopNavItem>? = null,
     entryFocusTarget: TopNavEntryFocusTarget = TopNavEntryFocusTarget.DefaultEntry,
+    initialFocusEnabled: Boolean = false,
+    leadingContentEntryId: WjzFocusEntryId? = null,
     onDefaultFocusReady: ((Any) -> Unit)? = null,
     onEntryFocusReady: ((TopNavEntryFocusReady) -> Unit)? = null,
     onEntryFocusResolution: ((TopNavEntryFocusResolution) -> Unit)? = null,
@@ -50,6 +59,7 @@ fun TopNav(
     contentFocusReadyKey: Any? = null,
     onLeftBoundaryExit: (() -> Unit)? = null,
     onRightBoundaryExit: (() -> Unit)? = null,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     focusNodeId: WjzFocusNodeId? = null,
     focusScopeId: WjzFocusScopeId? = null,
     focusComponentId: WjzFocusComponentId? = null,
@@ -61,6 +71,7 @@ fun TopNav(
     onClick: (TopNavItem) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val topology = wjzFocusRememberTopologyRegion(topologyRegion)
     var previousActiveItem by remember { mutableStateOf<TopNavItem?>(null) }
 
     LaunchedEffect(activeItem, autoRefreshItems) {
@@ -97,7 +108,9 @@ fun TopNav(
                         items = items,
                         selectedItem = selectedItem,
                         entryFocusItem = entryFocusItem,
+                        entryFocusRequest = entryFocusRequest,
                         entryFocusTarget = entryFocusTarget.toBvTabEntryFocusTarget(),
+                        initialFocusEnabled = initialFocusEnabled,
                         itemKey = { it },
                         itemText = { it.getDisplayName(context) },
                         itemIcon = { item, iconSize ->
@@ -154,13 +167,31 @@ fun TopNav(
                         contentFocusEnabled = contentFocusEnabled,
                         contentFocusReadyKey = contentFocusReadyKey,
                         onContentFocusRequested = onContentFocusRequested,
+                        tabExits = {
+                            cancel(up)
+                            if (topology.isBound) {
+                                addAll(topology.nodeExits)
+                            }
+                        },
+                        tabItemExits = { index, _ ->
+                            {
+                                if (topology.isStandalone && leadingContentEntryId != null) {
+                                    if (index == 0) {
+                                        left move leadingContentEntryId
+                                    }
+                                    if (index == items.lastIndex) {
+                                        right move leadingContentEntryId
+                                    }
+                                }
+                            }
+                        },
+                        topologyRegion = topologyRegion,
+                        wrap = false,
                         focusNodeId = focusNodeId,
                         focusScopeId = focusScopeId,
                         focusComponentId = focusComponentId,
                         focusLayer = focusLayer,
-                        backFocusEnabled = backFocusEnabled,
-                        autoRequestEntryFocus = backFocusEnabled,
-                        blockUp = true
+                        backFocusEnabled = backFocusEnabled
                     )
                 }
             }
@@ -266,8 +297,8 @@ private fun BvTabEntryFocusResolution<TopNavItem>.toTopNavEntryFocusResolution(
 private fun TopNavEntryFocusTarget.toBvTabEntryFocusTarget(): BvTabEntryFocusTarget {
     return when (this) {
         TopNavEntryFocusTarget.DefaultEntry -> BvTabEntryFocusTarget.DefaultEntry
-        TopNavEntryFocusTarget.LeftEntry -> BvTabEntryFocusTarget.DefaultEntry
-        TopNavEntryFocusTarget.RightEntry -> BvTabEntryFocusTarget.DefaultEntry
+        TopNavEntryFocusTarget.LeftEntry -> BvTabEntryFocusTarget.LeftEntry
+        TopNavEntryFocusTarget.RightEntry -> BvTabEntryFocusTarget.RightEntry
     }
 }
 

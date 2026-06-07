@@ -33,6 +33,8 @@ import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
+import dev.aaa1115910.bv.wjzfocus.enabledIf
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
@@ -61,7 +63,8 @@ fun DynamicsScreen(
     activationSerial: Long = 0L,
     refreshSerial: Long = 0L,
     longPressSerial: Long = 0L,
-    onContentEntryReady: () -> Unit = {}
+    onContentEntryReady: () -> Unit = {},
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone
 ) {
     val dynamicViewModel: DynamicViewModel = koinViewModel()
     val toViewViewModel: ToViewViewModel = koinViewModel()
@@ -172,7 +175,8 @@ fun DynamicsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             focusItemCount = focusableWrapIndexMap.size,
             focusItemKeys = focusableWrapIndexMap.keys.map { WjzFocusItemKey("Long:$it") },
-            onEntryFocusReady = onContentEntryReady
+            onEntryFocusReady = onContentEntryReady,
+            topologyRegion = topologyRegion.enabledIf(active)
         ) { cardUiStateFor ->
             itemsIndexed(
                 items = dynamicList,

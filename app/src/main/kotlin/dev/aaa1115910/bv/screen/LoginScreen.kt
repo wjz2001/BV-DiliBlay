@@ -48,6 +48,7 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusSubmitIntent
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
@@ -203,7 +204,12 @@ fun LoginScreen(
         val focusCoordinator = LocalWjzFocusCoordinator.current
 
         LaunchedEffect(focusCoordinator) {
-            focusCoordinator?.requestEntryFocus(AppQrLoginDefaultEntryId)
+            focusCoordinator?.submitEntryFocusIntent(
+                entryId = AppQrLoginDefaultEntryId,
+                intent = WjzFocusSubmitIntent.InitialEntry(
+                    dedupeKey = AppQrLoginDefaultEntryId
+                )
+            )
         }
         Surface(
             modifier = Modifier

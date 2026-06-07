@@ -14,7 +14,7 @@ import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.resolve
 import dev.aaa1115910.bv.wjzfocus.right
-import dev.aaa1115910.bv.wjzfocus.wjzFocusRestorerHost
+import dev.aaa1115910.bv.wjzfocus.wjzFocusGroupRestorerComponent
 
 @Composable
 fun RadioMenuList(
@@ -29,18 +29,19 @@ fun RadioMenuList(
 ) {
     val focusScopeId = LocalWjzFocusScopeId.current
     val focusPrefix = playerMenuFocusPrefix(focusIdPrefix)
-    val listIds = focusPrefix.listIds()
+    val listRestorer = wjzFocusGroupRestorerComponent(
+        componentId = focusPrefix.value,
+        layer = WjzFocusLayer.Overlay,
+        scopeId = focusScopeId
+    )
     val fallbackIndex = selected.takeIf { it in items.indices } ?: items.indices.firstOrNull()
     val fallbackLocalFocusId = fallbackIndex?.let { focusPrefix.localId(it) }
     LazyColumn(
-        modifier = modifier
-            .wjzFocusRestorerHost(
-                layer = WjzFocusLayer.Overlay,
-                scopeId = focusScopeId,
-                restorerId = listIds.restorerId,
-                listId = listIds.listId,
+        modifier = with(listRestorer) {
+            modifier.restorerHost(
                 fallbackNodeId = fallbackLocalFocusId?.let { focusScopeId?.resolve(it) }
-            ),
+            )
+        },
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(vertical = 120.dp, horizontal = 8.dp)
     ) {

@@ -30,6 +30,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -75,11 +76,13 @@ import dev.aaa1115910.bv.component.BvLazyFocusItemTarget
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
 import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.left
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRememberTopologyRegion
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SeasonCard
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
@@ -119,6 +122,7 @@ fun SearchResultScreen(
     enableProxy: Boolean? = null,
     onContentEntryReady: () -> Unit = {},
     onBackToInput: (() -> Unit)? = null,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     searchResultViewModel: SearchResultViewModel = koinViewModel(),
     toViewViewModel: ToViewViewModel = koinViewModel()
 ) {
@@ -127,6 +131,9 @@ fun SearchResultScreen(
     val parentFocusCoordinator = LocalWjzFocusCoordinator.current
     val ownFocusCoordinator = rememberWjzFocusCoordinator()
     val focusCoordinator = parentFocusCoordinator ?: ownFocusCoordinator
+    val topology = wjzFocusRememberTopologyRegion(topologyRegion)
+    val topologyLeftNodeExits = topology.nodeExits
+        .filter { nodeExit -> nodeExit.direction == FocusDirection.Left }
     val logger = KotlinLogging.logger { }
     var contentReadySearchType by remember { mutableStateOf<SearchTypeTopNavItem?>(null) }
 
@@ -401,7 +408,11 @@ fun SearchResultScreen(
                                 layer = WjzFocusLayer.Content,
                                 exits = {
                                     up move "searchInput/default"
-                                    left move MainDrawerRightEntryId
+                                    if (topology.isStandalone) {
+                                        left move MainDrawerRightEntryId
+                                    } else {
+                                        addAll(topologyLeftNodeExits)
+                                    }
                                 },
                                 onFocusChanged = { focusOnContent = it }
                             )
@@ -433,7 +444,11 @@ fun SearchResultScreen(
                                 layer = WjzFocusLayer.Content,
                                 exits = {
                                     up move "searchInput/default"
-                                    left move MainDrawerRightEntryId
+                                    if (topology.isStandalone) {
+                                        left move MainDrawerRightEntryId
+                                    } else {
+                                        addAll(topologyLeftNodeExits)
+                                    }
                                 },
                                 onFocusChanged = { focusOnContent = it }
                             ),

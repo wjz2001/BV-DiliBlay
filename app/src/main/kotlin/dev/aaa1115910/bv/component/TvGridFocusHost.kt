@@ -28,19 +28,27 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusRestorableTarget
+import dev.aaa1115910.bv.wjzfocus.WjzFocusRequestResult
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusSubmitIntent
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTargetEntry
-import dev.aaa1115910.bv.wjzfocus.WjzLazyFocusRestorerHost
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
+import dev.aaa1115910.bv.wjzfocus.WjzFocusHostExits
 import dev.aaa1115910.bv.wjzfocus.down
+import dev.aaa1115910.bv.wjzfocus.isFocusedBy
 import dev.aaa1115910.bv.wjzfocus.left
 import dev.aaa1115910.bv.wjzfocus.right
 import dev.aaa1115910.bv.wjzfocus.resolve
 import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRememberTopologyRegion
 import dev.aaa1115910.bv.wjzfocus.wjzFocusRestorerHost
+import dev.aaa1115910.bv.wjzfocus.wjzFocusSingleListRestorerComponent
+import dev.aaa1115910.bv.wjzfocus.wjzLazyFocusSingleListRestorerComponent
 
 private fun gridEntryComponentIdFor(nodeIdPrefix: String): String {
     val sanitized = nodeIdPrefix
@@ -62,59 +70,33 @@ class BvLazyFocusItemTarget(
     val layer: WjzFocusLayer,
     val scopeId: WjzFocusScopeId?,
     val itemKey: WjzFocusItemKey,
-    val restorerId: String,
-    val listId: String,
-    val onFocusChanged: (Boolean) -> Unit = {}
+    val onFocusChanged: (Boolean) -> Unit = {},
+    private val restoreTarget: WjzFocusRestorableTarget
 ) {
     val key: String
         get() = nodeId.value
 
-    fun copy(
-        modifier: Modifier = this.modifier,
-        layer: WjzFocusLayer = this.layer,
-        scopeId: WjzFocusScopeId? = this.scopeId,
-        itemKey: WjzFocusItemKey = this.itemKey,
-        restorerId: String = this.restorerId,
-        listId: String = this.listId,
-        onFocusChanged: (Boolean) -> Unit = this.onFocusChanged
-    ): BvLazyFocusItemTarget {
-        return BvLazyFocusItemTarget(
-            modifier = modifier,
+    fun activate(coordinator: WjzFocusCoordinator): Boolean {
+        val target = WjzFocusDefaultTarget(
             nodeId = nodeId,
-            localId = localId,
+            layer = layer,
+            scopeId = scopeId
+        )
+        if (target.isFocusedBy(coordinator)) return true
+        return coordinator.submitNodeFocusIntent(
+            nodeId = nodeId,
             layer = layer,
             scopeId = scopeId,
-            itemKey = itemKey,
-            restorerId = restorerId,
-            listId = listId,
-            onFocusChanged = onFocusChanged
-        )
+            intent = WjzFocusSubmitIntent.ExternalEntry(
+                dedupeKey = "activate:$key",
+                enqueueUntilLayerActive = false,
+                enqueueIfMissing = false
+            )
+        ) == WjzFocusRequestResult.Focused
     }
 
-    fun activate(
-        coordinator: WjzFocusCoordinator,
-        enqueueIfMissing: Boolean = true
-    ): Boolean {
-        coordinator.enqueueLazyRestore(
-            nodeId = nodeId,
-            itemKey = itemKey,
-            layer = layer,
-            scopeId = scopeId,
-            restorerId = restorerId,
-            listId = listId
-        )
-        return coordinator.hasFocus(nodeId)
-    }
-
-    fun enqueueLazyRestore(coordinator: WjzFocusCoordinator) {
-        coordinator.enqueueLazyRestore(
-            nodeId = nodeId,
-            itemKey = itemKey,
-            layer = layer,
-            scopeId = scopeId,
-            restorerId = restorerId,
-            listId = listId
-        )
+    fun restoreFocus(coordinator: WjzFocusCoordinator) {
+        restoreTarget.restoreFocus(coordinator)
     }
 
     @Composable
@@ -140,9 +122,11 @@ fun Modifier.wjzLazyFocusItemTarget(
     enabled: Boolean = true,
     onFocusChanged: (Boolean) -> Unit = {}
 ): Modifier {
-    return target.focusableModifier(
-        enabled = enabled,
-        onFocusChanged = onFocusChanged
+    return this.then(
+        target.focusableModifier(
+            enabled = enabled,
+            onFocusChanged = onFocusChanged
+        )
     )
 }
 
@@ -189,7 +173,7 @@ private class TvGridFocusController(
         return wjzFocusLocalId("empty")
     }
 
-    private fun emptyNodeId(): WjzFocusNodeId {
+    fun emptyNodeId(): WjzFocusNodeId {
         return resolvedScopeId().resolve(emptyLocalId())
     }
 
@@ -205,6 +189,20 @@ private class TvGridFocusController(
         return "$nodeIdPrefix/lazy-restorer"
     }
 
+    fun lazyRestorerComponent() =
+        wjzLazyFocusSingleListRestorerComponent(
+            componentId = lazyRestorerId(),
+            layer = focusLayer,
+            scopeId = focusScopeId
+        )
+
+    fun emptyRestorerComponent() =
+        wjzFocusSingleListRestorerComponent(
+            componentId = "$nodeIdPrefix/empty-restorer",
+            layer = focusLayer,
+            scopeId = focusScopeId
+        )
+
     private fun indexOfKey(key: WjzFocusItemKey): Int? {
         return itemKeys.indexOf(key).takeIf { it >= 0 }
     }
@@ -212,6 +210,14 @@ private class TvGridFocusController(
     private fun itemEntryTargetFor(index: Int): WjzFocusTargetEntry {
         return WjzFocusTargetEntry(
             id = itemEntryIdFor(index),
+            nodeId = nodeIdFor(index),
+            layer = focusLayer,
+            scopeId = focusScopeId
+        )
+    }
+
+    private fun itemFocusTargetFor(index: Int): WjzFocusDefaultTarget {
+        return WjzFocusDefaultTarget(
             nodeId = nodeIdFor(index),
             layer = focusLayer,
             scopeId = focusScopeId
@@ -331,7 +337,9 @@ private class TvGridFocusController(
         val previousKey = lastFocusedKey
         val hadFocusedItem = this.itemCount > 0 &&
                 previousIndex in this.itemKeys.indices &&
-                focusCoordinator?.hasFocus(nodeIdFor(previousIndex)) == true
+                focusCoordinator?.let { coordinator ->
+                    itemFocusTargetFor(previousIndex).isFocusedBy(coordinator)
+                } == true
         val changed = this.itemCount != itemCount || this.itemKeys != itemKeys
 
         this.itemCount = itemCount
@@ -369,13 +377,11 @@ private class TvGridFocusController(
     fun restorePendingEmpty(version: Int) {
         if (version <= 0 || pendingEmptyRestoreVersion != version) return
 
-        focusCoordinator?.enqueueGroupRestore(
-            nodeId = emptyNodeId(),
-            layer = focusLayer,
-            scopeId = focusScopeId,
-            restorerId = "$nodeIdPrefix/empty-restorer",
-            listId = "$nodeIdPrefix/empty-restorer"
-        )
+        focusCoordinator?.let { coordinator ->
+            emptyRestorerComponent()
+                .target(nodeId = emptyNodeId())
+                .restoreFocus(coordinator)
+        }
         if (pendingEmptyRestoreVersion == version) {
             pendingEmptyRestoreVersion = 0
         }
@@ -388,14 +394,14 @@ private class TvGridFocusController(
             }
             return
         }
-        focusCoordinator?.enqueueLazyRestore(
-            nodeId = nodeIdFor(index),
-            itemKey = key,
-            layer = focusLayer,
-            scopeId = focusScopeId,
-            restorerId = lazyRestorerId(),
-            listId = lazyRestorerId()
-        )
+        focusCoordinator?.let { coordinator ->
+            lazyRestorerComponent()
+                .target(
+                    nodeId = nodeIdFor(index),
+                    itemKey = key
+                )
+                .restoreFocus(coordinator)
+        }
         if (pendingRestoreKey == key) {
             pendingRestoreKey = null
         }
@@ -414,7 +420,10 @@ private class TvGridFocusController(
         val nodeId = nodeIdFor(index)
         val scopeId = resolvedScopeId()
         val itemKey = itemKeyFor(index)
-        val restorerId = lazyRestorerId()
+        val restoreTarget = lazyRestorerComponent().target(
+            nodeId = nodeId,
+            itemKey = itemKey
+        )
         val itemFocusChanged: (Boolean) -> Unit = { hasFocus ->
             if (hasFocus) {
                 lastFocusedIndex = index
@@ -443,9 +452,8 @@ private class TvGridFocusController(
             layer = focusLayer,
             scopeId = scopeId,
             itemKey = itemKey,
-            restorerId = restorerId,
-            listId = restorerId,
-            onFocusChanged = itemFocusChanged
+            onFocusChanged = itemFocusChanged,
+            restoreTarget = restoreTarget
         )
     }
 }
@@ -480,9 +488,11 @@ fun TvGridFocusHost(
     onEntryFocusReady: (() -> Unit)? = null,
     focusItemCount: Int = 0,
     focusColumnCount: Int = 4,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     content: LazyGridScope.() -> Unit
 ) {
     val focusCoordinator = LocalWjzFocusCoordinator.current
+    val topology = wjzFocusRememberTopologyRegion(topologyRegion)
     val resolvedFocusScopeId = remember(nodeIdPrefix, focusScopeId) {
         focusScopeId ?: WjzFocusScopeId(nodeIdPrefix)
     }
@@ -522,10 +532,8 @@ fun TvGridFocusHost(
         val gridModifier = if (focusItemCount <= 0) {
             modifier
                 .wjzFocusRestorerHost(
-                    layer = focusLayer,
-                    scopeId = resolvedFocusScopeId,
-                    restorerId = "$nodeIdPrefix/empty-restorer",
-                    listId = "$nodeIdPrefix/empty-restorer"
+                    target = focusController.emptyRestorerComponent()
+                        .target(nodeId = focusController.emptyNodeId())
                 )
                 .wjzFocusExits(
                     localId = focusController.emptyLocalId(),
@@ -538,24 +546,35 @@ fun TvGridFocusHost(
             modifier
         }
 
-        WjzLazyFocusRestorerHost(
-            layer = focusLayer,
-            scopeId = resolvedFocusScopeId,
-            restorerId = "$nodeIdPrefix/lazy-restorer",
-            listId = "$nodeIdPrefix/lazy-restorer",
+        focusController.lazyRestorerComponent().InstallRestorerHost(
             scrollToItem = { key -> focusController.scrollToKey(key) },
             isItemVisible = { key -> focusController.isKeyVisible(key) }
         )
 
         WjzFocusEntrySurface(
             componentId = focusController.entryComponentId,
-            default = { focusController.defaultEntryTarget() },
+            default = {
+                topology.resolveInitialTarget(
+                    componentId = focusController.entryComponentId,
+                    targets = focusController.entryTargets()
+                ) {
+                    focusController.defaultEntryTarget()
+                }
+            },
             entries = {
                 focusController.entryTargets().forEach { target ->
                     entry(target.id, target)
                 }
             }
         )
+
+        if (topology.isBound) {
+            WjzFocusHostExits(
+                token = requireNotNull(topology.hostExitToken("tv-grid-topology", nodeIdPrefix)),
+                scopeId = resolvedFocusScopeId,
+                exits = topology.hostExits
+            )
+        }
 
         TvLazyVerticalGrid(
             columns = columns,

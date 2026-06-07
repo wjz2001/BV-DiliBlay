@@ -70,6 +70,8 @@ import coil.compose.AsyncImage
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
+import dev.aaa1115910.bv.wjzfocus.enabledIf
 import dev.aaa1115910.bv.wjzfocus.wjzObserveFocusChanged
 import dev.aaa1115910.bv.component.BlockTagItem
 import dev.aaa1115910.bv.component.BvTabLabel
@@ -107,7 +109,8 @@ fun FollowScreen(
     refreshSerial: Long = 0L,
     followViewModel: FollowViewModel = koinViewModel(),
     onContentEntryReady: () -> Unit = {},
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -436,7 +439,8 @@ fun FollowScreen(
                     },
                     focusItemCount = visibleUsers.size,
                     itemKeys = visibleUsers.map { WjzFocusItemKey("String:${it.stableKey}") },
-                    focusColumnCount = 4
+                    focusColumnCount = 4,
+                    topologyRegion = topologyRegion.enabledIf(active)
                 ) {
                     if (visibleUsers.isEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) {

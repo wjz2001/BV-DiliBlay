@@ -60,6 +60,7 @@ import dev.aaa1115910.bv.util.LogCatcherUtil
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusSavedState
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.all
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
@@ -73,11 +74,14 @@ private val StoragePermissionConfirmNodeId = WjzFocusNodeId("storage-permission-
 private val StoragePermissionDialogScopeId = WjzFocusScopeId("main/storage-permission")
 private val StoragePermissionDialogContainerNodeId =
     WjzFocusNodeId("main/storage-permission/container")
+private const val MainWjzFocusSavedStateKey = "main_wjz_focus_saved_state"
 
 class MainActivity : ComponentActivity() {
 
     private val userRepository: UserRepository by inject()
     private val logger = KotlinLogging.logger {}
+    private var mainWjzFocusSavedState: WjzFocusSavedState? = null
+    private var mainWjzFocusStateProvider: (() -> WjzFocusSavedState)? = null
 
     //  控制系统 Splash 什么时候撤退
     private val composeReady = AtomicBoolean(false)
@@ -94,6 +98,10 @@ class MainActivity : ComponentActivity() {
     enum class AppScreen { Shell, Error, Main }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        @Suppress("DEPRECATION")
+        mainWjzFocusSavedState =
+            savedInstanceState?.getSerializable(MainWjzFocusSavedStateKey) as? WjzFocusSavedState
+
         installSplashScreen().apply {
             // 只要 Compose 还没画好，就先用纯色屏幕
             setKeepOnScreenCondition { !composeReady.get() }
@@ -245,6 +253,17 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        mainWjzFocusSavedState = mainWjzFocusStateProvider?.invoke() ?: mainWjzFocusSavedState
+        mainWjzFocusSavedState?.let { outState.putSerializable(MainWjzFocusSavedStateKey, it) }
+        super.onSaveInstanceState(outState)
+    }
+
+    override fun onStop() {
+        mainWjzFocusSavedState = mainWjzFocusStateProvider?.invoke() ?: mainWjzFocusSavedState
+        super.onStop()
     }
 
     private fun requestStoragePermissionBeforeStartMain(
@@ -415,7 +434,14 @@ class MainActivity : ComponentActivity() {
             onReady()
         }
         MainScreen(
-            allowFirstLaunchMainDialog = allowFirstLaunchMainDialog
+            allowFirstLaunchMainDialog = allowFirstLaunchMainDialog,
+            initialWjzFocusSavedState = mainWjzFocusSavedState,
+            onWjzFocusStateSaved = { state ->
+                mainWjzFocusSavedState = state
+            },
+            onWjzFocusStateProviderChanged = { provider ->
+                mainWjzFocusStateProvider = provider
+            }
         )
     }
 }

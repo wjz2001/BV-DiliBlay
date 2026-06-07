@@ -64,6 +64,8 @@ import dev.aaa1115910.biliapi.entity.FavoriteFolderMetadata
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
+import dev.aaa1115910.bv.wjzfocus.enabledIf
 import dev.aaa1115910.bv.wjzfocus.wjzObserveFocusChanged
 import dev.aaa1115910.bv.component.BvTabLabel
 import dev.aaa1115910.bv.component.BvUnderlineTabRow
@@ -105,7 +107,8 @@ fun FavoriteScreen(
     favoriteViewModel: FavoriteViewModel = koinViewModel(),
     toViewViewModel: ToViewViewModel = koinViewModel(),
     onContentEntryReady: () -> Unit = {},
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -630,7 +633,8 @@ fun FavoriteScreen(
             onEntryFocusReady = {
                 contentReadyFolderId = currentFolderId
                 onContentEntryReady()
-            }
+            },
+            topologyRegion = topologyRegion.enabledIf(active)
         ) { cardUiStateFor ->
             if (visibleFavorites.isNotEmpty()) {
                 itemsIndexed(

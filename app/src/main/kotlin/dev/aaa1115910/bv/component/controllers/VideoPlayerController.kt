@@ -39,8 +39,10 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusRequestResult
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
+import dev.aaa1115910.bv.wjzfocus.WjzFocusSubmitIntent
 import dev.aaa1115910.bv.wjzfocus.down
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.comments.VideoCommentsDialog
@@ -297,7 +299,17 @@ fun VideoPlayerController(
         } else {
             focusCoordinator.activateLayer(WjzFocusLayer.Player)
         }
-        return focusCoordinator.requestEntryFocus(entryId)
+        return when (focusCoordinator.submitEntryFocusIntent(
+            entryId = entryId,
+            intent = WjzFocusSubmitIntent.ExternalEntry(
+                dedupeKey = entryId.value
+            )
+        )) {
+            WjzFocusRequestResult.Focused,
+            WjzFocusRequestResult.Enqueued -> true
+            WjzFocusRequestResult.Dropped,
+            WjzFocusRequestResult.Failed -> false
+        }
     }
 
     fun handleKeyEvent(event: KeyEvent): Boolean {

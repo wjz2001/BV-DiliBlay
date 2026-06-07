@@ -16,7 +16,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.KeyEventType
@@ -39,20 +38,33 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusComponentId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusExitsBuilder
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusRequestResult
 import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTargetEntry
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.activateLayer
 import dev.aaa1115910.bv.wjzfocus.defaultEntry
-import dev.aaa1115910.bv.wjzfocus.defaultEntry as focusComponentDefaultEntry
+import dev.aaa1115910.bv.wjzfocus.horizontal
+import dev.aaa1115910.bv.wjzfocus.keepLayer
 import dev.aaa1115910.bv.wjzfocus.resolve
-import dev.aaa1115910.bv.wjzfocus.target
+import dev.aaa1115910.bv.wjzfocus.submitExternalNodeFocus
+import dev.aaa1115910.bv.wjzfocus.submitInitialEntryFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusEncodeItemEntryId
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusGroupRestorerComponent
 import dev.aaa1115910.bv.wjzfocus.wjzFocusGroup
+import dev.aaa1115910.bv.wjzfocus.wjzFocusItemNodeId
 import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
-import dev.aaa1115910.bv.wjzfocus.wjzFocusRestorerHost
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRememberTopologyRegion
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRouter
+import dev.aaa1115910.bv.wjzfocus.wjzLinearFocusResolver
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.isConfirmKey
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -89,7 +101,9 @@ enum class BvTabIconMode {
 }
 
 enum class BvTabEntryFocusTarget {
-    DefaultEntry
+    DefaultEntry,
+    LeftEntry,
+    RightEntry
 }
 
 data class BvTabEntryFocusReady<T>(
@@ -97,6 +111,13 @@ data class BvTabEntryFocusReady<T>(
     val item: T,
     val itemKey: Any,
     val nodeId: WjzFocusNodeId
+)
+
+data class BvTabFocusRequest<T>(
+    val id: Long,
+    val item: T? = null,
+    val target: BvTabEntryFocusTarget = BvTabEntryFocusTarget.DefaultEntry,
+    val activateLayer: Boolean = false
 )
 
 data class BvTabEntryFocusConsumed<T>(
@@ -130,25 +151,31 @@ fun <T> resolveBvTabEntryFocus(
     entryFocusTarget: BvTabEntryFocusTarget = BvTabEntryFocusTarget.DefaultEntry,
     itemKey: (T) -> Any,
     focusNodeId: WjzFocusNodeId? = null,
-    focusScopeId: WjzFocusScopeId? = null
+    focusScopeId: WjzFocusScopeId? = null,
+    focusTargetNodeId: ((Any) -> WjzFocusNodeId?)? = null
 ): BvTabEntryFocusResolution<T> {
     if (items.isEmpty()) {
         return BvTabEntryFocusResolution.Pending(entryFocusTarget)
     }
 
     val itemKeys = items.map(itemKey)
-    val targetTabIndex = if (entryFocusItem == null) {
-        val selectedItemKey = selectedItem?.let(itemKey)
-        itemKeys.indexOf(selectedItemKey).takeIf { it >= 0 } ?: 0
-    } else {
-        val entryFocusItemKey = itemKey(entryFocusItem)
-        itemKeys.indexOf(entryFocusItemKey)
-            .takeIf { it >= 0 }
-            ?: return BvTabEntryFocusResolution.Reject(entryFocusTarget)
+    val targetTabIndex = when (entryFocusTarget) {
+        BvTabEntryFocusTarget.LeftEntry -> 0
+        BvTabEntryFocusTarget.RightEntry -> items.lastIndex
+        BvTabEntryFocusTarget.DefaultEntry -> if (entryFocusItem == null) {
+            val selectedItemKey = selectedItem?.let(itemKey)
+            itemKeys.indexOf(selectedItemKey).takeIf { it >= 0 } ?: 0
+        } else {
+            val entryFocusItemKey = itemKey(entryFocusItem)
+            itemKeys.indexOf(entryFocusItemKey)
+                .takeIf { it >= 0 }
+                ?: return BvTabEntryFocusResolution.Reject(entryFocusTarget)
+        }
     }
     val resolvedItem = items[targetTabIndex]
     val resolvedKey = itemKeys[targetTabIndex]
-    val resolvedNodeId = focusScopeId?.resolve(wjzFocusLocalId("tab", resolvedKey))
+    val resolvedNodeId = focusTargetNodeId?.invoke(resolvedKey)
+        ?: focusScopeId?.resolve(wjzFocusLocalId("tab", resolvedKey))
         ?: return BvTabEntryFocusResolution.Pending(entryFocusTarget)
     return BvTabEntryFocusResolution.Ready(
         target = entryFocusTarget,
@@ -159,6 +186,14 @@ fun <T> resolveBvTabEntryFocus(
 }
 
 private val bvTabRowFocusLogger = KotlinLogging.logger("BvTabRowFocus")
+
+private data class PendingBvTabEntryFocusConsumption<T>(
+    val requestId: Long,
+    val target: BvTabEntryFocusTarget,
+    val item: T,
+    val itemKey: Any,
+    val nodeId: WjzFocusNodeId
+)
 
 /**
  * 项目统一的 TV TabRow 封装
@@ -207,8 +242,6 @@ private val bvTabRowFocusLogger = KotlinLogging.logger("BvTabRowFocus")
  * @param onRightExit 历史边界参数；组件不再在按键预览里承担跨区域移动，边界由 WjzFocus exits 或上游入口处理。
  * @param onUp 历史边界参数；组件不再在按键预览里承担上方向出口处理。
  * @param onDown 历史边界参数；组件不再在按键预览里承担下方向出口或内容层恢复处理。
- * @param blockUp 历史边界参数；组件不再在按键预览里封锁上方向出口。
- * @param blockDown 历史边界参数；组件不再在按键预览里封锁下方向出口。
  * @param tabContent 自定义 tab 内容。传入后 [itemText]、[itemIcon]、[iconMode] 不再生效；
  * 外层 [Tab]、焦点、按键、selected 状态仍由 [BvTabRow] 管理。
  *
@@ -245,9 +278,13 @@ fun <T> BvTabRow(
     contentFocusEnabled: Boolean = false,
     contentFocusReadyKey: Any? = null,
     onContentFocusRequested: (T) -> Unit = {},
-    blockUp: Boolean = false,
-    blockDown: Boolean = false,
-    autoRequestEntryFocus: Boolean = true,
+    tabExits: WjzFocusExitsBuilder.() -> Unit = {},
+    tabItemExits: (index: Int, item: T) -> (WjzFocusExitsBuilder.() -> Unit) = { _, _ -> {} },
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
+    wrap: Boolean = true,
+    initialFocusEnabled: Boolean = false,
+    entryFocusRequest: BvTabFocusRequest<T>? = null,
+    autoRequestEntryFocus: Boolean = false,
     focusNodeId: WjzFocusNodeId? = null,
     focusScopeId: WjzFocusScopeId? = null,
     focusComponentId: WjzFocusComponentId? = null,
@@ -269,12 +306,47 @@ fun <T> BvTabRow(
     val selectedItemKey = selectedItem?.let(itemKey)
     val entryFocusItemKey = targetEntryFocusItem?.let(itemKey)
     val focusCoordinator = LocalWjzFocusCoordinator.current
+    val topology = wjzFocusRememberTopologyRegion(topologyRegion)
     val ambientFocusScopeId = LocalWjzFocusScopeId.current
     val resolvedFocusScopeId = focusScopeId ?: ambientFocusScopeId
     val focusRootLocalId = remember { wjzFocusLocalId("root") }
     val resolvedFocusNodeId = remember(focusNodeId, resolvedFocusScopeId, focusRootLocalId) {
         focusNodeId ?: resolvedFocusScopeId?.resolve(focusRootLocalId)
     }
+    val selectedTabIndex = itemKeys.indexOf(selectedItemKey).takeIf { it >= 0 } ?: 0
+    val focusTargetIndex = itemKeys.indexOf(entryFocusItemKey).takeIf { it >= 0 } ?: selectedTabIndex
+    val tabEntryComponentId = remember(focusComponentId, resolvedFocusNodeId) {
+        focusComponentId?.value ?: resolvedFocusNodeId?.value?.let { "bv_tab_row_${it.hashCode()}" }
+    }
+    val tabFocusListId = remember(tabEntryComponentId, itemKeys) {
+        tabEntryComponentId ?: "bv_tab_row_${itemKeys.hashCode()}"
+    }
+    val tabFocusTargets = remember(itemKeys, tabFocusListId, resolvedFocusScopeId, focusLayer) {
+        itemKeys.map { key ->
+            val entryId = wjzFocusEncodeItemEntryId(key.toString())
+            val localId = WjzFocusLocalId(
+                wjzFocusItemNodeId(
+                    tabFocusListId,
+                    entryId
+                )
+            )
+            val nodeId = resolvedFocusScopeId?.resolve(localId) ?: WjzFocusNodeId(localId.value)
+            WjzFocusTargetEntry(
+                id = entryId,
+                nodeId = nodeId,
+                layer = focusLayer,
+                scopeId = resolvedFocusScopeId
+            )
+        }
+    }
+    val tabFocusResolver = remember(tabFocusTargets, wrap) {
+        wjzLinearFocusResolver(
+            entries = tabFocusTargets,
+            direction = horizontal,
+            wrap = wrap
+        )
+    }
+    val focusTargetNodeId = tabFocusTargets.getOrNull(focusTargetIndex)?.nodeId
     val entryFocusResolution = resolveBvTabEntryFocus(
         items = items,
         selectedItem = selectedItem,
@@ -282,41 +354,107 @@ fun <T> BvTabRow(
         entryFocusTarget = entryFocusTarget,
         itemKey = itemKey,
         focusNodeId = resolvedFocusNodeId,
-        focusScopeId = resolvedFocusScopeId
+        focusScopeId = resolvedFocusScopeId,
+        focusTargetNodeId = if (resolvedFocusScopeId == null) {
+            null
+        } else {
+            { key ->
+                val index = itemKeys.indexOf(key)
+                tabFocusTargets.getOrNull(index)?.nodeId
+            }
+        }
     )
-
-    val selectedTabIndex = itemKeys.indexOf(selectedItemKey).takeIf { it >= 0 } ?: 0
-    val focusTargetIndex = itemKeys.indexOf(entryFocusItemKey).takeIf { it >= 0 } ?: selectedTabIndex
-    val focusTargetLocalId = remember(itemKeys, focusTargetIndex) {
-        wjzFocusLocalId("tab", itemKeys[focusTargetIndex])
-    }
-    val focusTargetNodeId = remember(resolvedFocusScopeId, focusTargetLocalId) {
-        resolvedFocusScopeId?.resolve(focusTargetLocalId)
-    }
-    val tabEntryComponentId = remember(focusComponentId, resolvedFocusNodeId) {
-        focusComponentId?.value ?: resolvedFocusNodeId?.value?.let { "bv_tab_row_${it.hashCode()}" }
-    }
-    val tabEntryId = remember(focusComponentId, tabEntryComponentId) {
-        focusComponentId?.focusComponentDefaultEntry() ?: tabEntryComponentId?.let(WjzFocusEntryId::parse)
-    }
 
     var focusedTabIndex by remember(itemKeys) { mutableIntStateOf(focusTargetIndex) }
     var isFocusBelowTabRow by remember(itemKeys) { mutableStateOf(false) }
     var lastDefaultFocusPositionedState by remember(itemKeys) { mutableStateOf<String?>(null) }
-    fun requestTabEntryFocus(): Boolean {
-        if (!backFocusEnabled) return false
-        val coordinator = focusCoordinator ?: return false
-        val entryId = tabEntryId ?: return false
-        return coordinator.requestEntryFocus(entryId)
+    var pendingEntryFocusConsumption by remember {
+        mutableStateOf<PendingBvTabEntryFocusConsumption<T>?>(null)
     }
 
-    val canAutoRequestEntryFocus = autoRequestEntryFocus && backFocusEnabled
-    LaunchedEffect(canAutoRequestEntryFocus, entryFocusItemKey, focusTargetIndex) {
-        if (!canAutoRequestEntryFocus) return@LaunchedEffect
-        repeat(3) {
-            withFrameNanos { }
-            if (requestTabEntryFocus()) return@LaunchedEffect
+    val canRequestInitialFocus = (initialFocusEnabled || autoRequestEntryFocus) && backFocusEnabled
+    LaunchedEffect(
+        canRequestInitialFocus,
+        tabEntryComponentId,
+        focusCoordinator,
+        resolvedFocusScopeId,
+        focusLayer,
+        items.isNotEmpty()
+    ) {
+        if (!canRequestInitialFocus) {
+            bvTabRowFocusLogger.fInfo { "initial entry skip: canRequestInitialFocus=false" }
+            return@LaunchedEffect
         }
+        val coordinator = focusCoordinator
+        if (coordinator == null) {
+            bvTabRowFocusLogger.fInfo { "initial entry skip: focusCoordinator=null" }
+            return@LaunchedEffect
+        }
+        val targetNodeId = focusTargetNodeId
+        if (targetNodeId == null) {
+            bvTabRowFocusLogger.fInfo { "initial entry skip: focusTargetNodeId=null" }
+            return@LaunchedEffect
+        }
+        val dedupeKey = tabEntryComponentId ?: resolvedFocusNodeId?.value ?: tabFocusListId
+
+        bvTabRowFocusLogger.fInfo {
+            "initial entry request: targetNodeId=${targetNodeId.value}, " +
+                    "layer=$focusLayer, scopeId=${resolvedFocusScopeId?.value}, " +
+                    "dedupeKey=$dedupeKey"
+        }
+        val entryComponentId = tabEntryComponentId ?: return@LaunchedEffect
+        val result = coordinator.submitInitialEntryFocus(
+            entryId = WjzFocusEntryId("$entryComponentId/default"),
+            dedupeKey = dedupeKey
+        )
+        bvTabRowFocusLogger.fInfo { "initial entry result: $result" }
+    }
+
+    LaunchedEffect(
+        entryFocusRequest?.id,
+        focusCoordinator,
+        resolvedFocusScopeId,
+        focusLayer,
+        itemKeys
+    ) {
+        val request = entryFocusRequest ?: return@LaunchedEffect
+        val coordinator = focusCoordinator
+        if (coordinator == null || !backFocusEnabled) {
+            pendingEntryFocusConsumption = null
+            return@LaunchedEffect
+        }
+        val requestItemKey = request.item?.let(itemKey)
+        val targetIndex = requestItemKey
+            ?.let { key -> itemKeys.indexOf(key).takeIf { it >= 0 } }
+            ?: when (request.target) {
+                BvTabEntryFocusTarget.LeftEntry -> 0
+                BvTabEntryFocusTarget.RightEntry -> items.lastIndex
+                BvTabEntryFocusTarget.DefaultEntry -> focusTargetIndex
+            }
+        val targetNodeId = tabFocusTargets.getOrNull(targetIndex)?.nodeId
+        if (targetNodeId == null) {
+            pendingEntryFocusConsumption = null
+            return@LaunchedEffect
+        }
+
+        pendingEntryFocusConsumption = PendingBvTabEntryFocusConsumption(
+            requestId = request.id,
+            target = request.target,
+            item = items[targetIndex],
+            itemKey = itemKeys[targetIndex],
+            nodeId = targetNodeId
+        )
+        val result = coordinator.submitExternalNodeFocus(
+            nodeId = targetNodeId,
+            layer = focusLayer,
+            scopeId = resolvedFocusScopeId,
+            layerActivation = if (request.activateLayer) activateLayer else keepLayer,
+            dedupeKey = request.id
+        )
+        if (result != WjzFocusRequestResult.Focused && result != WjzFocusRequestResult.Enqueued) {
+            pendingEntryFocusConsumption = null
+        }
+        bvTabRowFocusLogger.fInfo { "external entry result: requestId=${request.id}, result=$result" }
     }
 
     LaunchedEffect(entryFocusResolution) {
@@ -350,13 +488,15 @@ fun <T> BvTabRow(
         ) {
             items.forEachIndexed { index, item ->
                 val key = itemKeys[index]
-                val tabFocusLocalId = remember(key) {
-                    wjzFocusLocalId("tab", key)
-                }
+                val tabFocusTarget = tabFocusTargets[index]
                 var confirmLongPressTriggered by remember(key) { mutableStateOf(false) }
                 val focused = focusedTabIndex == index
                 val selected = selectedTabIndex == index
                 var tabModifier = Modifier
+                    .wjzFocusRouter(
+                        currentEntryId = tabFocusTarget.id,
+                        resolver = tabFocusResolver
+                    )
                     .onPreviewKeyEvent { event ->
                         val isConfirmKey = event.isConfirmKey()
                         if (!isConfirmKey) return@onPreviewKeyEvent false
@@ -391,9 +531,30 @@ fun <T> BvTabRow(
 
                 if (resolvedFocusScopeId != null) {
                     tabModifier = tabModifier.wjzFocusExits(
-                        localId = tabFocusLocalId,
-                        layer = focusLayer,
-                        enabled = backFocusEnabled
+                        nodeId = tabFocusTarget.nodeId,
+                        scopeId = tabFocusTarget.scopeId,
+                        layer = tabFocusTarget.layer,
+                        enabled = backFocusEnabled,
+                        attachFocusTarget = false,
+                        exits = {
+                            if (topology.isStandalone) {
+                                tabExits()
+                                tabItemExits(index, item).invoke(this)
+                            } else {
+                                val localExits = WjzFocusExitsBuilder().apply {
+                                    tabExits()
+                                    tabItemExits(index, item).invoke(this)
+                                }.exits
+                                addAll(localExits)
+                                addAll(
+                                    topology.nodeExits.filterNot { topologyExit ->
+                                        localExits.any { localExit ->
+                                            localExit.direction == topologyExit.direction
+                                        }
+                                    }
+                                )
+                            }
+                        }
                     )
                 }
 
@@ -438,14 +599,18 @@ fun <T> BvTabRow(
                         isFocusBelowTabRow = false
                         confirmLongPressTriggered = false
                         focusedTabIndex = index
-                        val ready = entryFocusResolution as? BvTabEntryFocusResolution.Ready
-                        if (ready != null && ready.itemKey == key) {
+                        val pendingConsumption = pendingEntryFocusConsumption
+                        if (pendingConsumption != null &&
+                            pendingConsumption.requestId == entryFocusRequest?.id &&
+                            pendingConsumption.itemKey == key
+                        ) {
+                            pendingEntryFocusConsumption = null
                             currentOnEntryFocusConsumed?.invoke(
                                 BvTabEntryFocusConsumed(
-                                    target = ready.target,
-                                    item = ready.item,
-                                    itemKey = ready.itemKey,
-                                    nodeId = ready.nodeId
+                                    target = pendingConsumption.target,
+                                    item = pendingConsumption.item,
+                                    itemKey = pendingConsumption.itemKey,
+                                    nodeId = pendingConsumption.nodeId
                                 )
                             )
                         }
@@ -473,35 +638,55 @@ fun <T> BvTabRow(
     if (resolvedFocusNodeId == null) {
         tabRowContent()
     } else {
+        val tabRestorer = remember(resolvedFocusNodeId, resolvedFocusScopeId, focusLayer) {
+            wjzFocusGroupRestorerComponent(
+                componentId = resolvedFocusNodeId.value,
+                layer = focusLayer,
+                scopeId = resolvedFocusScopeId
+            )
+        }
         Box(
-            modifier = tabRowModifier
-                .wjzFocusRestorerHost(
+            modifier = with(tabRestorer) {
+                tabRowModifier.restorerHost(
                     enabled = backFocusEnabled,
-                    layer = focusLayer,
-                    scopeId = resolvedFocusScopeId,
-                    restorerId = "${resolvedFocusNodeId.value}/restorer",
-                    listId = "${resolvedFocusNodeId.value}/list",
                     fallbackNodeId = focusTargetNodeId
                 )
-                .wjzFocusGroup()
+            }.wjzFocusGroup()
         ) {
             if (backFocusEnabled) {
+                val entryComponentId = tabEntryComponentId ?: return@Box
                 WjzFocusEntrySurface(
-                    componentId = tabEntryComponentId ?: return@Box,
+                    componentId = entryComponentId,
                     default = {
-                        resolvedFocusScopeId?.target(focusTargetLocalId)?.copy(layer = focusLayer)
-                            ?: defaultEntry(
+                        topology.resolveInitialTarget(
+                            componentId = entryComponentId,
+                            targets = tabFocusTargets
+                        ) {
+                            tabFocusTargets.getOrNull(focusTargetIndex)
+                                ?: defaultEntry(
                                 nodeId = resolvedFocusNodeId,
                                 layer = focusLayer,
                                 scopeId = resolvedFocusScopeId
                             )
+                        }
                     },
                     entries = {
-                        val selectedTabLocalId = wjzFocusLocalId("tab", itemKeys[selectedTabIndex])
-                        val selectedTabTarget = resolvedFocusScopeId?.target(selectedTabLocalId)?.copy(layer = focusLayer)
+                        val selectedTabTarget = tabFocusTargets.getOrNull(selectedTabIndex)
                         if (selectedTabTarget != null) {
                             entry("selected") {
                                 selectedTabTarget
+                            }
+                        }
+                        val leftTabTarget = tabFocusTargets.firstOrNull()
+                        if (leftTabTarget != null) {
+                            entry("left") {
+                                leftTabTarget
+                            }
+                        }
+                        val rightTabTarget = tabFocusTargets.lastOrNull()
+                        if (rightTabTarget != null) {
+                            entry("right") {
+                                rightTabTarget
                             }
                         }
                     }
@@ -548,9 +733,13 @@ fun <T> BvPillTabRow(
     contentFocusEnabled: Boolean = false,
     contentFocusReadyKey: Any? = null,
     onContentFocusRequested: (T) -> Unit = {},
-    blockUp: Boolean = false,
-    blockDown: Boolean = false,
-    autoRequestEntryFocus: Boolean = true,
+    tabExits: WjzFocusExitsBuilder.() -> Unit = {},
+    tabItemExits: (index: Int, item: T) -> (WjzFocusExitsBuilder.() -> Unit) = { _, _ -> {} },
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
+    wrap: Boolean = true,
+    initialFocusEnabled: Boolean = false,
+    entryFocusRequest: BvTabFocusRequest<T>? = null,
+    autoRequestEntryFocus: Boolean = false,
     focusNodeId: WjzFocusNodeId? = null,
     focusScopeId: WjzFocusScopeId? = null,
     focusComponentId: WjzFocusComponentId? = null,
@@ -588,8 +777,12 @@ fun <T> BvPillTabRow(
         contentFocusEnabled = contentFocusEnabled,
         contentFocusReadyKey = contentFocusReadyKey,
         onContentFocusRequested = onContentFocusRequested,
-        blockUp = blockUp,
-        blockDown = blockDown,
+        tabExits = tabExits,
+        tabItemExits = tabItemExits,
+        topologyRegion = topologyRegion,
+        wrap = wrap,
+        initialFocusEnabled = initialFocusEnabled,
+        entryFocusRequest = entryFocusRequest,
         autoRequestEntryFocus = autoRequestEntryFocus,
         focusNodeId = focusNodeId,
         focusScopeId = focusScopeId,
@@ -636,9 +829,13 @@ fun <T> BvUnderlineTabRow(
     contentFocusEnabled: Boolean = false,
     contentFocusReadyKey: Any? = null,
     onContentFocusRequested: (T) -> Unit = {},
-    blockUp: Boolean = false,
-    blockDown: Boolean = false,
-    autoRequestEntryFocus: Boolean = true,
+    tabExits: WjzFocusExitsBuilder.() -> Unit = {},
+    tabItemExits: (index: Int, item: T) -> (WjzFocusExitsBuilder.() -> Unit) = { _, _ -> {} },
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
+    wrap: Boolean = true,
+    initialFocusEnabled: Boolean = false,
+    entryFocusRequest: BvTabFocusRequest<T>? = null,
+    autoRequestEntryFocus: Boolean = false,
     focusNodeId: WjzFocusNodeId? = null,
     focusScopeId: WjzFocusScopeId? = null,
     focusComponentId: WjzFocusComponentId? = null,
@@ -676,8 +873,12 @@ fun <T> BvUnderlineTabRow(
         contentFocusEnabled = contentFocusEnabled,
         contentFocusReadyKey = contentFocusReadyKey,
         onContentFocusRequested = onContentFocusRequested,
-        blockUp = blockUp,
-        blockDown = blockDown,
+        tabExits = tabExits,
+        tabItemExits = tabItemExits,
+        topologyRegion = topologyRegion,
+        wrap = wrap,
+        initialFocusEnabled = initialFocusEnabled,
+        entryFocusRequest = entryFocusRequest,
         autoRequestEntryFocus = autoRequestEntryFocus,
         focusNodeId = focusNodeId,
         focusScopeId = focusScopeId,

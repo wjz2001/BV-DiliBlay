@@ -7,17 +7,19 @@ import dev.aaa1115910.bv.screen.main.common.MainContentEntryTarget
 import dev.aaa1115910.bv.screen.main.common.MainContentTopEntryId
 import dev.aaa1115910.bv.screen.main.common.MainTopNavDefaultEntryId
 import dev.aaa1115910.bv.screen.main.common.MainTopNavFocusComponentId
-import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusRequestResult
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
-import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.down
 import dev.aaa1115910.bv.wjzfocus.left
 import dev.aaa1115910.bv.wjzfocus.right
-import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.up
-import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalEntrySurface
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
+import dev.aaa1115910.bv.wjzfocus.submitExternalEntryFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLocal
 import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRememberTopologyRegion
 
 internal data class MainTopNavEntryRequest(
     val id: Long,
@@ -46,43 +48,49 @@ internal fun MainTopNavBlock(
     entryRequest: MainTopNavEntryRequest? = null,
     onEntryRequestConsumed: (Long) -> Unit = {},
     focusEnabled: Boolean,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     onUserFocusChanged: (Boolean) -> Unit,
     onExpandDrawer: () -> Unit,
     onOpenUser: () -> Unit,
     onContentEntryRequested: (MainTopNavContentEntryTarget) -> Boolean
 ) {
     val focusCoordinator = LocalWjzFocusCoordinator.current
-    val focusScopeId = LocalWjzFocusScopeId.current
+    val topology = wjzFocusRememberTopologyRegion(topologyRegion)
 
     LaunchedEffect(entryRequest, focusCoordinator) {
         val request = entryRequest ?: return@LaunchedEffect
         val entryId = when (request.target) {
             MainTopNavEntryTarget.User -> MainTopNavDefaultEntryId
         }
-        if (focusCoordinator?.requestEntryFocus(entryId) == true) {
+        val result = focusCoordinator?.submitExternalEntryFocus(
+            entryId = entryId,
+            dedupeKey = request.id
+        )
+        if (result == WjzFocusRequestResult.Focused || result == WjzFocusRequestResult.Enqueued) {
             onEntryRequestConsumed(request.id)
         }
     }
 
-    WjzFocusEntrySurface(
+    WjzFocusLocalEntrySurface(
         componentId = MainTopNavFocusComponentId,
-        default = {
-            requireNotNull(focusScopeId) {
-                "MainTopNavBlock requires LocalWjzFocusScopeId.current"
-            }.target(MainTopNavDefaultLocalId).copy(layer = WjzFocusLayer.TopNav)
-        }
+        defaultLocalId = MainTopNavDefaultLocalId,
+        layer = WjzFocusLayer.TopNav
     )
 
     LeftNaviUserButton(
-        modifier = modifier.wjzFocusExits(
+        modifier = modifier.wjzFocusLocal(
             localId = MainTopNavDefaultLocalId,
             layer = WjzFocusLayer.TopNav,
             enabled = focusEnabled,
             exits = {
-                down move MainContentTopEntryId
-                right move MainContentTopEntryId
-                cancel(left)
-                cancel(up)
+                if (topology.isStandalone) {
+                    down move MainContentTopEntryId
+                    right move MainContentTopEntryId
+                    cancel(left)
+                    cancel(up)
+                } else {
+                    addAll(topology.nodeExits)
+                }
             },
             onFocusChanged = onUserFocusChanged
         ),

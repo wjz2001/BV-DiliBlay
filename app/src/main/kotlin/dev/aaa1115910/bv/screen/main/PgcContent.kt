@@ -23,9 +23,11 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
 import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRememberTopologyRegion
 import dev.aaa1115910.bv.component.PgcTopNavItem
 import dev.aaa1115910.bv.component.TopNav
 import dev.aaa1115910.bv.component.PersistLazyListViewportEffect
@@ -37,7 +39,9 @@ import dev.aaa1115910.bv.screen.main.pgc.MovieContent
 import dev.aaa1115910.bv.screen.main.pgc.TvContent
 import dev.aaa1115910.bv.screen.main.pgc.VarietyContent
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
+import dev.aaa1115910.bv.screen.main.common.MainTopNavDefaultEntryId
 import dev.aaa1115910.bv.screen.main.common.mainContentEntryAdapter
+import dev.aaa1115910.bv.screen.main.common.toTopNavFocusRequest
 import dev.aaa1115910.bv.screen.main.runtime.ContentRuntimeState
 import dev.aaa1115910.bv.screen.main.runtime.runtimeContainerInputEnabled
 import dev.aaa1115910.bv.viewmodel.main.PgcContentViewModel
@@ -58,6 +62,8 @@ private val PgcContentNodeId = WjzFocusNodeId("main/pgc/content")
 @Composable
 fun PgcContent(
     topBarLeadingContent: @Composable () -> Unit,
+    topNavTopologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     entryRequest: MainContentEntryRequest? = null,
     onEntryRequestReady: (Long) -> Unit = {},
     onEntryRequestConsumed: (Long) -> Unit = {},
@@ -79,6 +85,9 @@ fun PgcContent(
         onEntryRequestRejected = onEntryRequestRejected
     )
     val entryFocusRequest = entryAdapter.topNavEntryFocusRequest
+    val topology = wjzFocusRememberTopologyRegion(topologyRegion)
+    val topologyContentNodeExits = topology.nodeExits
+        .filterNot { exit -> exit.direction in up.directions }
 
     val handleDefaultFocusReady: (Any) -> Unit = handleDefaultFocusReady@{ readyKey ->
         if (!active) return@handleDefaultFocusReady
@@ -120,7 +129,11 @@ fun PgcContent(
                     leadingContent = topBarLeadingContent,
                     items = PgcTopNavItem.entries,
                     selectedItem = focusedTab,
+                    entryFocusRequest = entryFocusRequest?.toTopNavFocusRequest(),
                     entryFocusTarget = entryAdapter.topNavEntryFocusTarget,
+                    initialFocusEnabled = active && entryRequest == null,
+                    leadingContentEntryId = MainTopNavDefaultEntryId,
+                    topologyRegion = topNavTopologyRegion,
                     onDefaultFocusReady = handleDefaultFocusReady,
                     onEntryFocusResolution = { resolution ->
                         entryAdapter.onTopNavEntryFocusResolution(entryFocusRequest, resolution)
@@ -165,6 +178,7 @@ fun PgcContent(
                     enabled = active,
                     exits = {
                         up move PgcTopNavEntryId
+                        addAll(topologyContentNodeExits)
                     }
                 )
         ) {

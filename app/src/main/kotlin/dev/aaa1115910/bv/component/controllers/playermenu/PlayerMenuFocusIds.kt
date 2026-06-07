@@ -40,16 +40,7 @@ internal data class PlayerMenuFocusPrefix(
         return playerMenuNodeId(value, *childParts)
     }
 
-    fun listIds() = PlayerMenuFocusListIds(
-        restorerId = "$value/restorer",
-        listId = "$value/list"
-    )
 }
-
-internal data class PlayerMenuFocusListIds(
-    val restorerId: String,
-    val listId: String
-)
 
 internal fun playerMenuFocusPrefix(
     root: PlayerMenuFocusRoot,

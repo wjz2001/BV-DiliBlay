@@ -30,6 +30,8 @@ import dev.aaa1115910.biliapi.entity.ugc.UgcItem
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
+import dev.aaa1115910.bv.wjzfocus.enabledIf
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
@@ -54,7 +56,8 @@ fun RecommendScreen(
     active: Boolean = true,
     activationSerial: Long = 0L,
     refreshSerial: Long = 0L,
-    onContentEntryReady: () -> Unit = {}
+    onContentEntryReady: () -> Unit = {},
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone
 ) {
     val recommendViewModel: RecommendViewModel = koinViewModel()
     val toViewViewModel: ToViewViewModel = koinViewModel()
@@ -114,7 +117,8 @@ fun RecommendScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         focusItemCount = recommendVideoList.size,
         focusItemKeys = recommendVideoList.map { WjzFocusItemKey("Long:${it.aid}") },
-        onEntryFocusReady = onContentEntryReady
+        onEntryFocusReady = onContentEntryReady,
+        topologyRegion = topologyRegion.enabledIf(active)
     ) { cardUiStateFor ->
         itemsIndexed(
             items = recommendVideoList,

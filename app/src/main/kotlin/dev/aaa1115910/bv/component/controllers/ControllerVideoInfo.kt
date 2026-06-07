@@ -49,6 +49,7 @@ import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusSubmitIntent
 import dev.aaa1115910.bv.wjzfocus.resolve
 import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.down
@@ -274,7 +275,12 @@ fun ControllerVideoInfoBottom(
         if (show) {
             delay(50)
             if (focusButtonsOnShow) {
-                focusCoordinator?.requestEntryFocus(WjzFocusEntryId.parse(PlayerControlsFocusComponentId))
+                focusCoordinator?.submitEntryFocusIntent(
+                    entryId = WjzFocusEntryId.parse(PlayerControlsFocusComponentId),
+                    intent = WjzFocusSubmitIntent.ExternalEntry(
+                        dedupeKey = PlayerControlsFocusComponentId
+                    )
+                )
                 onConsumeFocusButtonsOnShow()
             }
         }

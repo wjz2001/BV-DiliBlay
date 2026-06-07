@@ -80,6 +80,9 @@
 # LibVLC
 -keep class org.videolan.libvlc.** { *; }
 
+# r8Test-only reflective debug entry
+-keep class dev.aaa1115910.bv.r8test.** { *; }
+
 # gRPC
 -keep class bilibili.rpc.** { *; }
 -keep class com.google.protobuf.** { *; }

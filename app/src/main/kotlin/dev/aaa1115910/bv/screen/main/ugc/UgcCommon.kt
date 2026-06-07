@@ -22,6 +22,8 @@ import dev.aaa1115910.biliapi.entity.ugc.UgcType
 import dev.aaa1115910.biliapi.entity.ugc.region.UgcFeedPage
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
+import dev.aaa1115910.bv.wjzfocus.enabledIf
 import dev.aaa1115910.bv.component.LoadingTip
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
@@ -42,6 +44,7 @@ fun UgcRegionScaffold(
     onLoadMore: () -> Unit,
     onAddWatchLater: ((Long) -> Unit),
     onGoToUpPage: ((Long, String) -> Unit),
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone
 ) {
     val context = LocalContext.current
 
@@ -68,7 +71,8 @@ fun UgcRegionScaffold(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         focusItemCount = state.ugcItems.size,
         focusItemKeys = state.ugcItems.map { WjzFocusItemKey("Long:${it.aid}") },
-        onEntryFocusReady = onContentEntryReady
+        onEntryFocusReady = onContentEntryReady,
+        topologyRegion = topologyRegion.enabledIf(active)
     ) { cardUiStateFor ->
         // 用index的话快速刷新有概率闪退
         itemsIndexed(

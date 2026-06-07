@@ -42,6 +42,8 @@ import dev.aaa1115910.biliapi.entity.season.FollowingSeasonType
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.video.SeasonInfoActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
+import dev.aaa1115910.bv.wjzfocus.enabledIf
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SeasonCard
 import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
@@ -63,7 +65,8 @@ fun FollowingSeasonScreen(
     activationSerial: Long = 0L,
     refreshSerial: Long = 0L,
     onContentEntryReady: () -> Unit = {},
-    followingSeasonViewModel: FollowingSeasonViewModel = koinViewModel()
+    followingSeasonViewModel: FollowingSeasonViewModel = koinViewModel(),
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone
 ) {
     val context = LocalContext.current
     val logger = KotlinLogging.logger { }
@@ -150,7 +153,8 @@ fun FollowingSeasonScreen(
             focusItemCount = followingSeasons.size,
             focusItemKeys = followingSeasons.map { WjzFocusItemKey("Long:${it.seasonId}") },
             focusColumnCount = 6,
-            onEntryFocusReady = onContentEntryReady
+            onEntryFocusReady = onContentEntryReady,
+            topologyRegion = topologyRegion.enabledIf(active)
         ) { cardUiStateFor ->
             if (followingSeasons.isNotEmpty()) {
                 itemsIndexed(

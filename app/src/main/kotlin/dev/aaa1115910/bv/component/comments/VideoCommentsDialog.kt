@@ -84,6 +84,8 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusRequestResult
+import dev.aaa1115910.bv.wjzfocus.WjzFocusSubmitIntent
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.target
@@ -138,7 +140,17 @@ private fun requestDialogNodeFocus(
 ): Boolean {
     coordinator ?: return false
     coordinator.switchLayer(WjzFocusLayer.Dialog)
-    return coordinator.requestEntryFocus(commentsDialogEntryId(localId))
+    return when (coordinator.submitEntryFocusIntent(
+        entryId = commentsDialogEntryId(localId),
+        intent = WjzFocusSubmitIntent.ExternalEntry(
+            dedupeKey = localId.value
+        )
+    )) {
+        WjzFocusRequestResult.Focused,
+        WjzFocusRequestResult.Enqueued -> true
+        WjzFocusRequestResult.Dropped,
+        WjzFocusRequestResult.Failed -> false
+    }
 }
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

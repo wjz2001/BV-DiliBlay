@@ -1,8 +1,11 @@
 package dev.aaa1115910.bv.screen.main.common
 
+import dev.aaa1115910.bv.component.BvTabEntryFocusTarget
+import dev.aaa1115910.bv.component.BvTabFocusRequest
 import dev.aaa1115910.bv.component.TopNavEntryFocusConsumed
 import dev.aaa1115910.bv.component.TopNavEntryFocusResolution
 import dev.aaa1115910.bv.component.TopNavEntryFocusTarget
+import dev.aaa1115910.bv.component.TopNavItem
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 
 enum class MainContentEntryTarget {
@@ -51,6 +54,13 @@ data class MainContentEntryFocusRequest(
     val target: MainContentEntryTarget,
     val topNavTarget: TopNavEntryFocusTarget
 )
+
+fun MainContentEntryFocusRequest.toTopNavFocusRequest(): BvTabFocusRequest<TopNavItem> {
+    return BvTabFocusRequest(
+        id = id,
+        target = topNavTarget.toBvTabEntryFocusTarget()
+    )
+}
 
 class MainContentEntryAdapter(
     private val entryRequest: MainContentEntryRequest?,
@@ -145,6 +155,13 @@ private fun MainContentEntryTarget?.toTopNavEntryFocusTarget(): TopNavEntryFocus
         null -> TopNavEntryFocusTarget.DefaultEntry
     }
 }
+
+private fun TopNavEntryFocusTarget.toBvTabEntryFocusTarget() =
+    when (this) {
+        TopNavEntryFocusTarget.DefaultEntry -> BvTabEntryFocusTarget.DefaultEntry
+        TopNavEntryFocusTarget.LeftEntry -> BvTabEntryFocusTarget.LeftEntry
+        TopNavEntryFocusTarget.RightEntry -> BvTabEntryFocusTarget.RightEntry
+    }
 
 /**
  * Content entry protocol for MainScreen.

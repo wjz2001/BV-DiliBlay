@@ -49,6 +49,8 @@ import androidx.compose.ui.window.DialogProperties
 import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
+import dev.aaa1115910.bv.wjzfocus.enabledIf
 import dev.aaa1115910.bv.wjzfocus.wjzObserveFocusChanged
 import dev.aaa1115910.bv.component.videocard.SmallVideoCardGridHost
 import dev.aaa1115910.bv.component.videocard.SmallVideoCard
@@ -77,7 +79,8 @@ fun HistoryScreen(
     historyViewModel: HistoryViewModel = koinViewModel(),
     toViewViewModel: ToViewViewModel = koinViewModel(),
     onContentEntryReady: () -> Unit = {},
-    onSearchStateChanged: (Boolean) -> Unit = {}
+    onSearchStateChanged: (Boolean) -> Unit = {},
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -193,7 +196,8 @@ fun HistoryScreen(
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         focusItemCount = visibleHistories.size,
         focusItemKeys = visibleHistories.map { WjzFocusItemKey("String:${it.avid}_${it.epId ?: 0}") },
-        onEntryFocusReady = onContentEntryReady
+        onEntryFocusReady = onContentEntryReady,
+        topologyRegion = topologyRegion.enabledIf(active)
     ) { cardUiStateFor ->
             if (visibleHistories.isNotEmpty()) {
                 itemsIndexed(

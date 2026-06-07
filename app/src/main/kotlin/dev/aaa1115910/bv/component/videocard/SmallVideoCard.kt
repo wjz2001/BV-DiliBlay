@@ -89,6 +89,7 @@ import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusSubmitIntent
 import dev.aaa1115910.bv.component.BvLazyFocusItemTarget
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
@@ -377,8 +378,6 @@ private fun SmallVideoCardCore(
         focusCoordinator,
         focusTarget?.key,
         focusTarget?.itemKey,
-        focusTarget?.restorerId,
-        focusTarget?.listId,
         focusTarget?.scopeId
     ) {
         if (actionLayerVisible && actionSourceToken == null) {
@@ -395,12 +394,9 @@ private fun SmallVideoCardCore(
                 focusTarget?.let { target ->
                     val coordinator = focusCoordinator ?: return@let
                     coordinator.switchLayer(target.layer)
-                    val requested = target.activate(
-                        coordinator = coordinator,
-                        enqueueIfMissing = false
-                    )
+                    val requested = target.activate(coordinator)
                     if (!requested) {
-                        target.enqueueLazyRestore(coordinator)
+                        target.restoreFocus(coordinator)
                     }
                 }
             }
@@ -431,7 +427,13 @@ private fun SmallVideoCardCore(
     ) {
         if (actionLayerVisible) {
             focusCoordinator?.restoreActiveLayer()
-            focusCoordinator?.requestEntryFocus(WjzFocusEntryId.parse(actionFocusComponentId))
+            focusCoordinator?.submitEntryFocusIntent(
+                entryId = WjzFocusEntryId.parse(actionFocusComponentId),
+                intent = WjzFocusSubmitIntent.ExternalEntry(
+                    dedupeKey = data.avid,
+                    activateLayer = true
+                )
+            )
 
             hostVm?.onActionsShown(
                 aid = data.avid,

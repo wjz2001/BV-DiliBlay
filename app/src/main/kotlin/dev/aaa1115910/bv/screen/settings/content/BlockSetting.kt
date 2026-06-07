@@ -29,13 +29,16 @@ import dev.aaa1115910.bv.component.BlockPageSelectDialog
 import dev.aaa1115910.bv.component.BlockTagItem
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.target
+import dev.aaa1115910.bv.wjzfocus.wjzFocusEntryRestoreTarget
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLayerRestoreTarget
 import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.component.settings.SettingListItem
 import dev.aaa1115910.bv.relation.RelationGroupSnapshot
@@ -68,6 +71,19 @@ private fun blockSettingPageDialogItemNodeId(page: dev.aaa1115910.bv.block.Block
 
 private fun blockSettingActionLocalFocusId(action: String) =
     wjzFocusLocalId("block_settings", "action", action)
+
+private object BlockSettingFocus {
+    private val detailLayerTarget = wjzFocusLayerRestoreTarget(
+        layer = WjzFocusLayer.Content,
+        scopeId = BlockSettingDetailScopeId
+    )
+    private val defaultEntryTarget = wjzFocusEntryRestoreTarget(BlockSettingDefaultEntryId)
+
+    fun restoreDefaultContent(coordinator: WjzFocusCoordinator) {
+        detailLayerTarget.restoreFocus(coordinator)
+        defaultEntryTarget.restoreContentFocus(coordinator)
+    }
+}
 
 @Composable
 fun BlockSetting(
@@ -112,11 +128,7 @@ fun BlockSetting(
 
     LaunchedEffect(contentActive, focusCoordinator) {
         if (contentActive) {
-            focusCoordinator?.enqueueRestoreLayer(
-                layer = WjzFocusLayer.Content,
-                scopeId = BlockSettingDetailScopeId
-            )
-            focusCoordinator?.requestEntryFocus(BlockSettingDefaultEntryId)
+            focusCoordinator?.let(BlockSettingFocus::restoreDefaultContent)
         }
     }
 

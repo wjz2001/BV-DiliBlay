@@ -40,13 +40,14 @@ import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.resolve
 import dev.aaa1115910.bv.wjzfocus.wjzDisabledFocus
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
-import dev.aaa1115910.bv.wjzfocus.wjzFocusRestorerHost
 import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
+import dev.aaa1115910.bv.wjzfocus.wjzFocusSingleListRestorerComponent
 import dev.aaa1115910.bv.entity.VideoListItem
 import dev.aaa1115910.bv.ui.theme.AppWhite
 import androidx.tv.material3.ListItemDefaults
@@ -81,6 +82,19 @@ fun VideoListController(
     val listState = rememberLazyListState()
     val focusCoordinator = LocalWjzFocusCoordinator.current
     val focusScopeId = LocalWjzFocusScopeId.current
+    val listRestorer = remember(focusScopeId) {
+        wjzFocusSingleListRestorerComponent(
+            componentId = VideoListRestorerId,
+            layer = WjzFocusLayer.Player,
+            scopeId = focusScopeId
+        )
+    }
+
+    fun restoreListFocus(nodeId: WjzFocusNodeId) {
+        focusCoordinator?.let { coordinator ->
+            listRestorer.target(nodeId = nodeId).restoreFocus(coordinator)
+        }
+    }
 
     val scope = rememberCoroutineScope()
     var ensureParentVisibleJob by remember { mutableStateOf<Job?>(null) }
@@ -209,12 +223,7 @@ fun VideoListController(
                 contentAlignment = Alignment.Center
             ) {
                 LazyColumn(
-                    modifier = Modifier.wjzFocusRestorerHost(
-                        layer = WjzFocusLayer.Player,
-                        scopeId = focusScopeId,
-                        restorerId = VideoListRestorerId,
-                        listId = VideoListRestorerId
-                    ),
+                    modifier = with(listRestorer) { Modifier.restorerHost() },
                     state = listState,
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(vertical = 60.dp)
@@ -303,12 +312,8 @@ fun VideoListController(
 
                                 if (video.cid == wantCid) {
                                     val scopeId = focusScopeId ?: return@LaunchedEffect
-                                    focusCoordinator?.enqueueGroupRestore(
-                                        nodeId = scopeId.resolve(videoListParentFocusLocalId(video.cid)),
-                                        layer = WjzFocusLayer.Player,
-                                        scopeId = scopeId,
-                                        restorerId = VideoListRestorerId,
-                                        listId = VideoListRestorerId
+                                    restoreListFocus(
+                                        scopeId.resolve(videoListParentFocusLocalId(video.cid))
                                     )
                                     kotlinx.coroutines.android.awaitFrame()
                                     kotlinx.coroutines.coroutineScope {
@@ -480,14 +485,10 @@ fun VideoListController(
                                                 if (wantCid != page.cid) return@LaunchedEffect
 
                                                 val scopeId = focusScopeId ?: return@LaunchedEffect
-                                                focusCoordinator?.enqueueGroupRestore(
-                                                    nodeId = scopeId.resolve(
+                                                restoreListFocus(
+                                                    scopeId.resolve(
                                                         videoListChildFocusLocalId(video.cid, page.cid)
-                                                    ),
-                                                    layer = WjzFocusLayer.Player,
-                                                    scopeId = scopeId,
-                                                    restorerId = VideoListRestorerId,
-                                                    listId = VideoListRestorerId
+                                                    )
                                                 )
                                                 kotlinx.coroutines.android.awaitFrame()
 

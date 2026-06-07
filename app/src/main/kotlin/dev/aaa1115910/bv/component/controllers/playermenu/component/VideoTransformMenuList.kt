@@ -18,7 +18,7 @@ import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.resolve
 import dev.aaa1115910.bv.wjzfocus.right
-import dev.aaa1115910.bv.wjzfocus.wjzFocusRestorerHost
+import dev.aaa1115910.bv.wjzfocus.wjzFocusGroupRestorerComponent
 
 private sealed interface VideoTransformMenuAction {
     data object Normal : VideoTransformMenuAction
@@ -42,7 +42,11 @@ fun VideoTransformMenuList(
     val context = LocalContext.current
     val focusScopeId = LocalWjzFocusScopeId.current
     val focusPrefix = playerMenuFocusPrefix(focusIdPrefix)
-    val listIds = focusPrefix.listIds()
+    val listRestorer = wjzFocusGroupRestorerComponent(
+        componentId = focusPrefix.value,
+        layer = WjzFocusLayer.Overlay,
+        scopeId = focusScopeId
+    )
     val actions = buildList {
         add(VideoTransformMenuAction.Normal)
         addAll(VideoRotation.entries.map { VideoTransformMenuAction.Rotate(it) })
@@ -58,14 +62,11 @@ fun VideoTransformMenuList(
     val fallbackLocalFocusId = focusPrefix.localId(selectedIndex)
 
     LazyColumn(
-        modifier = modifier
-            .wjzFocusRestorerHost(
-                layer = WjzFocusLayer.Overlay,
-                scopeId = focusScopeId,
-                restorerId = listIds.restorerId,
-                listId = listIds.listId,
+        modifier = with(listRestorer) {
+            modifier.restorerHost(
                 fallbackNodeId = focusScopeId?.resolve(fallbackLocalFocusId)
-            ),
+            )
+        },
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(vertical = 120.dp, horizontal = 8.dp)
     ) {

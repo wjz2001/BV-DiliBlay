@@ -7,7 +7,9 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusDefaultTarget
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusRequestResult
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusSubmitIntent
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.down
@@ -69,7 +71,13 @@ internal fun MainDrawerBlock(
         val entryId = when (request.target) {
             MainDrawerEntryTarget.CurrentItem -> MainDrawerRightEntryId
         }
-        if (focusCoordinator?.requestEntryFocus(entryId) == true) {
+        val result = focusCoordinator?.submitEntryFocusIntent(
+            entryId = entryId,
+            intent = WjzFocusSubmitIntent.ExternalEntry(
+                dedupeKey = request.id
+            )
+        )
+        if (result == WjzFocusRequestResult.Focused || result == WjzFocusRequestResult.Enqueued) {
             onEntryRequestConsumed(request.id)
         }
     }

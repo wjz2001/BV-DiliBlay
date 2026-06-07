@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -130,15 +131,21 @@ import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.BlockTagItem
 import dev.aaa1115910.bv.wjzfocus.WjzDialogFocusHost
+import dev.aaa1115910.bv.wjzfocus.WjzFocusBoundaryTarget
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusRequestResult
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusSubmitIntent
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopology
 import dev.aaa1115910.bv.component.BvLazyFocusItemTarget
+import dev.aaa1115910.bv.component.rememberTvGridFocusTarget
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
 import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.down
 import dev.aaa1115910.bv.wjzfocus.target
@@ -158,6 +165,8 @@ import dev.aaa1115910.bv.component.videocard.VideoPartButtonStyle
 import dev.aaa1115910.bv.component.videocard.VideosRow
 import dev.aaa1115910.bv.component.videocard.VideosRowCore
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRememberTopologyRegion
+import dev.aaa1115910.bv.wjzfocus.wjzFocusTopologyRegion
 import dev.aaa1115910.bv.component.buttons.CoinButton
 import dev.aaa1115910.bv.component.buttons.CommentButton
 import dev.aaa1115910.bv.component.buttons.FavoriteButton
@@ -219,6 +228,11 @@ private const val VideoDescriptionRichContentComponentId = "videoDescriptionRich
 private const val VideoDescriptionRichContentImagePreviewComponentId =
     "videoDescriptionRichContentImagePreview"
 private val VideoInfoScopeId = WjzFocusScopeId("video-info")
+private const val VideoInfoDataTopologyRegion = "video-info/data"
+private const val VideoInfoPartRowTopologyRegion = "video-info/part-row"
+private const val VideoInfoRelatedRowTopologyRegion = "video-info/related-row"
+private const val VideoInfoRelatedRowComponentId = "videoInfoRelatedRow"
+private val VideoInfoRelatedRowEntryId = WjzFocusEntryId.parse(VideoInfoRelatedRowComponentId)
 private val VideoInfoDefaultLocalId = wjzFocusLocalId("default")
 private val VideoInfoUpLocalId = wjzFocusLocalId("up")
 private val VideoInfoFavoriteLocalId = wjzFocusLocalId("action", "favorite")
@@ -252,11 +266,22 @@ private fun videoDescriptionRichContentPictureLocalId(title: String, index: Int)
     "rich-content/$title/picture/$index"
 private const val PagedVideoDialogTabEntry = "tab"
 
+private fun videoInfoUgcRowTopologyRegion(index: Int) = "video-info/ugc-row/$index"
+
+private fun videoInfoUgcRowComponentId(index: Int) = "videoInfoUgcRow$index"
+
+private fun videoInfoUgcRowEntryId(index: Int) =
+    WjzFocusEntryId.parse(videoInfoUgcRowComponentId(index))
+
 private fun pagedVideoDialogComponentId(title: String) =
     "pagedVideoDialog${title.hashCode()}"
 
 private fun pagedVideoDialogTabEntryId(title: String) =
     WjzFocusEntryId.parse("${pagedVideoDialogComponentId(title)}/$PagedVideoDialogTabEntry")
+
+private fun WjzFocusRequestResult.isFocusAccepted(): Boolean {
+    return this == WjzFocusRequestResult.Focused || this == WjzFocusRequestResult.Enqueued
+}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -463,7 +488,12 @@ fun VideoInfoScreen(
 
     LaunchedEffect(uiState.loadingState) {
         if (uiState.loadingState == VideoInfoState.Success && !uiState.shouldShowLoading) {
-            focusCoordinator.requestEntryFocus(VideoInfoDefaultEntryId)
+            focusCoordinator.submitEntryFocusIntent(
+                entryId = VideoInfoDefaultEntryId,
+                intent = WjzFocusSubmitIntent.InitialEntry(
+                    dedupeKey = VideoInfoDefaultEntryId
+                )
+            )
         }
     }
 
@@ -523,8 +553,53 @@ fun VideoInfoScreen(
                     .filter { it.episodes.isNotEmpty() }
             }
             var sharedUgcDialogData by remember { mutableStateOf<UgcSeasonDialogData?>(null) }
+            var renderLayer by remember(videoDetailState.aid) { mutableIntStateOf(1) }
+            LaunchedEffect(videoDetailState.aid) {
+                renderLayer = 1
+                withFrameNanos { }
+                renderLayer = 2
+                withFrameNanos { }
+                renderLayer = 3
+            }
 
             val relatedVideos = videoDetailState.relatedVideos
+            val showPartRow = videoDetailState.pages.size > 1
+            val hasVisiblePartRow = renderLayer >= 2 && showPartRow
+            val visibleUgcSectionIndices = remember(renderLayer, showPartRow, displayedUgcSections) {
+                when {
+                    renderLayer < 2 -> emptyList()
+                    showPartRow && renderLayer < 3 -> emptyList()
+                    !showPartRow && renderLayer == 2 -> displayedUgcSections.indices.take(1).toList()
+                    else -> displayedUgcSections.indices.toList()
+                }
+            }
+            val visibleUgcSections = remember(displayedUgcSections, visibleUgcSectionIndices) {
+                visibleUgcSectionIndices.map { index -> index to displayedUgcSections[index] }
+            }
+            val hasVisibleRelatedVideos = renderLayer >= 3 && relatedVideos.isNotEmpty()
+            val firstMainContentEntryAfterHero = when {
+                hasVisiblePartRow -> VideoInfoCoverDownEntryId
+                visibleUgcSectionIndices.isNotEmpty() ->
+                    videoInfoUgcRowEntryId(visibleUgcSectionIndices.first())
+
+                hasVisibleRelatedVideos -> VideoInfoRelatedRowEntryId
+                else -> null
+            }
+            fun nextMainContentEntryAfterPart(): WjzFocusEntryId? {
+                return when {
+                    visibleUgcSectionIndices.isNotEmpty() ->
+                        videoInfoUgcRowEntryId(visibleUgcSectionIndices.first())
+
+                    hasVisibleRelatedVideos -> VideoInfoRelatedRowEntryId
+                    else -> null
+                }
+            }
+
+            fun previousMainContentEntryBeforeRelated(): WjzFocusEntryId {
+                return visibleUgcSectionIndices.lastOrNull()
+                    ?.let { index -> videoInfoUgcRowEntryId(index) }
+                    ?: if (hasVisiblePartRow) VideoInfoCoverDownEntryId else VideoInfoDefaultEntryId
+            }
 
             CompositionLocalProvider(
                 LocalBringIntoViewSpec provides bringIntoViewSpec
@@ -552,22 +627,25 @@ fun VideoInfoScreen(
                         val topPaddingPx = with(density) { 8.dp.roundToPx() }
 
 
-                        val ugcTotalHeightPx = displayedUgcSections.indices.fold(0) { total, index ->
+                        val ugcTotalHeightPx = visibleUgcSectionIndices.fold(0) { total, index ->
                             total + (ugcRowHeightsPx[index] ?: 0)
                         }
 
                         val baseItemCountAboveRelated =
-                            2 + displayedUgcSections.size + if (tipText != null) 1 else 0
-                        val spacingAboveRelatedPx = if (relatedVideos.isNotEmpty()) {
+                            1 +
+                                    (if (tipText != null && renderLayer >= 3) 1 else 0) +
+                                    (if (hasVisiblePartRow) 1 else 0) +
+                                    visibleUgcSections.size
+                        val spacingAboveRelatedPx = if (hasVisibleRelatedVideos) {
                             baseItemCountAboveRelated * itemSpacingPx
                         } else {
                             0
                         }
 
                         val contentAboveRelatedPx = topPaddingPx +
-                                tipHeightPx +
+                                (if (renderLayer >= 3) tipHeightPx else 0) +
                                 videoInfoHeightPx +
-                                partRowHeightPx +
+                                (if (hasVisiblePartRow) partRowHeightPx else 0) +
                                 ugcTotalHeightPx +
                                 spacingAboveRelatedPx
 
@@ -579,7 +657,7 @@ fun VideoInfoScreen(
                                 )
 
                         //控制底部留白
-                        val relatedBottomPaddingPx = if (relatedVideos.isNotEmpty()) {
+                        val relatedBottomPaddingPx = if (hasVisibleRelatedVideos) {
                             spaceForRelatedSectionPx.coerceIn(
                                 with(density) { 2.dp.roundToPx() },
                                 with(density) { 32.dp.roundToPx() }
@@ -589,18 +667,82 @@ fun VideoInfoScreen(
                         }
 
                         //吃掉剩余的其余空间
-                        val relatedTopSpacerPx = if (relatedVideos.isNotEmpty()) {
+                        val relatedTopSpacerPx = if (hasVisibleRelatedVideos) {
                             (spaceForRelatedSectionPx - relatedBottomPaddingPx).coerceAtLeast(0)
                         } else {
                             0
                         }
+
+                        WjzFocusTopology {
+                            region(
+                                id = VideoInfoDataTopologyRegion,
+                                scopeId = VideoInfoScopeId,
+                                layer = WjzFocusLayer.Content
+                            ) {
+                                firstMainContentEntryAfterHero?.let { entryId ->
+                                    onDown(WjzFocusBoundaryTarget.Entry(entryId))
+                                }
+                            }
+                            if (hasVisiblePartRow) {
+                                region(
+                                    id = VideoInfoPartRowTopologyRegion,
+                                    scopeId = VideoInfoScopeId,
+                                    layer = WjzFocusLayer.Content
+                                ) {
+                                    onUp(WjzFocusBoundaryTarget.Entry(VideoInfoDefaultEntryId))
+                                    nextMainContentEntryAfterPart()?.let { entryId ->
+                                        onDown(WjzFocusBoundaryTarget.Entry(entryId))
+                                    }
+                                }
+                            }
+                            visibleUgcSectionIndices.forEachIndexed { visibleIndex, index ->
+                                region(
+                                    id = videoInfoUgcRowTopologyRegion(index),
+                                    scopeId = VideoInfoScopeId,
+                                    layer = WjzFocusLayer.Content
+                                ) {
+                                    val previousEntryId = if (visibleIndex == 0) {
+                                        if (hasVisiblePartRow) {
+                                            VideoInfoCoverDownEntryId
+                                        } else {
+                                            VideoInfoDefaultEntryId
+                                        }
+                                    } else {
+                                        videoInfoUgcRowEntryId(visibleUgcSectionIndices[visibleIndex - 1])
+                                    }
+                                    val nextEntryId = when {
+                                        visibleIndex < visibleUgcSectionIndices.lastIndex ->
+                                            videoInfoUgcRowEntryId(visibleUgcSectionIndices[visibleIndex + 1])
+
+                                        hasVisibleRelatedVideos -> VideoInfoRelatedRowEntryId
+                                        else -> null
+                                    }
+                                    onUp(WjzFocusBoundaryTarget.Entry(previousEntryId))
+                                    nextEntryId?.let { entryId ->
+                                        onDown(WjzFocusBoundaryTarget.Entry(entryId))
+                                    }
+                                }
+                            }
+                            if (hasVisibleRelatedVideos) {
+                                region(
+                                    id = VideoInfoRelatedRowTopologyRegion,
+                                    scopeId = VideoInfoScopeId,
+                                    layer = WjzFocusLayer.Content
+                                ) {
+                                    onUp(
+                                        WjzFocusBoundaryTarget.Entry(
+                                            previousMainContentEntryBeforeRelated()
+                                        )
+                                    )
+                                }
+                            }
 
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(top = 8.dp, bottom = 0.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            if (tipText != null) {
+                            if (tipText != null && renderLayer >= 3) {
                                 item(key = "video_argue_tip") {
                                     ArgueTip(
                                         modifier = Modifier
@@ -614,8 +756,13 @@ fun VideoInfoScreen(
                                 VideoInfoData(
                                     modifier = Modifier
                                         .onSizeChanged { videoInfoHeightPx = it.height },
-                                    coverDownNodeId = VideoInfoPartEntryNodeId,
+                                    coverDownNodeId = if (hasVisiblePartRow) {
+                                        VideoInfoPartEntryNodeId
+                                    } else {
+                                        null
+                                    },
                                     videoDetail = videoDetailState,
+                                    renderLayer = renderLayer,
                                     isFollowing = uiState.isFollowingUp,
                                     tags = videoDetailState.tags,
                                     isFavorite = videoDetailState.isFavorite,
@@ -658,29 +805,33 @@ fun VideoInfoScreen(
                                     },
                                     onSendVideoOneClickTripleAction = {
                                         videoDetailViewModel.sendVideoOneClickTripleAction()
-                                    }
+                                    },
+                                    topologyRegion = wjzFocusTopologyRegion(VideoInfoDataTopologyRegion)
                                 )
                             }
 
-                            item(key = "video_part_row") {
-                                VideoPartRow(
-                                    modifier = Modifier
-                                        .onSizeChanged { partRowHeightPx = it.height },
-                                    pages = videoDetailState.pages,
-                                    lastPlayedCid = videoDetailState.lastPlayedCid,
-                                    lastPlayedTime = videoDetailState.lastPlayedTime,
-                                    enablePartListDialog = (videoDetailState.pages.size > 5),
-                                    onClick = { cid -> playCurrentVideo(cid) }
-                                )
+                            if (hasVisiblePartRow) {
+                                item(key = "video_part_row") {
+                                    VideoPartRow(
+                                        modifier = Modifier
+                                            .onSizeChanged { partRowHeightPx = it.height },
+                                        pages = videoDetailState.pages,
+                                        lastPlayedCid = videoDetailState.lastPlayedCid,
+                                        lastPlayedTime = videoDetailState.lastPlayedTime,
+                                        enablePartListDialog = (videoDetailState.pages.size > 5),
+                                        onClick = { cid -> playCurrentVideo(cid) },
+                                        topologyRegion = wjzFocusTopologyRegion(VideoInfoPartRowTopologyRegion)
+                                    )
+                                }
                             }
 
                             videoDetailState.ugcSeason?.let { season ->
                                 itemsIndexed(
-                                    items = displayedUgcSections,
-                                    key = { _, section ->
+                                    items = visibleUgcSections,
+                                    key = { _, (_, section) ->
                                         "ugc_${section.title}_${section.episodes.firstOrNull()?.aid ?: 0L}"
                                     }
-                                ) { index, section ->
+                                ) { _, (index, section) ->
                                     VideoUgcSeasonRow(
                                         modifier = Modifier
                                             .onSizeChanged { ugcRowHeightsPx[index] = it.height },
@@ -690,6 +841,11 @@ fun VideoInfoScreen(
                                             section.title
                                         },
                                         episodes = section.episodes,
+                                        rowStateKey = "VideoInfoUgcRow:$index",
+                                        entryComponentId = videoInfoUgcRowComponentId(index),
+                                        topologyRegion = wjzFocusTopologyRegion(
+                                            videoInfoUgcRowTopologyRegion(index)
+                                        ),
                                         onOpenUgcListDialog = { sharedUgcDialogData = it },
                                         onEpisodeClick = { episode: Episode ->
                                             logger.fInfo {
@@ -726,7 +882,7 @@ fun VideoInfoScreen(
                                 }
                             }
 
-                            if (relatedVideos.isNotEmpty()) {
+                            if (hasVisibleRelatedVideos) {
                                 item(key = "related_videos_section") {
                                     Column(
                                         modifier = Modifier.fillMaxWidth()
@@ -761,7 +917,12 @@ fun VideoInfoScreen(
                                             },
                                             onGoToUpPage = { mid, upName ->
                                                 UpInfoActivity.actionStart(context, mid, upName)
-                                            }
+                                            },
+                                            rowStateKey = "VideoInfoRelatedRow",
+                                            entryComponentId = VideoInfoRelatedRowComponentId,
+                                            topologyRegion = wjzFocusTopologyRegion(
+                                                VideoInfoRelatedRowTopologyRegion
+                                            )
                                         )
 
                                         Spacer(
@@ -772,6 +933,7 @@ fun VideoInfoScreen(
                                     }
                                 }
                             }
+                        }
                         }
 
                         UgcSeasonListDialog(
@@ -958,6 +1120,7 @@ private fun VideoInfoData(
     modifier: Modifier = Modifier,
     coverDownNodeId: WjzFocusNodeId? = null,
     videoDetail: VideoDetailState,
+    renderLayer: Int = 3,
     isFollowing: Boolean,
     tags: ImmutableList<Tag>,
     isFavorite: Boolean,
@@ -974,65 +1137,118 @@ private fun VideoInfoData(
     onUpdateFavoriteFolders: (List<Long>) -> Unit,
     onUpdateLiked: (Boolean) -> Unit,
     onSendVideoCoin: () -> Unit,
-    onSendVideoOneClickTripleAction: () -> Unit
+    onSendVideoOneClickTripleAction: () -> Unit,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone
 ) {
-    val localDensity = LocalDensity.current
     val context = LocalContext.current
     val coAuthorsDialogState = rememberCoAuthorsDialogState()
-    var heightIs by remember { mutableStateOf(0.dp) }
-
     var showCommentsDialog by remember { mutableStateOf(false) }
-
-    val hasDescription = remember(videoDetail.description) {
-        val normalized = videoDetail.description.trim()
-        normalized.isNotEmpty() && normalized != "-"
-    }
-    val focusCoordinator = LocalWjzFocusCoordinator.current
+    val topology = wjzFocusRememberTopologyRegion(topologyRegion)
+    val topologyHostExits = topology.hostExits
 
     WjzFocusHost(
         modifier = modifier,
         layer = WjzFocusLayer.Content,
-        scopeId = VideoInfoScopeId
+        scopeId = VideoInfoScopeId,
+        exits = topologyHostExits
     ) {
-    WjzFocusEntrySurface(
-        componentId = VideoInfoComponentId,
-        default = {
-            defaultEntry(
-                nodeId = VideoInfoDefaultNodeId,
-                layer = WjzFocusLayer.Content,
-                scopeId = VideoInfoScopeId
-            )
-        },
-        entries = {
-            entry(VideoInfoCoverDownEntry) {
-                coverDownNodeId?.let {
-                    defaultEntry(
-                        nodeId = it,
-                        layer = WjzFocusLayer.Content,
-                        scopeId = VideoInfoScopeId
-                    )
-                } ?: VideoInfoScopeId.target(VideoInfoDefaultLocalId)
+        WjzFocusEntrySurface(
+            componentId = VideoInfoComponentId,
+            default = {
+                defaultEntry(
+                    nodeId = VideoInfoDefaultNodeId,
+                    layer = WjzFocusLayer.Content,
+                    scopeId = VideoInfoScopeId
+                )
+            },
+            entries = {
+                entry(VideoInfoCoverDownEntry) {
+                    coverDownNodeId?.let {
+                        defaultEntry(
+                            nodeId = it,
+                            layer = WjzFocusLayer.Content,
+                            scopeId = VideoInfoScopeId
+                        )
+                    } ?: VideoInfoScopeId.target(VideoInfoDefaultLocalId)
+                }
+            }
+        )
+
+        VideoInfoHero(
+            modifier = modifier.padding(horizontal = 58.dp, vertical = 8.dp),
+            cover = videoDetail.cover,
+            title = videoDetail.title,
+            onClickCover = onClickCover
+        ) {
+            if (renderLayer >= 3) {
+                VideoInfoMeta(
+                    videoDetail = videoDetail,
+                    isFollowing = isFollowing,
+                    tags = tags,
+                    onClickUp = onClickUp,
+                    onAddFollow = onAddFollow,
+                    onDelFollow = onDelFollow,
+                    onClickTip = onClickTip,
+                    onClickCoAuthors = { coAuthorsDialogState.open(videoDetail.coAuthors) }
+                )
+                VideoInfoActions(
+                    videoDetail = videoDetail,
+                    isFavorite = isFavorite,
+                    isLiked = isLiked,
+                    isCoined = isCoined,
+                    userFavoriteFolders = userFavoriteFolders,
+                    favoriteFolderIds = favoriteFolderIds,
+                    onAddToDefaultFavoriteFolder = onAddToDefaultFavoriteFolder,
+                    onUpdateFavoriteFolders = onUpdateFavoriteFolders,
+                    onUpdateLiked = onUpdateLiked,
+                    onSendVideoCoin = onSendVideoCoin,
+                    onSendVideoOneClickTripleAction = onSendVideoOneClickTripleAction,
+                    onClickComments = { showCommentsDialog = true }
+                )
+                VideoInfoDescriptionBlock(
+                    modifier = Modifier.weight(1f),
+                    description = videoDetail.description,
+                    descriptionContent = videoDetail.descriptionContent
+                )
+                VideoCommentsDialog(
+                    show = showCommentsDialog,
+                    aid = videoDetail.aid,
+                    onDismissRequest = { showCommentsDialog = false }
+                )
+                CoAuthorsDialogHost(
+                    state = coAuthorsDialogState,
+                    onClickAuthor = { mid, name ->
+                        UpInfoActivity.actionStart(context, mid = mid, name = name)
+                    }
+                )
             }
         }
-    )
+    }
+}
 
-    Row(
-        modifier = modifier
-            .padding(horizontal = 58.dp, vertical = 8.dp),
-    ) {
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun VideoInfoHero(
+    modifier: Modifier = Modifier,
+    cover: String,
+    title: String,
+    onClickCover: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val localDensity = LocalDensity.current
+    var coverHeight by remember { mutableStateOf(0.dp) }
+
+    Row(modifier = modifier) {
         Surface(
             modifier = Modifier
                 .wjzFocusExits(
                     nodeId = VideoInfoDefaultNodeId,
-                    scopeId = VideoInfoScopeId,
-                    exits = {
-                        down move VideoInfoCoverDownEntryId
-                    }
+                    scopeId = VideoInfoScopeId
                 )
                 .weight(2.7f)
                 .aspectRatio(1.6f)
                 .onGloballyPositioned { coordinates ->
-                    heightIs = with(localDensity) { coordinates.size.height.toDp() }
+                    coverHeight = with(localDensity) { coordinates.size.height.toDp() }
                 },
             onClick = onClickCover,
             scale = ClickableSurfaceDefaults.scale(
@@ -1053,7 +1269,7 @@ private fun VideoInfoData(
         ) {
             AsyncImage(
                 modifier = Modifier.fillMaxSize(),
-                model = videoDetail.cover,
+                model = cover,
                 contentDescription = null,
                 contentScale = ContentScale.Crop
             )
@@ -1064,11 +1280,11 @@ private fun VideoInfoData(
         Column(
             modifier = Modifier
                 .weight(7.3f)
-                .height(heightIs),
+                .height(coverHeight),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                text = videoDetail.title,
+                text = title,
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontSize = 40.sp,
                     lineHeightStyle = LineHeightStyle(
@@ -1081,231 +1297,247 @@ private fun VideoInfoData(
                 overflow = TextOverflow.Ellipsis,
                 color = C.onSurface
             )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Row(
-                    modifier = Modifier.height(IntrinsicSize.Min),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    val coAuthorCount = remember(videoDetail.coAuthors) {
-                        videoDetail.coAuthors.distinctBy { it.mid }.size
-                    }
-                    var upButtonHeightPx by remember { mutableIntStateOf(0) }
-                    val density = LocalDensity.current
-                    val fallbackSize = 6.dp
-                    val squareSize = remember(upButtonHeightPx, density) {
-                        if (upButtonHeightPx > 0) with(density) { upButtonHeightPx.toDp() } else fallbackSize
-                    }
-
-                    if (coAuthorCount > 1) {
-                        Surface(
-                            modifier = Modifier
-                                .size(squareSize)
-                                .aspectRatio(1f),
-                            onClick = { coAuthorsDialogState.open(videoDetail.coAuthors) },
-                            shape = ClickableSurfaceDefaults.shape(shape = RectangleShape),
-                            colors = ClickableSurfaceDefaults.colors(
-                                containerColor = C.surfaceVariant,
-                                focusedContainerColor = C.surfaceVariant,
-                                pressedContainerColor = C.surfaceVariant
-                            ),
-                            scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
-                            border = ClickableSurfaceDefaults.border(
-                                focusedBorder = Border(
-                                    border = BorderStroke(width = 3.dp, color = C.selectedBorder),
-                                    shape = RectangleShape
-                                )
-                            )
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Group,
-                                contentDescription = "联合投稿",
-                                tint = C.onSurface,
-                                modifier = Modifier.padding(3.dp)
-                            )
-                        }
-                    }
-
-                    Box(
-                        modifier = Modifier.onSizeChanged { upButtonHeightPx = it.height }
-                    ) {
-                        UpButton(
-                            avatarUrl = videoDetail.author.face,
-                            name = videoDetail.author.name,
-                            followed = isFollowing,
-                            onClickUp = onClickUp,
-                            onAddFollow = onAddFollow,
-                            onDelFollow = onDelFollow,
-                            upInfoModifier = Modifier.wjzFocusExits(
-                                nodeId = VideoInfoScopeId.resolve(VideoInfoUpLocalId),
-                                scopeId = VideoInfoScopeId
-                            )
-                        )
-                    }
-                }
-                LazyRow(
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 5.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(items = tags) { tag ->
-                        SuggestionChip(
-                            onClick = { onClickTip(tag) },
-                            scale = SuggestionChipDefaults.scale(
-                                focusedScale = 1f,
-                                pressedScale = 0.9f
-                            ),
-                            shape = SuggestionChipDefaults.shape(shape = RectangleShape),
-                            colors = SuggestionChipDefaults.colors(
-                                containerColor = Color.Transparent,
-                                focusedContainerColor = C.secondary,
-                                pressedContainerColor = C.primary,
-                                contentColor = C.onSurface,
-                                focusedContentColor = C.onPrimary,
-                                pressedContentColor = C.onPrimary,
-                            ),
-                            border = SuggestionChipDefaults.border(
-                                border = Border( // 未聚焦边框
-                                    border = BorderStroke(1.dp, C.onBackground),
-                                    shape = RectangleShape
-                                )
-                            )
-                        ) {
-                            Text(text = tag.name)
-                        }
-                    }
-                }
-
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.End),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                FavoriteButton(
-                    modifier = Modifier
-                        .wjzFocusExits(
-                            nodeId = VideoInfoScopeId.resolve(VideoInfoFavoriteLocalId),
-                            scopeId = VideoInfoScopeId
-                        ),
-                    isFavorite = isFavorite,
-                    countText = (videoDetail.metrics?.snapshot?.favorite
-                        ?: videoDetail.stat.favorite.toLong()).toWanString(),
-                    userFavoriteFolders = userFavoriteFolders,
-                    favoriteFolderIds = favoriteFolderIds,
-                    onAddToDefaultFavoriteFolder = onAddToDefaultFavoriteFolder,
-                    onUpdateFavoriteFolders = onUpdateFavoriteFolders
-                )
-
-                Spacer(modifier = Modifier.width(5.dp))
-
-                CommentButton(
-                    modifier = Modifier
-                        .wjzFocusExits(
-                            nodeId = VideoInfoScopeId.resolve(VideoInfoCommentLocalId),
-                            scopeId = VideoInfoScopeId
-                        ),
-                    countText = (videoDetail.metrics?.snapshot?.reply
-                        ?: videoDetail.stat.reply.toLong()).toWanString(),
-                    onClick = { showCommentsDialog = true }
-                )
-
-                Spacer(modifier = Modifier.width(5.dp))
-
-                LikeButton(
-                    modifier = Modifier
-                        .wjzFocusExits(
-                            nodeId = VideoInfoScopeId.resolve(VideoInfoLikeLocalId),
-                            scopeId = VideoInfoScopeId
-                        ),
-                    isLiked = isLiked,
-                    countText = (videoDetail.metrics?.snapshot?.like
-                        ?: videoDetail.stat.like.toLong()).toWanString(),
-                    onClick = { onUpdateLiked(!isLiked) },
-                    onLongClick = { onSendVideoOneClickTripleAction() }
-                )
-
-                Spacer(modifier = Modifier.width(5.dp))
-
-                CoinButton(
-                    modifier = Modifier
-                        .wjzFocusExits(
-                            nodeId = VideoInfoScopeId.resolve(VideoInfoCoinLocalId),
-                            scopeId = VideoInfoScopeId
-                        ),
-                    isCoined = isCoined,
-                    countText = (videoDetail.metrics?.snapshot?.coin
-                        ?: videoDetail.stat.coin.toLong()).toWanString(),
-                    onClick = onSendVideoCoin,
-                )
-
-                Spacer(modifier = Modifier.width(20.dp))
-
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(40.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    CompositionLocalProvider(
-                        LocalTextStyle provides MaterialTheme.typography.labelMedium.copy(
-                            fontSize = 24.sp
-                        )
-                    ) {
-                        val metrics = videoDetail.metrics?.snapshot
-                        Text(text = "发布于：${videoDetail.publishDate.formatPubTimeString()}")
-                        Text(text = "，")
-                        Text(text = "播放量：${(metrics?.view ?: videoDetail.stat.view.toLong()).toWanString()}")
-                        Text(text = "，")
-                        Text(text = "弹幕 ${(metrics?.danmaku ?: videoDetail.stat.danmaku.toLong()).toWanString()}")
-                    }
-                }
-            }
-
-            VideoDescription(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 3.dp)
-                    .weight(1f)
-                    .then(
-                        if (hasDescription) {
-                            Modifier.wjzFocusExits(
-                                nodeId = VideoInfoScopeId.resolve(VideoInfoDescriptionLocalId),
-                                scopeId = VideoInfoScopeId
-                            )
-                        } else {
-                            Modifier
-                        }
-                    ),
-                description = videoDetail.description,
-                descriptionContent = videoDetail.descriptionContent
-            )
-
-            VideoCommentsDialog(
-                show = showCommentsDialog,
-                aid = videoDetail.aid,
-                onDismissRequest = { showCommentsDialog = false }
-            )
-
-            CoAuthorsDialogHost(
-                state = coAuthorsDialogState,
-                onClickAuthor = { mid, name ->
-                    UpInfoActivity.actionStart(context, mid = mid, name = name)
-                }
-            )
+            content()
         }
     }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun VideoInfoMeta(
+    videoDetail: VideoDetailState,
+    isFollowing: Boolean,
+    tags: ImmutableList<Tag>,
+    onClickUp: () -> Unit,
+    onAddFollow: () -> Unit,
+    onDelFollow: () -> Unit,
+    onClickTip: (Tag) -> Unit,
+    onClickCoAuthors: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Row(
+            modifier = Modifier.height(IntrinsicSize.Min),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            val coAuthorCount = remember(videoDetail.coAuthors) {
+                videoDetail.coAuthors.distinctBy { it.mid }.size
+            }
+            var upButtonHeightPx by remember { mutableIntStateOf(0) }
+            val density = LocalDensity.current
+            val fallbackSize = 6.dp
+            val squareSize = remember(upButtonHeightPx, density) {
+                if (upButtonHeightPx > 0) with(density) { upButtonHeightPx.toDp() } else fallbackSize
+            }
+
+            if (coAuthorCount > 1) {
+                Surface(
+                    modifier = Modifier
+                        .size(squareSize)
+                        .aspectRatio(1f),
+                    onClick = onClickCoAuthors,
+                    shape = ClickableSurfaceDefaults.shape(shape = RectangleShape),
+                    colors = ClickableSurfaceDefaults.colors(
+                        containerColor = C.surfaceVariant,
+                        focusedContainerColor = C.surfaceVariant,
+                        pressedContainerColor = C.surfaceVariant
+                    ),
+                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+                    border = ClickableSurfaceDefaults.border(
+                        focusedBorder = Border(
+                            border = BorderStroke(width = 3.dp, color = C.selectedBorder),
+                            shape = RectangleShape
+                        )
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Group,
+                        contentDescription = "联合投稿",
+                        tint = C.onSurface,
+                        modifier = Modifier.padding(3.dp)
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier.onSizeChanged { upButtonHeightPx = it.height }
+            ) {
+                UpButton(
+                    avatarUrl = videoDetail.author.face,
+                    name = videoDetail.author.name,
+                    followed = isFollowing,
+                    onClickUp = onClickUp,
+                    onAddFollow = onAddFollow,
+                    onDelFollow = onDelFollow,
+                    upInfoModifier = Modifier.wjzFocusExits(
+                        nodeId = VideoInfoScopeId.resolve(VideoInfoUpLocalId),
+                        scopeId = VideoInfoScopeId
+                    )
+                )
+            }
+        }
+        LazyRow(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(horizontal = 5.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(items = tags) { tag ->
+                SuggestionChip(
+                    onClick = { onClickTip(tag) },
+                    scale = SuggestionChipDefaults.scale(
+                        focusedScale = 1f,
+                        pressedScale = 0.9f
+                    ),
+                    shape = SuggestionChipDefaults.shape(shape = RectangleShape),
+                    colors = SuggestionChipDefaults.colors(
+                        containerColor = Color.Transparent,
+                        focusedContainerColor = C.secondary,
+                        pressedContainerColor = C.primary,
+                        contentColor = C.onSurface,
+                        focusedContentColor = C.onPrimary,
+                        pressedContentColor = C.onPrimary,
+                    ),
+                    border = SuggestionChipDefaults.border(
+                        border = Border(
+                            border = BorderStroke(1.dp, C.onBackground),
+                            shape = RectangleShape
+                        )
+                    )
+                ) {
+                    Text(text = tag.name)
+                }
+            }
+        }
     }
+}
+
+@Composable
+private fun VideoInfoActions(
+    videoDetail: VideoDetailState,
+    isFavorite: Boolean,
+    isLiked: Boolean,
+    isCoined: Boolean,
+    userFavoriteFolders: ImmutableList<FavoriteFolderMetadata>,
+    favoriteFolderIds: ImmutableList<Long>,
+    onAddToDefaultFavoriteFolder: () -> Unit,
+    onUpdateFavoriteFolders: (List<Long>) -> Unit,
+    onUpdateLiked: (Boolean) -> Unit,
+    onSendVideoCoin: () -> Unit,
+    onSendVideoOneClickTripleAction: () -> Unit,
+    onClickComments: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        FavoriteButton(
+            modifier = Modifier
+                .wjzFocusExits(
+                    nodeId = VideoInfoScopeId.resolve(VideoInfoFavoriteLocalId),
+                    scopeId = VideoInfoScopeId
+                ),
+            isFavorite = isFavorite,
+            countText = (videoDetail.metrics?.snapshot?.favorite
+                ?: videoDetail.stat.favorite.toLong()).toWanString(),
+            userFavoriteFolders = userFavoriteFolders,
+            favoriteFolderIds = favoriteFolderIds,
+            onAddToDefaultFavoriteFolder = onAddToDefaultFavoriteFolder,
+            onUpdateFavoriteFolders = onUpdateFavoriteFolders
+        )
+        Spacer(modifier = Modifier.width(5.dp))
+        CommentButton(
+            modifier = Modifier
+                .wjzFocusExits(
+                    nodeId = VideoInfoScopeId.resolve(VideoInfoCommentLocalId),
+                    scopeId = VideoInfoScopeId
+                ),
+            countText = (videoDetail.metrics?.snapshot?.reply
+                ?: videoDetail.stat.reply.toLong()).toWanString(),
+            onClick = onClickComments
+        )
+        Spacer(modifier = Modifier.width(5.dp))
+        LikeButton(
+            modifier = Modifier
+                .wjzFocusExits(
+                    nodeId = VideoInfoScopeId.resolve(VideoInfoLikeLocalId),
+                    scopeId = VideoInfoScopeId
+                ),
+            isLiked = isLiked,
+            countText = (videoDetail.metrics?.snapshot?.like
+                ?: videoDetail.stat.like.toLong()).toWanString(),
+            onClick = { onUpdateLiked(!isLiked) },
+            onLongClick = { onSendVideoOneClickTripleAction() }
+        )
+        Spacer(modifier = Modifier.width(5.dp))
+        CoinButton(
+            modifier = Modifier
+                .wjzFocusExits(
+                    nodeId = VideoInfoScopeId.resolve(VideoInfoCoinLocalId),
+                    scopeId = VideoInfoScopeId
+                ),
+            isCoined = isCoined,
+            countText = (videoDetail.metrics?.snapshot?.coin
+                ?: videoDetail.stat.coin.toLong()).toWanString(),
+            onClick = onSendVideoCoin,
+        )
+        Spacer(modifier = Modifier.width(20.dp))
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .height(40.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CompositionLocalProvider(
+                LocalTextStyle provides MaterialTheme.typography.labelMedium.copy(
+                    fontSize = 24.sp
+                )
+            ) {
+                val metrics = videoDetail.metrics?.snapshot
+                Text(text = "发布于：${videoDetail.publishDate.formatPubTimeString()}")
+                Text(text = "，")
+                Text(text = "播放量：${(metrics?.view ?: videoDetail.stat.view.toLong()).toWanString()}")
+                Text(text = "，")
+                Text(text = "弹幕 ${(metrics?.danmaku ?: videoDetail.stat.danmaku.toLong()).toWanString()}")
+            }
+        }
+    }
+}
+
+@Composable
+private fun VideoInfoDescriptionBlock(
+    modifier: Modifier = Modifier,
+    description: String,
+    descriptionContent: RichTextContent
+) {
+    val hasDescription = remember(description) {
+        val normalized = description.trim()
+        normalized.isNotEmpty() && normalized != "-"
+    }
+
+    VideoDescription(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 3.dp)
+            .then(
+                if (hasDescription) {
+                    Modifier.wjzFocusExits(
+                        nodeId = VideoInfoScopeId.resolve(VideoInfoDescriptionLocalId),
+                        scopeId = VideoInfoScopeId
+                    )
+                } else {
+                    Modifier
+                }
+            ),
+        description = description,
+        descriptionContent = descriptionContent
+    )
 }
 
 @Composable
@@ -1724,7 +1956,12 @@ fun VideoDescriptionDialog(
                                 scope.launch {
                                     keepCursorOnBodyFocus = true
                                     val focused =
-                                        focusCoordinator?.requestEntryFocus(VideoDescriptionDialogDefaultEntryId) == true
+                                        focusCoordinator?.submitEntryFocusIntent(
+                                            entryId = VideoDescriptionDialogDefaultEntryId,
+                                            intent = WjzFocusSubmitIntent.ExternalEntry(
+                                                dedupeKey = VideoDescriptionDialogDefaultEntryId
+                                            )
+                                        )?.isFocusAccepted() == true
                                     if (!focused) keepCursorOnBodyFocus = false
                                     handleDown(fromInteractive = true)
                                 }
@@ -1733,7 +1970,12 @@ fun VideoDescriptionDialog(
                                 scope.launch {
                                     keepCursorOnBodyFocus = true
                                     val focused =
-                                        focusCoordinator?.requestEntryFocus(VideoDescriptionDialogDefaultEntryId) == true
+                                        focusCoordinator?.submitEntryFocusIntent(
+                                            entryId = VideoDescriptionDialogDefaultEntryId,
+                                            intent = WjzFocusSubmitIntent.ExternalEntry(
+                                                dedupeKey = VideoDescriptionDialogDefaultEntryId
+                                            )
+                                        )?.isFocusAccepted() == true
                                     if (!focused) keepCursorOnBodyFocus = false
                                     handleUp(fromInteractive = true)
                                 }
@@ -1945,8 +2187,11 @@ private fun VideoDescriptionRichContentContent(
                     val y = contentYOf(nextIdx)
                     if (rect != null && y != null && rect.isVisibleIn(view, marginPx = 8f)) {
                         cursorY = y + 1f
-                        focusCoordinator?.requestEntryFocus(
-                            videoDescriptionRichContentInlineEntryId(nextIdx)
+                        focusCoordinator?.submitEntryFocusIntent(
+                            entryId = videoDescriptionRichContentInlineEntryId(nextIdx),
+                            intent = WjzFocusSubmitIntent.ExternalEntry(
+                                dedupeKey = videoDescriptionRichContentInlineEntryId(nextIdx)
+                            )
                         )
                         return
                     }
@@ -1963,15 +2208,23 @@ private fun VideoDescriptionRichContentContent(
                         val y2 = contentYOf(nextIdx2)
                         if (rect2 != null && y2 != null && rect2.isVisibleIn(view2, marginPx = 8f)) {
                             cursorY = y2 + 1f
-                            focusCoordinator?.requestEntryFocus(
-                                videoDescriptionRichContentInlineEntryId(nextIdx2)
+                            focusCoordinator?.submitEntryFocusIntent(
+                                entryId = videoDescriptionRichContentInlineEntryId(nextIdx2),
+                                intent = WjzFocusSubmitIntent.ExternalEntry(
+                                    dedupeKey = videoDescriptionRichContentInlineEntryId(nextIdx2)
+                                )
                             )
                             return
                         }
                     }
                 }
                 if (document.pictures.isNotEmpty()) {
-                    focusCoordinator?.requestEntryFocus(videoDescriptionRichContentPictureEntryId(0))
+                    focusCoordinator?.submitEntryFocusIntent(
+                        entryId = videoDescriptionRichContentPictureEntryId(0),
+                        intent = WjzFocusSubmitIntent.ExternalEntry(
+                            dedupeKey = videoDescriptionRichContentPictureEntryId(0)
+                        )
+                    )
                 }
             }
 
@@ -1989,8 +2242,11 @@ private fun VideoDescriptionRichContentContent(
                     val y = contentYOf(prevIdx)
                     if (rect != null && y != null && rect.isVisibleIn(view, marginPx = 8f)) {
                         cursorY = y - 1f
-                        focusCoordinator?.requestEntryFocus(
-                            videoDescriptionRichContentInlineEntryId(prevIdx)
+                        focusCoordinator?.submitEntryFocusIntent(
+                            entryId = videoDescriptionRichContentInlineEntryId(prevIdx),
+                            intent = WjzFocusSubmitIntent.ExternalEntry(
+                                dedupeKey = videoDescriptionRichContentInlineEntryId(prevIdx)
+                            )
                         )
                         return
                     }
@@ -2007,8 +2263,11 @@ private fun VideoDescriptionRichContentContent(
                         val y2 = contentYOf(prevIdx2)
                         if (rect2 != null && y2 != null && rect2.isVisibleIn(view2, marginPx = 8f)) {
                             cursorY = y2 - 1f
-                            focusCoordinator?.requestEntryFocus(
-                                videoDescriptionRichContentInlineEntryId(prevIdx2)
+                            focusCoordinator?.submitEntryFocusIntent(
+                                entryId = videoDescriptionRichContentInlineEntryId(prevIdx2),
+                                intent = WjzFocusSubmitIntent.ExternalEntry(
+                                    dedupeKey = videoDescriptionRichContentInlineEntryId(prevIdx2)
+                                )
                             )
                             return
                         }
@@ -2135,7 +2394,12 @@ private fun VideoDescriptionRichContentContent(
                                 coroutineScope.launch {
                                     keepCursorOnBodyFocus = true
                                     val focused =
-                                        focusCoordinator?.requestEntryFocus(VideoDescriptionRichContentDefaultEntryId) == true
+                                        focusCoordinator?.submitEntryFocusIntent(
+                                            entryId = VideoDescriptionRichContentDefaultEntryId,
+                                            intent = WjzFocusSubmitIntent.ExternalEntry(
+                                                dedupeKey = VideoDescriptionRichContentDefaultEntryId
+                                            )
+                                        )?.isFocusAccepted() == true
                                     if (!focused) keepCursorOnBodyFocus = false
                                     handleDown(fromInteractive = true)
                                 }
@@ -2144,7 +2408,12 @@ private fun VideoDescriptionRichContentContent(
                                 coroutineScope.launch {
                                     keepCursorOnBodyFocus = true
                                     val focused =
-                                        focusCoordinator?.requestEntryFocus(VideoDescriptionRichContentDefaultEntryId) == true
+                                        focusCoordinator?.submitEntryFocusIntent(
+                                            entryId = VideoDescriptionRichContentDefaultEntryId,
+                                            intent = WjzFocusSubmitIntent.ExternalEntry(
+                                                dedupeKey = VideoDescriptionRichContentDefaultEntryId
+                                            )
+                                        )?.isFocusAccepted() == true
                                     if (!focused) keepCursorOnBodyFocus = false
                                     handleUp(fromInteractive = true)
                                 }
@@ -2163,7 +2432,12 @@ private fun VideoDescriptionRichContentContent(
                         coroutineScope.launch {
                             keepCursorOnBodyFocus = true
                             val focused =
-                                focusCoordinator?.requestEntryFocus(VideoDescriptionRichContentDefaultEntryId) == true
+                                focusCoordinator?.submitEntryFocusIntent(
+                                    entryId = VideoDescriptionRichContentDefaultEntryId,
+                                    intent = WjzFocusSubmitIntent.ExternalEntry(
+                                        dedupeKey = VideoDescriptionRichContentDefaultEntryId
+                                    )
+                                )?.isFocusAccepted() == true
                             if (!focused) keepCursorOnBodyFocus = false
                             handleUp(fromInteractive = true)
                         }
@@ -2356,15 +2630,21 @@ fun VideoPartRow(
     lastPlayedCid: Long = 0,
     lastPlayedTime: Int = 0,
     enablePartListDialog: Boolean = false,
-    onClick: (cid: Long) -> Unit
+    onClick: (cid: Long) -> Unit,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone
 ) {
     var showPartListDialog by remember { mutableStateOf(false) }
+    val topology = wjzFocusRememberTopologyRegion(topologyRegion)
+    val topologyNodeExits = topology.nodeExits
 
     LazyRow(
         modifier = modifier
             .wjzFocusExits(
                 nodeId = VideoInfoPartEntryNodeId,
-                scopeId = VideoInfoScopeId
+                scopeId = VideoInfoScopeId,
+                exits = {
+                    addAll(topologyNodeExits)
+                }
             )
             .padding(top = 8.dp),
         contentPadding = PaddingValues(horizontal = 58.dp),
@@ -2406,7 +2686,10 @@ fun VideoPartRow(
                     modifier = Modifier
                         .wjzFocusExits(
                             nodeId = VideoInfoScopeId.resolve(VideoInfoPartLeadingLocalId),
-                            scopeId = VideoInfoScopeId
+                            scopeId = VideoInfoScopeId,
+                            exits = {
+                                addAll(topologyNodeExits)
+                            }
                         ),
                     onClick = { showPartListDialog = true }
                 ) {
@@ -2424,7 +2707,10 @@ fun VideoPartRow(
                 modifier = Modifier
                     .wjzFocusExits(
                         nodeId = VideoInfoScopeId.resolve(videoInfoPartPageLocalId(index)),
-                        scopeId = VideoInfoScopeId
+                        scopeId = VideoInfoScopeId,
+                        exits = {
+                            addAll(topologyNodeExits)
+                        }
                     )
                     .width(380.dp),
                 index = index + 1,
@@ -2549,6 +2835,8 @@ fun VideoUgcSeasonRow(
     onAddWatchLater: ((Long) -> Unit)? = null,
     onGoToUpPage: ((Long, String) -> Unit)? = null,
     rowStateKey: String? = null,
+    entryComponentId: String? = null,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
 ) {
     if (episodes.isEmpty()) return
 
@@ -2589,6 +2877,8 @@ fun VideoUgcSeasonRow(
         onGoToUpPage = onGoToUpPage,
         enableHorizontalWrap = false,
         rowStateKey = resolvedRowStateKey,
+        entryComponentId = entryComponentId,
+        topologyRegion = topologyRegion,
         leadingItem = if (episodes.size > 6) {
             { itemModifier ->
                 UgcSeasonLeadingButton(
@@ -2623,7 +2913,7 @@ private fun UgcSeasonListDialog(
         itemKey = { Triple(it.avid, it.cid ?: -1L, it.epId ?: -1) }
     ) { itemModifier, focusTarget, _, videoData, cardUiStateFor ->
         SmallVideoCard(
-            modifier = Modifier,
+            modifier = itemModifier,
             focusTarget = focusTarget,
             uiState = cardUiStateFor(videoData.avid),
             data = videoData,
@@ -2707,6 +2997,7 @@ fun <T> PagedVideoInfinityListDialog(
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     var pendingFocus by remember { mutableStateOf<PendingFocusTarget?>(null) }
     var lastFocusedArea by remember { mutableStateOf(DialogFocusArea.Tabs) }
+    val focusTargetsByAbsoluteIndex = remember { mutableStateMapOf<Int, BvLazyFocusItemTarget>() }
 
     if (!show) return
 
@@ -2729,28 +3020,20 @@ fun <T> PagedVideoInfinityListDialog(
         return pagedVideoDialogItemKey(title, absoluteIndex)
     }
 
-    fun requestTabFocus() {
+    fun requestTabFocus(intent: WjzFocusSubmitIntent) {
         with(dialogFocusCoordinator) {
             switchLayer(WjzFocusLayer.Dialog)
-            requestEntryFocus(pagedVideoDialogTabEntryId(title))
+            submitEntryFocusIntent(
+                entryId = pagedVideoDialogTabEntryId(title),
+                intent = intent
+            )
         }
     }
 
     fun requestItemFocus(absoluteIndex: Int) {
-        val itemIndex = absoluteIndex - selectedTabIndex * pageSize
-        val item = selectedItems.getOrNull(itemIndex) ?: return
-        val gridNodeIdPrefix =
-            "video-info/$title/page/${selectedItems.firstOrNull()?.let(itemKey) ?: "empty"}"
-        val focusItemKey = WjzFocusItemKey(itemKey(item).toString())
         with(dialogFocusCoordinator) {
             switchLayer(WjzFocusLayer.Dialog)
-            enqueueLazyRestore(
-                nodeId = WjzFocusNodeId(itemKeyFor(absoluteIndex)),
-                itemKey = focusItemKey,
-                layer = WjzFocusLayer.Dialog,
-                restorerId = "$gridNodeIdPrefix/lazy-restorer",
-                listId = "$gridNodeIdPrefix/lazy-restorer"
-            )
+            focusTargetsByAbsoluteIndex[absoluteIndex]?.restoreFocus(this)
         }
     }
 
@@ -2840,6 +3123,7 @@ fun <T> PagedVideoInfinityListDialog(
 
     // items/pageSize 变化时修正 selectedTabIndex
     LaunchedEffect(tabCount) {
+        focusTargetsByAbsoluteIndex.clear()
         if (tabCount == 0) {
             pendingFocus = null
             return@LaunchedEffect
@@ -2877,7 +3161,11 @@ fun <T> PagedVideoInfinityListDialog(
             // 否则恢复到 Tab
             else -> {
                 lastFocusedArea = DialogFocusArea.Tabs
-                requestTabFocus()
+                requestTabFocus(
+                    WjzFocusSubmitIntent.LayerEntry(
+                        dedupeKey = pagedVideoDialogTabEntryId(title)
+                    )
+                )
             }
         }
     }
@@ -3131,7 +3419,11 @@ fun <T> PagedVideoInfinityListDialog(
                                                 } else {
                                                     if (tabCount > 1) {
                                                         lastFocusedArea = DialogFocusArea.Tabs
-                                                        requestTabFocus()
+                                                        requestTabFocus(
+                                                            WjzFocusSubmitIntent.ExternalEntry(
+                                                                dedupeKey = pagedVideoDialogTabEntryId(title)
+                                                            )
+                                                        )
                                                         true
                                                     } else {
                                                         lastFocusedArea = DialogFocusArea.Grid
@@ -3147,7 +3439,11 @@ fun <T> PagedVideoInfinityListDialog(
                                                 } else {
                                                     if (tabCount > 1) {
                                                         lastFocusedArea = DialogFocusArea.Tabs
-                                                        requestTabFocus()
+                                                        requestTabFocus(
+                                                            WjzFocusSubmitIntent.ExternalEntry(
+                                                                dedupeKey = pagedVideoDialogTabEntryId(title)
+                                                            )
+                                                        )
                                                         true
                                                     } else {
                                                         lastFocusedArea = DialogFocusArea.Grid
@@ -3160,16 +3456,10 @@ fun <T> PagedVideoInfinityListDialog(
                                             else -> false
                                         }
                                     }
-                            val focusTarget = BvLazyFocusItemTarget(
-                                modifier = itemModifier,
-                                nodeId = WjzFocusNodeId(itemKey),
-                                localId = wjzFocusLocalId(itemKey),
-                                layer = WjzFocusLayer.Dialog,
-                                scopeId = null,
-                                itemKey = WjzFocusItemKey(itemKey(item).toString()),
-                                restorerId = "$gridNodeIdPrefix/lazy-restorer",
-                                listId = "$gridNodeIdPrefix/lazy-restorer"
-                            )
+                            val focusTarget = rememberTvGridFocusTarget(index)
+                            if (focusTarget != null) {
+                                focusTargetsByAbsoluteIndex[absoluteIndex] = focusTarget
+                            }
 
                             itemContent(
                                 itemModifier,

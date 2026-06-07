@@ -11,6 +11,7 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
 import dev.aaa1115910.bv.component.TvGridFocusHost
 import dev.aaa1115910.bv.viewmodel.SmallVideoCardGridUiState
 import dev.aaa1115910.bv.viewmodel.SmallVideoCardGridViewModel
@@ -91,6 +92,7 @@ fun SmallVideoCardGridHost(
     focusItemCount: Int = 0,
     focusItemKeys: List<WjzFocusItemKey>,
     focusColumnCount: Int = 4,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     content: LazyGridScope.((Long) -> SmallVideoCardItemUiState?) -> Unit
 ) {
     /**
@@ -112,7 +114,8 @@ fun SmallVideoCardGridHost(
             onEntryFocusReady = onEntryFocusReady,
             focusItemCount = focusItemCount,
             itemKeys = focusItemKeys,
-            focusColumnCount = focusColumnCount
+            focusColumnCount = focusColumnCount,
+            topologyRegion = topologyRegion
         ) {
             content(cardUiStateFor)
         }

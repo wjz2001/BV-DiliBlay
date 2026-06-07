@@ -50,9 +50,9 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.resolve
+import dev.aaa1115910.bv.wjzfocus.wjzFocusGroupRestorerComponent
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
-import dev.aaa1115910.bv.wjzfocus.wjzFocusRestorerHost
 import dev.aaa1115910.bv.network.HttpServer
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.ui.theme.C
@@ -70,10 +70,26 @@ import java.net.Inet4Address
 import java.net.NetworkInterface
 
 private val LogsScopeId = WjzFocusScopeId("settings/logs")
-private const val LogsRestorerId = "settings/logs/restorer"
 private val LogsCreateLocalId = wjzFocusLocalId("create")
 
 private fun logsFileLocalId(file: File) = wjzFocusLocalId("file", file.name)
+
+private object LogsFocus {
+    private val listRestorer = wjzFocusGroupRestorerComponent(
+        componentId = "settings/logs/list",
+        layer = WjzFocusLayer.Content,
+        scopeId = LogsScopeId
+    )
+
+    fun createLogTarget() = listRestorer.target(
+        nodeId = LogsScopeId.resolve(LogsCreateLocalId)
+    )
+
+    @Composable
+    fun Modifier.listRestorerHost(): Modifier {
+        return with(listRestorer) { restorerHost() }
+    }
+}
 
 @Composable
 fun LogsScreen(
@@ -241,13 +257,7 @@ fun LogsScreenContent(
         LaunchedEffect(isCreateFocused, logs.size) {
             val shouldFocusCreate = isCreateFocused || logs.isEmpty()
             if (!shouldFocusCreate) return@LaunchedEffect
-            focusCoordinator?.enqueueGroupRestore(
-                nodeId = LogsScopeId.resolve(LogsCreateLocalId),
-                layer = WjzFocusLayer.Content,
-                scopeId = LogsScopeId,
-                restorerId = LogsRestorerId,
-                listId = LogsRestorerId
-            )
+            focusCoordinator?.let(LogsFocus.createLogTarget()::restoreFocus)
         }
 
         Scaffold(
@@ -277,14 +287,11 @@ fun LogsScreenContent(
                     modifier = Modifier.weight(1f)
                 ) {
                     LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .wjzFocusRestorerHost(
-                                layer = WjzFocusLayer.Content,
-                                scopeId = LogsScopeId,
-                                restorerId = LogsRestorerId,
-                                listId = LogsRestorerId
-                            ),
+                        modifier = with(LogsFocus) {
+                            Modifier
+                                .fillMaxSize()
+                                .listRestorerHost()
+                        },
                         contentPadding = PaddingValues(
                             horizontal = 36.dp,
                             vertical = 12.dp

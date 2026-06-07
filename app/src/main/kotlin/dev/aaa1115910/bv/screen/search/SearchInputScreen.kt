@@ -39,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -65,6 +66,7 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.component.search.SearchKeyword
@@ -84,6 +86,7 @@ import dev.aaa1115910.bv.wjzfocus.right
 import dev.aaa1115910.bv.wjzfocus.resolve
 import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRememberTopologyRegion
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import org.koin.androidx.compose.koinViewModel
@@ -180,12 +183,14 @@ fun SearchInputScreen(
     modifier: Modifier = Modifier,
     onDefaultFocusReady: (() -> Unit)? = null,
     onSearchSubmit: ((String, Boolean) -> Unit)? = null,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     searchInputViewModel: SearchInputViewModel = koinViewModel()
 ) {
     SearchInputRoute(
         modifier = modifier,
         onDefaultFocusReady = onDefaultFocusReady,
         onSearchSubmit = onSearchSubmit,
+        topologyRegion = topologyRegion,
         searchInputViewModel = searchInputViewModel
     )
 }
@@ -197,6 +202,7 @@ fun MainDrawerSearchInputScreen(
     onCurrentRightEntryTokenChanged: ((SearchRightEntryToken?) -> Unit)? = null,
     onRightEntryFocusReady: ((SearchRightEntryToken) -> Unit)? = null,
     onSearchSubmit: ((String, Boolean) -> Unit)? = null,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     searchInputViewModel: SearchInputViewModel = koinViewModel()
 ) {
     SearchInputRoute(
@@ -205,6 +211,7 @@ fun MainDrawerSearchInputScreen(
         onCurrentRightEntryTokenChanged = onCurrentRightEntryTokenChanged,
         onRightEntryFocusReady = onRightEntryFocusReady,
         onSearchSubmit = onSearchSubmit,
+        topologyRegion = topologyRegion,
         searchInputViewModel = searchInputViewModel
     )
 }
@@ -216,6 +223,7 @@ private fun SearchInputRoute(
     onCurrentRightEntryTokenChanged: ((SearchRightEntryToken?) -> Unit)? = null,
     onRightEntryFocusReady: ((SearchRightEntryToken) -> Unit)? = null,
     onSearchSubmit: ((String, Boolean) -> Unit)? = null,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     searchInputViewModel: SearchInputViewModel = koinViewModel()
 ) {
     val searchKeyword = searchInputViewModel.keyword
@@ -261,6 +269,7 @@ private fun SearchInputRoute(
             searchKeyword = searchKeyword,
             onSearchKeywordChange = { searchInputViewModel.keyword = it },
             onSearch = onSearch,
+            topologyRegion = topologyRegion,
             showProxyOptions = Prefs.enableProxy,
             enableProxy = searchInputViewModel.enableProxy,
             onEnableProxyChange = { searchInputViewModel.enableProxy = it },
@@ -282,6 +291,7 @@ private fun SearchInputScreenContent(
     searchKeyword: String,
     onSearchKeywordChange: (String) -> Unit,
     onSearch: (String) -> Unit,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     showProxyOptions: Boolean,
     enableProxy: Boolean,
     onEnableProxyChange: (Boolean) -> Unit,
@@ -334,6 +344,7 @@ private fun SearchInputScreenContent(
                         searchKeyword = searchKeyword,
                         onSearchKeywordChange = onSearchKeywordChange,
                         onSearch = { onSearch(searchKeyword) },
+                        topologyRegion = topologyRegion,
                         showProxyOptions = showProxyOptions,
                         enableProxy = enableProxy,
                         onEnableProxyChange = onEnableProxyChange
@@ -392,12 +403,19 @@ private fun SearchInput(
     searchKeyword: String,
     onSearchKeywordChange: (String) -> Unit,
     onSearch: (String) -> Unit,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     showProxyOptions: Boolean,
     enableProxy: Boolean,
     onEnableProxyChange: (Boolean) -> Unit
 ) {
     // 只在“从外部进入焦点”的那一刻，把光标挪到末尾
     var textFieldHasFocus by remember { mutableStateOf(false) }
+    val topology = wjzFocusRememberTopologyRegion(topologyRegion)
+    val topologyNodeExits = topology.nodeExits
+        .filter { nodeExit ->
+            nodeExit.direction == FocusDirection.Left ||
+                    nodeExit.direction == FocusDirection.Right
+        }
 
     // 用 TextFieldValue 承载光标位置（selection）
     var fieldValue by remember { mutableStateOf(TextFieldValue(searchKeyword)) }
@@ -498,8 +516,12 @@ private fun SearchInput(
                         layer = WjzFocusLayer.Content,
                         exits = {
                             down move "searchResult/top"
-                            left move MainDrawerRightEntryId
-                            right move MainTopNavDefaultEntryId
+                            if (topology.isStandalone) {
+                                left move MainDrawerRightEntryId
+                                right move MainTopNavDefaultEntryId
+                            } else {
+                                addAll(topologyNodeExits)
+                            }
                         }
                     )
                     .onGloballyPositioned {

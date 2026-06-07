@@ -12,12 +12,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,6 +38,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
@@ -44,19 +49,22 @@ import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.activities.user.UserSwitchActivity
 import dev.aaa1115910.bv.component.BlackoutSwitch
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusBoundaryTarget
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
-import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
+import dev.aaa1115910.bv.wjzfocus.WjzFocusSavedState
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
+import dev.aaa1115910.bv.wjzfocus.WjzFocusSubmitIntent
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopology
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTransitionGuard
 import dev.aaa1115910.bv.wjzfocus.defaultEntry
-import dev.aaa1115910.bv.wjzfocus.left
-import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.rememberBlackoutSwitchTransitionState
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.wjzFocusTopologyRegion
 import dev.aaa1115910.bv.repository.UserRepository
 import dev.aaa1115910.bv.screen.main.HomeContent
 import dev.aaa1115910.bv.screen.main.LeftNaviItem
@@ -94,20 +102,23 @@ import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.UserViewModel
 import dev.aaa1115910.bv.viewmodel.main.HomeContentViewModel
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 
 private val MainContentEntryNodeId = WjzFocusNodeId("main/content/entry")
 private const val MainFirstLaunchDialogComponentId = "mainFirstLaunchDialog"
+private const val MainContentRegion = "main/content"
+private const val MainTopNavTabsRegion = "main/top-nav/tabs"
+private const val MainTopNavLeadingRegion = "main/top-nav/leading"
 private val MainFirstLaunchDialogScopeId = WjzFocusScopeId("main/first-launch-dialog")
 private val MainFirstLaunchDialogContainerNodeId = WjzFocusNodeId("main/first-launch-dialog/container")
 private val MainFirstLaunchDialogTextNodeId = WjzFocusNodeId("main/first-launch-dialog/text")
 private val MainDrawerScopeId = WjzFocusScopeId("drawer")
 private val MainFocusScopeId = WjzFocusScopeId("main")
 private val MainTopNavScopeId = WjzFocusScopeId("topNav")
-private val MainTopNavDefaultNodeId = WjzFocusNodeId("${MainTopNavFocusComponentId}/default")
-
 private data class PendingContentFocus(
     val item: LeftNaviItem,
     val transition: MainContentEntryTransition
@@ -117,6 +128,22 @@ private data class PendingContentFocus(
             id = transition.requestId,
             target = transition.target
         )
+}
+
+private fun LeftNaviItem.topNavComponentValue(): String? {
+    return when (this) {
+        LeftNaviItem.Live -> "liveTopNav"
+        LeftNaviItem.Home -> "homeTopNav"
+        LeftNaviItem.UGC -> "ugcTopNav"
+        LeftNaviItem.PGC -> "pgcTopNav"
+        else -> null
+    }
+}
+
+private fun LeftNaviItem.topNavEntryOrNull(localEntryValue: String): WjzFocusEntryId? {
+    return topNavComponentValue()?.let { componentId ->
+        WjzFocusEntryId("$componentId/$localEntryValue")
+    }
 }
 
 @Composable
@@ -132,12 +159,23 @@ fun rememberIsDarkFromPrefs(): Boolean {
 fun MainScreen(
     modifier: Modifier = Modifier,
     allowFirstLaunchMainDialog: Boolean = true,
+    initialWjzFocusSavedState: WjzFocusSavedState? = null,
+    onWjzFocusStateSaved: (WjzFocusSavedState) -> Unit = {},
+    onWjzFocusStateProviderChanged: ((() -> WjzFocusSavedState)?) -> Unit = {},
     userViewModel: UserViewModel = koinViewModel(),
     userRepository: UserRepository = koinInject()
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val logger = KotlinLogging.logger("MainScreen")
-    val focusCoordinator = rememberWjzFocusCoordinator()
+    val focusCoordinator = rememberWjzFocusCoordinator(
+        initialSavedState = initialWjzFocusSavedState,
+        restoreAsRoot = true
+    )
+    val currentOnWjzFocusStateSaved by rememberUpdatedState(onWjzFocusStateSaved)
+    val currentOnWjzFocusStateProviderChanged by rememberUpdatedState(
+        onWjzFocusStateProviderChanged
+    )
     var lastPressBack: Long by remember { mutableLongStateOf(0L) }
 
     val initialDrawerItem = LeftNaviItem.Home
@@ -206,6 +244,27 @@ fun MainScreen(
     val focusTransitionLocked = drawerSlideRunning ||
             mainContentPushRunning ||
             contentSwitchTransitionState.running
+
+    DisposableEffect(focusCoordinator, lifecycleOwner) {
+        fun saveWjzFocusState() {
+            currentOnWjzFocusStateSaved(focusCoordinator.saveState())
+        }
+
+        val stateProvider = { focusCoordinator.saveState() }
+        currentOnWjzFocusStateProviderChanged(stateProvider)
+
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                saveWjzFocusState()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            saveWjzFocusState()
+            currentOnWjzFocusStateProviderChanged(null)
+        }
+    }
 
     fun newDrawerEntryRequest(target: MainDrawerEntryTarget): MainDrawerEntryRequest {
         drawerEntryRequestSerial += 1
@@ -284,7 +343,12 @@ fun MainScreen(
         drawerSourceToken = null
         if (!restored && requestFallback) {
             focusCoordinator.switchLayer(WjzFocusLayer.Content)
-            focusCoordinator.requestEntryFocus(MainContentLeftEntryId)
+            focusCoordinator.submitEntryFocusIntent(
+                entryId = MainContentLeftEntryId,
+                intent = WjzFocusSubmitIntent.ContentFallback(
+                    dedupeKey = MainContentLeftEntryId
+                )
+            )
         }
     }
 
@@ -416,102 +480,115 @@ fun MainScreen(
         layer = WjzFocusLayer.Content,
         scopeId = MainFocusScopeId
     ) {
-        WjzFocusTransitionGuard(locked = focusTransitionLocked)
+        WjzFocusTopology {
+            val activeTopNavLeftEntryId = currentContentItem.topNavEntryOrNull("left")
+                ?: MainContentTopEntryId
+            val activeTopNavRightEntryId = currentContentItem.topNavEntryOrNull("right")
+                ?: MainContentTopEntryId
 
-        Box(modifier = Modifier.fillMaxSize()) {
-            val topBarLeadingContent: @Composable () -> Unit = {
-                WjzFocusEntrySurface(
-                    componentId = MainTopNavFocusComponentId,
-                    default = {
-                        defaultEntry(
-                            nodeId = MainTopNavDefaultNodeId,
-                            layer = WjzFocusLayer.TopNav,
-                            scopeId = MainTopNavScopeId
-                        )
-                    },
-                    entries = {}
-                )
-                WjzFocusHost(
-                    modifier = Modifier
-                        .zIndex(1f)
-                        .graphicsLayer {
-                            translationX = -drawerWidthPx * mainContentPushProgress -
-                                    size.width * drawerSlideProgress
-                            alpha = 1f - drawerSlideProgress
-                        },
-                    coordinator = focusCoordinator,
-                    layer = WjzFocusLayer.TopNav,
-                    scopeId = MainTopNavScopeId
-                ) {
-                    MainTopNavBlock(
-                        modifier = Modifier,
-                        userColorAnimationEnabled = userButtonColorAnimationEnabled,
-                        userIsLogin = userViewModel.isLogin,
-                        userAvatar = userViewModel.face,
-                        username = userViewModel.username,
-                        entryRequest = pendingTopNavEntryRequest,
-                        onEntryRequestConsumed = { requestId ->
-                            if (pendingTopNavEntryRequest?.id == requestId) {
-                                pendingTopNavEntryRequest = null
-                            }
-                        },
-                        focusEnabled = !leftNaviExpanded,
-                        userIsFocused = userIsFocused,
-                        onUserFocusChanged = { userIsFocused = it },
-                        onExpandDrawer = { expandLeftNavi() },
-                        onOpenUser = { openUserPage() },
-                        onContentEntryRequested = ::requestTopNavContentEntry
-                    )
-                }
+            region(
+                id = MainContentRegion,
+                scopeId = MainFocusScopeId,
+                layer = WjzFocusLayer.Content
+            ) {
+                onUp(WjzFocusBoundaryTarget.Entry(MainTopNavDefaultEntryId))
+                onLeft(WjzFocusBoundaryTarget.Entry(MainDrawerRightEntryId))
+            }
+            region(
+                id = MainTopNavTabsRegion,
+                layer = WjzFocusLayer.Content
+            ) {
+                onLeft(WjzFocusBoundaryTarget.Entry(MainTopNavDefaultEntryId))
+                onRight(WjzFocusBoundaryTarget.Entry(MainTopNavDefaultEntryId))
+                onUp(WjzFocusBoundaryTarget.Cancel)
+            }
+            region(
+                id = MainTopNavLeadingRegion,
+                scopeId = MainTopNavScopeId,
+                layer = WjzFocusLayer.TopNav
+            ) {
+                onLeft(WjzFocusBoundaryTarget.Entry(activeTopNavRightEntryId))
+                onRight(WjzFocusBoundaryTarget.Entry(activeTopNavLeftEntryId))
+                onUp(WjzFocusBoundaryTarget.Cancel)
+                onDown(WjzFocusBoundaryTarget.Cancel)
             }
 
-            WjzFocusEntrySurface(
-                componentId = MainContentFocusComponentId,
-                default = {
-                    defaultEntry(
-                        nodeId = MainContentEntryNodeId,
-                        layer = WjzFocusLayer.Content,
-                        scopeId = MainFocusScopeId
-                    )
-                },
-                entries = {
-                    entry(MainContentEntryId.localEntryValue) {
-                        defaultEntry(
-                            nodeId = MainContentEntryNodeId,
-                            layer = WjzFocusLayer.Content,
-                            scopeId = MainFocusScopeId
-                        )
-                    }
-                    entry(MainContentTopEntryId.localEntryValue) {
-                        defaultEntry(
-                            nodeId = MainContentEntryNodeId,
-                            layer = WjzFocusLayer.Content,
-                            scopeId = MainFocusScopeId
-                        )
-                    }
-                    entry(MainContentLeftEntryId.localEntryValue) {
-                        defaultEntry(
-                            nodeId = MainContentEntryNodeId,
-                            layer = WjzFocusLayer.Content,
-                            scopeId = MainFocusScopeId
+            WjzFocusTransitionGuard(locked = focusTransitionLocked)
+
+            Box(modifier = Modifier.fillMaxSize()) {
+                val topBarLeadingContent: @Composable () -> Unit = {
+                    WjzFocusHost(
+                        modifier = Modifier
+                            .zIndex(1f)
+                            .graphicsLayer {
+                                translationX = -drawerWidthPx * mainContentPushProgress -
+                                        size.width * drawerSlideProgress
+                                alpha = 1f - drawerSlideProgress
+                            },
+                        coordinator = focusCoordinator,
+                        layer = WjzFocusLayer.TopNav,
+                        scopeId = MainTopNavScopeId
+                    ) {
+                        MainTopNavBlock(
+                            modifier = Modifier,
+                            userColorAnimationEnabled = userButtonColorAnimationEnabled,
+                            userIsLogin = userViewModel.isLogin,
+                            userAvatar = userViewModel.face,
+                            username = userViewModel.username,
+                            entryRequest = pendingTopNavEntryRequest,
+                            onEntryRequestConsumed = { requestId ->
+                                if (pendingTopNavEntryRequest?.id == requestId) {
+                                    pendingTopNavEntryRequest = null
+                                }
+                            },
+                            focusEnabled = !leftNaviExpanded,
+                            topologyRegion = wjzFocusTopologyRegion(MainTopNavLeadingRegion),
+                            userIsFocused = userIsFocused,
+                            onUserFocusChanged = { userIsFocused = it },
+                            onExpandDrawer = { expandLeftNavi() },
+                            onOpenUser = { openUserPage() },
+                            onContentEntryRequested = ::requestTopNavContentEntry
                         )
                     }
                 }
-            )
-            Box(
+
+                WjzFocusEntrySurface(
+                    componentId = MainContentFocusComponentId,
+                    default = {
+                        defaultEntry(
+                            nodeId = MainContentEntryNodeId,
+                            layer = WjzFocusLayer.Content,
+                            scopeId = MainFocusScopeId
+                        )
+                    },
+                    entries = {
+                        entry(MainContentEntryId.localEntryValue) {
+                            defaultEntry(
+                                nodeId = MainContentEntryNodeId,
+                                layer = WjzFocusLayer.Content,
+                                scopeId = MainFocusScopeId
+                            )
+                        }
+                        entry(MainContentTopEntryId.localEntryValue) {
+                            defaultEntry(
+                                nodeId = MainContentEntryNodeId,
+                                layer = WjzFocusLayer.Content,
+                                scopeId = MainFocusScopeId
+                            )
+                        }
+                        entry(MainContentLeftEntryId.localEntryValue) {
+                            defaultEntry(
+                                nodeId = MainContentEntryNodeId,
+                                layer = WjzFocusLayer.Content,
+                                scopeId = MainFocusScopeId
+                            )
+                        }
+                    }
+                )
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .zIndex(0f)
-                        .wjzFocusExits(
-                            id = MainContentEntryNodeId.value.removePrefix("${MainFocusScopeId.value}/"),
-                            layer = WjzFocusLayer.Content,
-                            strategy = WjzFocusRestoreStrategy.Container,
-                            enabled = !leftNaviExpanded,
-                            exits = {
-                                up move MainTopNavDefaultEntryId
-                                left move MainDrawerRightEntryId
-                            }
-                        )
                         .graphicsLayer {
                             translationX = drawerWidthPx * mainContentPushProgress
                         }
@@ -543,6 +620,7 @@ fun MainScreen(
                                     when (item) {
                                         LeftNaviItem.Live -> LiveContent(
                                             topBarLeadingContent = topBarLeadingContent,
+                                            topologyRegion = wjzFocusTopologyRegion(MainTopNavTabsRegion),
                                             entryRequest = contentEntryRequest,
                                             onEntryRequestReady = { requestId ->
                                                 markContentEntryRequestReady(item, requestId)
@@ -561,6 +639,10 @@ fun MainScreen(
                                                 koinViewModel<HomeContentViewModel>()
                                             HomeContent(
                                                 topBarLeadingContent = topBarLeadingContent,
+                                                topNavTopologyRegion = wjzFocusTopologyRegion(
+                                                    MainTopNavTabsRegion
+                                                ),
+                                                topologyRegion = wjzFocusTopologyRegion(MainContentRegion),
                                                 entryRequest = contentEntryRequest,
                                                 onEntryRequestReady = { requestId ->
                                                     markContentEntryRequestReady(item, requestId)
@@ -579,6 +661,10 @@ fun MainScreen(
 
                                         LeftNaviItem.UGC -> UgcContent(
                                             topBarLeadingContent = topBarLeadingContent,
+                                            topNavTopologyRegion = wjzFocusTopologyRegion(
+                                                MainTopNavTabsRegion
+                                            ),
+                                            topologyRegion = wjzFocusTopologyRegion(MainContentRegion),
                                             entryRequest = contentEntryRequest,
                                             onEntryRequestReady = { requestId ->
                                                 markContentEntryRequestReady(item, requestId)
@@ -594,6 +680,10 @@ fun MainScreen(
 
                                         LeftNaviItem.PGC -> PgcContent(
                                             topBarLeadingContent = topBarLeadingContent,
+                                            topNavTopologyRegion = wjzFocusTopologyRegion(
+                                                MainTopNavTabsRegion
+                                            ),
+                                            topologyRegion = wjzFocusTopologyRegion(MainContentRegion),
                                             entryRequest = contentEntryRequest,
                                             onEntryRequestReady = { requestId ->
                                                 markContentEntryRequestReady(item, requestId)
@@ -615,27 +705,27 @@ fun MainScreen(
                     }
                 }
 
-            val isDarkTheme = rememberIsDarkFromPrefs()
-            WjzFocusEntrySurface(
-                componentId = MainDrawerFocusComponentId,
-                default = {
-                    defaultEntry(
-                        nodeId = leftNaviItemFocusNodeId(activeDrawerItem),
-                        layer = WjzFocusLayer.Drawer,
-                        scopeId = MainDrawerScopeId
-                    )
-                },
-                entries = {
-                    entry(MainDrawerRightEntryId.localEntryValue) {
+                val isDarkTheme = rememberIsDarkFromPrefs()
+                WjzFocusEntrySurface(
+                    componentId = MainDrawerFocusComponentId,
+                    default = {
                         defaultEntry(
                             nodeId = leftNaviItemFocusNodeId(activeDrawerItem),
                             layer = WjzFocusLayer.Drawer,
                             scopeId = MainDrawerScopeId
                         )
+                    },
+                    entries = {
+                        entry(MainDrawerRightEntryId.localEntryValue) {
+                            defaultEntry(
+                                nodeId = leftNaviItemFocusNodeId(activeDrawerItem),
+                                layer = WjzFocusLayer.Drawer,
+                                scopeId = MainDrawerScopeId
+                            )
+                        }
                     }
-                }
-            )
-            WjzFocusHost(
+                )
+                WjzFocusHost(
                     modifier = Modifier
                         .fillMaxHeight()
                         .zIndex(2f)
@@ -677,8 +767,8 @@ fun MainScreen(
                     coordinator = focusCoordinator,
                     layer = WjzFocusLayer.Drawer,
                     scopeId = MainDrawerScopeId
-            ) {
-                MainDrawerBlock(
+                ) {
+                    MainDrawerBlock(
                         modifier = Modifier,
                         selectedItem = activeDrawerItem,
                         currentItem = focusedDrawerItem,
@@ -700,7 +790,8 @@ fun MainScreen(
                         onUserFocusChanged = { userIsFocused = it },
                         onCollapse = { collapseLeftNavi() },
                         onOpenUser = { openUserPage() }
-                )
+                    )
+                }
             }
         }
 

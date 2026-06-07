@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.OutlinedTextField
@@ -87,18 +88,25 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.activities.settings.LogsActivity
 import dev.aaa1115910.bv.activities.settings.SpeedTestActivity
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
+import dev.aaa1115910.bv.wjzfocus.WjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.WjzFocusBoundaryTarget
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusItemKey
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
-import dev.aaa1115910.bv.wjzfocus.WjzLazyFocusRestorerHost
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopology
+import dev.aaa1115910.bv.wjzfocus.WjzFocusDebugConfig
+import dev.aaa1115910.bv.wjzfocus.WjzFocusDebugOverlayRegistry
+import dev.aaa1115910.bv.wjzfocus.WjzFocusDebugOverlaySlot
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLogLevel
 import dev.aaa1115910.bv.component.BvTabOrderListContent
 import dev.aaa1115910.bv.component.HomeTopNavItem
 import dev.aaa1115910.bv.component.HomeTopNavRefreshSelectDialog
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
 import dev.aaa1115910.bv.component.RadioMenuSelectDialog
 import dev.aaa1115910.bv.component.RadioMenuSelectListContent
 import dev.aaa1115910.bv.component.SettingsBottomIndicator
@@ -109,13 +117,15 @@ import dev.aaa1115910.bv.component.settings.SettingsNavigationListItem
 import dev.aaa1115910.bv.component.settings.actionEntry
 import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.down
-import dev.aaa1115910.bv.wjzfocus.left
 import dev.aaa1115910.bv.wjzfocus.resolve
-import dev.aaa1115910.bv.wjzfocus.right
 import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.wjzFocusLayerRestoreTarget
+import dev.aaa1115910.bv.wjzfocus.wjzLazyFocusRestorerComponent
 import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
+import dev.aaa1115910.bv.wjzfocus.wjzFocusRememberTopologyRegion
+import dev.aaa1115910.bv.wjzfocus.wjzFocusTopologyRegion
 import dev.aaa1115910.bv.entity.Audio
 import dev.aaa1115910.bv.entity.Resolution
 import dev.aaa1115910.bv.entity.VideoCodec
@@ -182,6 +192,10 @@ private const val SettingsCategoryStartEntry = "category-start"
 private const val SettingsCategoryEndEntry = "category-end"
 private val SettingsCategoryStartEntryId = WjzFocusEntryId("settings/$SettingsCategoryStartEntry")
 private val SettingsCategoryEndEntryId = WjzFocusEntryId("settings/$SettingsCategoryEndEntry")
+private const val SettingsCategoryTopologyRegion = "settings/category"
+private const val SettingsItemWithDetailTopologyRegion = "settings/item/with-detail"
+private const val SettingsItemWithoutDetailTopologyRegion = "settings/item/without-detail"
+private const val SettingsDetailTopologyRegion = "settings/detail"
 private const val SettingsItemEmptyKey = "settings/item/empty"
 private val SettingsStorageImageCacheLocalId =
     wjzFocusLocalId("storage_management", "action", "image_cache")
@@ -204,6 +218,56 @@ private val SettingsHomeTopNavRefreshDialogContainerLocalId = wjzFocusLocalId("c
 
 private val SettingsCategoryItems = SettingsMenuNavItem.entries
     .filterNot { it == SettingsMenuNavItem.Info }
+
+private object SettingsLayerFocus {
+    private val categoryColumnTarget = wjzFocusLayerRestoreTarget(
+        layer = WjzFocusLayer.Content,
+        scopeId = SettingsCategoryScopeId
+    )
+    private val detailColumnTarget = wjzFocusLayerRestoreTarget(
+        layer = WjzFocusLayer.Content,
+        scopeId = SettingsDetailScopeId
+    )
+
+    fun restoreCategoryColumn(coordinator: WjzFocusCoordinator) {
+        categoryColumnTarget.restoreFocus(coordinator)
+    }
+
+    fun restoreDetailColumn(coordinator: WjzFocusCoordinator) {
+        detailColumnTarget.restoreFocus(coordinator)
+    }
+}
+
+private object SettingsItemColumnFocus {
+    private val restorer = wjzLazyFocusRestorerComponent(
+        componentId = "settings/item-column",
+        layer = WjzFocusLayer.Content,
+        scopeId = SettingsItemScopeId
+    )
+
+    fun itemTarget(item: SettingsEntry) = restorer.target(
+        nodeId = SettingsItemScopeId.resolve(settingsItemLocalId(item.id)),
+        itemKey = WjzFocusItemKey(item.id)
+    )
+
+    @Composable
+    fun InstallRestorerHost(
+        items: List<SettingsEntry>,
+        lazyListState: LazyListState
+    ) {
+        restorer.InstallRestorerHost(
+            scrollToItem = { itemKey ->
+                val index = items.indexOfFirst { it.id == itemKey.value }
+                if (index >= 0) {
+                    lazyListState.scrollToItem(index)
+                }
+            },
+            isItemVisible = { itemKey ->
+                lazyListState.layoutInfo.visibleItemsInfo.any { it.key == itemKey.value }
+            }
+        )
+    }
+}
 
 internal data class SettingsEntry(
     val id: String,
@@ -251,9 +315,12 @@ fun SettingsScreen(
                 layer = WjzFocusLayer.Content,
                 scopeId = SettingsFocusScopeId
             ) {
-                SettingsMotionHost(
-                    modifier = Modifier.fillMaxSize()
-                )
+                Box(Modifier.fillMaxSize()) {
+                    SettingsMotionHost(
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    WjzFocusDebugOverlaySlot(LocalWjzFocusCoordinator.current)
+                }
             }
         }
     }
@@ -467,10 +534,7 @@ private fun SettingsColumns(
     val focusCoordinator = LocalWjzFocusCoordinator.current
 
     LaunchedEffect(focusCoordinator) {
-        focusCoordinator?.enqueueRestoreLayer(
-            layer = WjzFocusLayer.Content,
-            scopeId = SettingsCategoryScopeId
-        )
+        focusCoordinator?.let(SettingsLayerFocus::restoreCategoryColumn)
     }
 
     fun currentSettingsListNodeId(): WjzFocusNodeId {
@@ -547,65 +611,90 @@ private fun SettingsColumns(
         }
     )
 
-    SettingsMotionColumnsLayout(
-        modifier = modifier,
-        motion = motion,
-        contentColor = contentColor,
-        contentActivated = contentActivated,
-        onContentActivated = onContentActivated,
-        categoryColumn = { columnModifier ->
-            SettingsCategoryBlock(
-                modifier = columnModifier,
-                selectedCategory = currentCategory,
-                focused = focusColumn == SettingsColumn.Category,
-                onCategoryFocused = onCategoryFocused,
-            )
-        },
-        itemColumn = { columnModifier ->
-            SettingsItemBlock(
-                modifier = columnModifier,
-                items = currentItems,
-                selectedItem = currentItem,
-                focused = focusColumn == SettingsColumn.Item,
-                activePathEnabled = focusColumn == SettingsColumn.Detail,
-                onItemFocused = onItemFocused,
-                onUp = {
-                    currentItems.lastOrNull()?.let { item ->
-                        focusCoordinator?.enqueueLazyRestore(
-                            nodeId = SettingsItemScopeId.resolve(settingsItemLocalId(item.id)),
-                            itemKey = WjzFocusItemKey(item.id),
-                            layer = WjzFocusLayer.Content,
-                            scopeId = SettingsItemScopeId,
-                            restorerId = "settings/item-column/lazy-restorer",
-                            listId = "settings/item-column/lazy-restorer"
-                        )
-                    }
-                },
-                onDown = {
-                    currentItems.firstOrNull()?.let { item ->
-                        focusCoordinator?.enqueueLazyRestore(
-                            nodeId = SettingsItemScopeId.resolve(settingsItemLocalId(item.id)),
-                            itemKey = WjzFocusItemKey(item.id),
-                            layer = WjzFocusLayer.Content,
-                            scopeId = SettingsItemScopeId,
-                            restorerId = "settings/item-column/lazy-restorer",
-                            listId = "settings/item-column/lazy-restorer"
-                        )
-                    }
-                }
-            )
-        },
-        detailColumn = { columnModifier ->
-            if (currentDetailItem != null) {
-                SettingsDetailBlock(
-                    modifier = columnModifier,
-                    item = currentDetailItem,
-                    focused = focusColumn == SettingsColumn.Detail,
-                    onFocused = onDetailFocused
-                )
-            }
+    WjzFocusTopology {
+        region(
+            id = SettingsCategoryTopologyRegion,
+            scopeId = SettingsCategoryScopeId,
+            layer = WjzFocusLayer.Content
+        ) {
+            onLeft(WjzFocusBoundaryTarget.Cancel)
+            onRight(WjzFocusBoundaryTarget.Entry(SettingsListDefaultEntryId))
         }
-    )
+        region(
+            id = SettingsItemWithDetailTopologyRegion,
+            scopeId = SettingsItemScopeId,
+            layer = WjzFocusLayer.Content
+        ) {
+            onLeft(WjzFocusBoundaryTarget.Entry(SettingsCategoryEntryId))
+            onRight(WjzFocusBoundaryTarget.Entry(SettingsContentDefaultEntryId))
+        }
+        region(
+            id = SettingsItemWithoutDetailTopologyRegion,
+            scopeId = SettingsItemScopeId,
+            layer = WjzFocusLayer.Content
+        ) {
+            onLeft(WjzFocusBoundaryTarget.Entry(SettingsCategoryEntryId))
+            onRight(WjzFocusBoundaryTarget.Cancel)
+        }
+        region(
+            id = SettingsDetailTopologyRegion,
+            scopeId = SettingsDetailScopeId,
+            layer = WjzFocusLayer.Content
+        ) {
+            onLeft(WjzFocusBoundaryTarget.Entry(SettingsListDefaultEntryId))
+            onUp(WjzFocusBoundaryTarget.Cancel)
+            onDown(WjzFocusBoundaryTarget.Cancel)
+            onRight(WjzFocusBoundaryTarget.Cancel)
+        }
+
+        SettingsMotionColumnsLayout(
+            modifier = modifier,
+            motion = motion,
+            contentColor = contentColor,
+            contentActivated = contentActivated,
+            onContentActivated = onContentActivated,
+            categoryColumn = { columnModifier ->
+                SettingsCategoryBlock(
+                    modifier = columnModifier,
+                    selectedCategory = currentCategory,
+                    focused = focusColumn == SettingsColumn.Category,
+                    topologyRegion = wjzFocusTopologyRegion(SettingsCategoryTopologyRegion),
+                    onCategoryFocused = onCategoryFocused,
+                )
+            },
+            itemColumn = { columnModifier ->
+                SettingsItemBlock(
+                    modifier = columnModifier,
+                    items = currentItems,
+                    selectedItem = currentItem,
+                    focused = focusColumn == SettingsColumn.Item,
+                    activePathEnabled = focusColumn == SettingsColumn.Detail,
+                    onItemFocused = onItemFocused,
+                    onUp = {
+                        currentItems.lastOrNull()?.let { item ->
+                            focusCoordinator?.let(SettingsItemColumnFocus.itemTarget(item)::restoreFocus)
+                        }
+                    },
+                    onDown = {
+                        currentItems.firstOrNull()?.let { item ->
+                            focusCoordinator?.let(SettingsItemColumnFocus.itemTarget(item)::restoreFocus)
+                        }
+                    }
+                )
+            },
+            detailColumn = { columnModifier ->
+                if (currentDetailItem != null) {
+                    SettingsDetailBlock(
+                        modifier = columnModifier,
+                        item = currentDetailItem,
+                        focused = focusColumn == SettingsColumn.Detail,
+                        topologyRegion = wjzFocusTopologyRegion(SettingsDetailTopologyRegion),
+                        onFocused = onDetailFocused
+                    )
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -613,6 +702,7 @@ private fun SettingsCategoryBlock(
     modifier: Modifier = Modifier,
     selectedCategory: SettingsMenuNavItem,
     focused: Boolean,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     onCategoryFocused: (SettingsMenuNavItem) -> Unit
 ) {
     val coordinator = LocalWjzFocusCoordinator.current
@@ -622,6 +712,7 @@ private fun SettingsCategoryBlock(
             modifier = Modifier,
             selectedCategory = selectedCategory,
             focused = focused,
+            topologyRegion = topologyRegion,
             onCategoryFocused = onCategoryFocused
         )
     }
@@ -652,11 +743,12 @@ private fun SettingsItemBlock(
         SettingsItemColumn(
             modifier = Modifier,
             focusLocalId = SettingsItemColumnLocalId,
-            focusScopeId = SettingsItemScopeId,
             items = items,
             selectedItem = selectedItem,
             focused = focused,
             activePathEnabled = activePathEnabled,
+            detailEnabledTopologyRegion = wjzFocusTopologyRegion(SettingsItemWithDetailTopologyRegion),
+            detailDisabledTopologyRegion = wjzFocusTopologyRegion(SettingsItemWithoutDetailTopologyRegion),
             onItemFocused = onItemFocused,
             onUp = onUp,
             onDown = onDown
@@ -677,6 +769,7 @@ private fun SettingsDetailBlock(
     modifier: Modifier = Modifier,
     item: SettingsEntry,
     focused: Boolean,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     onFocused: () -> Unit
 ) {
     val coordinator = LocalWjzFocusCoordinator.current
@@ -687,6 +780,7 @@ private fun SettingsDetailBlock(
             focusLocalId = SettingsDetailColumnLocalId,
             item = item,
             focused = focused,
+            topologyRegion = topologyRegion,
             onFocused = onFocused
         )
     }
@@ -705,10 +799,13 @@ private fun SettingsCategoryColumn(
     modifier: Modifier = Modifier,
     selectedCategory: SettingsMenuNavItem,
     focused: Boolean,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     onCategoryFocused: (SettingsMenuNavItem) -> Unit
 ) {
     val context = LocalContext.current
     val categories = SettingsCategoryItems
+    val topology = wjzFocusRememberTopologyRegion(topologyRegion)
+    val topologyNodeExits = topology.nodeExits
 
     Column(
         modifier = modifier
@@ -726,8 +823,7 @@ private fun SettingsCategoryColumn(
                         localId = settingsCategoryLocalId(category),
                         layer = WjzFocusLayer.Content,
                         exits = {
-                            cancel(left)
-                            right move SettingsListDefaultEntryId
+                            addAll(topologyNodeExits)
                             if (first) up move SettingsCategoryEndEntryId
                             if (last) down move SettingsCategoryStartEntryId
                         },
@@ -755,34 +851,28 @@ private fun SettingsCategoryColumn(
 private fun SettingsItemColumn(
     modifier: Modifier = Modifier,
     focusLocalId: WjzFocusLocalId,
-    focusScopeId: WjzFocusScopeId,
     items: List<SettingsEntry>,
     selectedItem: SettingsEntry?,
     focused: Boolean,
     activePathEnabled: Boolean,
+    detailEnabledTopologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
+    detailDisabledTopologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     onItemFocused: (SettingsEntry) -> Unit,
     onUp: () -> Unit,
     onDown: () -> Unit
 ) {
+    val detailEnabledTopology = wjzFocusRememberTopologyRegion(detailEnabledTopologyRegion)
+    val detailDisabledTopology = wjzFocusRememberTopologyRegion(detailDisabledTopologyRegion)
+    val detailEnabledTopologyNodeExits = detailEnabledTopology.nodeExits
+    val detailDisabledTopologyNodeExits = detailDisabledTopology.nodeExits
     val activePathAnchorColor = C.secondary
     val activePathContentColor = C.onSurfaceVariant
     val itemColors = settingsTransparentListItemColors()
     val lazyListState = rememberLazyListState()
 
-    WjzLazyFocusRestorerHost(
-        layer = WjzFocusLayer.Content,
-        scopeId = focusScopeId,
-        restorerId = "settings/item-column/lazy-restorer",
-        listId = "settings/item-column/lazy-restorer",
-        scrollToItem = { itemKey ->
-            val index = items.indexOfFirst { it.id == itemKey.value }
-            if (index >= 0) {
-                lazyListState.scrollToItem(index)
-            }
-        },
-        isItemVisible = { itemKey ->
-            lazyListState.layoutInfo.visibleItemsInfo.any { it.key == itemKey.value }
-        }
+    SettingsItemColumnFocus.InstallRestorerHost(
+        items = items,
+        lazyListState = lazyListState
     )
 
     LazyColumn(
@@ -832,11 +922,10 @@ private fun SettingsItemColumn(
                         localId = settingsItemLocalId(item.id),
                         layer = WjzFocusLayer.Content,
                         exits = {
-                            left move SettingsCategoryEntryId
                             if (item.canRequestDetailFocus()) {
-                                right move SettingsContentDefaultEntryId
+                                addAll(detailEnabledTopologyNodeExits)
                             } else {
-                                cancel(right)
+                                addAll(detailDisabledTopologyNodeExits)
                             }
                         },
                         onFocused = {
@@ -890,9 +979,12 @@ private fun SettingsDetailColumn(
     focusLocalId: WjzFocusLocalId,
     item: SettingsEntry,
     focused: Boolean,
+    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     onFocused: () -> Unit
 ) {
     val scrollState = rememberScrollState()
+    val topology = wjzFocusRememberTopologyRegion(topologyRegion)
+    val topologyNodeExits = topology.nodeExits
     val useAutoScroll = item.autoScrollableDetail
     val hasAutoScrollOverflow by remember(useAutoScroll) {
         derivedStateOf { useAutoScroll && scrollState.maxValue > 0 }
@@ -910,10 +1002,7 @@ private fun SettingsDetailColumn(
                             localId = focusLocalId,
                             layer = WjzFocusLayer.Content,
                             exits = {
-                                left move SettingsListDefaultEntryId
-                                cancel(up)
-                                cancel(down)
-                                cancel(right)
+                                addAll(topologyNodeExits)
                             },
                             onFocused = {
                                 onFocused()
@@ -1380,6 +1469,16 @@ private fun otherSettingsEntries(): List<SettingsEntry> {
         "正在获取端口……"
     }
     val logServerSupportText = "请输入 $logServerAddress，或扫描右侧二维码进入日志管理界面"
+    var wjzFocusLogLevel by remember {
+        mutableStateOf(
+            WjzFocusLogLevel.entries.getOrElse(Prefs.wjzFocusLogLevel) { WjzFocusLogLevel.Off }
+        )
+    }
+    var showWjzFocusDebugOverlay by remember { mutableStateOf(Prefs.wjzFocusDebugOverlay) }
+
+    LaunchedEffect(wjzFocusLogLevel) {
+        WjzFocusDebugConfig.logLevel = wjzFocusLogLevel
+    }
 
     LaunchedEffect(Unit) {
         HttpServer.startServer()
@@ -1416,7 +1515,36 @@ private fun otherSettingsEntries(): List<SettingsEntry> {
                 context.startActivity(Intent(context, LogsActivity::class.java))
             }
         )
-    ) + if (BuildConfig.DEBUG) {
+    ) + if (BuildConfig.BUILD_TYPE == "r8Test") {
+        listOf(
+            cycleEntry(
+                id = "wjz_focus_log_level",
+                title = "WjzFocus 日志等级",
+                supportText = "当前：${wjzFocusLogLevel.displayName()}",
+                items = WjzFocusLogLevel.entries.toList(),
+                selected = wjzFocusLogLevel,
+                onSelected = {
+                    wjzFocusLogLevel = it
+                    Prefs.wjzFocusLogLevel = it.ordinal
+                    WjzFocusDebugConfig.logLevel = it
+                },
+                trailingText = { it.displayName() }
+            ),
+            switchEntry(
+                id = "wjz_focus_debug_overlay",
+                title = "WjzFocus 可视化",
+                supportText = "显示当前焦点层、节点、pending 与来源栈快照",
+                checked = showWjzFocusDebugOverlay,
+                onCheckedChange = {
+                    showWjzFocusDebugOverlay = it
+                    Prefs.wjzFocusDebugOverlay = it
+                    WjzFocusDebugOverlayRegistry.installDefault(it)
+                }
+            )
+        )
+    } else {
+        emptyList()
+    } + if (BuildConfig.DEBUG) {
         listOf(
             actionEntry(
                 id = "crash_test",
@@ -1653,10 +1781,7 @@ private fun StorageManagementDetail(focused: Boolean) {
 
     LaunchedEffect(focused) {
         if (focused) {
-            focusCoordinator?.enqueueRestoreLayer(
-                layer = WjzFocusLayer.Content,
-                scopeId = SettingsDetailScopeId
-            )
+            focusCoordinator?.let(SettingsLayerFocus::restoreDetailColumn)
         }
     }
 
@@ -2138,6 +2263,14 @@ private fun ApiType.displayName(): String {
     return when (this) {
         ApiType.App -> "App 接口"
         ApiType.Web -> "Web 接口"
+    }
+}
+
+private fun WjzFocusLogLevel.displayName(): String {
+    return when (this) {
+        WjzFocusLogLevel.Off -> "关闭"
+        WjzFocusLogLevel.Info -> "Info"
+        WjzFocusLogLevel.Verbose -> "Verbose"
     }
 }
 

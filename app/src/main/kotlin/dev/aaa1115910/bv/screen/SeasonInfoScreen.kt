@@ -56,11 +56,6 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -99,11 +94,15 @@ import dev.aaa1115910.bv.component.BvUnderlineTabRow
 import dev.aaa1115910.bv.component.TvGridFocusHost
 import dev.aaa1115910.bv.component.rememberTvGridFocusModifier
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
+import dev.aaa1115910.bv.wjzfocus.WjzFocusBoundaryTarget
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusSubmitIntent
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopology
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.resolve
@@ -111,6 +110,7 @@ import dev.aaa1115910.bv.wjzfocus.target
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.wjzFocusTopologyRegion
 import dev.aaa1115910.bv.component.buttons.SeasonInfoButtons
 import dev.aaa1115910.bv.component.ifElse
 import dev.aaa1115910.bv.entity.VideoListItem
@@ -162,6 +162,8 @@ private const val SeasonInfoSelectorComponentId = "seasonInfoSelector"
 private const val SeasonInfoSelectorCurrentEntry = "current"
 private const val SeasonInfoEpisodesDialogTabEntry = "tab"
 private const val SeasonInfoEpisodesDialogListEntry = "list"
+private const val SeasonInfoEpisodesDialogTabTopologyRegion = "season-info/episodes-dialog/tab"
+private const val SeasonInfoEpisodesDialogListTopologyRegion = "season-info/episodes-dialog/list"
 private const val SeasonInfoEpisodeRowFirstEntry = "first"
 private const val SeasonInfoEpisodeRowTargetEntry = "target"
 private val SeasonInfoDefaultEntryId = WjzFocusEntryId.parse(SeasonInfoComponentId)
@@ -328,7 +330,12 @@ fun SeasonInfoScreen(
 
             pendingAutoFocusEpisodeId = null
             pendingAutoFocusRowItemIndex = -1
-            focusCoordinator.requestEntryFocus(SeasonInfoDefaultEntryId)
+            focusCoordinator.submitEntryFocusIntent(
+                entryId = SeasonInfoDefaultEntryId,
+                intent = WjzFocusSubmitIntent.ContentFallback(
+                    dedupeKey = SeasonInfoDefaultEntryId
+                )
+            )
         }
     }
 
@@ -367,7 +374,12 @@ fun SeasonInfoScreen(
                 }
             )
             LaunchedEffect(tip) {
-                focusCoordinator.requestEntryFocus(SeasonInfoLoadingEntryId)
+                focusCoordinator.submitEntryFocusIntent(
+                    entryId = SeasonInfoLoadingEntryId,
+                    intent = WjzFocusSubmitIntent.ContentFallback(
+                        dedupeKey = SeasonInfoLoadingEntryId
+                    )
+                )
             }
 
             Box(
@@ -629,7 +641,12 @@ fun SeasonInfoScreen(
         show = showSeasonSelector,
         onHideSelector = {
             showSeasonSelector = false
-            focusCoordinator.requestEntryFocus(SeasonInfoDefaultEntryId)
+            focusCoordinator.submitEntryFocusIntent(
+                entryId = SeasonInfoDefaultEntryId,
+                intent = WjzFocusSubmitIntent.ContentFallback(
+                    dedupeKey = SeasonInfoDefaultEntryId
+                )
+            )
         },
         currentSeasonId = seasonId ?: 0,
         seasons = seasonData?.seasons ?: emptyList(),
@@ -932,153 +949,167 @@ fun SeasonEpisodesDialog(
                     entry = SeasonInfoEpisodesDialogListEntry
                 )
 
-                WjzFocusEntrySurface(
-                    componentId = dialogComponentId,
-                    default = {
-                        defaultEntry(
-                            nodeId = if (tabCount > 1) SeasonInfoDialogTabNodeId else dialogVideoListFocusNodeId,
-                            layer = WjzFocusLayer.Dialog,
-                            scopeId = SeasonInfoDialogScopeId
-                        )
-                    },
-                    entries = {
-                        entry(SeasonInfoEpisodesDialogTabEntry) move defaultEntry(
-                            nodeId = SeasonInfoDialogTabNodeId,
-                            layer = WjzFocusLayer.Dialog,
-                            scopeId = SeasonInfoDialogScopeId
-                        )
-                        entry(SeasonInfoEpisodesDialogListEntry) move defaultEntry(
-                            nodeId = dialogVideoListFocusNodeId,
-                            layer = WjzFocusLayer.Dialog,
-                            scopeId = SeasonInfoDialogScopeId
-                        )
-                    }
-                )
-
-                LaunchedEffect(tabCount, dialogVideoListFocusNodeId) {
+                WjzFocusTopology {
                     if (tabCount > 1) {
-                        dialogFocusCoordinator?.let {
-                            with(it) {
-                                switchLayer(WjzFocusLayer.Dialog)
-                                requestEntryFocus(dialogTabEntryId)
-                            }
+                        region(
+                            id = SeasonInfoEpisodesDialogTabTopologyRegion,
+                            scopeId = SeasonInfoDialogScopeId,
+                            layer = WjzFocusLayer.Dialog
+                        ) {
+                            onDown(WjzFocusBoundaryTarget.Entry(dialogListEntryId))
                         }
-                    } else {
-                        dialogFocusCoordinator?.let {
-                            with(it) {
-                                switchLayer(WjzFocusLayer.Dialog)
-                                requestEntryFocus(dialogListEntryId)
-                            }
+                        region(
+                            id = SeasonInfoEpisodesDialogListTopologyRegion,
+                            scopeId = SeasonInfoDialogScopeId,
+                            layer = WjzFocusLayer.Dialog
+                        ) {
+                            onUp(WjzFocusBoundaryTarget.Entry(dialogTabEntryId))
                         }
                     }
-                }
 
-                Column(
-                    modifier = Modifier
-                        .size(600.dp, 330.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // TabRow 只有一项 Tab 时会导致崩溃，但如果只有一项 Tab 的时候也没必要显示
-                    // https://issuetracker.google.com/issues/264018028
-                    if (tabCount > 1) {
-                        BvUnderlineTabRow(
-                            modifier = Modifier,
-                            items = tabItems,
-                            selectedItem = selectedTabIndex,
-                            entryFocusItem = selectedTabIndex,
-                            itemKey = { it },
-                            focusNodeId = SeasonInfoDialogTabNodeId,
-                            focusLayer = WjzFocusLayer.Dialog,
-                            separator = { Spacer(modifier = Modifier.width(12.dp)) },
-                            onSelectedChanged = { selectedTabIndex = it },
-                            onDown = {
-                                dialogFocusCoordinator?.let {
-                                    with(it) {
-                                        switchLayer(WjzFocusLayer.Dialog)
-                                        requestEntryFocus(dialogListEntryId)
-                                    }
-                                }
-                                true
-                            },
-                            autoRequestEntryFocus = false,
-                            tabContent = { index, _, _ ->
-                                Text(
-                                    text = "P${index * 20 + 1}-${(index + 1) * 20}",
-                                    fontSize = 12.sp,
-                                    color = LocalContentColor.current,
-                                    modifier = Modifier.padding(
-                                        horizontal = 16.dp,
-                                        vertical = 6.dp
-                                    )
-                                )
-                            },
-                        )
-                    }
-
-                    TvGridFocusHost(
-                        state = listState,
-                        columns = GridCells.Fixed(2),
-                        contentPadding = PaddingValues(8.dp),
-                        nodeIdPrefix = dialogNodeIdPrefix,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        focusColumnCount = 2,
-                        focusItemCount = selectedEpisodes.size,
-                        itemKeys = dialogFocusItemKeys,
-                        focusLayer = WjzFocusLayer.Dialog,
-                        focusScopeId = SeasonInfoDialogScopeId
-                    ) {
-                        itemsIndexed(
-                            items = selectedEpisodes,
-                            key = { _, episode -> "${episode.id}_${episode.aid}_${episode.cid}" }
-                        ) { index, episode ->
-                            val episodeTitle by remember { mutableStateOf(if (episode.longTitle != "") episode.longTitle else episode.title) }
-                            var buttonModifier = rememberTvGridFocusModifier(index)
-                            if (index < 2) {
-                                buttonModifier = buttonModifier.onKeyEvent { event ->
-                                    if (
-                                        event.type == KeyEventType.KeyDown &&
-                                        event.key == Key.DirectionUp
-                                    ) {
-                                        if (tabCount > 1) {
-                                            dialogFocusCoordinator?.let {
-                                                with(it) {
-                                                    switchLayer(WjzFocusLayer.Dialog)
-                                                    requestEntryFocus(dialogTabEntryId)
-                                                }
-                                            }
-                                        }
-                                        true
-                                    } else {
-                                        false
-                                    }
-                                }
-                            }
-                            SeasonEpisodeButton(
-                                modifier = buttonModifier
-                                    .focusedScale(0.95f),
-                                partTitle = if (title == "正片") {
-                                    //如果 title 是数字的话，就会返回 "第 x 集"
-                                    //如果 title 不是数字的话（例如 SP），就会原样使用 title
-                                    runCatching {
-                                        "第 ${episode.title.toInt()} 集"
-                                    }.getOrDefault(episode.title)
+                    WjzFocusEntrySurface(
+                        componentId = dialogComponentId,
+                        default = {
+                            defaultEntry(
+                                nodeId = if (tabCount > 1) {
+                                    SeasonInfoDialogTabNodeId
                                 } else {
-                                    "P${index + 1 + selectedTabIndex * 20}"
+                                    dialogVideoListFocusNodeId
                                 },
-                                title = episodeTitle,
-                                cover = episode.cover,
-                                played = if (episode.id == lastPlayedId) lastPlayedTime else 0,
-                                duration = episode.duration,
-                                onClick = {
-                                    onClick(
-                                        episode.aid,
-                                        episode.cid,
-                                        episode.id,
-                                        episode.longTitle,
-                                        if (episode.id == lastPlayedId) lastPlayedTime else 0
+                                layer = WjzFocusLayer.Dialog,
+                                scopeId = SeasonInfoDialogScopeId
+                            )
+                        },
+                        entries = {
+                            entry(SeasonInfoEpisodesDialogTabEntry) move defaultEntry(
+                                nodeId = SeasonInfoDialogTabNodeId,
+                                layer = WjzFocusLayer.Dialog,
+                                scopeId = SeasonInfoDialogScopeId
+                            )
+                            entry(SeasonInfoEpisodesDialogListEntry) move defaultEntry(
+                                nodeId = dialogVideoListFocusNodeId,
+                                layer = WjzFocusLayer.Dialog,
+                                scopeId = SeasonInfoDialogScopeId
+                            )
+                        }
+                    )
+
+                    LaunchedEffect(tabCount, dialogVideoListFocusNodeId) {
+                        if (tabCount > 1) {
+                            dialogFocusCoordinator?.let {
+                                with(it) {
+                                    switchLayer(WjzFocusLayer.Dialog)
+                                    submitEntryFocusIntent(
+                                        entryId = dialogTabEntryId,
+                                        intent = WjzFocusSubmitIntent.LayerEntry(
+                                            dedupeKey = dialogTabEntryId
+                                        )
                                     )
                                 }
+                            }
+                        } else {
+                            dialogFocusCoordinator?.let {
+                                with(it) {
+                                    switchLayer(WjzFocusLayer.Dialog)
+                                    submitEntryFocusIntent(
+                                        entryId = dialogListEntryId,
+                                        intent = WjzFocusSubmitIntent.LayerEntry(
+                                            dedupeKey = dialogListEntryId
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .size(600.dp, 330.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // TabRow 只有一项 Tab 时会导致崩溃，但如果只有一项 Tab 的时候也没必要显示
+                        // https://issuetracker.google.com/issues/264018028
+                        if (tabCount > 1) {
+                            BvUnderlineTabRow(
+                                modifier = Modifier,
+                                items = tabItems,
+                                selectedItem = selectedTabIndex,
+                                entryFocusItem = selectedTabIndex,
+                                itemKey = { it },
+                                focusNodeId = SeasonInfoDialogTabNodeId,
+                                focusLayer = WjzFocusLayer.Dialog,
+                                separator = { Spacer(modifier = Modifier.width(12.dp)) },
+                                onSelectedChanged = { selectedTabIndex = it },
+                                topologyRegion = wjzFocusTopologyRegion(
+                                    SeasonInfoEpisodesDialogTabTopologyRegion
+                                ),
+                                autoRequestEntryFocus = false,
+                                tabContent = { index, _, _ ->
+                                    Text(
+                                        text = "P${index * 20 + 1}-${(index + 1) * 20}",
+                                        fontSize = 12.sp,
+                                        color = LocalContentColor.current,
+                                        modifier = Modifier.padding(
+                                            horizontal = 16.dp,
+                                            vertical = 6.dp
+                                        )
+                                    )
+                                },
                             )
+                        }
+
+                        TvGridFocusHost(
+                            state = listState,
+                            columns = GridCells.Fixed(2),
+                            contentPadding = PaddingValues(8.dp),
+                            nodeIdPrefix = dialogNodeIdPrefix,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            focusColumnCount = 2,
+                            focusItemCount = selectedEpisodes.size,
+                            itemKeys = dialogFocusItemKeys,
+                            focusLayer = WjzFocusLayer.Dialog,
+                            focusScopeId = SeasonInfoDialogScopeId,
+                            topologyRegion = if (tabCount > 1) {
+                                wjzFocusTopologyRegion(
+                                    SeasonInfoEpisodesDialogListTopologyRegion
+                                )
+                            } else {
+                                WjzFocusTopologyRegionRef.Standalone
+                            }
+                        ) {
+                            itemsIndexed(
+                                items = selectedEpisodes,
+                                key = { _, episode -> "${episode.id}_${episode.aid}_${episode.cid}" }
+                            ) { index, episode ->
+                                val episodeTitle by remember { mutableStateOf(if (episode.longTitle != "") episode.longTitle else episode.title) }
+                                val buttonModifier = rememberTvGridFocusModifier(index)
+                                SeasonEpisodeButton(
+                                    modifier = buttonModifier
+                                        .focusedScale(0.95f),
+                                    partTitle = if (title == "正片") {
+                                        //如果 title 是数字的话，就会返回 "第 x 集"
+                                        //如果 title 不是数字的话（例如 SP），就会原样使用 title
+                                        runCatching {
+                                            "第 ${episode.title.toInt()} 集"
+                                        }.getOrDefault(episode.title)
+                                    } else {
+                                        "P${index + 1 + selectedTabIndex * 20}"
+                                    },
+                                    title = episodeTitle,
+                                    cover = episode.cover,
+                                    played = if (episode.id == lastPlayedId) lastPlayedTime else 0,
+                                    duration = episode.duration,
+                                    onClick = {
+                                        onClick(
+                                            episode.aid,
+                                            episode.cid,
+                                            episode.id,
+                                            episode.longTitle,
+                                            if (episode.id == lastPlayedId) lastPlayedTime else 0
+                                        )
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -1133,7 +1164,12 @@ fun SeasonEpisodeRow(
             if (episodes.isNotEmpty()) {
                 rowState.scrollToItem(1)
                 delay(32)
-                focusCoordinator?.requestEntryFocus(firstEpisodeEntryId)
+                focusCoordinator?.submitEntryFocusIntent(
+                    entryId = firstEpisodeEntryId,
+                    intent = WjzFocusSubmitIntent.ContentFallback(
+                        dedupeKey = firstEpisodeEntryId
+                    )
+                )
             }
             onTargetAutoFocused()
             return@LaunchedEffect
@@ -1145,14 +1181,24 @@ fun SeasonEpisodeRow(
         repeat(6) {
             if (targetFocusApplied) return@LaunchedEffect
             delay(32)
-            focusCoordinator?.requestEntryFocus(targetEpisodeEntryId)
+            focusCoordinator?.submitEntryFocusIntent(
+                entryId = targetEpisodeEntryId,
+                intent = WjzFocusSubmitIntent.ContentFallback(
+                    dedupeKey = targetEpisodeEntryId
+                )
+            )
             delay(48)
             if (targetFocusApplied) return@LaunchedEffect
         }
 
         if (!targetFocusApplied) {
             // 兜底：目标焦点仍失败时，至少落到该行首个可聚焦项，避免停在封面
-            focusCoordinator?.requestEntryFocus(firstEpisodeEntryId)
+            focusCoordinator?.submitEntryFocusIntent(
+                entryId = firstEpisodeEntryId,
+                intent = WjzFocusSubmitIntent.ContentFallback(
+                    dedupeKey = firstEpisodeEntryId
+                )
+            )
             onTargetAutoFocused()
         }
     }
@@ -1318,7 +1364,12 @@ fun SeasonSelector(
     LaunchedEffect(show) {
         if (show) {
             focusCoordinator?.let {
-                it.requestEntryFocus(SeasonInfoSelectorEntryId)
+                it.submitEntryFocusIntent(
+                    entryId = SeasonInfoSelectorEntryId,
+                    intent = WjzFocusSubmitIntent.InitialEntry(
+                        dedupeKey = SeasonInfoSelectorEntryId
+                    )
+                )
             }
         }
     }
@@ -1372,7 +1423,12 @@ private fun SeasonSelectorContent(
         if (currentSeasonIndex != -1) {
             if (isCurrentSeasonInScreen) {
                 focusCoordinator?.let {
-                    it.requestEntryFocus(SeasonInfoSelectorCurrentEntryId)
+                    it.submitEntryFocusIntent(
+                        entryId = SeasonInfoSelectorCurrentEntryId,
+                        intent = WjzFocusSubmitIntent.ContentFallback(
+                            dedupeKey = SeasonInfoSelectorCurrentEntryId
+                        )
+                    )
                 }
             } else {
                 scope.launch {
@@ -1387,7 +1443,12 @@ private fun SeasonSelectorContent(
         if (scrolling && isCurrentSeasonInScreen) {
             scrolling = false
             focusCoordinator?.let {
-                it.requestEntryFocus(SeasonInfoSelectorCurrentEntryId)
+                it.submitEntryFocusIntent(
+                    entryId = SeasonInfoSelectorCurrentEntryId,
+                    intent = WjzFocusSubmitIntent.ContentFallback(
+                        dedupeKey = SeasonInfoSelectorCurrentEntryId
+                    )
+                )
             }
         }
     }
