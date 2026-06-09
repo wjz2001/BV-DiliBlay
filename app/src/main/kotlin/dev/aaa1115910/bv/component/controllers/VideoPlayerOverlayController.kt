@@ -151,11 +151,12 @@ fun VideoPlayerOverlayController(
     val scope = rememberCoroutineScope()
     val logger = KotlinLogging.logger {}
 
-    //var showListController by remember { mutableStateOf(false) }
+
     var showUpPanelController by remember { mutableStateOf(false) }
     var showMenuController by remember { mutableStateOf(false) }
     var showInfoSeekController by remember { mutableStateOf(false) }
     var showRelatedVideosController by remember { mutableStateOf(false) }
+    var directionUpLongPressGuard by remember { mutableStateOf(false) }
     var directionDownLongPressGuard by remember { mutableStateOf(false) }
     var confirmLongPressGuard by remember { mutableStateOf(false) }
     var confirmLongPressOriginSpeed by remember { mutableStateOf<Float?>(null) }
@@ -315,11 +316,20 @@ fun VideoPlayerOverlayController(
     }
 
     fun handleKeyEvent(event: KeyEvent): Boolean {
-        // 确认键和下键都要区分短按/长按
-        val isConfirmOrDown =
-            event.isConfirmKey() || event.bvKeyDirection() == BvKeyDirection.Down
+        // 确认键、上键和下键都要区分短按/长按
+        val isConfirmOrVertical =
+            event.isConfirmKey() ||
+                event.bvKeyDirection() == BvKeyDirection.Up ||
+                event.bvKeyDirection() == BvKeyDirection.Down
 
-        if (event.isKeyUp() && !isConfirmOrDown) {
+        if (event.isKeyUp() && !isConfirmOrVertical) {
+            return true
+        }
+
+        if (event.bvKeyDirection() == BvKeyDirection.Up && directionUpLongPressGuard) {
+            if (event.isKeyUp()) {
+                directionUpLongPressGuard = false
+            }
             return true
         }
 
@@ -419,6 +429,21 @@ fun VideoPlayerOverlayController(
 
         when (event.bvKeyDirection()) {
             BvKeyDirection.Up -> {
+                if (event.isKeyDown()) {
+                    if (event.nativeKeyEvent.repeatCount == 0 && !event.nativeKeyEvent.isLongPress) {
+                        directionUpLongPressGuard = false
+                        return true
+                    }
+
+                    if (event.nativeKeyEvent.isLongPress) {
+                        directionUpLongPressGuard = true
+                        requestPlayerControllerEntryFocus(PlayerControllerMenuEntryId)
+                        return true
+                    }
+
+                    return true
+                }
+
                 requestPlayerControllerEntryFocus(PlayerControllerUpPanelEntryId)
                 return true
             }
