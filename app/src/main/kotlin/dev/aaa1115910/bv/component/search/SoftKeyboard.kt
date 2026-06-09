@@ -13,12 +13,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -27,6 +25,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
@@ -43,14 +42,15 @@ import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
-import dev.aaa1115910.bv.wjzfocus.WjzFocusSourceToken
-import dev.aaa1115910.bv.wjzfocus.WjzFocusSubmitIntent
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTransitionGuard
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusComponentId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.activateLayer
 import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.resolve
+import dev.aaa1115910.bv.wjzfocus.submitExternalEntryFocus
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
@@ -66,9 +66,10 @@ enum class SoftKeyboardType {
     Symbol
 }
 
-private val SoftKeyboardScopeId = WjzFocusScopeId("search/keyboard")
+internal val SoftKeyboardScopeId = WjzFocusScopeId("search/keyboard")
 private const val SoftKeyboardFocusComponentId = "soft_keyboard"
-private val SoftKeyboardFirstKeyLocalId = wjzFocusLocalId("key", "first")
+internal val SoftKeyboardEntryId = WjzFocusComponentId(SoftKeyboardFocusComponentId).defaultEntry()
+internal val SoftKeyboardFirstKeyLocalId = wjzFocusLocalId("key", "first")
 
 private data class JapaneseKey(
     val label: String,
@@ -91,47 +92,43 @@ fun SoftKeyboard(
     onOpenSymbolKeyboard: () -> Unit = {},
     onKeyboardTypeChange: (SoftKeyboardType) -> Unit = {},
     onEnableSearchWithProxyChange: (Boolean) -> Unit,
+    backEntryId: WjzFocusEntryId? = null,
     onFirstButtonPlaced: (() -> Unit)? = null
 ) {
     val parentCoordinator = LocalWjzFocusCoordinator.current
     val ownCoordinator = rememberWjzFocusCoordinator()
     val coordinator = parentCoordinator ?: ownCoordinator
-    var keyboardSourceToken by remember { mutableStateOf<WjzFocusSourceToken?>(null) }
-    val currentKeyboardSourceToken = rememberUpdatedState(keyboardSourceToken)
     var keyboardTransitionLocked by remember { mutableStateOf(false) }
-
-    LaunchedEffect(coordinator) {
-        keyboardSourceToken = coordinator.activateLayer(
-            layer = WjzFocusLayer.Keyboard,
-            recordSource = true
-        )
-        coordinator.submitEntryFocusIntent(
-            entryId = WjzFocusEntryId.parse(SoftKeyboardFocusComponentId),
-            intent = WjzFocusSubmitIntent.ExternalEntry(
-                dedupeKey = SoftKeyboardFocusComponentId
-            )
-        )
-    }
-
-    DisposableEffect(coordinator) {
-        onDispose {
-            coordinator.restoreSourceLayer(
-                expectedActiveLayer = WjzFocusLayer.Keyboard,
-                token = currentKeyboardSourceToken.value
-            )
-        }
-    }
+    // 记录进入符号键盘前的键盘类型（默认英文）
+    var sourceKeyboardType by remember { mutableStateOf(SoftKeyboardType.English) }
 
     LaunchedEffect(keyboardType) {
+    // 如果当前不是符号键盘，就记录下来
+        if (keyboardType != SoftKeyboardType.Symbol) {
+            sourceKeyboardType = keyboardType
+        }
+
         keyboardTransitionLocked = true
         withFrameNanos { }
         keyboardTransitionLocked = false
     }
 
     WjzFocusHost(
-        modifier = modifier,
+        modifier = modifier.onPreviewKeyEvent { event ->
+            if (event.key != Key.Back || event.type != KeyEventType.KeyDown) {
+                return@onPreviewKeyEvent false
+            }
+
+            val entryId = backEntryId ?: return@onPreviewKeyEvent false
+            coordinator.submitExternalEntryFocus(
+                entryId = entryId,
+                layerActivation = activateLayer,
+                dedupeKey = "soft-keyboard-back-entry"
+            )
+            true
+        },
         coordinator = coordinator,
-        layer = WjzFocusLayer.Keyboard,
+        layer = WjzFocusLayer.Content,
         scopeId = SoftKeyboardScopeId
     ) {
         WjzFocusEntrySurface(
@@ -139,7 +136,7 @@ fun SoftKeyboard(
             default = {
                 defaultEntry(
                     nodeId = SoftKeyboardScopeId.resolve(SoftKeyboardFirstKeyLocalId),
-                    layer = WjzFocusLayer.Keyboard,
+                    layer = WjzFocusLayer.Content,
                     scopeId = SoftKeyboardScopeId
                 )
             }
@@ -169,7 +166,8 @@ fun SoftKeyboard(
                 onMoveCursorRight = onMoveCursorRight,
                 onSearch = onSearch,
                 onOpenSymbolKeyboard = onOpenSymbolKeyboard,
-                onKeyboardTypeChange = onKeyboardTypeChange
+                onKeyboardTypeChange = onKeyboardTypeChange,
+                onFirstButtonPlaced = onFirstButtonPlaced
             )
 
             SoftKeyboardType.Symbol -> SymbolKeyboardLayout(
@@ -179,8 +177,68 @@ fun SoftKeyboard(
                 onMoveCursorLeft = onMoveCursorLeft,
                 onMoveCursorRight = onMoveCursorRight,
                 onSearch = onSearch,
-                onKeyboardTypeChange = onKeyboardTypeChange
+                onKeyboardTypeChange = onKeyboardTypeChange,
+                sourceKeyboardType = sourceKeyboardType,
+                onFirstButtonPlaced = onFirstButtonPlaced
             )
+        }
+    }
+}
+
+@Composable
+private fun EnglishKeyboardControlsRow(
+    reversed: Boolean,
+    onOpenSymbolKeyboard: () -> Unit,
+    onMoveCursorRight: () -> Unit,
+    onMoveCursorLeft: () -> Unit,
+    onSearch: () -> Unit,
+    onDelete: () -> Unit,
+    onClear: () -> Unit
+) {
+    val cells = listOf<@Composable () -> Unit>(
+        {
+            SoftKeyboardIconKey(
+                painterRes = R.drawable.emoji_symbols,
+                onClick = onOpenSymbolKeyboard
+            )
+        },
+        {
+            SoftKeyboardKey(
+                key = "◂",
+                onClick = onMoveCursorLeft
+            )
+        },
+        {
+            SoftKeyboardKey(
+                key = "▸",
+                onClick = onMoveCursorRight
+            )
+        },
+        {
+            SoftKeyboardIconKey(
+                painterRes = R.drawable.search,
+                onClick = onSearch
+            )
+        },
+        {
+            SoftKeyboardIconKey(
+                painterRes = R.drawable.backspace,
+                onClick = onDelete
+            )
+        },
+        {
+            SoftKeyboardIconKey(
+                painterRes = R.drawable.delete,
+                onClick = onClear
+            )
+        }
+    )
+
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        (if (reversed) cells.reversed() else cells).forEach { cell ->
+            cell()
         }
     }
 }
@@ -216,34 +274,16 @@ private fun EnglishKeyboardLayout(
         modifier = modifier.width(258.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            SoftKeyboardIconKey(
-                painterRes = R.drawable.emoji_symbols,
-                onClick = onOpenSymbolKeyboard
-            )
-            SoftKeyboardIconKey(
-                painterRes = R.drawable.arrow_menu_open,
-                onClick = onMoveCursorRight
-            )
-            SoftKeyboardIconKey(
-                painterRes = R.drawable.arrow_menu_close,
-                onClick = onMoveCursorLeft
-            )
-            SoftKeyboardIconKey(
-                painterRes = R.drawable.search,
-                onClick = onSearch
-            )
-            SoftKeyboardIconKey(
-                painterRes = R.drawable.backspace,
-                onClick = onDelete
-            )
-            SoftKeyboardIconKey(
-                painterRes = R.drawable.delete,
-                onClick = onClear
-            )
-        }
+        EnglishKeyboardControlsRow(
+            reversed = false,
+            onOpenSymbolKeyboard = onOpenSymbolKeyboard,
+            onMoveCursorRight = onMoveCursorRight,
+            onMoveCursorLeft = onMoveCursorLeft,
+            onSearch = onSearch,
+            onDelete = onDelete,
+            onClear = onClear
+        )
+
         keys.forEachIndexed { rowIndex, rowKeys ->
             Row(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -253,7 +293,7 @@ private fun EnglishKeyboardLayout(
                         Modifier
                             .wjzFocusExits(
                                 localId = SoftKeyboardFirstKeyLocalId,
-                                layer = WjzFocusLayer.Keyboard
+                                layer = WjzFocusLayer.Content
                             )
                             .onGloballyPositioned {
                                 if (!firstButtonPlacedNotified) {
@@ -277,6 +317,17 @@ private fun EnglishKeyboardLayout(
                 }
             }
         }
+
+        EnglishKeyboardControlsRow(
+            reversed = true,
+            onOpenSymbolKeyboard = onOpenSymbolKeyboard,
+            onMoveCursorRight = onMoveCursorRight,
+            onMoveCursorLeft = onMoveCursorLeft,
+            onSearch = onSearch,
+            onDelete = onDelete,
+            onClear = onClear
+        )
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center
@@ -321,8 +372,10 @@ private fun JapaneseKeyboardLayout(
     onMoveCursorRight: () -> Unit,
     onSearch: () -> Unit,
     onOpenSymbolKeyboard: () -> Unit,
-    onKeyboardTypeChange: (SoftKeyboardType) -> Unit
+    onKeyboardTypeChange: (SoftKeyboardType) -> Unit,
+    onFirstButtonPlaced: (() -> Unit)? = null
 ) {
+    var firstButtonPlacedNotified by remember { mutableStateOf(false) }
     val keys = listOf(
         listOf(
             JapaneseKey("1"),
@@ -449,12 +502,29 @@ private fun JapaneseKeyboardLayout(
             onOpenSymbolKeyboard = onOpenSymbolKeyboard,
             onKeyboardTypeChange = onKeyboardTypeChange
         )
-        keys.forEach { rowKeys ->
+        keys.forEachIndexed { rowIndex, rowKeys ->
             Row(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                rowKeys.forEach { key ->
+                rowKeys.forEachIndexed { index, key ->
+                    val keyModifier = if (rowIndex == 1 && index == 0) {
+                        Modifier
+                            .wjzFocusExits(
+                                localId = SoftKeyboardFirstKeyLocalId,
+                                layer = WjzFocusLayer.Content
+                            )
+                            .onGloballyPositioned {
+                                if (!firstButtonPlacedNotified) {
+                                    firstButtonPlacedNotified = true
+                                    onFirstButtonPlaced?.invoke()
+                                }
+                            }
+                    } else {
+                        Modifier
+                    }
+
                     SoftKeyboardKey(
+                        modifier = keyModifier,
                         key = key.label,
                         small = key.small,
                         onClick = { onClick(key.label) },
@@ -488,64 +558,94 @@ private fun SymbolKeyboardLayout(
     onMoveCursorLeft: () -> Unit,
     onMoveCursorRight: () -> Unit,
     onSearch: () -> Unit,
-    onKeyboardTypeChange: (SoftKeyboardType) -> Unit
+    onKeyboardTypeChange: (SoftKeyboardType) -> Unit,
+    sourceKeyboardType: SoftKeyboardType,
+    onFirstButtonPlaced: (() -> Unit)? = null
 ) {
-    val keys = listOf(
-        listOf("·", "。", "，", "、", "？", "￥", "！", "：", "；"),
-        listOf("【】", "【", "】", "“”", "“", "”", "‘’", "‘", "’"),
-        listOf("《》", "〈", "〉", "……", "——", ",", ".", "?", "!"),
-        listOf(":", ";", "\"\"", "\"", "''", "'", "...", "-", "_"),
-        listOf("~", "@", "#", "$", "^", "&", "*", "()", "("),
-        listOf(")", "+", "=", "{}", "{", "}", "[]", "[", "]"),
-        listOf("/", "\\", "|", "<>", "<", ">", "、", "。", "…"),
-        listOf("！", "？", "「」", "「", "」", "『』", "『", "』", "«»"),
-        listOf("«", "»", "-", "", "", "", "", "", "")
-    )
+    var firstButtonPlacedNotified by remember { mutableStateOf(false) }
 
+    // 将所有按键拍平到一个列表中，方便自动“往前补”和换行
+    val allCells = mutableListOf<@Composable () -> Unit>()
+
+    // 顶部控制键
+    allCells.add { SoftKeyboardDisabledIconKey(painterRes = R.drawable.emoji_symbols) }
+    allCells.add { SoftKeyboardKey(key = "◂", onClick = onMoveCursorLeft) }
+    allCells.add { SoftKeyboardKey(key = "▸", onClick = onMoveCursorRight) }
+    allCells.add { SoftKeyboardIconKey(painterRes = R.drawable.search, onClick = onSearch) }
+    allCells.add { SoftKeyboardIconKey(painterRes = R.drawable.backspace, onClick = onDelete) }
+    allCells.add { SoftKeyboardIconKey(painterRes = R.drawable.delete, onClick = onClear) }
+    // 单格语言切换按钮
+    allCells.add {
+        val iconRes = if (sourceKeyboardType == SoftKeyboardType.Japanese) {
+            R.drawable.language_japanese_kana
+        } else {
+            R.drawable.match_case
+        }
+        SoftKeyboardIconKey(
+            painterRes = iconRes,
+            onClick = { onKeyboardTypeChange(sourceKeyboardType) }
+        )
+    }
+
+    // 符号按键
+    val symbols = listOf(
+        "·", "。", "，", "、", "？", "￥", "！", "：", "；",
+        "【】", "【", "】", "“”", "“", "”", "‘’", "‘", "’",
+        "《》", "〈", "〉", "……", "——", ",", ".", "?", "!",
+        ":", ";", "\"\"", "\"", "''", "'", "...", "-", "_",
+        "~", "@", "#", "$", "^", "&", "*", "()", "(",
+        ")", "+", "=", "{}", "{", "}", "[]", "[", "]",
+        "/", "\\", "|", "<>", "<", ">", "、", "。", "…",
+        "！", "？", "「」", "「", "」", "『』", "『", "』", "«»",
+        "«", "»", "-", "", "", "", "", "", "")
+
+    symbols.forEachIndexed { index, key ->
+        allCells.add {
+            // 将默认焦点的 Modifier 挂载到第一个符号按键上
+            val keyModifier = if (index == 0) {
+                Modifier
+                    .wjzFocusExits(
+                        localId = SoftKeyboardFirstKeyLocalId,
+                        layer = WjzFocusLayer.Content
+                    )
+                    .onGloballyPositioned {
+                        if (!firstButtonPlacedNotified) {
+                            firstButtonPlacedNotified = true
+                            onFirstButtonPlaced?.invoke()
+                        }
+                    }
+            } else {
+                Modifier
+            }
+
+            SoftKeyboardKey(
+                modifier = keyModifier,
+                key = key,
+                onClick = { onClick(key) }
+            )
+        }
+    }
+
+    // 底部控制键
+    allCells.add { SoftKeyboardIconKey(painterRes = R.drawable.delete, onClick = onClear) }
+    allCells.add { SoftKeyboardIconKey(painterRes = R.drawable.backspace, onClick = onDelete) }
+    allCells.add { SoftKeyboardIconKey(painterRes = R.drawable.search, onClick = onSearch) }
+    allCells.add { SoftKeyboardKey(key = "◂", onClick = onMoveCursorLeft) }
+    allCells.add { SoftKeyboardKey(key = "▸", onClick = onMoveCursorRight) }
+
+    // 按 8 列 11 行渲染
     Column(
-        modifier = modifier.width(390.dp),
+        modifier = modifier.width(346.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        SymbolKeyboardControlsRow(
-            onClear = onClear,
-            onDelete = onDelete,
-            onMoveCursorLeft = onMoveCursorLeft,
-            onMoveCursorRight = onMoveCursorRight,
-            onSearch = onSearch,
-            onKeyboardTypeChange = onKeyboardTypeChange
-        )
-        keys.dropLast(1).forEach { rowKeys ->
+        allCells.chunked(8).forEach { rowCells ->
             Row(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                rowKeys.forEach { key ->
-                    SoftKeyboardKey(
-                        key = key,
-                        onClick = { onClick(key) }
-                    )
+                rowCells.forEach { cell ->
+                    cell()
                 }
             }
-        }
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            keys.last().take(4).forEach { key ->
-                if (key.isEmpty()) {
-                    SoftKeyboardSpacer()
-                } else {
-                    SoftKeyboardKey(
-                        key = key,
-                        onClick = { onClick(key) }
-                    )
-                }
-            }
-            SymbolKeyboardBottomControls(
-                onClear = onClear,
-                onDelete = onDelete,
-                onMoveCursorLeft = onMoveCursorLeft,
-                onMoveCursorRight = onMoveCursorRight,
-                onSearch = onSearch
-            )
         }
     }
 }
@@ -557,7 +657,8 @@ private fun SymbolKeyboardControlsRow(
     onMoveCursorLeft: () -> Unit,
     onMoveCursorRight: () -> Unit,
     onSearch: () -> Unit,
-    onKeyboardTypeChange: (SoftKeyboardType) -> Unit
+    onKeyboardTypeChange: (SoftKeyboardType) -> Unit,
+    sourceKeyboardType: SoftKeyboardType
 ) {
     val cells = listOf<@Composable () -> Unit>(
         {
@@ -597,7 +698,7 @@ private fun SymbolKeyboardControlsRow(
         },
         {
             SoftKeyboardKanaCaseKey(
-                onClick = { onKeyboardTypeChange(SoftKeyboardType.English) }
+                onClick = { onKeyboardTypeChange(sourceKeyboardType) }
             )
         }
     )
@@ -659,15 +760,15 @@ private fun JapaneseKeyboardControlsRow(
             )
         },
         {
-            SoftKeyboardIconKey(
-                painterRes = R.drawable.arrow_menu_open,
-                onClick = onMoveCursorRight
+            SoftKeyboardKey(
+                key = "◂",
+                onClick = onMoveCursorLeft
             )
         },
         {
-            SoftKeyboardIconKey(
-                painterRes = R.drawable.arrow_menu_close,
-                onClick = onMoveCursorLeft
+            SoftKeyboardKey(
+                key = "▸",
+                onClick = onMoveCursorRight
             )
         },
         {
