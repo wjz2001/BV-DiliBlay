@@ -44,7 +44,7 @@ import dev.aaa1115910.bv.activities.video.UpInfoActivity
 import dev.aaa1115910.bv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.component.CoAuthorsDialogHost
 import dev.aaa1115910.bv.component.controllers.BottomSubtitle
-import dev.aaa1115910.bv.component.controllers.VideoPlayerController
+import dev.aaa1115910.bv.component.controllers.VideoPlayerOverlayController
 import dev.aaa1115910.bv.component.controllers.VideoProgressSeek
 import dev.aaa1115910.bv.component.handleUpHomeClick
 import dev.aaa1115910.bv.component.rememberCoAuthorsDialogState
@@ -205,7 +205,7 @@ fun VideoPlayerV3Screen(
         }
 
         if (featureGate.visualLayersOnline) {
-            VideoPlayerController(
+            VideoPlayerOverlayController(
                 modifier = Modifier.fillMaxSize(),
                 aid = uiState.aid,
                 source = uiState.source,

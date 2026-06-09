@@ -28,6 +28,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Info
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.video.Subtitle
@@ -100,7 +102,7 @@ private fun playerControllerTarget(localId: WjzFocusLocalId) =
     PlayerControllerFocusScopeId.target(localId).copy(layer = WjzFocusLayer.Player)
 
 @Composable
-fun VideoPlayerController(
+fun VideoPlayerOverlayController(
     modifier: Modifier = Modifier,
     aid: Long,
     source: VideoSource,
@@ -576,8 +578,112 @@ fun VideoPlayerController(
             val secondTitle = uiState.partTitle.ifBlank {
                 uiState.availableVideoList.firstOrNull { it.cid == uiState.cid }?.title.orEmpty()
             }
+            val bottomActions = listOfNotNull(
+                VideoPlayerOverlayAction.Resource(
+                    id = "danmaku",
+                    iconRes = if (uiState.danmakuState.danmakuEnabled) {
+                        R.drawable.danmaku_on_24px
+                    } else {
+                        R.drawable.danmaku_off_24px
+                    },
+                    description = "弹幕开关",
+                    onClick = {
+                        onDanmakuSettingChange(
+                            DanmakuSettingAction.SetDanmakuEnabled(
+                                !uiState.danmakuState.danmakuEnabled
+                            )
+                        )
+                    }
+                ),
+                VideoPlayerOverlayAction.Resource(
+                    id = "comments",
+                    iconRes = R.drawable.comment_24px,
+                    description = "评论",
+                    onClick = {
+                        onPause()
+                        showInfoSeekController = false
+                        showCommentsDialog = true
+                    }
+                ),
+                VideoPlayerOverlayAction.Resource(
+                    id = "time-jump",
+                    iconRes = R.drawable.manage_history_24px,
+                    description = "时间跳转",
+                    onClick = {
+                        onPause()
+                        showInfoSeekController = false
+                        showTimeJumpDialog = true
+                    }
+                ),
+                if (!Prefs.showVideoInfo) {
+                    VideoPlayerOverlayAction.Vector(
+                        id = "video-info",
+                        imageVector = Icons.Rounded.Info,
+                        description = "详情页",
+                        onClick = {
+                            StartupCoverRepository.put(aid, uiState.startupCover)
+                            val targetSeasonId = uiState.seasonId.toLong().takeIf { it > 0L }
+                            if (source == VideoSource.Cheese && targetSeasonId == null) {
+                                "课程详情缺少 seasonId".toast(context)
+                            } else {
+                                VideoInfoActivity.actionStart(
+                                    context = context,
+                                    aid = aid,
+                                    source = source,
+                                    epid = uiState.epid,
+                                    seasonId = targetSeasonId,
+                                    fromController = true,
+                                    proxyArea = proxyArea
+                                )
+                            }
+                        }
+                    )
+                } else {
+                    null
+                },
+                if (source.isUgc) {
+                    VideoPlayerOverlayAction.Resource(
+                        id = "up-page",
+                        iconRes = if (uiState.coAuthors.distinctBy { it.mid }.size > 1) {
+                            R.drawable.group_24px
+                        } else {
+                            R.drawable.contact_page_24px
+                        },
+                        description = "up主页",
+                        onClick = onGoToUpPage
+                    )
+                } else {
+                    null
+                },
+                if (source.isUgc) {
+                    VideoPlayerOverlayAction.Resource(
+                        id = "related-videos",
+                        iconRes = R.drawable.related_videos_24px,
+                        description = "相关视频",
+                        onClick = {
+                            onDemandFeatureRequested(PlayerDemandFeature.BottomBar)
+                            if (isPlaying) onPause()
 
-            ControllerVideoInfo(
+                            showInfoSeekController = false
+                            showRelatedVideosController = true
+                        }
+                    )
+                } else {
+                    null
+                },
+                VideoPlayerOverlayAction.Resource(
+                    id = "loop",
+                    iconRes = if (isLooping) {
+                        R.drawable.repeat_one_on_24px
+                    } else {
+                        R.drawable.repeat_one_24px
+                    },
+                    description = "循环播放",
+                    onClick = onToggleLoop
+                ),
+            )
+
+            VideoPlayerInfoOverlay(
                 show = showInfoSeekController,
                 focusButtonsOnShow = focusInfoButtonsOnShow,
                 onConsumeFocusButtonsOnShow = { focusInfoButtonsOnShow = false },
@@ -586,66 +692,12 @@ fun VideoPlayerController(
                 seekerState = seekerState.value,
                 title = uiState.title,
                 secondTitle = secondTitle,
-                clock = uiState.clock,
                 currentPlaySpeed = uiState.playSpeed,
                 videoShot = uiState.videoShot,
                 videoShotCache = videoShotCache,
                 videoRotation = uiState.videoRotation,
                 videoFlip = uiState.videoFlip,
-                source = source,
-                danmakuEnabled = uiState.danmakuState.danmakuEnabled,
-                isLooping = isLooping,
-                onDirectionLeft = { onDirectionLeft() },
-                onDirectionRight = { onDirectionRight() },
-                onSeekGoTime = { onSeekGoTime() },
-                onPlayPause = { onPlayPause() },
-                onDanmakuSwitchChange = {
-                    onDanmakuSettingChange(
-                        DanmakuSettingAction.SetDanmakuEnabled(!uiState.danmakuState.danmakuEnabled)
-                    )
-                },
-                onShowSettings = {
-                    showInfoSeekController = false
-                    showMenuController = true
-                },
-                onShowRelatedVideos = {
-                    onDemandFeatureRequested(PlayerDemandFeature.BottomBar)
-                    if (isPlaying) onPause()
-
-                    showInfoSeekController = false
-                    showRelatedVideosController = true
-                },
-                onGoToVideoInfo = {
-                    StartupCoverRepository.put(aid, uiState.startupCover)
-                    val targetSeasonId = uiState.seasonId.toLong().takeIf { it > 0L }
-                    if (source == VideoSource.Cheese && targetSeasonId == null) {
-                        "课程详情缺少 seasonId".toast(context)
-                    } else {
-                        VideoInfoActivity.actionStart(
-                            context = context,
-                            aid = aid,
-                            source = source,
-                            epid = uiState.epid,
-                            seasonId = targetSeasonId,
-                            fromController = true,
-                            proxyArea = proxyArea
-                        )
-                    }
-                },
-                onToggleLoop = onToggleLoop,
-                onGoToUpPage = onGoToUpPage,
-                showVideoInfoEntry = !Prefs.showVideoInfo,
-                hasMultipleCoAuthors = uiState.coAuthors.distinctBy { it.mid }.size > 1,
-                onShowTimeJump = {
-                    onPause()
-                    showInfoSeekController = false
-                    showTimeJumpDialog = true
-                },
-                onShowComments = {
-                    onPause()
-                    showInfoSeekController = false
-                    showCommentsDialog = true
-                },
+                actions = bottomActions,
             )
 
             TimeJumpDialog(

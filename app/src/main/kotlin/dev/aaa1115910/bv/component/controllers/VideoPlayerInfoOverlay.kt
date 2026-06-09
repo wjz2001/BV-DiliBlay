@@ -36,19 +36,15 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Info
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.video.VideoShot
-import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
-import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSubmitIntent
 import dev.aaa1115910.bv.wjzfocus.resolve
 import dev.aaa1115910.bv.wjzfocus.target
@@ -57,8 +53,6 @@ import dev.aaa1115910.bv.wjzfocus.left
 import dev.aaa1115910.bv.wjzfocus.right
 import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
-import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
-import dev.aaa1115910.bv.entity.VideoSource
 import dev.aaa1115910.bv.ui.state.SeekerState
 import dev.aaa1115910.bv.ui.theme.AppBlack
 import dev.aaa1115910.bv.ui.theme.AppWhite
@@ -73,18 +67,12 @@ import dev.aaa1115910.bv.entity.VideoRotation
 import kotlinx.coroutines.delay
 import java.util.Calendar
 
-private const val PlayerControlsFocusComponentId = "playerControls"
-private val PlayerControllerFirstActionFocusLocalId = playerControllerActionFocusLocalId("danmaku")
-
-private fun playerControllerActionFocusLocalId(id: String): WjzFocusLocalId =
-    wjzFocusLocalId("actions", id)
-
 private fun playerControlsEntryId(id: String): WjzFocusEntryId {
     return WjzFocusEntryId.parse("$PlayerControlsFocusComponentId/$id")
 }
 
 @Composable
-fun ControllerVideoInfo(
+internal fun VideoPlayerInfoOverlay(
     modifier: Modifier = Modifier,
     show: Boolean,
     isSeeking: Boolean,
@@ -92,29 +80,12 @@ fun ControllerVideoInfo(
     seekerState: SeekerState,
     title: String,
     secondTitle: String,
-    clock: Pair<Int, Int>,
     currentPlaySpeed: Float,
     videoShot: VideoShot?,
     videoShotCache: VideoShotImageCache,
     videoRotation: VideoRotation?,
     videoFlip: VideoFlip?,
-    source: VideoSource,
-    danmakuEnabled: Boolean,
-    isLooping: Boolean,
-    onDirectionLeft: () -> Unit,
-    onDirectionRight: () -> Unit,
-    onSeekGoTime: () -> Unit,
-    onPlayPause: () -> Unit,
-    onDanmakuSwitchChange: () -> Unit,
-    onShowSettings: () -> Unit,
-    onShowRelatedVideos: () -> Unit,
-    onGoToVideoInfo: () -> Unit,
-    onToggleLoop: () -> Unit,
-    onGoToUpPage: () -> Unit,
-    onShowTimeJump: () -> Unit,
-    onShowComments: () -> Unit,
-    showVideoInfoEntry: Boolean = false,
-    hasMultipleCoAuthors: Boolean = false,
+    actions: List<VideoPlayerOverlayAction>,
     focusButtonsOnShow: Boolean = false,
     onConsumeFocusButtonsOnShow: () -> Unit = {}
 ) {
@@ -128,11 +99,9 @@ fun ControllerVideoInfo(
             exit = shrinkVertically(),
             label = "ControllerTopVideoInfo"
         ) {
-            ControllerVideoInfoTop(
+            VideoPlayerInfoOverlayTop(
                 modifier = Modifier.align(Alignment.TopCenter),
                 title = title,
-                clock = clock,
-                currentTime = seekerState.currentTime,
                 totalDuration = seekerState.totalDuration,
                 isSeeking = isSeeking,
                 goTime = goTime,
@@ -147,7 +116,7 @@ fun ControllerVideoInfo(
             exit = shrinkVertically(),
             label = "ControllerBottomVideoInfo"
         ) {
-            ControllerVideoInfoBottom(
+            VideoPlayerInfoOverlayBottom(
                 modifier = Modifier
                     .align(Alignment.BottomCenter),
                 show = show,
@@ -159,23 +128,7 @@ fun ControllerVideoInfo(
                 videoShotCache = videoShotCache,
                 videoRotation = videoRotation,
                 videoFlip = videoFlip,
-                source = source,
-                danmakuEnabled = danmakuEnabled,
-                isLooping = isLooping,
-                onDirectionLeft = onDirectionLeft,
-                onDirectionRight = onDirectionRight,
-                onSeekGoTime = onSeekGoTime,
-                onPlayPause = onPlayPause,
-                onDanmakuSwitchChange = onDanmakuSwitchChange,
-                onShowSettings = onShowSettings,
-                onShowRelatedVideos = onShowRelatedVideos,
-                onGoToVideoInfo = onGoToVideoInfo,
-                onToggleLoop = onToggleLoop,
-                onGoToUpPage = onGoToUpPage,
-                onShowTimeJump = onShowTimeJump,
-                onShowComments = onShowComments,
-                showVideoInfoEntry = showVideoInfoEntry,
-                hasMultipleCoAuthors = hasMultipleCoAuthors,
+                actions = actions,
                 focusButtonsOnShow = focusButtonsOnShow,
                 onConsumeFocusButtonsOnShow = onConsumeFocusButtonsOnShow
             )
@@ -184,16 +137,13 @@ fun ControllerVideoInfo(
 }
 
 @Composable
-fun ControllerVideoInfoTop(
+internal fun VideoPlayerInfoOverlayTop(
     modifier: Modifier = Modifier,
     title: String,
     isSeeking: Boolean,
     goTime: Long,
     seekerState: SeekerState,
-    clock: Pair<Int, Int>,
-    currentTime: Long = 0,
     totalDuration: Long = 0,
-    // 3. 接收播放速度
     currentPlaySpeed: Float
 ) {
     Column(
@@ -223,12 +173,7 @@ fun ControllerVideoInfoTop(
                 overflow = TextOverflow.Ellipsis
             )
             Clock(
-                hour = clock.first,
-                minute = clock.second,
-                second = 0,
-                // 4. 将计算所需的所有数据都传给 Clock 组件
-                // currentTime = currentTime,
-                currentTime = if (isSeeking) goTime else seekerState.currentTime,//结束时间随着进度条拖动变化
+                currentTime = if (isSeeking) goTime else seekerState.currentTime,
                 totalDuration = totalDuration,
                 currentPlaySpeed = currentPlaySpeed
             )
@@ -237,7 +182,7 @@ fun ControllerVideoInfoTop(
 }
 
 @Composable
-fun ControllerVideoInfoBottom(
+internal fun VideoPlayerInfoOverlayBottom(
     modifier: Modifier = Modifier,
     secondTitle: String,
     show: Boolean,
@@ -248,23 +193,7 @@ fun ControllerVideoInfoBottom(
     videoShotCache: VideoShotImageCache,
     videoRotation: VideoRotation?,
     videoFlip: VideoFlip?,
-    source: VideoSource,
-    danmakuEnabled: Boolean,
-    isLooping: Boolean,
-    onDirectionLeft: () -> Unit,
-    onDirectionRight: () -> Unit,
-    onSeekGoTime: () -> Unit,
-    onPlayPause: () -> Unit,
-    onDanmakuSwitchChange: () -> Unit,
-    onShowSettings: () -> Unit,
-    onShowRelatedVideos: () -> Unit,
-    onGoToVideoInfo: () -> Unit,
-    onToggleLoop: () -> Unit,
-    onGoToUpPage: () -> Unit,
-    onShowTimeJump: () -> Unit,
-    onShowComments: () -> Unit,
-    showVideoInfoEntry: Boolean = false,
-    hasMultipleCoAuthors: Boolean = false,
+    actions: List<VideoPlayerOverlayAction>,
     focusButtonsOnShow: Boolean = false,
     onConsumeFocusButtonsOnShow: () -> Unit = {}
 ) {
@@ -365,63 +294,6 @@ fun ControllerVideoInfoBottom(
                 )
             }
 
-            val icons = listOfNotNull(
-                ControllerActionIcon.Resource(
-                    id = "danmaku",
-                    iconRes = if (danmakuEnabled) R.drawable.danmaku_on_24px else R.drawable.danmaku_off_24px,
-                    description = "弹幕开关",
-                    onClick = onDanmakuSwitchChange
-                ),
-                ControllerActionIcon.Resource(
-                    id = "comments",
-                    iconRes = R.drawable.comment_24px,
-                    description = "评论",
-                    onClick = onShowComments
-                ),
-                ControllerActionIcon.Resource(
-                    id = "time-jump",
-                    iconRes = R.drawable.manage_history_24px,
-                    description = "时间跳转",
-                    onClick = onShowTimeJump
-                ),
-                if (showVideoInfoEntry) {
-                    ControllerActionIcon.Vector(
-                        id = "video-info",
-                        imageVector = Icons.Rounded.Info,
-                        description = "详情页",
-                        onClick = onGoToVideoInfo
-                    )
-                } else {
-                    null
-                },
-                if (source.isUgc) {
-                    ControllerActionIcon.Resource(
-                        id = "up-page",
-                        iconRes = if (hasMultipleCoAuthors) R.drawable.group_24px else R.drawable.contact_page_24px,
-                        description = "up主页",
-                        onClick = onGoToUpPage
-                    )
-                } else {
-                    null
-                },
-                if (source.isUgc) {
-                    ControllerActionIcon.Resource(
-                        id = "related-videos",
-                        iconRes = R.drawable.related_videos_24px,
-                        description = "相关视频",
-                        onClick = onShowRelatedVideos
-                    )
-                } else {
-                    null
-                },
-                ControllerActionIcon.Resource(
-                    id = "loop",
-                    iconRes = if (isLooping) R.drawable.repeat_one_on_24px else R.drawable.repeat_one_24px,
-                    description = "循环播放",
-                    onClick = onToggleLoop
-                ),
-            )
-
             WjzFocusEntrySurface(
                 componentId = PlayerControlsFocusComponentId,
                 default = {
@@ -429,15 +301,15 @@ fun ControllerVideoInfoBottom(
                         "PlayerControls entry requires WjzFocus scope"
                     }
                     scopeId.target(
-                        icons.firstOrNull()?.focusLocalId ?: PlayerControllerFirstActionFocusLocalId
+                        actions.firstOrNull()?.focusLocalId ?: PlayerControlsFirstActionFocusLocalId
                     ).copy(layer = WjzFocusLayer.Player)
                 },
                 entries = {
-                    icons.forEach { icon ->
+                    actions.forEach { action ->
                         val scopeId = requireNotNull(focusScopeId) {
                             "PlayerControls entry requires WjzFocus scope"
                         }
-                        entry(icon.id) move scopeId.target(icon.focusLocalId)
+                        entry(action.id) move scopeId.target(action.focusLocalId)
                             .copy(layer = WjzFocusLayer.Player)
                     }
                 }
@@ -449,19 +321,19 @@ fun ControllerVideoInfoBottom(
                     .padding(horizontal = 24.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start)
             ) {
-                icons.forEachIndexed { index, icon ->
+                actions.forEachIndexed { index, action ->
                     val previousEntryId = playerControlsEntryId(
-                        icons.getOrNull(index - 1)?.id ?: icons.last().id
+                        actions.getOrNull(index - 1)?.id ?: actions.last().id
                     )
                     val nextEntryId = playerControlsEntryId(
-                        icons.getOrNull(index + 1)?.id ?: icons.first().id
+                        actions.getOrNull(index + 1)?.id ?: actions.first().id
                     )
                     Surface(
                         modifier = Modifier
                             .then(
                                 if (focusScopeId != null) {
                                     Modifier.wjzFocusExits(
-                                        nodeId = focusScopeId.resolve(icon.focusLocalId),
+                                        nodeId = focusScopeId.resolve(action.focusLocalId),
                                         scopeId = focusScopeId,
                                         layer = WjzFocusLayer.Player,
                                         enabled = show,
@@ -476,7 +348,7 @@ fun ControllerVideoInfoBottom(
                                     Modifier
                                 }
                             ),
-                        onClick = icon.onClick,
+                        onClick = action.onClick,
                         shape = ClickableSurfaceDefaults.shape(
                             shape = MaterialTheme.shapes.extraSmall.copy(all = CornerSize(0.dp)),
                         ),
@@ -490,19 +362,19 @@ fun ControllerVideoInfoBottom(
                             pressedContentColor = AppBlack
                         )
                     ) {
-                        when (icon) {
-                            is ControllerActionIcon.Resource -> {
+                        when (action) {
+                            is VideoPlayerOverlayAction.Resource -> {
                                 Icon(
-                                    painter = painterResource(id = icon.iconRes),
-                                    contentDescription = icon.description,
+                                    painter = painterResource(id = action.iconRes),
+                                    contentDescription = action.description,
                                     modifier = Modifier.padding(5.dp)
                                 )
                             }
 
-                            is ControllerActionIcon.Vector -> {
+                            is VideoPlayerOverlayAction.Vector -> {
                                 Icon(
-                                    imageVector = icon.imageVector,
-                                    contentDescription = icon.description,
+                                    imageVector = action.imageVector,
+                                    contentDescription = action.description,
                                     modifier = Modifier.padding(5.dp)
                                 )
                             }
@@ -514,48 +386,17 @@ fun ControllerVideoInfoBottom(
     }
 }
 
-private sealed interface ControllerActionIcon {
-    val id: String
-    val description: String
-    val onClick: () -> Unit
-    val focusLocalId: WjzFocusLocalId
-        get() = playerControllerActionFocusLocalId(id)
-
-    data class Resource(
-        override val id: String,
-        val iconRes: Int,
-        override val description: String,
-        override val onClick: () -> Unit
-    ) : ControllerActionIcon
-
-    data class Vector(
-        override val id: String,
-        val imageVector: androidx.compose.ui.graphics.vector.ImageVector,
-        override val description: String,
-        override val onClick: () -> Unit
-    ) : ControllerActionIcon
-}
-
 @Composable
 private fun Clock(
     modifier: Modifier = Modifier,
-    hour: Int,
-    minute: Int,
-    second: Int,
-    // 5. 修改 Clock 组件的参数，接收计算所需的数据
     currentTime: Long,
     totalDuration: Long,
     currentPlaySpeed: Float
 ) {
-    // 1. 创建两个状态，一个用于显示时钟，一个用于显示结束时间
     var clockText by remember { mutableStateOf("") }
     var finishTimeText by remember { mutableStateOf("") }
 
-    // 2. 使用一个 LaunchedEffect，但它的 key 包含了所有外部依赖项
-    // 这样，无论是时间流逝（内部 delay 驱动）还是外部播放进度变化（key 变化驱动），
-    // 都会重新执行计算，保证了数据的即时性。
     LaunchedEffect(currentTime, totalDuration, currentPlaySpeed) {
-        // 视频结束时间的计算逻辑
         if (totalDuration > 0 && currentTime < totalDuration && currentPlaySpeed > 0) {
             val remainingMillis = totalDuration - currentTime
             val actualRemainingMillis = (remainingMillis / currentPlaySpeed).toLong()
@@ -569,13 +410,12 @@ private fun Clock(
             val finishSecond = finishTime.get(Calendar.SECOND)
 
             finishTimeText =
-                "${String.format("%02d:%02d:%02d", finishHour, finishMinute, finishSecond)} 结束"
+                "${finishHour.toString().padStart(2, '0')}:${finishMinute.toString().padStart(2, '0')}:${finishSecond.toString().padStart(2, '0')} 结束"
         } else {
             finishTimeText = ""
         }
     }
 
-    // 3. 这个 LaunchedEffect 只负责驱动系统时钟的更新，每秒一次
     LaunchedEffect(Unit) {
         while (true) {
             val calendar = Calendar.getInstance()
@@ -590,7 +430,7 @@ private fun Clock(
                     append(":")
                     append(second.toString().padStart(2, '0'))
                 }
-            }.toString() // 将 AnnotatedString 转换为普通 String
+            }.toString()
             delay(1000)
         }
     }
@@ -600,7 +440,6 @@ private fun Clock(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            // modifier = modifier,
             color = AppWhite,
             fontWeight = FontWeight.Bold,
             style = TextStyle(
@@ -609,7 +448,6 @@ private fun Clock(
             ),
             text = clockText
         )
-        // 视频结束时间
         if (finishTimeText.isNotEmpty()) {
             Text(
                 modifier = Modifier.padding(top = 2.dp),
@@ -628,14 +466,10 @@ private fun Clock(
 @Preview
 @Composable
 private fun ClockPreview() {
-    val clock = Triple(12, 30, 30)
     BVTheme {
         Clock(
-            hour = clock.first,
-            minute = clock.second,
-            second = clock.third,
-            currentTime = 1000 * 60 * 15, // 15分钟
-            totalDuration = 1000 * 60 * 45, // 45分钟
+            currentTime = 1000 * 60 * 15,
+            totalDuration = 1000 * 60 * 45,
             currentPlaySpeed = 1.0f
         )
     }
@@ -643,7 +477,7 @@ private fun ClockPreview() {
 
 @Preview(device = "id:tv_1080p")
 @Composable
-private fun ControllerVideoInfoPreview() {
+private fun VideoPlayerInfoOverlayPreview() {
     var show by remember { mutableStateOf(true) }
 
     BVTheme(themeMode = ThemeMode.DARK) {
@@ -657,7 +491,7 @@ private fun ControllerVideoInfoPreview() {
                 Text(text = "Switch")
             }
         }
-        ControllerVideoInfo(
+        VideoPlayerInfoOverlay(
             modifier = Modifier.fillMaxSize(),
             show = show,
             isSeeking = false,
@@ -665,34 +499,19 @@ private fun ControllerVideoInfoPreview() {
             seekerState = SeekerState(0, 0, 0, ""),
             title = "【A320】民航史上最佳逆袭！A320的前世今生！民航史上最佳逆袭！A320的前世今生！",
             secondTitle = "哈哈哈",
-            clock = Pair(12, 30),
             currentPlaySpeed = 1.0f,
             videoShot = null,
             videoShotCache = VideoShotImageCache(),
             videoRotation = null,
             videoFlip = null,
-            source = VideoSource.Ugc,
-            danmakuEnabled = false,
-            isLooping = false,
-            onDirectionRight = {},
-            onDirectionLeft = {},
-            onSeekGoTime = {},
-            onPlayPause = {},
-            onDanmakuSwitchChange = {},
-            onShowSettings = {},
-            onShowRelatedVideos = {},
-            onGoToVideoInfo = {},
-            onToggleLoop = {},
-            onGoToUpPage = {},
-            onShowTimeJump = {},
-            onShowComments = {},
+            actions = emptyList(),
         )
     }
 }
 
 @Preview(device = "id:tv_1080p")
 @Composable
-private fun ControllerVideoInfoLightPreview() {
+private fun VideoPlayerInfoOverlayLightPreview() {
     var show by remember { mutableStateOf(true) }
 
     BVTheme(themeMode = ThemeMode.LIGHT) {
@@ -706,7 +525,7 @@ private fun ControllerVideoInfoLightPreview() {
                 Text(text = "Switch")
             }
         }
-        ControllerVideoInfo(
+        VideoPlayerInfoOverlay(
             modifier = Modifier.fillMaxSize(),
             show = show,
             isSeeking = false,
@@ -714,27 +533,12 @@ private fun ControllerVideoInfoLightPreview() {
             seekerState = SeekerState(0, 0, 0, ""),
             title = "【A320】民航史上最佳逆袭！A320的前世今生！民航史上最佳逆袭！A320的前世今生！",
             secondTitle = "哈哈哈",
-            clock = Pair(12, 30),
             currentPlaySpeed = 1.0f,
             videoShot = null,
             videoShotCache = VideoShotImageCache(),
             videoRotation = null,
             videoFlip = null,
-            source = VideoSource.Ugc,
-            danmakuEnabled = false,
-            isLooping = false,
-            onDirectionRight = {},
-            onDirectionLeft = {},
-            onSeekGoTime = {},
-            onPlayPause = {},
-            onDanmakuSwitchChange = {},
-            onShowSettings = {},
-            onShowRelatedVideos = {},
-            onGoToVideoInfo = {},
-            onToggleLoop = {},
-            onGoToUpPage = {},
-            onShowTimeJump = {},
-            onShowComments = {},
+            actions = emptyList(),
         )
     }
 }
