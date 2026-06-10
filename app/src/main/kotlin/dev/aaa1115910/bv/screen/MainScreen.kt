@@ -501,11 +501,12 @@ fun MainScreen(
                 onLeft(WjzFocusBoundaryTarget.Entry(MainTopNavDefaultEntryId))
                 onRight(WjzFocusBoundaryTarget.Entry(MainTopNavDefaultEntryId))
                 onUp(WjzFocusBoundaryTarget.Cancel)
+                onDown(WjzFocusBoundaryTarget.Entry(MainContentTopEntryId))
             }
             region(
                 id = MainTopNavLeadingRegion,
                 scopeId = MainTopNavScopeId,
-                layer = WjzFocusLayer.TopNav
+                layer = WjzFocusLayer.Content
             ) {
                 onLeft(WjzFocusBoundaryTarget.Entry(activeTopNavRightEntryId))
                 onRight(WjzFocusBoundaryTarget.Entry(activeTopNavLeftEntryId))
@@ -526,7 +527,7 @@ fun MainScreen(
                                 alpha = 1f - drawerSlideProgress
                             },
                         coordinator = focusCoordinator,
-                        layer = WjzFocusLayer.TopNav,
+                        layer = WjzFocusLayer.Content,
                         scopeId = MainTopNavScopeId
                     ) {
                         MainTopNavBlock(

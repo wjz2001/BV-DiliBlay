@@ -25,6 +25,7 @@ import dev.aaa1115910.biliapi.entity.ugc.UgcType
 import dev.aaa1115910.bv.BVApp
 import dev.aaa1115910.bv.wjzfocus.WjzFocusComponentId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusExitsBuilder
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
@@ -32,7 +33,6 @@ import dev.aaa1115910.bv.wjzfocus.left
 import dev.aaa1115910.bv.wjzfocus.right
 import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
-import dev.aaa1115910.bv.wjzfocus.wjzFocusRememberTopologyRegion
 import dev.aaa1115910.bv.util.getDisplayName
 
 @Composable
@@ -59,6 +59,9 @@ fun TopNav(
     contentFocusReadyKey: Any? = null,
     onLeftBoundaryExit: (() -> Unit)? = null,
     onRightBoundaryExit: (() -> Unit)? = null,
+    topNavExits: WjzFocusExitsBuilder.() -> Unit = {},
+    tabExits: WjzFocusExitsBuilder.() -> Unit = {},
+    tabItemExits: (index: Int, item: TopNavItem) -> (WjzFocusExitsBuilder.() -> Unit) = { _, _ -> {} },
     topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     focusNodeId: WjzFocusNodeId? = null,
     focusScopeId: WjzFocusScopeId? = null,
@@ -71,7 +74,6 @@ fun TopNav(
     onClick: (TopNavItem) -> Unit = {}
 ) {
     val context = LocalContext.current
-    val topology = wjzFocusRememberTopologyRegion(topologyRegion)
     var previousActiveItem by remember { mutableStateOf<TopNavItem?>(null) }
 
     LaunchedEffect(activeItem, autoRefreshItems) {
@@ -169,13 +171,11 @@ fun TopNav(
                         onContentFocusRequested = onContentFocusRequested,
                         tabExits = {
                             cancel(up)
-                            if (topology.isBound) {
-                                addAll(topology.nodeExits)
-                            }
+                            tabExits()
                         },
-                        tabItemExits = { index, _ ->
+                        tabItemExits = { index, item ->
                             {
-                                if (topology.isStandalone && leadingContentEntryId != null) {
+                                if (leadingContentEntryId != null) {
                                     if (index == 0) {
                                         left move leadingContentEntryId
                                     }
@@ -183,8 +183,10 @@ fun TopNav(
                                         right move leadingContentEntryId
                                     }
                                 }
+                                tabItemExits(index, item).invoke(this)
                             }
                         },
+                        rootExits = topNavExits,
                         topologyRegion = topologyRegion,
                         wrap = false,
                         focusNodeId = focusNodeId,

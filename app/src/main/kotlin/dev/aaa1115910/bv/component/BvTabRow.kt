@@ -280,6 +280,7 @@ fun <T> BvTabRow(
     onContentFocusRequested: (T) -> Unit = {},
     tabExits: WjzFocusExitsBuilder.() -> Unit = {},
     tabItemExits: (index: Int, item: T) -> (WjzFocusExitsBuilder.() -> Unit) = { _, _ -> {} },
+    rootExits: WjzFocusExitsBuilder.() -> Unit = {},
     topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     wrap: Boolean = true,
     initialFocusEnabled: Boolean = false,
@@ -470,7 +471,20 @@ fun <T> BvTabRow(
             nodeId = resolvedFocusNodeId,
             layer = focusLayer,
             strategy = WjzFocusRestoreStrategy.Container,
-            enabled = backFocusEnabled
+            enabled = backFocusEnabled,
+            exits = {
+                val localRootExits = WjzFocusExitsBuilder().apply(rootExits).exits
+                addAll(localRootExits)
+                if (!topology.isStandalone) {
+                    addAll(
+                        topology.nodeExits.filterNot { topologyExit ->
+                            localRootExits.any { localExit ->
+                                localExit.direction == topologyExit.direction
+                            }
+                        }
+                    )
+                }
+            }
         )
     }
 
@@ -537,23 +551,8 @@ fun <T> BvTabRow(
                         enabled = backFocusEnabled,
                         attachFocusTarget = false,
                         exits = {
-                            if (topology.isStandalone) {
-                                tabExits()
-                                tabItemExits(index, item).invoke(this)
-                            } else {
-                                val localExits = WjzFocusExitsBuilder().apply {
-                                    tabExits()
-                                    tabItemExits(index, item).invoke(this)
-                                }.exits
-                                addAll(localExits)
-                                addAll(
-                                    topology.nodeExits.filterNot { topologyExit ->
-                                        localExits.any { localExit ->
-                                            localExit.direction == topologyExit.direction
-                                        }
-                                    }
-                                )
-                            }
+                            tabExits()
+                            tabItemExits(index, item).invoke(this)
                         }
                     )
                 }
@@ -735,6 +734,7 @@ fun <T> BvPillTabRow(
     onContentFocusRequested: (T) -> Unit = {},
     tabExits: WjzFocusExitsBuilder.() -> Unit = {},
     tabItemExits: (index: Int, item: T) -> (WjzFocusExitsBuilder.() -> Unit) = { _, _ -> {} },
+    rootExits: WjzFocusExitsBuilder.() -> Unit = {},
     topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     wrap: Boolean = true,
     initialFocusEnabled: Boolean = false,
@@ -779,6 +779,7 @@ fun <T> BvPillTabRow(
         onContentFocusRequested = onContentFocusRequested,
         tabExits = tabExits,
         tabItemExits = tabItemExits,
+        rootExits = rootExits,
         topologyRegion = topologyRegion,
         wrap = wrap,
         initialFocusEnabled = initialFocusEnabled,
@@ -831,6 +832,7 @@ fun <T> BvUnderlineTabRow(
     onContentFocusRequested: (T) -> Unit = {},
     tabExits: WjzFocusExitsBuilder.() -> Unit = {},
     tabItemExits: (index: Int, item: T) -> (WjzFocusExitsBuilder.() -> Unit) = { _, _ -> {} },
+    rootExits: WjzFocusExitsBuilder.() -> Unit = {},
     topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     wrap: Boolean = true,
     initialFocusEnabled: Boolean = false,
@@ -875,6 +877,7 @@ fun <T> BvUnderlineTabRow(
         onContentFocusRequested = onContentFocusRequested,
         tabExits = tabExits,
         tabItemExits = tabItemExits,
+        rootExits = rootExits,
         topologyRegion = topologyRegion,
         wrap = wrap,
         initialFocusEnabled = initialFocusEnabled,

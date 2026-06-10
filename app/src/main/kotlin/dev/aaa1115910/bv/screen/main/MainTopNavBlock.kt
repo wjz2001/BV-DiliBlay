@@ -74,13 +74,13 @@ internal fun MainTopNavBlock(
     WjzFocusLocalEntrySurface(
         componentId = MainTopNavFocusComponentId,
         defaultLocalId = MainTopNavDefaultLocalId,
-        layer = WjzFocusLayer.TopNav
+        layer = WjzFocusLayer.Content
     )
 
     LeftNaviUserButton(
         modifier = modifier.wjzFocusLocal(
             localId = MainTopNavDefaultLocalId,
-            layer = WjzFocusLayer.TopNav,
+            layer = WjzFocusLayer.Content,
             enabled = focusEnabled,
             exits = {
                 if (topology.isStandalone) {

@@ -40,6 +40,8 @@ import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSubmitIntent
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
+import dev.aaa1115910.bv.wjzfocus.WjzFocusBoundaryTarget
+import dev.aaa1115910.bv.wjzfocus.WjzFocusTopology
 import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.enabledIf
 import dev.aaa1115910.bv.wjzfocus.up
@@ -56,6 +58,7 @@ import dev.aaa1115910.bv.screen.main.home.RecommendScreen
 import dev.aaa1115910.bv.screen.main.runtime.ContentRuntimeState
 import dev.aaa1115910.bv.screen.main.runtime.runtimeContainerInputEnabled
 import dev.aaa1115910.bv.screen.search.SearchInputScreen
+import dev.aaa1115910.bv.screen.search.SearchInputDefaultEntryId
 import dev.aaa1115910.bv.screen.search.SearchResultScreen
 import dev.aaa1115910.bv.screen.main.home.FollowScreen
 import dev.aaa1115910.bv.screen.main.home.FavoriteScreen
@@ -215,53 +218,69 @@ fun HomeContent(
         modifier = Modifier,
         topBar = {
             key(entryFocusRequest?.id) {
-                TopNav(
-                    modifier = Modifier,
-                    leadingContent = topBarLeadingContent,
-                    items = reorderedItems,
-                    selectedItem = focusedTab,
-                    activeItem = activeTab,
-                    autoRefreshItems = Prefs.homeAutoRefreshTopNavItems,
-                    entryFocusRequest = entryFocusRequest?.toTopNavFocusRequest(),
-                    entryFocusTarget = entryAdapter.topNavEntryFocusTarget,
-                    initialFocusEnabled = active && entryRequest == null,
-                    leadingContentEntryId = MainTopNavDefaultEntryId,
-                    topologyRegion = topNavTopologyRegion,
-                    onDefaultFocusReady = handleDefaultFocusReady,
-                    onEntryFocusResolution = { resolution ->
-                        entryAdapter.onTopNavEntryFocusResolution(entryFocusRequest, resolution)
-                    },
-                    onEntryFocusConsumed = { consumed ->
-                        entryAdapter.onTopNavEntryFocusConsumed(entryFocusRequest, consumed)
-                    },
-                    isHistorySearching = homeContentViewModel.isHistorySearching,
-                    focusedLeadingIcon = homeFocusedLeadingIcon,
-                    onTabConfirmLongPress = { nav -> handleTopNavConfirmLongPress(nav as HomeTopNavItem) },
-                    contentFocusEnabled = true,
-                    contentFocusReadyKey = contentReadyTab,
-                    focusScopeId = HomeTopNavScopeId,
-                    focusComponentId = HomeTopNavComponentId,
-                    onContentFocusRequested = { nav ->
-                        val target = nav as HomeTopNavItem
-                        if (target != activeTab) {
+                WjzFocusTopology {
+                    val topNavRegionId = (topNavTopologyRegion as? WjzFocusTopologyRegionRef.Bound)?.id
+                    if (topNavRegionId != null) {
+                        region(
+                            id = topNavRegionId,
+                            scopeId = HomeTopNavScopeId,
+                            layer = WjzFocusLayer.Content
+                        ) {
+                            onUp(WjzFocusBoundaryTarget.Cancel)
+                            if (activeTab == HomeTopNavItem.Search && searchPage == HomeSearchPage.Input) {
+                                onDown(WjzFocusBoundaryTarget.Entry(SearchInputDefaultEntryId))
+                            }
+                        }
+                    }
+
+                    TopNav(
+                        modifier = Modifier,
+                        leadingContent = topBarLeadingContent,
+                        items = reorderedItems,
+                        selectedItem = focusedTab,
+                        activeItem = activeTab,
+                        autoRefreshItems = Prefs.homeAutoRefreshTopNavItems,
+                        entryFocusRequest = entryFocusRequest?.toTopNavFocusRequest(),
+                        entryFocusTarget = entryAdapter.topNavEntryFocusTarget,
+                        initialFocusEnabled = active && entryRequest == null,
+                        leadingContentEntryId = MainTopNavDefaultEntryId,
+                        topologyRegion = topNavTopologyRegion,
+                        onDefaultFocusReady = handleDefaultFocusReady,
+                        onEntryFocusResolution = { resolution ->
+                            entryAdapter.onTopNavEntryFocusResolution(entryFocusRequest, resolution)
+                        },
+                        onEntryFocusConsumed = { consumed ->
+                            entryAdapter.onTopNavEntryFocusConsumed(entryFocusRequest, consumed)
+                        },
+                        isHistorySearching = homeContentViewModel.isHistorySearching,
+                        focusedLeadingIcon = homeFocusedLeadingIcon,
+                        onTabConfirmLongPress = { nav -> handleTopNavConfirmLongPress(nav as HomeTopNavItem) },
+                        contentFocusEnabled = true,
+                        contentFocusReadyKey = contentReadyTab,
+                        focusScopeId = HomeTopNavScopeId,
+                        focusComponentId = HomeTopNavComponentId,
+                        onContentFocusRequested = { nav ->
+                            val target = nav as HomeTopNavItem
+                            if (target != activeTab) {
+                                homeContentViewModel.onTabClicked(target)
+                            }
+                        },
+                        onAutoRefreshRequested = { nav ->
+                            homeContentViewModel.requestUserRefresh(nav as HomeTopNavItem)
+                        },
+                        onSelectedChanged = { nav -> homeContentViewModel.onTabFocused(nav as HomeTopNavItem) },
+                        onClick = { nav ->
+                            val target = nav as HomeTopNavItem
+                            val shouldRefresh = target == activeTab
                             homeContentViewModel.onTabClicked(target)
-                        }
-                    },
-                    onAutoRefreshRequested = { nav ->
-                        homeContentViewModel.requestUserRefresh(nav as HomeTopNavItem)
-                    },
-                    onSelectedChanged = { nav -> homeContentViewModel.onTabFocused(nav as HomeTopNavItem) },
-                    onClick = { nav ->
-                        val target = nav as HomeTopNavItem
-                        val shouldRefresh = target == activeTab
-                        homeContentViewModel.onTabClicked(target)
-                        if (shouldRefresh && target != HomeTopNavItem.Search) {
-                            homeContentViewModel.requestUserRefresh(target)
-                        }
-                    },
-                    focusLayer = WjzFocusLayer.Content,
-                    backFocusEnabled = active
-                )
+                            if (shouldRefresh && target != HomeTopNavItem.Search) {
+                                homeContentViewModel.requestUserRefresh(target)
+                            }
+                        },
+                        focusLayer = WjzFocusLayer.Content,
+                        backFocusEnabled = active
+                    )
+                }
             }
         }
     ) { innerPadding ->
