@@ -112,16 +112,18 @@ fun RichText(
                     if (focusEnabled) {
                         val id = "${inlineKeyPrefix}_mention_$inlineIndex"
                         inlineIndex += 1
+                        val mentionText = "@${token.name}"
+                        val placeholderWidth = estimateMentionWidthEm(mentionText)
 
                         val idx = focusableIndex
                         val focusLocalId = interactiveFocusLocalId?.invoke(idx)
                         val focusNodeId = interactiveFocusNodeId?.invoke(idx)
                             ?: if (focusLocalId == null) WjzFocusNodeId("$inlineKeyPrefix/mention/$idx") else null
 
-                        appendInlineContent(id, "@${token.name}")
+                        appendInlineContent(id, mentionText)
                         inlineContent[id] = InlineTextContent(
                             Placeholder(
-                                width = (token.name.length.coerceIn(1, 20) + 2).em,
+                                width = placeholderWidth,
                                 height = 1.6.em,
                                 placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter
                             )
@@ -298,6 +300,17 @@ fun RichText(
         style = textStyle,
         maxLines = maxLines
     )
+}
+
+private fun estimateMentionWidthEm(text: String): TextUnit {
+    val estimated = text.fold(0.6f) { acc, ch ->
+        acc + when {
+            ch.code in 0x2E80..0x9FFF -> 1.0f
+            ch.code < 0x0080 -> 0.55f
+            else -> 0.8f
+        }
+    }
+    return estimated.coerceIn(1.2f, 16f).em
 }
 
 private fun estimateInlineWidthEm(
