@@ -325,6 +325,7 @@ fun HomeContent(
                                                 searchPage = HomeSearchPage.Result
                                             },
                                             topologyRegion = topologyRegion,
+                                            topNavEntryId = HomeTopNavEntryId,
                                             searchInputViewModel = searchInputViewModel
                                         )
                                     }

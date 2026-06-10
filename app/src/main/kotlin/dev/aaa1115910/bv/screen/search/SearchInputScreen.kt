@@ -14,20 +14,21 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -39,7 +40,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -47,11 +55,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.foundation.interaction.FocusInteraction
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.tv.material3.Button
 import androidx.tv.material3.Icon
 import androidx.tv.material3.IconButton
@@ -62,31 +69,34 @@ import dev.aaa1115910.biliapi.entity.search.Hotword
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
-import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
+import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
+import dev.aaa1115910.bv.wjzfocus.activateLayer
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.component.search.SearchKeyword
 import dev.aaa1115910.bv.component.search.SoftKeyboard
+import dev.aaa1115910.bv.component.search.SoftKeyboardEntryId
+import dev.aaa1115910.bv.component.search.SoftKeyboardFirstKeyLocalId
+import dev.aaa1115910.bv.component.search.SoftKeyboardScopeId
 import dev.aaa1115910.bv.component.search.SoftKeyboardType
 import dev.aaa1115910.bv.entity.db.SearchHistoryDB
 import dev.aaa1115910.bv.component.TvAlertDialog
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.viewmodel.search.SearchInputViewModel
-import dev.aaa1115910.bv.screen.main.common.MainDrawerRightEntryId
 import dev.aaa1115910.bv.screen.main.common.MainTopNavDefaultEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.down
-import dev.aaa1115910.bv.wjzfocus.left
-import dev.aaa1115910.bv.wjzfocus.right
 import dev.aaa1115910.bv.wjzfocus.resolve
-import dev.aaa1115910.bv.wjzfocus.target
+import dev.aaa1115910.bv.wjzfocus.submitExternalEntryFocus
+import dev.aaa1115910.bv.wjzfocus.up
+import dev.aaa1115910.bv.wjzfocus.wjzTextFieldFocus
 import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
-import dev.aaa1115910.bv.wjzfocus.wjzFocusRememberTopologyRegion
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import org.koin.androidx.compose.koinViewModel
@@ -95,6 +105,17 @@ private val SearchInputRootScopeId = WjzFocusScopeId("search/input/root")
 private val SearchInputDeleteAllDialogScopeId = WjzFocusScopeId("search/input/delete-all")
 private val SearchInputDeleteAllDialogContainerLocalId = wjzFocusLocalId("container")
 private val SearchInputKeywordLocalId = wjzFocusLocalId("keyword")
+private val SearchInputKeyboardHorizontalPadding = 28.dp
+private val SearchInputTextFieldHorizontalPadding = 12.dp
+private val SearchInputTextFieldVerticalPadding = 8.dp
+
+private fun SoftKeyboardType.keyboardContentWidth(): Dp {
+    return when (this) {
+        SoftKeyboardType.English -> 258.dp
+        SoftKeyboardType.Japanese -> 434.dp
+        SoftKeyboardType.Symbol -> 390.dp
+    }
+}
 
 private fun SearchRightEntryToken.toFocusLocalId(): WjzFocusLocalId {
     val slot = slot.name.lowercase()
@@ -128,62 +149,13 @@ data class SearchRightEntryToken(
     }
 }
 
-private fun resolveSearchRightEntryToken(
-    keyword: String,
-    histories: List<SearchHistoryDB>,
-    hotwords: List<Hotword>,
-    suggests: List<String>,
-    showHotword: Boolean
-): SearchRightEntryToken? {
-    if (keyword.isEmpty() && showHotword) {
-        hotwords.firstOrNull()?.let { hotword ->
-            return SearchRightEntryToken(
-                slot = SearchRightEntryToken.Slot.Hotword,
-                keyword = keyword,
-                historyCount = histories.size,
-                hotwordCount = hotwords.size,
-                suggestCount = suggests.size,
-                showHotword = showHotword,
-                firstItemIdentity = hotword.showName
-            )
-        }
-    }
-
-    if (keyword.isNotEmpty()) {
-        suggests.firstOrNull()?.let { suggest ->
-            return SearchRightEntryToken(
-                slot = SearchRightEntryToken.Slot.Suggest,
-                keyword = keyword,
-                historyCount = histories.size,
-                hotwordCount = hotwords.size,
-                suggestCount = suggests.size,
-                showHotword = showHotword,
-                firstItemIdentity = suggest
-            )
-        }
-    }
-
-    histories.firstOrNull()?.let { history ->
-        return SearchRightEntryToken(
-            slot = SearchRightEntryToken.Slot.History,
-            keyword = keyword,
-            historyCount = histories.size,
-            hotwordCount = hotwords.size,
-            suggestCount = suggests.size,
-            showHotword = showHotword,
-            firstItemIdentity = history.keyword
-        )
-    }
-
-    return null
-}
-
 @Composable
 fun SearchInputScreen(
     modifier: Modifier = Modifier,
     onDefaultFocusReady: (() -> Unit)? = null,
     onSearchSubmit: ((String, Boolean) -> Unit)? = null,
     topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
+    topNavEntryId: WjzFocusEntryId = MainTopNavDefaultEntryId,
     searchInputViewModel: SearchInputViewModel = koinViewModel()
 ) {
     SearchInputRoute(
@@ -191,6 +163,7 @@ fun SearchInputScreen(
         onDefaultFocusReady = onDefaultFocusReady,
         onSearchSubmit = onSearchSubmit,
         topologyRegion = topologyRegion,
+        topNavEntryId = topNavEntryId,
         searchInputViewModel = searchInputViewModel
     )
 }
@@ -203,6 +176,7 @@ fun MainDrawerSearchInputScreen(
     onRightEntryFocusReady: ((SearchRightEntryToken) -> Unit)? = null,
     onSearchSubmit: ((String, Boolean) -> Unit)? = null,
     topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
+    topNavEntryId: WjzFocusEntryId = MainTopNavDefaultEntryId,
     searchInputViewModel: SearchInputViewModel = koinViewModel()
 ) {
     SearchInputRoute(
@@ -212,6 +186,7 @@ fun MainDrawerSearchInputScreen(
         onRightEntryFocusReady = onRightEntryFocusReady,
         onSearchSubmit = onSearchSubmit,
         topologyRegion = topologyRegion,
+        topNavEntryId = topNavEntryId,
         searchInputViewModel = searchInputViewModel
     )
 }
@@ -224,6 +199,7 @@ private fun SearchInputRoute(
     onRightEntryFocusReady: ((SearchRightEntryToken) -> Unit)? = null,
     onSearchSubmit: ((String, Boolean) -> Unit)? = null,
     topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
+    topNavEntryId: WjzFocusEntryId = MainTopNavDefaultEntryId,
     searchInputViewModel: SearchInputViewModel = koinViewModel()
 ) {
     val searchKeyword = searchInputViewModel.keyword
@@ -251,7 +227,18 @@ private fun SearchInputRoute(
     }
 
     WjzFocusHost(
-        modifier = modifier,
+        modifier = modifier.onKeyEvent { event ->
+            if (event.key != Key.Back || event.type != KeyEventType.KeyDown) {
+                return@onKeyEvent false
+            }
+
+            focusCoordinator.submitExternalEntryFocus(
+                entryId = topNavEntryId,
+                layerActivation = activateLayer,
+                dedupeKey = "search-input-back-to-top-nav"
+            )
+            true
+        },
         coordinator = focusCoordinator,
         layer = WjzFocusLayer.Content,
         scopeId = SearchInputRootScopeId,
@@ -259,7 +246,11 @@ private fun SearchInputRoute(
         WjzFocusEntrySurface(
             componentId = "searchInput",
             default = {
-                SearchInputRootScopeId.target(SearchInputKeywordLocalId)
+                defaultEntry(
+                    nodeId = SoftKeyboardScopeId.resolve(SoftKeyboardFirstKeyLocalId),
+                    layer = WjzFocusLayer.Content,
+                    scopeId = SoftKeyboardScopeId
+                )
             }
         )
         SearchInputScreenContent(
@@ -270,6 +261,7 @@ private fun SearchInputRoute(
             onSearchKeywordChange = { searchInputViewModel.keyword = it },
             onSearch = onSearch,
             topologyRegion = topologyRegion,
+            topNavEntryId = topNavEntryId,
             showProxyOptions = Prefs.enableProxy,
             enableProxy = searchInputViewModel.enableProxy,
             onEnableProxyChange = { searchInputViewModel.enableProxy = it },
@@ -292,6 +284,7 @@ private fun SearchInputScreenContent(
     onSearchKeywordChange: (String) -> Unit,
     onSearch: (String) -> Unit,
     topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
+    topNavEntryId: WjzFocusEntryId = MainTopNavDefaultEntryId,
     showProxyOptions: Boolean,
     enableProxy: Boolean,
     onEnableProxyChange: (Boolean) -> Unit,
@@ -302,6 +295,29 @@ private fun SearchInputScreenContent(
     onDeleteAllHistories: () -> Unit
 ) {
     var showHotword by remember { mutableStateOf(Prefs.showHotword) }
+    val hotwordEntryToken = remember(
+        searchKeyword,
+        histories,
+        hotwords,
+        suggests,
+        showHotword
+    ) {
+        if (searchKeyword.isEmpty() && showHotword) {
+            hotwords.firstOrNull()?.let { hotword ->
+                SearchRightEntryToken(
+                    slot = SearchRightEntryToken.Slot.Hotword,
+                    keyword = searchKeyword,
+                    historyCount = histories.size,
+                    hotwordCount = hotwords.size,
+                    suggestCount = suggests.size,
+                    showHotword = showHotword,
+                    firstItemIdentity = hotword.showName
+                )
+            }
+        } else {
+            null
+        }
+    }
     val currentRightEntryToken = remember(
         searchKeyword,
         histories,
@@ -309,13 +325,31 @@ private fun SearchInputScreenContent(
         suggests,
         showHotword
     ) {
-        resolveSearchRightEntryToken(
-            keyword = searchKeyword,
-            histories = histories,
-            hotwords = hotwords,
-            suggests = suggests,
-            showHotword = showHotword
-        )
+        if (searchKeyword.isEmpty()) {
+            histories.firstOrNull()?.let { history ->
+                SearchRightEntryToken(
+                    slot = SearchRightEntryToken.Slot.History,
+                    keyword = searchKeyword,
+                    historyCount = histories.size,
+                    hotwordCount = hotwords.size,
+                    suggestCount = suggests.size,
+                    showHotword = showHotword,
+                    firstItemIdentity = history.keyword
+                )
+            }
+        } else {
+            suggests.firstOrNull()?.let { suggest ->
+                SearchRightEntryToken(
+                    slot = SearchRightEntryToken.Slot.Suggest,
+                    keyword = searchKeyword,
+                    historyCount = histories.size,
+                    hotwordCount = hotwords.size,
+                    suggestCount = suggests.size,
+                    showHotword = showHotword,
+                    firstItemIdentity = suggest
+                )
+            }
+        }
     }
 
     LaunchedEffect(currentRightEntryToken) {
@@ -335,62 +369,60 @@ private fun SearchInputScreenContent(
                 modifier = Modifier
                     .padding(innerPadding)
                     .padding(vertical = 8.dp)
-                    .padding(start = 24.dp),
+                    .padding(horizontal = 24.dp)
+                    .fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                Box {
-                    SearchInput(
-                        onDefaultFocusReady = onDefaultFocusReady,
-                        searchKeyword = searchKeyword,
-                        onSearchKeywordChange = onSearchKeywordChange,
-                        onSearch = { onSearch(searchKeyword) },
-                        topologyRegion = topologyRegion,
-                        showProxyOptions = showProxyOptions,
-                        enableProxy = enableProxy,
-                        onEnableProxyChange = onEnableProxyChange
-                    )
-                }
+                SearchHotwords(
+                    modifier = Modifier.weight(1f),
+                    hotwords = hotwords,
+                    showHotword = showHotword,
+                    onToggleShowHotword = {
+                        showHotword = !showHotword
+                        Prefs.showHotword = showHotword
+                    },
+                    topNavEntryId = topNavEntryId,
+                    firstItemReadyToken = hotwordEntryToken,
+                    onFirstItemPlaced = onRightEntryFocusReady,
+                    onSearch = onSearch
+                )
 
-                if (searchKeyword.isEmpty()) {
-                    SearchHotwords(
-                        modifier = Modifier.weight(1f),
-                        hotwords = hotwords,
-                        showHotword = showHotword,
-                        onToggleShowHotword = {
-                            showHotword = !showHotword
-                            Prefs.showHotword = showHotword
-                        },
-                        firstItemReadyToken = currentRightEntryToken?.takeIf {
-                            it.slot == SearchRightEntryToken.Slot.Hotword
-                        },
+                SearchInput(
+                    onDefaultFocusReady = onDefaultFocusReady,
+                    searchKeyword = searchKeyword,
+                    onSearchKeywordChange = onSearchKeywordChange,
+                    onSearch = { onSearch(searchKeyword) },
+                    topNavEntryId = topNavEntryId,
+                    showProxyOptions = showProxyOptions,
+                    enableProxy = enableProxy,
+                    onEnableProxyChange = onEnableProxyChange
+                )
+
+                if (searchKeyword.isNotEmpty()) {
+                    SearchSuggestion(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 10.dp),
+                        suggests = suggests,
+                        topNavEntryId = topNavEntryId,
+                        firstItemReadyToken = currentRightEntryToken,
                         onFirstItemPlaced = onRightEntryFocusReady,
                         onSearch = onSearch
                     )
                 } else {
-                    SearchSuggestion(
-                        modifier = Modifier.weight(1f),
-                        suggests = suggests,
-                        firstItemReadyToken = currentRightEntryToken?.takeIf {
-                            it.slot == SearchRightEntryToken.Slot.Suggest
-                        },
+                    SearchHistory(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 10.dp),
+                        histories = histories,
+                        topNavEntryId = topNavEntryId,
+                        firstItemReadyToken = currentRightEntryToken,
                         onFirstItemPlaced = onRightEntryFocusReady,
-                        onSearch = onSearch
+                        onSearch = onSearch,
+                        onDelete = onDeleteHistory,
+                        onDeleteAll = onDeleteAllHistories
                     )
                 }
-
-                SearchHistory(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(end = 10.dp),
-                    histories = histories,
-                    firstItemReadyToken = currentRightEntryToken?.takeIf {
-                        it.slot == SearchRightEntryToken.Slot.History
-                    },
-                    onFirstItemPlaced = onRightEntryFocusReady,
-                    onSearch = onSearch,
-                    onDelete = onDeleteHistory,
-                    onDeleteAll = onDeleteAllHistories
-                )
             }
         }
     }
@@ -403,23 +435,16 @@ private fun SearchInput(
     searchKeyword: String,
     onSearchKeywordChange: (String) -> Unit,
     onSearch: (String) -> Unit,
-    topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
+    topNavEntryId: WjzFocusEntryId = MainTopNavDefaultEntryId,
     showProxyOptions: Boolean,
     enableProxy: Boolean,
     onEnableProxyChange: (Boolean) -> Unit
 ) {
     // 只在“从外部进入焦点”的那一刻，把光标挪到末尾
     var textFieldHasFocus by remember { mutableStateOf(false) }
-    val topology = wjzFocusRememberTopologyRegion(topologyRegion)
-    val topologyNodeExits = topology.nodeExits
-        .filter { nodeExit ->
-            nodeExit.direction == FocusDirection.Left ||
-                    nodeExit.direction == FocusDirection.Right
-        }
 
     // 用 TextFieldValue 承载光标位置（selection）
     var fieldValue by remember { mutableStateOf(TextFieldValue(searchKeyword)) }
-    val textFieldInteractionSource = remember { MutableInteractionSource() }
     var keyboardType by remember { mutableStateOf(SoftKeyboardType.English) }
     var symbolKeyboardSourceType by remember { mutableStateOf(SoftKeyboardType.English) }
 
@@ -473,78 +498,78 @@ private fun SearchInput(
         onSearch(fieldValue.text)
     }
 
-    LaunchedEffect(textFieldInteractionSource) {
-        textFieldInteractionSource.interactions.collect { interaction ->
-            when (interaction) {
-                is FocusInteraction.Focus -> {
-                    if (!textFieldHasFocus) {
-                        fieldValue = fieldValue.copy(
-                            selection = TextRange(fieldValue.text.length)
-                        )
-                    }
-                    textFieldHasFocus = true
-                }
-
-                is FocusInteraction.Unfocus -> {
-                    textFieldHasFocus = false
-                }
-            }
-        }
-    }
-
     Box(
         modifier = modifier
-            .width(
-                when (keyboardType) {
-                    SoftKeyboardType.English -> 280.dp
-                    SoftKeyboardType.Japanese -> 456.dp
-                    SoftKeyboardType.Symbol -> 412.dp
-                }
-            )
+            .width(keyboardType.keyboardContentWidth() + SearchInputKeyboardHorizontalPadding * 2)
             .fillMaxHeight(),
         contentAlignment = Alignment.TopCenter
     ) {
         Column(
+            modifier = Modifier.padding(horizontal = SearchInputKeyboardHorizontalPadding),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            OutlinedTextField(
+            val underlineColor = MaterialTheme.colorScheme.inverseSurface
+            BasicTextField(
                 modifier = Modifier
-                    .width(258.dp)
-                    .wjzFocusExits(
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .wjzTextFieldFocus(
                         localId = SearchInputKeywordLocalId,
                         layer = WjzFocusLayer.Content,
+                        backEntryId = topNavEntryId,
                         exits = {
-                            down move "searchResult/top"
-                            if (topology.isStandalone) {
-                                left move MainDrawerRightEntryId
-                                right move MainTopNavDefaultEntryId
-                            } else {
-                                addAll(topologyNodeExits)
+                            up move topNavEntryId
+                            down move SoftKeyboardEntryId
+                        },
+                        onFocused = {
+                            if (!textFieldHasFocus) {
+                                fieldValue = fieldValue.copy(
+                                    selection = TextRange(fieldValue.text.length)
+                                )
                             }
+                        },
+                        onFocusChanged = { focused ->
+                            textFieldHasFocus = focused
                         }
                     )
-                    .onGloballyPositioned {
-                        onDefaultFocusReady?.invoke()
+                    .drawBehind {
+                        drawLine(
+                            color = underlineColor,
+                            start = Offset(0f, size.height),
+                            end = Offset(size.width, size.height),
+                            strokeWidth = 2.dp.toPx()
+                        )
                     },
                 value = fieldValue,
                 onValueChange = {
                     fieldValue = it
                     onSearchKeywordChange(it.text)
                 },
-                maxLines = 1,
-                shape = MaterialTheme.shapes.large,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.titleMedium.copy(
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(
                     onSearch = { submitSearch() },
                     onNext = { submitSearch() },
                     onDone = { submitSearch() }
                 ),
-                interactionSource = textFieldInteractionSource,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.inverseSurface,
-                    cursorColor = MaterialTheme.colorScheme.inverseSurface
-                )
+                cursorBrush = SolidColor(underlineColor),
+                decorationBox = { innerTextField ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(
+                                horizontal = SearchInputTextFieldHorizontalPadding,
+                                vertical = SearchInputTextFieldVerticalPadding
+                            ),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        innerTextField()
+                    }
+                }
             )
             SoftKeyboard(
                 keyboardType = keyboardType,
@@ -570,7 +595,8 @@ private fun SearchInput(
                     }
                 },
                 onEnableSearchWithProxyChange = onEnableProxyChange,
-                onFirstButtonPlaced = null
+                backEntryId = topNavEntryId,
+                onFirstButtonPlaced = onDefaultFocusReady
             )
         }
     }
@@ -582,13 +608,13 @@ private fun SearchHotwords(
     hotwords: ImmutableList<Hotword>,
     showHotword: Boolean,
     onToggleShowHotword: () -> Unit,
+    topNavEntryId: WjzFocusEntryId = MainTopNavDefaultEntryId,
     firstItemReadyToken: SearchRightEntryToken? = null,
     onFirstItemPlaced: ((SearchRightEntryToken) -> Unit)? = null,
     onSearch: (String) -> Unit
 ) {
     Column(
         modifier = modifier
-            .width(250.dp)
             .fillMaxHeight(),
     ) {
         Row(
@@ -642,7 +668,10 @@ private fun SearchHotwords(
                             Modifier
                                 .wjzFocusExits(
                                     localId = firstItemReadyToken.toFocusLocalId(),
-                                    layer = WjzFocusLayer.Content
+                                    layer = WjzFocusLayer.Content,
+                                    exits = {
+                                        up move topNavEntryId
+                                    }
                                 )
                                 .onGloballyPositioned {
                                     onFirstItemPlaced?.invoke(firstItemReadyToken)
@@ -668,13 +697,13 @@ private fun SearchHotwords(
 private fun SearchSuggestion(
     modifier: Modifier = Modifier,
     suggests: ImmutableList<String>,
+    topNavEntryId: WjzFocusEntryId = MainTopNavDefaultEntryId,
     firstItemReadyToken: SearchRightEntryToken? = null,
     onFirstItemPlaced: ((SearchRightEntryToken) -> Unit)? = null,
     onSearch: (String) -> Unit
 ) {
     Column(
         modifier = modifier
-            .width(250.dp)
             .fillMaxHeight(),
     ) {
         Text(
@@ -695,7 +724,10 @@ private fun SearchSuggestion(
                         Modifier
                             .wjzFocusExits(
                                 localId = firstItemReadyToken.toFocusLocalId(),
-                                layer = WjzFocusLayer.Content
+                                layer = WjzFocusLayer.Content,
+                                exits = {
+                                    up move topNavEntryId
+                                }
                             )
                             .onGloballyPositioned {
                                 onFirstItemPlaced?.invoke(firstItemReadyToken)
@@ -719,6 +751,7 @@ private fun SearchSuggestion(
 private fun SearchHistory(
     modifier: Modifier = Modifier,
     histories: ImmutableList<SearchHistoryDB>,
+    topNavEntryId: WjzFocusEntryId = MainTopNavDefaultEntryId,
     firstItemReadyToken: SearchRightEntryToken? = null,
     onFirstItemPlaced: ((SearchRightEntryToken) -> Unit)? = null,
     onSearch: (String) -> Unit,
@@ -730,7 +763,6 @@ private fun SearchHistory(
 
     Column(
         modifier = modifier
-            .width(250.dp)
             .fillMaxHeight(),
     ) {
         Row(
@@ -778,7 +810,10 @@ private fun SearchHistory(
                         Modifier
                             .wjzFocusExits(
                                 localId = firstItemReadyToken.toFocusLocalId(),
-                                layer = WjzFocusLayer.Content
+                                layer = WjzFocusLayer.Content,
+                                exits = {
+                                    up move topNavEntryId
+                                }
                             )
                             .onGloballyPositioned {
                                 onFirstItemPlaced?.invoke(firstItemReadyToken)
