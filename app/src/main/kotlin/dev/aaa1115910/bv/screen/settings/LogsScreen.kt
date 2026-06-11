@@ -302,6 +302,7 @@ fun LogsScreenContent(
                                 modifier = Modifier.wjzFocusExits(
                                     localId = LogsCreateLocalId,
                                     layer = WjzFocusLayer.Content,
+                                    fallback = true,
                                     onFocused = onFocusCreate
                                 ),
                                 onClick = onClickCreateLog

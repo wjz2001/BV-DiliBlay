@@ -117,21 +117,20 @@ private fun UnlockUserContent(
     WjzFocusHost {
         val focusScopeId = LocalWjzFocusScopeId.current
 
-        if (unlockState == UnlockState.InputPassword) {
-            WjzFocusEntrySurface(
-                componentId = UnlockUserFocusComponentId,
-                default = {
-                    requireNotNull(focusScopeId).target(UnlockUserInputFocusId)
-                }
-            )
-        }
+        WjzFocusEntrySurface(
+            componentId = UnlockUserFocusComponentId,
+            default = {
+                requireNotNull(focusScopeId).target(UnlockUserInputFocusId)
+            }
+        )
 
         Surface(
             modifier = modifier
                 .ifElse({ unlockState == UnlockState.InputPassword }, Modifier.clickable {})
                 .wjzFocusExits(
                     localId = UnlockUserInputFocusId,
-                    layer = WjzFocusLayer.Content
+                    layer = WjzFocusLayer.Content,
+                    fallback = true
                 )
                 .onKeyEvent {
                     when (unlockState) {

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -24,6 +25,8 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
+import dev.aaa1115910.bv.wjzfocus.LocalWjzDisabledFocusContext
+import dev.aaa1115910.bv.wjzfocus.WjzDisabledFocusContext
 import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
@@ -192,35 +195,43 @@ fun PgcContent(
                 val runtimeState = pgcContentViewModel.runtimeStateOf(tab)
                 val visible = tab == activeTab
                 val tabActive = active && visible && runtimeState == ContentRuntimeState.Active
+                val contentZIndex = if (visible) 1f else 0f
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .zIndex(if (visible) 1f else 0f)
-                        .graphicsLayer {
-                            alpha = if (visible) 1f else 0f
-                        }
-                        .runtimeContainerInputEnabled(tabActive)
+                CompositionLocalProvider(
+                    LocalWjzDisabledFocusContext provides WjzDisabledFocusContext(
+                        group = tab,
+                        zIndex = contentZIndex
+                    )
                 ) {
-                    if (visible &&
-                        (runtimeState == ContentRuntimeState.NotCreated ||
-                                runtimeState == ContentRuntimeState.Shell)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .zIndex(contentZIndex)
+                            .graphicsLayer {
+                                alpha = if (visible) 1f else 0f
+                            }
+                            .runtimeContainerInputEnabled(tabActive)
                     ) {
-                        PgcTabShell()
-                    }
+                        if (visible &&
+                            (runtimeState == ContentRuntimeState.NotCreated ||
+                                    runtimeState == ContentRuntimeState.Shell)
+                        ) {
+                            PgcTabShell()
+                        }
 
-                    if (runtimeState == ContentRuntimeState.Active ||
-                        runtimeState == ContentRuntimeState.Frozen
-                    ) {
-                        key(tab) {
-                            PgcActiveTabContent(
-                                tab = tab,
-                                pgcContentViewModel = pgcContentViewModel,
-                                onContentEntryReady = {
-                                    if (tabActive) contentReadyTab = tab
-                                },
-                                active = tabActive
-                            )
+                        if (runtimeState == ContentRuntimeState.Active ||
+                            runtimeState == ContentRuntimeState.Frozen
+                        ) {
+                            key(tab) {
+                                PgcActiveTabContent(
+                                    tab = tab,
+                                    pgcContentViewModel = pgcContentViewModel,
+                                    onContentEntryReady = {
+                                        if (tabActive) contentReadyTab = tab
+                                    },
+                                    active = tabActive
+                                )
+                            }
                         }
                     }
                 }

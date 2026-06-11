@@ -822,6 +822,7 @@ private fun SettingsCategoryColumn(
                     .wjzFocusExits(
                         localId = settingsCategoryLocalId(category),
                         layer = WjzFocusLayer.Content,
+                        fallback = selected,
                         exits = {
                             addAll(topologyNodeExits)
                             if (first) up move SettingsCategoryEndEntryId
@@ -889,7 +890,8 @@ private fun SettingsItemColumn(
                         .size(1.dp)
                         .wjzFocusExits(
                             localId = focusLocalId,
-                            layer = WjzFocusLayer.Content
+                            layer = WjzFocusLayer.Content,
+                            fallback = true
                         )
                 )
             }
@@ -921,6 +923,7 @@ private fun SettingsItemColumn(
                     .wjzFocusExits(
                         localId = settingsItemLocalId(item.id),
                         layer = WjzFocusLayer.Content,
+                        fallback = selected,
                         exits = {
                             if (item.canRequestDetailFocus()) {
                                 addAll(detailEnabledTopologyNodeExits)
@@ -1001,6 +1004,7 @@ private fun SettingsDetailColumn(
                         .wjzFocusExits(
                             localId = focusLocalId,
                             layer = WjzFocusLayer.Content,
+                            fallback = true,
                             exits = {
                                 addAll(topologyNodeExits)
                             },

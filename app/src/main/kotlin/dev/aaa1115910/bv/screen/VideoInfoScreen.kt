@@ -242,6 +242,7 @@ private val VideoInfoCoinLocalId = wjzFocusLocalId("action", "coin")
 private val VideoInfoDescriptionLocalId = wjzFocusLocalId("description")
 private val VideoInfoPartEntryLocalId = wjzFocusLocalId("part", "entry")
 private val VideoInfoPartLeadingLocalId = wjzFocusLocalId("part", "leading")
+private val VideoInfoMessageLocalId = wjzFocusLocalId("message")
 private fun videoInfoPartPageLocalId(index: Int) = wjzFocusLocalId("part", "page", index)
 private val VideoInfoDefaultNodeId = VideoInfoScopeId.resolve(VideoInfoDefaultLocalId)
 private val VideoInfoPartEntryNodeId = VideoInfoScopeId.resolve(VideoInfoPartEntryLocalId)
@@ -505,17 +506,39 @@ fun VideoInfoScreen(
     ) {
     when {
         uiState.shouldShowLoading -> {
-            FullScreenMessage(message = "加载中……")
+            FullScreenMessage(
+                modifier = Modifier.wjzFocusExits(
+                    localId = VideoInfoMessageLocalId,
+                    layer = WjzFocusLayer.Content,
+                    fallback = true
+                ),
+                message = "加载中……"
+            )
         }
 
         uiState.loadingState == VideoInfoState.Error -> {
-            FullScreenMessage(message = uiState.errorTip, isLooping = false)
+            FullScreenMessage(
+                modifier = Modifier.wjzFocusExits(
+                    localId = VideoInfoMessageLocalId,
+                    layer = WjzFocusLayer.Content,
+                    fallback = true
+                ),
+                message = uiState.errorTip,
+                isLooping = false
+            )
         }
 
         else -> {
             val videoDetailState = uiState.videoDetailState
             if (videoDetailState == null) {
-                FullScreenMessage(message = "加载中……")
+                FullScreenMessage(
+                    modifier = Modifier.wjzFocusExits(
+                        localId = VideoInfoMessageLocalId,
+                        layer = WjzFocusLayer.Content,
+                        fallback = true
+                    ),
+                    message = "加载中……"
+                )
                 return@WjzFocusHost
             }
             val snapshot = videoDetailState.metrics?.snapshot
@@ -1016,6 +1039,7 @@ fun VideoInfoScreen(
 
 @Composable
 fun FullScreenMessage(
+    modifier: Modifier = Modifier,
     message: String,
     isLooping: Boolean = true // 是否循环播放
 ) {
@@ -1045,7 +1069,7 @@ fun FullScreenMessage(
     }
 
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         // 使用两层 Text 叠加：底层透明占位，顶层显示动画

@@ -48,6 +48,8 @@ import dev.aaa1115910.bv.activities.settings.SettingsActivity
 import dev.aaa1115910.bv.activities.user.LoginActivity
 import dev.aaa1115910.bv.activities.user.UserSwitchActivity
 import dev.aaa1115910.bv.component.BlackoutSwitch
+import dev.aaa1115910.bv.wjzfocus.LocalWjzDisabledFocusContext
+import dev.aaa1115910.bv.wjzfocus.WjzDisabledFocusContext
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusBoundaryTarget
@@ -518,7 +520,7 @@ fun MainScreen(
 
             Box(modifier = Modifier.fillMaxSize()) {
                 val topBarLeadingContent: @Composable () -> Unit = {
-                    WjzFocusHost(
+                    MainTopNavBlock(
                         modifier = Modifier
                             .zIndex(1f)
                             .graphicsLayer {
@@ -526,31 +528,24 @@ fun MainScreen(
                                         size.width * drawerSlideProgress
                                 alpha = 1f - drawerSlideProgress
                             },
-                        coordinator = focusCoordinator,
-                        layer = WjzFocusLayer.Content,
-                        scopeId = MainTopNavScopeId
-                    ) {
-                        MainTopNavBlock(
-                            modifier = Modifier,
-                            userColorAnimationEnabled = userButtonColorAnimationEnabled,
-                            userIsLogin = userViewModel.isLogin,
-                            userAvatar = userViewModel.face,
-                            username = userViewModel.username,
-                            entryRequest = pendingTopNavEntryRequest,
-                            onEntryRequestConsumed = { requestId ->
-                                if (pendingTopNavEntryRequest?.id == requestId) {
-                                    pendingTopNavEntryRequest = null
-                                }
-                            },
-                            focusEnabled = !leftNaviExpanded,
-                            topologyRegion = wjzFocusTopologyRegion(MainTopNavLeadingRegion),
-                            userIsFocused = userIsFocused,
-                            onUserFocusChanged = { userIsFocused = it },
-                            onExpandDrawer = { expandLeftNavi() },
-                            onOpenUser = { openUserPage() },
-                            onContentEntryRequested = ::requestTopNavContentEntry
-                        )
-                    }
+                        userColorAnimationEnabled = userButtonColorAnimationEnabled,
+                        userIsLogin = userViewModel.isLogin,
+                        userAvatar = userViewModel.face,
+                        username = userViewModel.username,
+                        entryRequest = pendingTopNavEntryRequest,
+                        onEntryRequestConsumed = { requestId ->
+                            if (pendingTopNavEntryRequest?.id == requestId) {
+                                pendingTopNavEntryRequest = null
+                            }
+                        },
+                        focusEnabled = !leftNaviExpanded,
+                        topologyRegion = wjzFocusTopologyRegion(MainTopNavLeadingRegion),
+                        userIsFocused = userIsFocused,
+                        onUserFocusChanged = { userIsFocused = it },
+                        onExpandDrawer = { expandLeftNavi() },
+                        onOpenUser = { openUserPage() },
+                        onContentEntryRequested = ::requestTopNavContentEntry
+                    )
                 }
 
                 WjzFocusEntrySurface(
@@ -609,41 +604,29 @@ fun MainScreen(
                             ).distinct()
                             mountedDrawerItems.forEach { item ->
                                 val activeContent = item == currentItem
+                                val contentZIndex = if (activeContent) 1f else 0f
 
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .zIndex(if (activeContent) 1f else 0f)
-                                        .graphicsLayer { alpha = if (activeContent) 1f else 0f }
-                                        .runtimeContainerInputEnabled(activeContent)
+                                CompositionLocalProvider(
+                                    LocalWjzDisabledFocusContext provides WjzDisabledFocusContext(
+                                        group = item,
+                                        zIndex = contentZIndex
+                                    )
                                 ) {
-                                    val contentEntryRequest = contentEntryRequestFor(item, activeContent)
-                                    when (item) {
-                                        LeftNaviItem.Live -> LiveContent(
-                                            topBarLeadingContent = topBarLeadingContent,
-                                            topologyRegion = wjzFocusTopologyRegion(MainTopNavTabsRegion),
-                                            entryRequest = contentEntryRequest,
-                                            onEntryRequestReady = { requestId ->
-                                                markContentEntryRequestReady(item, requestId)
-                                            },
-                                            onEntryRequestConsumed = { requestId ->
-                                                consumeContentEntryRequest(item, requestId)
-                                            },
-                                            onEntryRequestRejected = { requestId ->
-                                                rejectContentEntryRequest(item, requestId)
-                                            },
-                                            active = activeContent
-                                        )
-
-                                        LeftNaviItem.Home -> {
-                                            val homeContentViewModel: HomeContentViewModel =
-                                                koinViewModel<HomeContentViewModel>()
-                                            HomeContent(
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .zIndex(contentZIndex)
+                                            .graphicsLayer { alpha = if (activeContent) 1f else 0f }
+                                            .runtimeContainerInputEnabled(activeContent)
+                                    ) {
+                                        val contentEntryRequest =
+                                            contentEntryRequestFor(item, activeContent)
+                                        when (item) {
+                                            LeftNaviItem.Live -> LiveContent(
                                                 topBarLeadingContent = topBarLeadingContent,
-                                                topNavTopologyRegion = wjzFocusTopologyRegion(
+                                                topologyRegion = wjzFocusTopologyRegion(
                                                     MainTopNavTabsRegion
                                                 ),
-                                                topologyRegion = wjzFocusTopologyRegion(MainContentRegion),
                                                 entryRequest = contentEntryRequest,
                                                 onEntryRequestReady = { requestId ->
                                                     markContentEntryRequestReady(item, requestId)
@@ -654,51 +637,83 @@ fun MainScreen(
                                                 onEntryRequestRejected = { requestId ->
                                                     rejectContentEntryRequest(item, requestId)
                                                 },
-                                                homeContentViewModel = homeContentViewModel,
-                                                userViewModel = userViewModel,
                                                 active = activeContent
                                             )
+
+                                            LeftNaviItem.Home -> {
+                                                val homeContentViewModel: HomeContentViewModel =
+                                                    koinViewModel<HomeContentViewModel>()
+                                                HomeContent(
+                                                    topBarLeadingContent = topBarLeadingContent,
+                                                    topNavTopologyRegion = wjzFocusTopologyRegion(
+                                                        MainTopNavTabsRegion
+                                                    ),
+                                                    topologyRegion = wjzFocusTopologyRegion(
+                                                        MainContentRegion
+                                                    ),
+                                                    entryRequest = contentEntryRequest,
+                                                    onEntryRequestReady = { requestId ->
+                                                        markContentEntryRequestReady(
+                                                            item,
+                                                            requestId
+                                                        )
+                                                    },
+                                                    onEntryRequestConsumed = { requestId ->
+                                                        consumeContentEntryRequest(item, requestId)
+                                                    },
+                                                    onEntryRequestRejected = { requestId ->
+                                                        rejectContentEntryRequest(item, requestId)
+                                                    },
+                                                    homeContentViewModel = homeContentViewModel,
+                                                    userViewModel = userViewModel,
+                                                    active = activeContent
+                                                )
+                                            }
+
+                                            LeftNaviItem.UGC -> UgcContent(
+                                                topBarLeadingContent = topBarLeadingContent,
+                                                topNavTopologyRegion = wjzFocusTopologyRegion(
+                                                    MainTopNavTabsRegion
+                                                ),
+                                                topologyRegion = wjzFocusTopologyRegion(
+                                                    MainContentRegion
+                                                ),
+                                                entryRequest = contentEntryRequest,
+                                                onEntryRequestReady = { requestId ->
+                                                    markContentEntryRequestReady(item, requestId)
+                                                },
+                                                onEntryRequestConsumed = { requestId ->
+                                                    consumeContentEntryRequest(item, requestId)
+                                                },
+                                                onEntryRequestRejected = { requestId ->
+                                                    rejectContentEntryRequest(item, requestId)
+                                                },
+                                                active = activeContent
+                                            )
+
+                                            LeftNaviItem.PGC -> PgcContent(
+                                                topBarLeadingContent = topBarLeadingContent,
+                                                topNavTopologyRegion = wjzFocusTopologyRegion(
+                                                    MainTopNavTabsRegion
+                                                ),
+                                                topologyRegion = wjzFocusTopologyRegion(
+                                                    MainContentRegion
+                                                ),
+                                                entryRequest = contentEntryRequest,
+                                                onEntryRequestReady = { requestId ->
+                                                    markContentEntryRequestReady(item, requestId)
+                                                },
+                                                onEntryRequestConsumed = { requestId ->
+                                                    consumeContentEntryRequest(item, requestId)
+                                                },
+                                                onEntryRequestRejected = { requestId ->
+                                                    rejectContentEntryRequest(item, requestId)
+                                                },
+                                                active = activeContent
+                                            )
+
+                                            else -> MainContentShell(item)
                                         }
-
-                                        LeftNaviItem.UGC -> UgcContent(
-                                            topBarLeadingContent = topBarLeadingContent,
-                                            topNavTopologyRegion = wjzFocusTopologyRegion(
-                                                MainTopNavTabsRegion
-                                            ),
-                                            topologyRegion = wjzFocusTopologyRegion(MainContentRegion),
-                                            entryRequest = contentEntryRequest,
-                                            onEntryRequestReady = { requestId ->
-                                                markContentEntryRequestReady(item, requestId)
-                                            },
-                                            onEntryRequestConsumed = { requestId ->
-                                                consumeContentEntryRequest(item, requestId)
-                                            },
-                                            onEntryRequestRejected = { requestId ->
-                                                rejectContentEntryRequest(item, requestId)
-                                            },
-                                            active = activeContent
-                                        )
-
-                                        LeftNaviItem.PGC -> PgcContent(
-                                            topBarLeadingContent = topBarLeadingContent,
-                                            topNavTopologyRegion = wjzFocusTopologyRegion(
-                                                MainTopNavTabsRegion
-                                            ),
-                                            topologyRegion = wjzFocusTopologyRegion(MainContentRegion),
-                                            entryRequest = contentEntryRequest,
-                                            onEntryRequestReady = { requestId ->
-                                                markContentEntryRequestReady(item, requestId)
-                                            },
-                                            onEntryRequestConsumed = { requestId ->
-                                                consumeContentEntryRequest(item, requestId)
-                                            },
-                                            onEntryRequestRejected = { requestId ->
-                                                rejectContentEntryRequest(item, requestId)
-                                            },
-                                            active = activeContent
-                                        )
-
-                                        else -> MainContentShell(item)
                                     }
                                 }
                             }

@@ -207,7 +207,8 @@ fun MediaCodecListItems(
                     .fillMaxWidth()
                     .wjzFocusExits(
                         localId = mediaCodecListLocalId(codecInfoData),
-                        layer = WjzFocusLayer.Content
+                        layer = WjzFocusLayer.Content,
+                        fallback = currentCodecInfoData == codecInfoData
                     ),
                 codecInfoData = codecInfoData,
                 onFocus = { onCodecInfoDataChanged(codecInfoData) },
@@ -397,7 +398,8 @@ fun MediaCodecDetails(
                 .fillMaxSize()
                 .wjzFocusExits(
                     localId = MediaCodecEmptyLocalId,
-                    layer = WjzFocusLayer.Content
+                    layer = WjzFocusLayer.Content,
+                    fallback = true
                 ),
             contentAlignment = Alignment.Center
         ) {

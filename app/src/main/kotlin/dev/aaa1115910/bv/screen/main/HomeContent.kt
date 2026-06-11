@@ -17,6 +17,7 @@ import androidx.compose.material.icons.rounded.Subscriptions
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
@@ -36,14 +37,19 @@ import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
 import dev.aaa1115910.bv.wjzfocus.WjzFocusNodeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.component.HomeTopNavItem
+import dev.aaa1115910.bv.wjzfocus.LocalWjzDisabledFocusContext
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
+import dev.aaa1115910.bv.wjzfocus.WjzDisabledFocusContext
 import dev.aaa1115910.bv.wjzfocus.WjzFocusRestoreStrategy
 import dev.aaa1115910.bv.wjzfocus.WjzFocusSubmitIntent
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
 import dev.aaa1115910.bv.wjzfocus.WjzFocusBoundaryTarget
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTopology
 import dev.aaa1115910.bv.wjzfocus.defaultEntry
+import dev.aaa1115910.bv.wjzfocus.down
 import dev.aaa1115910.bv.wjzfocus.enabledIf
+import dev.aaa1115910.bv.wjzfocus.left
+import dev.aaa1115910.bv.wjzfocus.right
 import dev.aaa1115910.bv.wjzfocus.up
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.component.PersistLazyGridViewportEffect
@@ -68,6 +74,7 @@ import dev.aaa1115910.bv.screen.main.home.MyClassroomScreen
 import dev.aaa1115910.bv.screen.main.home.SubscribedCollectionScreen
 import dev.aaa1115910.bv.screen.main.home.ToViewScreen
 import dev.aaa1115910.bv.screen.main.common.MainContentEntryRequest
+import dev.aaa1115910.bv.screen.main.common.MainContentTopEntryId
 import dev.aaa1115910.bv.screen.main.common.MainTopNavDefaultEntryId
 import dev.aaa1115910.bv.screen.main.common.mainContentEntryAdapter
 import dev.aaa1115910.bv.screen.main.common.toTopNavFocusRequest
@@ -257,6 +264,15 @@ fun HomeContent(
                         onTabConfirmLongPress = { nav -> handleTopNavConfirmLongPress(nav as HomeTopNavItem) },
                         contentFocusEnabled = true,
                         contentFocusReadyKey = contentReadyTab,
+                        topNavExits = {
+                            left move MainTopNavDefaultEntryId
+                            right move MainTopNavDefaultEntryId
+                            if (activeTab == HomeTopNavItem.Search && searchPage == HomeSearchPage.Input) {
+                                down move SearchInputDefaultEntryId
+                            } else {
+                                down move MainContentTopEntryId
+                            }
+                        },
                         focusScopeId = HomeTopNavScopeId,
                         focusComponentId = HomeTopNavComponentId,
                         onContentFocusRequested = { nav ->
@@ -307,76 +323,84 @@ fun HomeContent(
                 val runtimeState = homeContentViewModel.runtimeStateOf(tab)
                 val visible = tab == activeTab
                 val tabActive = active && visible && runtimeState == ContentRuntimeState.Active
+                val contentZIndex = if (visible) 1f else 0f
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .zIndex(if (visible) 1f else 0f)
-                        .graphicsLayer {
-                            alpha = if (visible) 1f else 0f
-                        }
-                        .runtimeContainerInputEnabled(tabActive)
+                CompositionLocalProvider(
+                    LocalWjzDisabledFocusContext provides WjzDisabledFocusContext(
+                        group = tab,
+                        zIndex = contentZIndex
+                    )
                 ) {
-                    if (visible &&
-                        (runtimeState == ContentRuntimeState.NotCreated ||
-                                runtimeState == ContentRuntimeState.Shell)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .zIndex(contentZIndex)
+                            .graphicsLayer {
+                                alpha = if (visible) 1f else 0f
+                            }
+                            .runtimeContainerInputEnabled(tabActive)
                     ) {
-                        HomeTabShell()
-                    }
+                        if (visible &&
+                            (runtimeState == ContentRuntimeState.NotCreated ||
+                                    runtimeState == ContentRuntimeState.Shell)
+                        ) {
+                            HomeTabShell()
+                        }
 
-                    if (runtimeState == ContentRuntimeState.Active ||
-                        runtimeState == ContentRuntimeState.Frozen
-                    ) {
-                        when (tab) {
-                            HomeTopNavItem.Search -> {
-                                when (searchPage) {
-                                    HomeSearchPage.Input -> {
-                                        val searchInputViewModel: SearchInputViewModel =
-                                            koinViewModel<SearchInputViewModel>()
-                                        SearchInputScreen(
-                                            onDefaultFocusReady = {
-                                                handleDefaultFocusReady(tab)
-                                                if (tabActive) contentReadyTab = tab
-                                            },
-                                            onSearchSubmit = { keyword, enableProxy ->
-                                                searchKeyword = keyword
-                                                searchEnableProxy = enableProxy
-                                                searchPage = HomeSearchPage.Result
-                                            },
-                                            topologyRegion = topologyRegion,
-                                            topNavEntryId = HomeTopNavEntryId,
-                                            searchInputViewModel = searchInputViewModel
-                                        )
-                                    }
+                        if (runtimeState == ContentRuntimeState.Active ||
+                            runtimeState == ContentRuntimeState.Frozen
+                        ) {
+                            when (tab) {
+                                HomeTopNavItem.Search -> {
+                                    when (searchPage) {
+                                        HomeSearchPage.Input -> {
+                                            val searchInputViewModel: SearchInputViewModel =
+                                                koinViewModel<SearchInputViewModel>()
+                                            SearchInputScreen(
+                                                onDefaultFocusReady = {
+                                                    handleDefaultFocusReady(tab)
+                                                    if (tabActive) contentReadyTab = tab
+                                                },
+                                                onSearchSubmit = { keyword, enableProxy ->
+                                                    searchKeyword = keyword
+                                                    searchEnableProxy = enableProxy
+                                                    searchPage = HomeSearchPage.Result
+                                                },
+                                                topologyRegion = topologyRegion,
+                                                topNavEntryId = HomeTopNavEntryId,
+                                                searchInputViewModel = searchInputViewModel
+                                            )
+                                        }
 
-                                    HomeSearchPage.Result -> {
-                                        val searchResultViewModel: SearchResultViewModel =
-                                            koinViewModel<SearchResultViewModel>()
-                                        SearchResultScreen(
-                                            keyword = searchKeyword,
-                                            enableProxy = searchEnableProxy,
-                                            onContentEntryReady = {
-                                                if (tabActive) contentReadyTab = tab
-                                            },
-                                            onBackToInput = { searchPage = HomeSearchPage.Input },
-                                            topologyRegion = topologyRegion,
-                                            searchResultViewModel = searchResultViewModel
-                                        )
+                                        HomeSearchPage.Result -> {
+                                            val searchResultViewModel: SearchResultViewModel =
+                                                koinViewModel<SearchResultViewModel>()
+                                            SearchResultScreen(
+                                                keyword = searchKeyword,
+                                                enableProxy = searchEnableProxy,
+                                                onContentEntryReady = {
+                                                    if (tabActive) contentReadyTab = tab
+                                                },
+                                                onBackToInput = { searchPage = HomeSearchPage.Input },
+                                                topologyRegion = topologyRegion,
+                                                searchResultViewModel = searchResultViewModel
+                                            )
+                                        }
                                     }
                                 }
-                            }
 
-                            else -> key(tab) {
-                                HomeActiveTabContent(
-                                    tab = tab,
-                                    homeContentViewModel = homeContentViewModel,
-                                    backToTopNav = backToTopNav,
-                                    onContentEntryReady = {
-                                        if (tabActive) contentReadyTab = tab
-                                    },
-                                    active = tabActive,
-                                    topologyRegion = topologyRegion
-                                )
+                                else -> key(tab) {
+                                    HomeActiveTabContent(
+                                        tab = tab,
+                                        homeContentViewModel = homeContentViewModel,
+                                        backToTopNav = backToTopNav,
+                                        onContentEntryReady = {
+                                            if (tabActive) contentReadyTab = tab
+                                        },
+                                        active = tabActive,
+                                        topologyRegion = topologyRegion
+                                    )
+                                }
                             }
                         }
                     }
