@@ -47,6 +47,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -68,14 +69,15 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.search.Hotword
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusComponentId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.LocalWjzFocusCoordinator
 import dev.aaa1115910.bv.wjzfocus.WjzFocusTopologyRegionRef
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.activateLayer
-import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.component.search.SearchKeyword
@@ -90,11 +92,18 @@ import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.viewmodel.search.SearchInputViewModel
 import dev.aaa1115910.bv.screen.main.common.MainTopNavDefaultEntryId
+import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
+import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.down
+import dev.aaa1115910.bv.wjzfocus.entry
+import dev.aaa1115910.bv.wjzfocus.horizontal
+import dev.aaa1115910.bv.wjzfocus.localTarget
 import dev.aaa1115910.bv.wjzfocus.resolve
 import dev.aaa1115910.bv.wjzfocus.submitExternalEntryFocus
+import dev.aaa1115910.bv.wjzfocus.keepLayer
 import dev.aaa1115910.bv.wjzfocus.up
+import dev.aaa1115910.bv.wjzfocus.wjzFocusAllowOnlyEntries
 import dev.aaa1115910.bv.wjzfocus.wjzTextFieldFocus
 import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import kotlinx.collections.immutable.ImmutableList
@@ -105,16 +114,17 @@ private val SearchInputRootScopeId = WjzFocusScopeId("search/input/root")
 private val SearchInputDeleteAllDialogScopeId = WjzFocusScopeId("search/input/delete-all")
 private val SearchInputDeleteAllDialogContainerLocalId = wjzFocusLocalId("container")
 private val SearchInputKeywordLocalId = wjzFocusLocalId("keyword")
+private const val SearchInputComponentId = "searchInput"
+private val SearchInputKeywordEntryLocalId = WjzFocusLocalEntryId("keyword")
+internal val SearchInputDefaultEntryId = WjzFocusComponentId(SearchInputComponentId).defaultEntry()
+private val SearchInputKeywordEntryId =
+    WjzFocusComponentId(SearchInputComponentId).entry(SearchInputKeywordEntryLocalId)
 private val SearchInputKeyboardHorizontalPadding = 28.dp
 private val SearchInputTextFieldHorizontalPadding = 12.dp
 private val SearchInputTextFieldVerticalPadding = 8.dp
 
 private fun SoftKeyboardType.keyboardContentWidth(): Dp {
-    return when (this) {
-        SoftKeyboardType.English -> 258.dp
-        SoftKeyboardType.Japanese -> 434.dp
-        SoftKeyboardType.Symbol -> 390.dp
-    }
+    return 434.dp
 }
 
 private fun SearchRightEntryToken.toFocusLocalId(): WjzFocusLocalId {
@@ -123,14 +133,20 @@ private fun SearchRightEntryToken.toFocusLocalId(): WjzFocusLocalId {
     return wjzFocusLocalId("right-entry", slot, key)
 }
 
+private fun Modifier.blockSearchInputDirection(direction: Key): Modifier {
+    return onPreviewKeyEvent { event ->
+        event.type == KeyEventType.KeyDown && event.key == direction
+    }
+}
+
 @Composable
 private fun searchActionIconButtonColors() = IconButtonDefaults.colors(
-    containerColor = MaterialTheme.colorScheme.surface,
-    contentColor = MaterialTheme.colorScheme.onSurface,
-    focusedContainerColor = MaterialTheme.colorScheme.onSurface,
-    focusedContentColor = MaterialTheme.colorScheme.surface,
-    pressedContainerColor = MaterialTheme.colorScheme.onSurface,
-    pressedContentColor = MaterialTheme.colorScheme.surface
+    containerColor = C.surface,
+    contentColor = C.onSurface,
+    focusedContainerColor = C.surfaceVariant,
+    focusedContentColor = C.onSurfaceVariant,
+    pressedContainerColor = C.surfaceVariant,
+    pressedContentColor = C.onSurfaceVariant
 )
 
 data class SearchRightEntryToken(
@@ -209,6 +225,7 @@ private fun SearchInputRoute(
     val parentFocusCoordinator = LocalWjzFocusCoordinator.current
     val ownFocusCoordinator = rememberWjzFocusCoordinator()
     val focusCoordinator = parentFocusCoordinator ?: ownFocusCoordinator
+    var keywordEntryArmed by remember { mutableStateOf(false) }
 
     val onSearch: (String) -> Unit = onSearch@{ keyword ->
         if (keyword.isBlank()) return@onSearch
@@ -244,13 +261,19 @@ private fun SearchInputRoute(
         scopeId = SearchInputRootScopeId,
     ) {
         WjzFocusEntrySurface(
-            componentId = "searchInput",
+            componentId = SearchInputComponentId,
             default = {
                 defaultEntry(
                     nodeId = SoftKeyboardScopeId.resolve(SoftKeyboardFirstKeyLocalId),
                     layer = WjzFocusLayer.Content,
                     scopeId = SoftKeyboardScopeId
                 )
+            },
+            entries = {
+                entry(SearchInputKeywordEntryLocalId) {
+                    keywordEntryArmed = true
+                    SearchInputRootScopeId.localTarget(SearchInputKeywordLocalId)
+                }
             }
         )
         SearchInputScreenContent(
@@ -262,6 +285,8 @@ private fun SearchInputRoute(
             onSearch = onSearch,
             topologyRegion = topologyRegion,
             topNavEntryId = topNavEntryId,
+            keywordEntryArmed = keywordEntryArmed,
+            onKeywordEntryConsumed = { keywordEntryArmed = false },
             showProxyOptions = Prefs.enableProxy,
             enableProxy = searchInputViewModel.enableProxy,
             onEnableProxyChange = { searchInputViewModel.enableProxy = it },
@@ -285,6 +310,8 @@ private fun SearchInputScreenContent(
     onSearch: (String) -> Unit,
     topologyRegion: WjzFocusTopologyRegionRef = WjzFocusTopologyRegionRef.Standalone,
     topNavEntryId: WjzFocusEntryId = MainTopNavDefaultEntryId,
+    keywordEntryArmed: Boolean,
+    onKeywordEntryConsumed: () -> Unit,
     showProxyOptions: Boolean,
     enableProxy: Boolean,
     onEnableProxyChange: (Boolean) -> Unit,
@@ -393,6 +420,8 @@ private fun SearchInputScreenContent(
                     onSearchKeywordChange = onSearchKeywordChange,
                     onSearch = { onSearch(searchKeyword) },
                     topNavEntryId = topNavEntryId,
+                    keywordEntryArmed = keywordEntryArmed,
+                    onKeywordEntryConsumed = onKeywordEntryConsumed,
                     showProxyOptions = showProxyOptions,
                     enableProxy = enableProxy,
                     onEnableProxyChange = onEnableProxyChange
@@ -436,6 +465,8 @@ private fun SearchInput(
     onSearchKeywordChange: (String) -> Unit,
     onSearch: (String) -> Unit,
     topNavEntryId: WjzFocusEntryId = MainTopNavDefaultEntryId,
+    keywordEntryArmed: Boolean,
+    onKeywordEntryConsumed: () -> Unit,
     showProxyOptions: Boolean,
     enableProxy: Boolean,
     onEnableProxyChange: (Boolean) -> Unit
@@ -447,6 +478,7 @@ private fun SearchInput(
     var fieldValue by remember { mutableStateOf(TextFieldValue(searchKeyword)) }
     var keyboardType by remember { mutableStateOf(SoftKeyboardType.English) }
     var symbolKeyboardSourceType by remember { mutableStateOf(SoftKeyboardType.English) }
+    val focusCoordinator = LocalWjzFocusCoordinator.current
 
     // 外部（SoftKeyboard）修改了 searchKeyword 时，同步回输入框文本
     // 只在未聚焦时同步，避免覆盖用户在输入框内移动的光标
@@ -509,7 +541,7 @@ private fun SearchInput(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            val underlineColor = MaterialTheme.colorScheme.inverseSurface
+            val underlineColor = C.inverseSurface
             BasicTextField(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -517,10 +549,12 @@ private fun SearchInput(
                     .wjzTextFieldFocus(
                         localId = SearchInputKeywordLocalId,
                         layer = WjzFocusLayer.Content,
+                        requestPolicy = wjzFocusAllowOnlyEntries(SearchInputKeywordEntryId),
                         backEntryId = topNavEntryId,
                         exits = {
                             up move topNavEntryId
                             down move SoftKeyboardEntryId
+                            cancel(horizontal)
                         },
                         onFocused = {
                             if (!textFieldHasFocus) {
@@ -531,6 +565,17 @@ private fun SearchInput(
                         },
                         onFocusChanged = { focused ->
                             textFieldHasFocus = focused
+                            if (focused) {
+                                if (keywordEntryArmed) {
+                                    onKeywordEntryConsumed()
+                                } else {
+                                    focusCoordinator?.submitExternalEntryFocus(
+                                        entryId = SoftKeyboardEntryId,
+                                        layerActivation = keepLayer,
+                                        dedupeKey = "search-input-keyword-reject-native-focus"
+                                    )
+                                }
+                            }
                         }
                     )
                     .drawBehind {
@@ -548,7 +593,7 @@ private fun SearchInput(
                 },
                 singleLine = true,
                 textStyle = MaterialTheme.typography.titleMedium.copy(
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = C.onSurface
                 ),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(
@@ -596,6 +641,7 @@ private fun SearchInput(
                 },
                 onEnableSearchWithProxyChange = onEnableProxyChange,
                 backEntryId = topNavEntryId,
+                upEntryId = SearchInputKeywordEntryId,
                 onFirstButtonPlaced = onDefaultFocusReady
             )
         }
@@ -615,7 +661,8 @@ private fun SearchHotwords(
 ) {
     Column(
         modifier = modifier
-            .fillMaxHeight(),
+            .fillMaxHeight()
+            .blockSearchInputDirection(Key.DirectionRight),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -635,13 +682,13 @@ private fun SearchHotwords(
                     Icon(
                         painter = painterResource(id = R.drawable.expand_circle_up_24px),
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface
+                        tint = C.onSurface
                     )
                 } else {
                     Icon(
                         painter = painterResource(id = R.drawable.expand_circle_down_24px),
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface
+                        tint = C.onSurface
                     )
                 }
             }
@@ -704,7 +751,8 @@ private fun SearchSuggestion(
 ) {
     Column(
         modifier = modifier
-            .fillMaxHeight(),
+            .fillMaxHeight()
+            .blockSearchInputDirection(Key.DirectionLeft),
     ) {
         Text(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -763,7 +811,8 @@ private fun SearchHistory(
 
     Column(
         modifier = modifier
-            .fillMaxHeight(),
+            .fillMaxHeight()
+            .blockSearchInputDirection(Key.DirectionLeft),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -889,13 +938,15 @@ private fun SearchInputScreenContentPreview() {
                 modifier = Modifier
                     .width(80.dp)
                     .fillMaxHeight()
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .background(C.surfaceVariant)
             )
             SearchInputScreenContent(
                 modifier = Modifier,
                 searchKeyword = "",
                 onSearchKeywordChange = {},
                 onSearch = {},
+                keywordEntryArmed = false,
+                onKeywordEntryConsumed = {},
                 showProxyOptions = true,
                 enableProxy = false,
                 onEnableProxyChange = {},

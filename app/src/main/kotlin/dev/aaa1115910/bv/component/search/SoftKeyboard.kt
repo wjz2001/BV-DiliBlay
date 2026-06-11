@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,15 +17,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
@@ -41,8 +39,8 @@ import androidx.tv.material3.Text
 import dev.aaa1115910.bv.R
 import dev.aaa1115910.bv.wjzfocus.WjzFocusHost
 import dev.aaa1115910.bv.wjzfocus.WjzFocusLayer
+import dev.aaa1115910.bv.wjzfocus.WjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusScopeId
-import dev.aaa1115910.bv.wjzfocus.WjzFocusTransitionGuard
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntrySurface
 import dev.aaa1115910.bv.wjzfocus.WjzFocusEntryId
 import dev.aaa1115910.bv.wjzfocus.WjzFocusComponentId
@@ -51,14 +49,13 @@ import dev.aaa1115910.bv.wjzfocus.activateLayer
 import dev.aaa1115910.bv.wjzfocus.defaultEntry
 import dev.aaa1115910.bv.wjzfocus.resolve
 import dev.aaa1115910.bv.wjzfocus.submitExternalEntryFocus
-import dev.aaa1115910.bv.wjzfocus.wjzFocusExits
+import dev.aaa1115910.bv.wjzfocus.up
+import dev.aaa1115910.bv.wjzfocus.wjzClickableFocus
+import dev.aaa1115910.bv.wjzfocus.wjzFocusHostExits
 import dev.aaa1115910.bv.wjzfocus.wjzFocusLocalId
 import dev.aaa1115910.bv.wjzfocus.rememberWjzFocusCoordinator
 import dev.aaa1115910.bv.ui.theme.C
 import dev.aaa1115910.bv.ui.theme.BVTheme
-import dev.aaa1115910.bv.util.isConfirmKey
-import dev.aaa1115910.bv.util.isKeyDown
-import dev.aaa1115910.bv.util.isKeyUp
 
 enum class SoftKeyboardType {
     English,
@@ -70,11 +67,45 @@ internal val SoftKeyboardScopeId = WjzFocusScopeId("search/keyboard")
 private const val SoftKeyboardFocusComponentId = "soft_keyboard"
 internal val SoftKeyboardEntryId = WjzFocusComponentId(SoftKeyboardFocusComponentId).defaultEntry()
 internal val SoftKeyboardFirstKeyLocalId = wjzFocusLocalId("key", "first")
+private const val SoftKeyboardColumnCount = 10
+private const val SoftKeyboardRowCount = 11
+private val SoftKeyboardCellSize = 38.dp
+private val SoftKeyboardCellSpacing = 6.dp
+
+private fun softKeyboardSlotLocalId(rowIndex: Int, columnIndex: Int) =
+    wjzFocusLocalId("key", "slot", rowIndex, columnIndex)
 
 private data class JapaneseKey(
     val label: String,
     val longPressInput: String? = null,
     val small: Boolean = false
+)
+
+private data class SoftKeyboardSlot(
+    val row: Int,
+    val column: Int
+)
+
+private sealed interface SoftKeyboardAction {
+    data class Input(val value: String) : SoftKeyboardAction
+    data class ChangeKeyboardType(val type: SoftKeyboardType) : SoftKeyboardAction
+    object Clear : SoftKeyboardAction
+    object Delete : SoftKeyboardAction
+    object MoveCursorLeft : SoftKeyboardAction
+    object MoveCursorRight : SoftKeyboardAction
+    object Search : SoftKeyboardAction
+    object OpenSymbolKeyboard : SoftKeyboardAction
+}
+
+private data class SoftKeyboardCell(
+    val label: String? = null,
+    val painterRes: Int? = null,
+    val secondPainterRes: Int? = null,
+    val small: Boolean = false,
+    val span: Int = 1,
+    val first: Boolean = false,
+    val action: SoftKeyboardAction,
+    val longPressAction: SoftKeyboardAction? = null
 )
 
 @Composable
@@ -93,12 +124,12 @@ fun SoftKeyboard(
     onKeyboardTypeChange: (SoftKeyboardType) -> Unit = {},
     onEnableSearchWithProxyChange: (Boolean) -> Unit,
     backEntryId: WjzFocusEntryId? = null,
+    upEntryId: WjzFocusEntryId? = null,
     onFirstButtonPlaced: (() -> Unit)? = null
 ) {
     val parentCoordinator = LocalWjzFocusCoordinator.current
     val ownCoordinator = rememberWjzFocusCoordinator()
     val coordinator = parentCoordinator ?: ownCoordinator
-    var keyboardTransitionLocked by remember { mutableStateOf(false) }
     // 记录进入符号键盘前的键盘类型（默认英文）
     var sourceKeyboardType by remember { mutableStateOf(SoftKeyboardType.English) }
 
@@ -107,10 +138,11 @@ fun SoftKeyboard(
         if (keyboardType != SoftKeyboardType.Symbol) {
             sourceKeyboardType = keyboardType
         }
+    }
 
-        keyboardTransitionLocked = true
-        withFrameNanos { }
-        keyboardTransitionLocked = false
+    val onKeyboardFirstButtonPlaced = {
+        onFirstButtonPlaced?.invoke()
+        Unit
     }
 
     WjzFocusHost(
@@ -129,7 +161,10 @@ fun SoftKeyboard(
         },
         coordinator = coordinator,
         layer = WjzFocusLayer.Content,
-        scopeId = SoftKeyboardScopeId
+        scopeId = SoftKeyboardScopeId,
+        exits = wjzFocusHostExits {
+            upEntryId?.let { up move it }
+        }
     ) {
         WjzFocusEntrySurface(
             componentId = SoftKeyboardFocusComponentId,
@@ -141,113 +176,31 @@ fun SoftKeyboard(
                 )
             }
         )
-        WjzFocusTransitionGuard(locked = keyboardTransitionLocked)
-        when (keyboardType) {
-            SoftKeyboardType.English -> EnglishKeyboardLayout(
-                showSearchWithProxy = showSearchWithProxy,
-                enableSearchWithProxy = enableSearchWithProxy,
-                onClick = onClick,
-                onClear = onClear,
-                onDelete = onDelete,
-                onMoveCursorLeft = onMoveCursorLeft,
-                onMoveCursorRight = onMoveCursorRight,
-                onSearch = onSearch,
-                onOpenSymbolKeyboard = onOpenSymbolKeyboard,
-                onKeyboardTypeChange = onKeyboardTypeChange,
-                onEnableSearchWithProxyChange = onEnableSearchWithProxyChange,
-                onFirstButtonPlaced = onFirstButtonPlaced
-            )
-
-            SoftKeyboardType.Japanese -> JapaneseKeyboardLayout(
-                onClick = onClick,
-                onClear = onClear,
-                onDelete = onDelete,
-                onMoveCursorLeft = onMoveCursorLeft,
-                onMoveCursorRight = onMoveCursorRight,
-                onSearch = onSearch,
-                onOpenSymbolKeyboard = onOpenSymbolKeyboard,
-                onKeyboardTypeChange = onKeyboardTypeChange,
-                onFirstButtonPlaced = onFirstButtonPlaced
-            )
-
-            SoftKeyboardType.Symbol -> SymbolKeyboardLayout(
-                onClick = onClick,
-                onClear = onClear,
-                onDelete = onDelete,
-                onMoveCursorLeft = onMoveCursorLeft,
-                onMoveCursorRight = onMoveCursorRight,
-                onSearch = onSearch,
-                onKeyboardTypeChange = onKeyboardTypeChange,
-                sourceKeyboardType = sourceKeyboardType,
-                onFirstButtonPlaced = onFirstButtonPlaced
-            )
-        }
+        SoftKeyboardGridLayout(
+            keyboardType = keyboardType,
+            showSearchWithProxy = showSearchWithProxy,
+            enableSearchWithProxy = enableSearchWithProxy,
+            sourceKeyboardType = sourceKeyboardType,
+            onClick = onClick,
+            onClear = onClear,
+            onDelete = onDelete,
+            onMoveCursorLeft = onMoveCursorLeft,
+            onMoveCursorRight = onMoveCursorRight,
+            onSearch = onSearch,
+            onOpenSymbolKeyboard = onOpenSymbolKeyboard,
+            onKeyboardTypeChange = onKeyboardTypeChange,
+            onEnableSearchWithProxyChange = onEnableSearchWithProxyChange,
+            onFirstButtonPlaced = onKeyboardFirstButtonPlaced
+        )
     }
 }
 
 @Composable
-private fun EnglishKeyboardControlsRow(
-    reversed: Boolean,
-    onOpenSymbolKeyboard: () -> Unit,
-    onMoveCursorRight: () -> Unit,
-    onMoveCursorLeft: () -> Unit,
-    onSearch: () -> Unit,
-    onDelete: () -> Unit,
-    onClear: () -> Unit
-) {
-    val cells = listOf<@Composable () -> Unit>(
-        {
-            SoftKeyboardIconKey(
-                painterRes = R.drawable.emoji_symbols,
-                onClick = onOpenSymbolKeyboard
-            )
-        },
-        {
-            SoftKeyboardKey(
-                key = "◂",
-                onClick = onMoveCursorLeft
-            )
-        },
-        {
-            SoftKeyboardKey(
-                key = "▸",
-                onClick = onMoveCursorRight
-            )
-        },
-        {
-            SoftKeyboardIconKey(
-                painterRes = R.drawable.search,
-                onClick = onSearch
-            )
-        },
-        {
-            SoftKeyboardIconKey(
-                painterRes = R.drawable.backspace,
-                onClick = onDelete
-            )
-        },
-        {
-            SoftKeyboardIconKey(
-                painterRes = R.drawable.delete,
-                onClick = onClear
-            )
-        }
-    )
-
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        (if (reversed) cells.reversed() else cells).forEach { cell ->
-            cell()
-        }
-    }
-}
-
-@Composable
-private fun EnglishKeyboardLayout(
-    modifier: Modifier = Modifier,
+private fun SoftKeyboardGridLayout(
+    keyboardType: SoftKeyboardType,
     showSearchWithProxy: Boolean,
     enableSearchWithProxy: Boolean,
+    sourceKeyboardType: SoftKeyboardType,
     onClick: (String) -> Unit,
     onClear: () -> Unit,
     onDelete: () -> Unit,
@@ -257,83 +210,43 @@ private fun EnglishKeyboardLayout(
     onOpenSymbolKeyboard: () -> Unit,
     onKeyboardTypeChange: (SoftKeyboardType) -> Unit,
     onEnableSearchWithProxyChange: (Boolean) -> Unit,
-    onFirstButtonPlaced: (() -> Unit)? = null
+    onFirstButtonPlaced: (() -> Unit)?
 ) {
-    var firstButtonPlacedNotified by remember { mutableStateOf(false) }
-
-    val keys = listOf(
-        listOf("A", "B", "C", "D", "E", "F"),
-        listOf("G", "H", "I", "J", "K", "L"),
-        listOf("M", "N", "O", "P", "Q", "R"),
-        listOf("S", "T", "U", "V", "W", "X"),
-        listOf("Y", "Z", "1", "2", "3", "4"),
-        listOf("5", "6", "7", "8", "9", "0")
-    )
+    val rows = remember(keyboardType, sourceKeyboardType) {
+        normalizedKeyboardRows(
+            when (keyboardType) {
+                SoftKeyboardType.English -> englishKeyboardRows()
+                SoftKeyboardType.Japanese -> japaneseKeyboardRows()
+                SoftKeyboardType.Symbol -> symbolKeyboardRows(sourceKeyboardType = sourceKeyboardType)
+            }
+        )
+    }
+    val onAction: (SoftKeyboardAction) -> Unit = { action ->
+        when (action) {
+            is SoftKeyboardAction.Input -> onClick(action.value)
+            is SoftKeyboardAction.ChangeKeyboardType -> onKeyboardTypeChange(action.type)
+            SoftKeyboardAction.Clear -> onClear()
+            SoftKeyboardAction.Delete -> onDelete()
+            SoftKeyboardAction.MoveCursorLeft -> onMoveCursorLeft()
+            SoftKeyboardAction.MoveCursorRight -> onMoveCursorRight()
+            SoftKeyboardAction.Search -> onSearch()
+            SoftKeyboardAction.OpenSymbolKeyboard -> onOpenSymbolKeyboard()
+        }
+    }
 
     Column(
-        modifier = modifier.width(258.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        modifier = Modifier.width(
+            SoftKeyboardCellSize * SoftKeyboardColumnCount +
+                    SoftKeyboardCellSpacing * (SoftKeyboardColumnCount - 1)
+        ),
+        verticalArrangement = Arrangement.spacedBy(SoftKeyboardCellSpacing)
     ) {
-        EnglishKeyboardControlsRow(
-            reversed = false,
-            onOpenSymbolKeyboard = onOpenSymbolKeyboard,
-            onMoveCursorRight = onMoveCursorRight,
-            onMoveCursorLeft = onMoveCursorLeft,
-            onSearch = onSearch,
-            onDelete = onDelete,
-            onClear = onClear
+        SoftKeyboardGrid(
+            rows = rows,
+            onAction = onAction,
+            onFirstButtonPlaced = onFirstButtonPlaced
         )
 
-        keys.forEachIndexed { rowIndex, rowKeys ->
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                rowKeys.forEachIndexed { index, key ->
-                    val keyModifier = if (rowIndex == 0 && index == 0) {
-                        Modifier
-                            .wjzFocusExits(
-                                localId = SoftKeyboardFirstKeyLocalId,
-                                layer = WjzFocusLayer.Content
-                            )
-                            .onGloballyPositioned {
-                                if (!firstButtonPlacedNotified) {
-                                    firstButtonPlacedNotified = true
-                                    onFirstButtonPlaced?.invoke()
-                                }
-                            }
-                    } else {
-                        Modifier
-                    }
-                    SoftKeyboardKey(
-                        modifier = keyModifier,
-                        key = key,
-                        onClick = { onClick(key) },
-                        onLongClick = if (key.length == 1 && key[0] in 'A'..'Z') {
-                            { onClick(key.lowercase()) }
-                        } else {
-                            null
-                        }
-                    )
-                }
-            }
-        }
-
-        EnglishKeyboardControlsRow(
-            reversed = true,
-            onOpenSymbolKeyboard = onOpenSymbolKeyboard,
-            onMoveCursorRight = onMoveCursorRight,
-            onMoveCursorLeft = onMoveCursorLeft,
-            onSearch = onSearch,
-            onDelete = onDelete,
-            onClear = onClear
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center
-        ) {
-            SoftKeyboardKanaCaseKey(onClick = { onKeyboardTypeChange(SoftKeyboardType.Japanese) })
-        }
         if (showSearchWithProxy) {
             Surface(
                 modifier = Modifier,
@@ -363,231 +276,430 @@ private fun EnglishKeyboardLayout(
 }
 
 @Composable
-private fun JapaneseKeyboardLayout(
-    modifier: Modifier = Modifier,
-    onClick: (String) -> Unit,
-    onClear: () -> Unit,
-    onDelete: () -> Unit,
-    onMoveCursorLeft: () -> Unit,
-    onMoveCursorRight: () -> Unit,
-    onSearch: () -> Unit,
-    onOpenSymbolKeyboard: () -> Unit,
-    onKeyboardTypeChange: (SoftKeyboardType) -> Unit,
-    onFirstButtonPlaced: (() -> Unit)? = null
+private fun SoftKeyboardGrid(
+    rows: List<List<SoftKeyboardCell?>>,
+    onAction: (SoftKeyboardAction) -> Unit,
+    onFirstButtonPlaced: (() -> Unit)?
 ) {
-    var firstButtonPlacedNotified by remember { mutableStateOf(false) }
-    val keys = listOf(
-        listOf(
-            JapaneseKey("1"),
-            JapaneseKey("2"),
-            JapaneseKey("3"),
-            JapaneseKey("4"),
-            JapaneseKey("5"),
-            JapaneseKey("6"),
-            JapaneseKey("7"),
-            JapaneseKey("8"),
-            JapaneseKey("9"),
-            JapaneseKey("0")
-        ),
-        listOf(
-            JapaneseKey("あ", longPressInput = "ア"),
-            JapaneseKey("い", longPressInput = "イ"),
-            JapaneseKey("う", longPressInput = "ウ"),
-            JapaneseKey("え", longPressInput = "エ"),
-            JapaneseKey("お", longPressInput = "オ"),
-            JapaneseKey("か", longPressInput = "カ"),
-            JapaneseKey("が", longPressInput = "ガ"),
-            JapaneseKey("き", longPressInput = "キ"),
-            JapaneseKey("ぎ", longPressInput = "ギ"),
-            JapaneseKey("く", longPressInput = "ク")
-        ),
-        listOf(
-            JapaneseKey("ぐ", longPressInput = "グ"),
-            JapaneseKey("け", longPressInput = "ケ"),
-            JapaneseKey("げ", longPressInput = "ゲ"),
-            JapaneseKey("こ", longPressInput = "コ"),
-            JapaneseKey("ご", longPressInput = "ゴ"),
-            JapaneseKey("さ", longPressInput = "サ"),
-            JapaneseKey("ざ", longPressInput = "ザ"),
-            JapaneseKey("し", longPressInput = "シ"),
-            JapaneseKey("じ", longPressInput = "ジ"),
-            JapaneseKey("す", longPressInput = "ス")
-        ),
-        listOf(
-            JapaneseKey("ず", longPressInput = "ズ"),
-            JapaneseKey("せ", longPressInput = "セ"),
-            JapaneseKey("ぜ", longPressInput = "ゼ"),
-            JapaneseKey("そ", longPressInput = "ソ"),
-            JapaneseKey("ぞ", longPressInput = "ゾ"),
-            JapaneseKey("た", longPressInput = "タ"),
-            JapaneseKey("だ", longPressInput = "ダ"),
-            JapaneseKey("ち", longPressInput = "チ"),
-            JapaneseKey("ぢ", longPressInput = "ヂ"),
-            JapaneseKey("つ", longPressInput = "ツ")
-        ),
-        listOf(
-            JapaneseKey("づ", longPressInput = "ヅ"),
-            JapaneseKey("て", longPressInput = "テ"),
-            JapaneseKey("で", longPressInput = "デ"),
-            JapaneseKey("と", longPressInput = "ト"),
-            JapaneseKey("ど", longPressInput = "ド"),
-            JapaneseKey("な", longPressInput = "ナ"),
-            JapaneseKey("に", longPressInput = "ニ"),
-            JapaneseKey("ぬ", longPressInput = "ヌ"),
-            JapaneseKey("ね", longPressInput = "ネ"),
-            JapaneseKey("の", longPressInput = "ノ")
-        ),
-        listOf(
-            JapaneseKey("は", longPressInput = "ハ"),
-            JapaneseKey("ば", longPressInput = "バ"),
-            JapaneseKey("ぱ", longPressInput = "パ"),
-            JapaneseKey("ひ", longPressInput = "ヒ"),
-            JapaneseKey("び", longPressInput = "ビ"),
-            JapaneseKey("ぴ", longPressInput = "ピ"),
-            JapaneseKey("ふ", longPressInput = "フ"),
-            JapaneseKey("ぶ", longPressInput = "ブ"),
-            JapaneseKey("ぷ", longPressInput = "プ"),
-            JapaneseKey("へ", longPressInput = "ヘ")
-        ),
-        listOf(
-            JapaneseKey("べ", longPressInput = "ベ"),
-            JapaneseKey("ぺ", longPressInput = "ペ"),
-            JapaneseKey("ほ", longPressInput = "ホ"),
-            JapaneseKey("ぼ", longPressInput = "ボ"),
-            JapaneseKey("ぽ", longPressInput = "ポ"),
-            JapaneseKey("ま", longPressInput = "マ"),
-            JapaneseKey("み", longPressInput = "ミ"),
-            JapaneseKey("む", longPressInput = "ム"),
-            JapaneseKey("め", longPressInput = "メ"),
-            JapaneseKey("も", longPressInput = "モ")
-        ),
-        listOf(
-            JapaneseKey("や", longPressInput = "ヤ"),
-            JapaneseKey("ゃ", longPressInput = "ャ", small = true),
-            JapaneseKey("ゐ", longPressInput = "ヰ"),
-            JapaneseKey("ゆ", longPressInput = "ユ"),
-            JapaneseKey("ゅ", longPressInput = "ュ", small = true),
-            JapaneseKey("ゑ", longPressInput = "ヱ"),
-            JapaneseKey("よ", longPressInput = "ヨ"),
-            JapaneseKey("ょ", longPressInput = "ョ", small = true),
-            JapaneseKey("ら", longPressInput = "ラ"),
-            JapaneseKey("り", longPressInput = "リ")
-        ),
-        listOf(
-            JapaneseKey("る", longPressInput = "ル"),
-            JapaneseKey("れ", longPressInput = "レ"),
-            JapaneseKey("ろ", longPressInput = "ロ"),
-            JapaneseKey("わ", longPressInput = "ワ"),
-            JapaneseKey("を", longPressInput = "ヲ"),
-            JapaneseKey("ァ", longPressInput = "ぁ", small = true),
-            JapaneseKey("ィ", longPressInput = "ぃ", small = true),
-            JapaneseKey("ぅ", longPressInput = "ゥ", small = true),
-            JapaneseKey("ェ", longPressInput = "ぇ", small = true),
-            JapaneseKey("ォ", longPressInput = "ぉ", small = true)
-        )
-    )
-
-    Column(
-        modifier = modifier.width(434.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        JapaneseKeyboardControlsRow(
-            reversed = false,
-            onClick = onClick,
-            onClear = onClear,
-            onDelete = onDelete,
-            onMoveCursorLeft = onMoveCursorLeft,
-            onMoveCursorRight = onMoveCursorRight,
-            onSearch = onSearch,
-            onOpenSymbolKeyboard = onOpenSymbolKeyboard,
-            onKeyboardTypeChange = onKeyboardTypeChange
-        )
-        keys.forEachIndexed { rowIndex, rowKeys ->
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                rowKeys.forEachIndexed { index, key ->
-                    val keyModifier = if (rowIndex == 1 && index == 0) {
-                        Modifier
-                            .wjzFocusExits(
-                                localId = SoftKeyboardFirstKeyLocalId,
-                                layer = WjzFocusLayer.Content
-                            )
-                            .onGloballyPositioned {
-                                if (!firstButtonPlacedNotified) {
-                                    firstButtonPlacedNotified = true
-                                    onFirstButtonPlaced?.invoke()
-                                }
-                            }
-                    } else {
-                        Modifier
+    val slots = remember(rows) {
+        buildList {
+            rows.forEachIndexed { rowIndex, rowCells ->
+                rowCells.forEachIndexed { columnIndex, cell ->
+                    if (cell != null) {
+                        add(SoftKeyboardSlot(row = rowIndex, column = columnIndex))
                     }
-
-                    SoftKeyboardKey(
-                        modifier = keyModifier,
-                        key = key.label,
-                        small = key.small,
-                        onClick = { onClick(key.label) },
-                        onLongClick = key.longPressInput?.let { longPressInput ->
-                            { onClick(longPressInput) }
-                        }
-                    )
                 }
             }
         }
-        JapaneseKeyboardControlsRow(
-            reversed = true,
-            onClick = onClick,
-            onClear = onClear,
-            onDelete = onDelete,
-            onMoveCursorLeft = onMoveCursorLeft,
-            onMoveCursorRight = onMoveCursorRight,
-            onSearch = onSearch,
-            onOpenSymbolKeyboard = onOpenSymbolKeyboard,
-            onKeyboardTypeChange = onKeyboardTypeChange
-        )
+    }
+
+    Layout(
+        content = {
+            slots.forEach { slot ->
+                val cell = rows[slot.row][slot.column] ?: return@forEach
+                SoftKeyboardGridCell(
+                    cell = cell,
+                    slot = slot,
+                    onAction = onAction,
+                    onPlaced = if (cell.first) {
+                        onFirstButtonPlaced
+                    } else {
+                        null
+                    }
+                )
+            }
+        }
+    ) { measurables, constraints ->
+        val cellSize = SoftKeyboardCellSize.roundToPx()
+        val spacing = SoftKeyboardCellSpacing.roundToPx()
+        val width = cellSize * SoftKeyboardColumnCount + spacing * (SoftKeyboardColumnCount - 1)
+        val height = cellSize * SoftKeyboardRowCount + spacing * (SoftKeyboardRowCount - 1)
+        val placeables = measurables.mapIndexed { index, measurable ->
+            val cell = rows[slots[index].row][slots[index].column]
+            val span = cell?.span ?: 1
+            val cellWidth = cellSize * span + spacing * (span - 1)
+            measurable.measure(
+                constraints.copy(
+                    minWidth = cellWidth,
+                    maxWidth = cellWidth,
+                    minHeight = cellSize,
+                    maxHeight = cellSize
+                )
+            )
+        }
+
+        layout(
+            width = width.coerceIn(constraints.minWidth, constraints.maxWidth),
+            height = height.coerceIn(constraints.minHeight, constraints.maxHeight)
+        ) {
+            placeables.forEachIndexed { index, placeable ->
+                val slot = slots[index]
+                placeable.placeRelative(
+                    x = slot.column * (cellSize + spacing),
+                    y = slot.row * (cellSize + spacing)
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun SymbolKeyboardLayout(
-    modifier: Modifier = Modifier,
-    onClick: (String) -> Unit,
-    onClear: () -> Unit,
-    onDelete: () -> Unit,
-    onMoveCursorLeft: () -> Unit,
-    onMoveCursorRight: () -> Unit,
-    onSearch: () -> Unit,
-    onKeyboardTypeChange: (SoftKeyboardType) -> Unit,
-    sourceKeyboardType: SoftKeyboardType,
-    onFirstButtonPlaced: (() -> Unit)? = null
+private fun SoftKeyboardGridCell(
+    cell: SoftKeyboardCell,
+    slot: SoftKeyboardSlot,
+    onAction: (SoftKeyboardAction) -> Unit,
+    onPlaced: (() -> Unit)?
 ) {
-    var firstButtonPlacedNotified by remember { mutableStateOf(false) }
-
-    // 将所有按键拍平到一个列表中，方便自动“往前补”和换行
-    val allCells = mutableListOf<@Composable () -> Unit>()
-
-    // 顶部控制键
-    allCells.add { SoftKeyboardDisabledIconKey(painterRes = R.drawable.emoji_symbols) }
-    allCells.add { SoftKeyboardKey(key = "◂", onClick = onMoveCursorLeft) }
-    allCells.add { SoftKeyboardKey(key = "▸", onClick = onMoveCursorRight) }
-    allCells.add { SoftKeyboardIconKey(painterRes = R.drawable.search, onClick = onSearch) }
-    allCells.add { SoftKeyboardIconKey(painterRes = R.drawable.backspace, onClick = onDelete) }
-    allCells.add { SoftKeyboardIconKey(painterRes = R.drawable.delete, onClick = onClear) }
-    // 单格语言切换按钮
-    allCells.add {
-        val iconRes = if (sourceKeyboardType == SoftKeyboardType.Japanese) {
-            R.drawable.language_japanese_kana
-        } else {
-            R.drawable.match_case
+    var placedNotified by remember(slot, cell.first) { mutableStateOf(false) }
+    val localId = if (cell.first) {
+        SoftKeyboardFirstKeyLocalId
+    } else {
+        softKeyboardSlotLocalId(slot.row, slot.column)
+    }
+    val modifier = Modifier
+        .width(SoftKeyboardCellSize * cell.span + SoftKeyboardCellSpacing * (cell.span - 1))
+        .height(SoftKeyboardCellSize)
+        .wjzClickableFocus(
+            localId = localId,
+            onClick = { onAction(cell.action) },
+            onLongClick = cell.longPressAction?.let { longPressAction ->
+                { onAction(longPressAction) }
+            },
+            layer = WjzFocusLayer.Content
+        )
+        .onGloballyPositioned {
+            if (!placedNotified) {
+                placedNotified = true
+                onPlaced?.invoke()
+            }
         }
-        SoftKeyboardIconKey(
-            painterRes = iconRes,
-            onClick = { onKeyboardTypeChange(sourceKeyboardType) }
+
+    SoftKeyboardVisualCell(
+        modifier = modifier,
+        label = cell.label,
+        painterRes = cell.painterRes,
+        secondPainterRes = cell.secondPainterRes,
+        small = cell.small
+    )
+}
+
+@Composable
+private fun SoftKeyboardVisualCell(
+    modifier: Modifier,
+    label: String?,
+    painterRes: Int?,
+    secondPainterRes: Int?,
+    small: Boolean
+) {
+    Surface(
+        modifier = modifier,
+        shape = RectangleShape
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            if (painterRes != null && secondPainterRes != null) {
+                Icon(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 9.dp)
+                        .size(20.dp),
+                    painter = painterResource(id = painterRes),
+                    contentDescription = null
+                )
+                Text(
+                    text = "/",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Icon(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 9.dp)
+                        .size(20.dp),
+                    painter = painterResource(id = secondPainterRes),
+                    contentDescription = null
+                )
+            } else if (painterRes != null) {
+                Icon(
+                    modifier = Modifier.size(20.dp),
+                    painter = painterResource(id = painterRes),
+                    contentDescription = null
+                )
+            } else if (label != null) {
+                Text(
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 1,
+                    text = label,
+                    textAlign = TextAlign.Center,
+                    style = if (small) {
+                        MaterialTheme.typography.titleSmall
+                    } else if (label.length > 1) {
+                        MaterialTheme.typography.labelMedium
+                    } else {
+                        MaterialTheme.typography.titleMedium
+                    }
+                )
+            }
+        }
+    }
+}
+
+private fun emptyKeyboardRow(): MutableList<SoftKeyboardCell?> {
+    return MutableList(SoftKeyboardColumnCount) { null }
+}
+
+private fun normalizedKeyboardRows(rows: List<List<SoftKeyboardCell?>>): List<List<SoftKeyboardCell?>> {
+    return buildList {
+        rows.take(SoftKeyboardRowCount).forEach { row ->
+            add(row + List((SoftKeyboardColumnCount - row.size).coerceAtLeast(0)) { null })
+        }
+        repeat((SoftKeyboardRowCount - size).coerceAtLeast(0)) {
+            add(emptyKeyboardRow())
+        }
+    }
+}
+
+private fun centeredKeyboardRow(cells: List<SoftKeyboardCell?>): List<SoftKeyboardCell?> {
+    val row = emptyKeyboardRow()
+    val start = ((SoftKeyboardColumnCount - cells.sumOf { it?.span ?: 1 }) / 2).coerceAtLeast(0)
+    var column = start
+    cells.forEach { cell ->
+        if (column >= SoftKeyboardColumnCount) return@forEach
+        row[column] = cell
+        column += cell?.span ?: 1
+    }
+    return row
+}
+
+private fun softKeyboardTextCell(
+    label: String,
+    first: Boolean = false,
+    small: Boolean = false,
+    action: SoftKeyboardAction = SoftKeyboardAction.Input(label),
+    longPressAction: SoftKeyboardAction? = null
+): SoftKeyboardCell {
+    return SoftKeyboardCell(
+        label = label,
+        small = small,
+        first = first,
+        action = action,
+        longPressAction = longPressAction
+    )
+}
+
+private fun softKeyboardIconCell(
+    painterRes: Int,
+    span: Int = 1,
+    action: SoftKeyboardAction
+): SoftKeyboardCell {
+    return SoftKeyboardCell(
+        painterRes = painterRes,
+        span = span,
+        action = action
+    )
+}
+
+private fun softKeyboardDoubleIconCell(
+    firstPainterRes: Int,
+    secondPainterRes: Int,
+    span: Int,
+    action: SoftKeyboardAction
+): SoftKeyboardCell {
+    return SoftKeyboardCell(
+        painterRes = firstPainterRes,
+        secondPainterRes = secondPainterRes,
+        span = span,
+        action = action
+    )
+}
+
+private fun softKeyboardInputCell(
+    label: String,
+    first: Boolean = false,
+    small: Boolean = false,
+    longPressInput: String? = null
+) = softKeyboardTextCell(
+    label = label,
+    first = first,
+    small = small,
+    longPressAction = longPressInput?.let { SoftKeyboardAction.Input(it) }
+)
+
+private fun softKeyboardDigitCell(label: String, first: Boolean = false) =
+    softKeyboardInputCell(label = label, first = first)
+
+private fun softKeyboardOpenSymbolCell() =
+    softKeyboardIconCell(R.drawable.emoji_symbols, action = SoftKeyboardAction.OpenSymbolKeyboard)
+
+private fun softKeyboardMoveCursorLeftCell() =
+    softKeyboardTextCell("◄", action = SoftKeyboardAction.MoveCursorLeft)
+
+private fun softKeyboardMoveCursorRightCell() =
+    softKeyboardTextCell("►", action = SoftKeyboardAction.MoveCursorRight)
+
+private fun softKeyboardSearchCell() =
+    softKeyboardIconCell(R.drawable.search, action = SoftKeyboardAction.Search)
+
+private fun softKeyboardDeleteCell() =
+    softKeyboardIconCell(R.drawable.backspace, action = SoftKeyboardAction.Delete)
+
+private fun softKeyboardClearCell() =
+    softKeyboardIconCell(R.drawable.delete, action = SoftKeyboardAction.Clear)
+
+private fun softKeyboardLanguageIconRes(keyboardType: SoftKeyboardType) = when (keyboardType) {
+    SoftKeyboardType.English -> R.drawable.match_case
+    SoftKeyboardType.Japanese -> R.drawable.language_japanese_kana
+    SoftKeyboardType.Symbol -> R.drawable.emoji_symbols
+}
+
+private fun softKeyboardLanguageSwitchCell(
+    targetType: SoftKeyboardType,
+    span: Int = 1,
+    doubleIcon: Boolean = false
+): SoftKeyboardCell {
+    val action = SoftKeyboardAction.ChangeKeyboardType(targetType)
+    return if (doubleIcon) {
+        softKeyboardDoubleIconCell(
+            firstPainterRes = R.drawable.match_case,
+            secondPainterRes = R.drawable.language_japanese_kana,
+            span = span,
+            action = action
+        )
+    } else {
+        softKeyboardIconCell(
+            painterRes = softKeyboardLanguageIconRes(targetType),
+            span = span,
+            action = action
         )
     }
+}
 
-    // 符号按键
+private fun englishControlCells(
+    reversed: Boolean
+): List<SoftKeyboardCell?> {
+    val cells = listOf(
+        softKeyboardOpenSymbolCell(),
+        softKeyboardMoveCursorLeftCell(),
+        softKeyboardMoveCursorRightCell(),
+        softKeyboardSearchCell(),
+        softKeyboardDeleteCell(),
+        softKeyboardClearCell()
+    )
+    return if (reversed) cells.reversed() else cells
+}
+
+private fun englishKeyboardRows(): List<List<SoftKeyboardCell?>> {
+    val keyRows = listOf(
+        listOf("A", "B", "C", "D", "E", "F"),
+        listOf("G", "H", "I", "J", "K", "L"),
+        listOf("M", "N", "O", "P", "Q", "R"),
+        listOf("S", "T", "U", "V", "W", "X"),
+        listOf("Y", "Z", "1", "2", "3", "4"),
+        listOf("5", "6", "7", "8", "9", "0")
+    )
+    return buildList {
+        add(centeredKeyboardRow(englishControlCells(reversed = false)))
+        keyRows.forEachIndexed { rowIndex, rowKeys ->
+            add(centeredKeyboardRow(rowKeys.mapIndexed { index, label ->
+                if (label.length == 1 && label[0] in '0'..'9') {
+                    softKeyboardDigitCell(label = label)
+                } else {
+                    softKeyboardInputCell(
+                        label = label,
+                        first = rowIndex == 0 && index == 0,
+                        longPressInput = if (label.length == 1 && label[0] in 'A'..'Z') {
+                            label.lowercase()
+                        } else {
+                            null
+                        }
+                    )
+                }
+            }))
+        }
+        add(centeredKeyboardRow(englishControlCells(reversed = true)))
+        add(centeredKeyboardRow(listOf(
+            softKeyboardLanguageSwitchCell(
+                targetType = SoftKeyboardType.Japanese,
+                span = 2,
+                doubleIcon = true
+            )
+        )))
+    }
+}
+
+private fun japaneseControlCells(
+    reversed: Boolean
+): List<SoftKeyboardCell?> {
+    val cells = listOf(
+        softKeyboardOpenSymbolCell(),
+        softKeyboardMoveCursorLeftCell(),
+        softKeyboardMoveCursorRightCell(),
+        softKeyboardSearchCell(),
+        softKeyboardDeleteCell(),
+        softKeyboardClearCell(),
+        softKeyboardLanguageSwitchCell(targetType = SoftKeyboardType.English),
+        softKeyboardTextCell("ー", action = SoftKeyboardAction.Input("ヴ")),
+        softKeyboardInputCell(
+            label = "っ",
+            small = true,
+            longPressInput = "ッ"
+        ),
+        softKeyboardInputCell(
+            label = "ん",
+            small = true,
+            longPressInput = "ン"
+        )
+    )
+    return if (reversed) cells.reversed() else cells
+}
+
+private fun symbolControlCells(
+    sourceKeyboardType: SoftKeyboardType? = null
+): List<SoftKeyboardCell?> {
+    val cells = mutableListOf<SoftKeyboardCell?>(
+        softKeyboardMoveCursorLeftCell(),
+        softKeyboardMoveCursorRightCell(),
+        softKeyboardSearchCell(),
+        softKeyboardDeleteCell(),
+        softKeyboardClearCell()
+    )
+    if (sourceKeyboardType != null) {
+        cells.add(softKeyboardLanguageSwitchCell(targetType = sourceKeyboardType))
+    }
+    return cells
+}
+
+private fun japaneseKeyboardRows(): List<List<SoftKeyboardCell?>> {
+    val keys = listOf(
+        listOf(JapaneseKey("あ", "ア"), JapaneseKey("い", "イ"), JapaneseKey("う", "ウ"), JapaneseKey("え", "エ"), JapaneseKey("お", "オ"), JapaneseKey("か", "カ"), JapaneseKey("が", "ガ"), JapaneseKey("き", "キ"), JapaneseKey("ぎ", "ギ"), JapaneseKey("く", "ク")),
+        listOf(JapaneseKey("ぐ", "グ"), JapaneseKey("け", "ケ"), JapaneseKey("げ", "ゲ"), JapaneseKey("こ", "コ"), JapaneseKey("ご", "ゴ"), JapaneseKey("さ", "サ"), JapaneseKey("ざ", "ザ"), JapaneseKey("し", "シ"), JapaneseKey("じ", "ジ"), JapaneseKey("す", "ス")),
+        listOf(JapaneseKey("ず", "ズ"), JapaneseKey("せ", "セ"), JapaneseKey("ぜ", "ゼ"), JapaneseKey("そ", "ソ"), JapaneseKey("ぞ", "ゾ"), JapaneseKey("た", "タ"), JapaneseKey("だ", "ダ"), JapaneseKey("ち", "チ"), JapaneseKey("ぢ", "ヂ"), JapaneseKey("つ", "ツ")),
+        listOf(JapaneseKey("づ", "ヅ"), JapaneseKey("て", "テ"), JapaneseKey("で", "デ"), JapaneseKey("と", "ト"), JapaneseKey("ど", "ド"), JapaneseKey("な", "ナ"), JapaneseKey("に", "ニ"), JapaneseKey("ぬ", "ヌ"), JapaneseKey("ね", "ネ"), JapaneseKey("の", "ノ")),
+        listOf(JapaneseKey("は", "ハ"), JapaneseKey("ば", "バ"), JapaneseKey("ぱ", "パ"), JapaneseKey("ひ", "ヒ"), JapaneseKey("び", "ビ"), JapaneseKey("ぴ", "ピ"), JapaneseKey("ふ", "フ"), JapaneseKey("ぶ", "ブ"), JapaneseKey("ぷ", "プ"), JapaneseKey("へ", "ヘ")),
+        listOf(JapaneseKey("べ", "ベ"), JapaneseKey("ぺ", "ペ"), JapaneseKey("ほ", "ホ"), JapaneseKey("ぼ", "ボ"), JapaneseKey("ぽ", "ポ"), JapaneseKey("ま", "マ"), JapaneseKey("み", "ミ"), JapaneseKey("む", "ム"), JapaneseKey("め", "メ"), JapaneseKey("も", "モ")),
+        listOf(JapaneseKey("や", "ヤ"), JapaneseKey("ゃ", "ャ", true), JapaneseKey("ゐ", "ヰ"), JapaneseKey("ゆ", "ユ"), JapaneseKey("ゅ", "ュ", true), JapaneseKey("ゑ", "ヱ"), JapaneseKey("よ", "ヨ"), JapaneseKey("ょ", "ョ", true), JapaneseKey("ら", "ラ"), JapaneseKey("り", "リ")),
+        listOf(JapaneseKey("る", "ル"), JapaneseKey("れ", "レ"), JapaneseKey("ろ", "ロ"), JapaneseKey("わ", "ワ"), JapaneseKey("を", "ヲ"), JapaneseKey("ァ", "ぁ", true), JapaneseKey("ィ", "ぃ", true), JapaneseKey("ぅ", "ゥ", true), JapaneseKey("ェ", "ぇ", true), JapaneseKey("ォ", "ぉ", true))
+    )
+    return buildList {
+        add(japaneseControlCells(reversed = false))
+        add(('1'..'9').map { softKeyboardDigitCell(it.toString()) } + softKeyboardDigitCell("0"))
+        keys.forEachIndexed { rowIndex, rowKeys ->
+            add(rowKeys.mapIndexed { index, key ->
+                softKeyboardInputCell(
+                    label = key.label,
+                    first = rowIndex == 0 && index == 0,
+                    small = key.small,
+                    longPressInput = key.longPressInput
+                )
+            })
+        }
+        add(japaneseControlCells(reversed = true))
+    }
+}
+private fun symbolKeyboardRows(
+    sourceKeyboardType: SoftKeyboardType
+): List<List<SoftKeyboardCell?>> {
     val symbols = listOf(
         "·", "。", "，", "、", "？", "￥", "！", "：", "；",
         "【】", "【", "】", "“”", "“", "”", "‘’", "‘", "’",
@@ -597,274 +709,48 @@ private fun SymbolKeyboardLayout(
         ")", "+", "=", "{}", "{", "}", "[]", "[", "]",
         "/", "\\", "|", "<>", "<", ">", "、", "。", "…",
         "！", "？", "「」", "「", "」", "『』", "『", "』", "«»",
-        "«", "»", "-", "", "", "", "", "", "")
-
-    symbols.forEachIndexed { index, key ->
-        allCells.add {
-            // 将默认焦点的 Modifier 挂载到第一个符号按键上
-            val keyModifier = if (index == 0) {
-                Modifier
-                    .wjzFocusExits(
-                        localId = SoftKeyboardFirstKeyLocalId,
-                        layer = WjzFocusLayer.Content
-                    )
-                    .onGloballyPositioned {
-                        if (!firstButtonPlacedNotified) {
-                            firstButtonPlacedNotified = true
-                            onFirstButtonPlaced?.invoke()
-                        }
-                    }
-            } else {
-                Modifier
-            }
-
-            SoftKeyboardKey(
-                modifier = keyModifier,
-                key = key,
-                onClick = { onClick(key) }
+        "«", "»", "-"
+    )
+    val cells = buildList {
+        add(null)
+        addAll(symbolControlCells(sourceKeyboardType = sourceKeyboardType))
+        symbols.forEachIndexed { index, label ->
+            add(
+                softKeyboardTextCell(
+                    label = label,
+                    first = index == 0,
+                    action = SoftKeyboardAction.Input(label)
+                )
             )
         }
+        addAll(symbolControlCells().reversed())
     }
-
-    // 底部控制键
-    allCells.add { SoftKeyboardIconKey(painterRes = R.drawable.delete, onClick = onClear) }
-    allCells.add { SoftKeyboardIconKey(painterRes = R.drawable.backspace, onClick = onDelete) }
-    allCells.add { SoftKeyboardIconKey(painterRes = R.drawable.search, onClick = onSearch) }
-    allCells.add { SoftKeyboardKey(key = "◂", onClick = onMoveCursorLeft) }
-    allCells.add { SoftKeyboardKey(key = "▸", onClick = onMoveCursorRight) }
-
-    // 按 8 列 11 行渲染
-    Column(
-        modifier = modifier.width(346.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        allCells.chunked(8).forEach { rowCells ->
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                rowCells.forEach { cell ->
-                    cell()
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SymbolKeyboardControlsRow(
-    onClear: () -> Unit,
-    onDelete: () -> Unit,
-    onMoveCursorLeft: () -> Unit,
-    onMoveCursorRight: () -> Unit,
-    onSearch: () -> Unit,
-    onKeyboardTypeChange: (SoftKeyboardType) -> Unit,
-    sourceKeyboardType: SoftKeyboardType
-) {
-    val cells = listOf<@Composable () -> Unit>(
-        {
-            SoftKeyboardDisabledIconKey(
-                painterRes = R.drawable.emoji_symbols
-            )
-        },
-        {
-            SoftKeyboardKey(
-                key = "◂",
-                onClick = onMoveCursorLeft
-            )
-        },
-        {
-            SoftKeyboardKey(
-                key = "▸",
-                onClick = onMoveCursorRight
-            )
-        },
-        {
-            SoftKeyboardIconKey(
-                painterRes = R.drawable.search,
-                onClick = onSearch
-            )
-        },
-        {
-            SoftKeyboardIconKey(
-                painterRes = R.drawable.backspace,
-                onClick = onDelete
-            )
-        },
-        {
-            SoftKeyboardIconKey(
-                painterRes = R.drawable.delete,
-                onClick = onClear
-            )
-        },
-        {
-            SoftKeyboardKanaCaseKey(
-                onClick = { onKeyboardTypeChange(sourceKeyboardType) }
-            )
-        }
-    )
-
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        cells.forEach { cell -> cell() }
-    }
-}
-
-@Composable
-private fun SymbolKeyboardBottomControls(
-    onClear: () -> Unit,
-    onDelete: () -> Unit,
-    onMoveCursorLeft: () -> Unit,
-    onMoveCursorRight: () -> Unit,
-    onSearch: () -> Unit
-) {
-    SoftKeyboardIconKey(
-        painterRes = R.drawable.delete,
-        onClick = onClear
-    )
-    SoftKeyboardIconKey(
-        painterRes = R.drawable.backspace,
-        onClick = onDelete
-    )
-    SoftKeyboardIconKey(
-        painterRes = R.drawable.search,
-        onClick = onSearch
-    )
-    SoftKeyboardKey(
-        key = "◂",
-        onClick = onMoveCursorLeft
-    )
-    SoftKeyboardKey(
-        key = "▸",
-        onClick = onMoveCursorRight
-    )
-}
-
-@Composable
-private fun JapaneseKeyboardControlsRow(
-    reversed: Boolean,
-    onClick: (String) -> Unit,
-    onClear: () -> Unit,
-    onDelete: () -> Unit,
-    onMoveCursorLeft: () -> Unit,
-    onMoveCursorRight: () -> Unit,
-    onSearch: () -> Unit,
-    onOpenSymbolKeyboard: () -> Unit,
-    onKeyboardTypeChange: (SoftKeyboardType) -> Unit
-) {
-    val cells = listOf<@Composable () -> Unit>(
-        {
-            SoftKeyboardIconKey(
-                painterRes = R.drawable.emoji_symbols,
-                onClick = onOpenSymbolKeyboard
-            )
-        },
-        {
-            SoftKeyboardKey(
-                key = "◂",
-                onClick = onMoveCursorLeft
-            )
-        },
-        {
-            SoftKeyboardKey(
-                key = "▸",
-                onClick = onMoveCursorRight
-            )
-        },
-        {
-            SoftKeyboardIconKey(
-                painterRes = R.drawable.search,
-                onClick = onSearch
-            )
-        },
-        {
-            SoftKeyboardIconKey(
-                painterRes = R.drawable.backspace,
-                onClick = onDelete
-            )
-        },
-        {
-            SoftKeyboardIconKey(
-                painterRes = R.drawable.delete,
-                onClick = onClear
-            )
-        },
-        {
-            SoftKeyboardKanaCaseKey(
-                onClick = { onKeyboardTypeChange(SoftKeyboardType.English) }
-            )
-        },
-        {
-            SoftKeyboardKey(
-                key = "ー",
-                onClick = { onClick("ヴ") }
-            )
-        },
-        {
-            SoftKeyboardKey(
-                key = "っ",
-                small = true,
-                onClick = { onClick("っ") },
-                onLongClick = { onClick("ッ") }
-            )
-        },
-        {
-            SoftKeyboardKey(
-                key = "ん",
-                small = true,
-                onClick = { onClick("ん") },
-                onLongClick = { onClick("ン") }
-            )
-        }
-    )
-
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        (if (reversed) cells.reversed() else cells).forEach { cell ->
-            cell()
-        }
-    }
+    return cells.chunked(8).map { centeredKeyboardRow(it) }
 }
 
 @Composable
 fun SoftKeyboardKey(
     modifier: Modifier = Modifier,
+    focusLocalId: WjzFocusLocalId? = null,
     key: String,
     small: Boolean = false,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null
 ) {
-    var longPressGuard by remember { mutableStateOf(false) }
-    val keyModifier = if (onLongClick == null) {
+    val keyModifier = if (focusLocalId == null) {
         modifier
     } else {
-        modifier.onKeyEvent { event ->
-            if (!event.isConfirmKey()) {
-                return@onKeyEvent false
-            }
-
-            if (longPressGuard) {
-                if (event.isKeyUp()) {
-                    longPressGuard = false
-                }
-                return@onKeyEvent true
-            }
-
-            if (event.isKeyDown() && event.nativeKeyEvent.isLongPress) {
-                onLongClick()
-                longPressGuard = true
-                return@onKeyEvent true
-            }
-
-            false
-        }
+        modifier.wjzClickableFocus(
+            localId = focusLocalId,
+            onClick = onClick,
+            onLongClick = onLongClick,
+            layer = WjzFocusLayer.Content
+        )
     }
 
     Surface(
         modifier = keyModifier,
-        onClick = onClick,
-        shape = ClickableSurfaceDefaults.shape(shape = RectangleShape)
+        shape = RectangleShape
     ) {
         Box(
             modifier = Modifier.size(38.dp),
@@ -872,10 +758,14 @@ fun SoftKeyboardKey(
         ) {
             Text(
                 modifier = Modifier.fillMaxWidth(),
+                maxLines = 1,
                 text = key,
                 textAlign = TextAlign.Center,
                 style = if (small) {
                     MaterialTheme.typography.titleSmall
+                } else if (key.length > 1) {
+                    // 如果是多字符按键(如"【】")，使用更小的字体
+                    MaterialTheme.typography.labelMedium
                 } else {
                     MaterialTheme.typography.titleMedium
                 }
@@ -902,69 +792,6 @@ fun SoftKeyboardIconKey(
             Icon(
                 modifier = Modifier.size(20.dp),
                 painter = painterResource(id = painterRes),
-                contentDescription = null
-            )
-        }
-    }
-}
-
-@Composable
-private fun SoftKeyboardDisabledIconKey(
-    modifier: Modifier = Modifier,
-    painterRes: Int
-) {
-    Box(
-        modifier = modifier.size(38.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            modifier = Modifier.size(20.dp),
-            painter = painterResource(id = painterRes),
-            contentDescription = null,
-            tint = C.disabled
-        )
-    }
-}
-
-@Composable
-private fun SoftKeyboardSpacer() {
-    Spacer(modifier = Modifier.size(38.dp))
-}
-
-@Composable
-private fun SoftKeyboardKanaCaseKey(
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = modifier,
-        onClick = onClick,
-        shape = ClickableSurfaceDefaults.shape(shape = RectangleShape)
-    ) {
-        Box(
-            modifier = Modifier
-                .width(82.dp)
-                .height(38.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = 9.dp)
-                    .size(20.dp),
-                painter = painterResource(id = R.drawable.match_case),
-                contentDescription = null
-            )
-            Text(
-                text = "/",
-                style = MaterialTheme.typography.titleMedium
-            )
-            Icon(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 9.dp)
-                    .size(20.dp),
-                painter = painterResource(id = R.drawable.language_japanese_kana),
                 contentDescription = null
             )
         }
